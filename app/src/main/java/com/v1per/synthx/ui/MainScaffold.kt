@@ -3,6 +3,10 @@ package com.v1per.synthx.ui
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
@@ -35,6 +39,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -172,8 +177,10 @@ private fun SynthXBottomNav(navController: NavController, currentRoute: String?)
             color = MaterialTheme.colorScheme.outline,
         )
         NavigationBar(
-            containerColor = MaterialTheme.colorScheme.background,
+            containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
+            modifier = Modifier.height(70.dp),
+            //windowInsets = WindowInsets(0.dp),
         ) {
             items.forEach { item ->
                 val selected = currentRoute == item.screen.route
@@ -192,9 +199,15 @@ private fun SynthXBottomNav(navController: NavController, currentRoute: String?)
                         Icon(
                             imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
                             contentDescription = item.label,
+                            modifier = Modifier.size(28.dp).offset(y = 6.dp),
                         )
                     },
-                    label = { Text(item.label) },
+                    label = {
+                        Text(
+                            text = item.label,
+                            fontSize = 14.sp,
+                        )
+                    },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.primary,
                         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
