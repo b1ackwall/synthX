@@ -159,7 +159,7 @@ private fun CategoryRow(
                     indication = ripple(color = Accent),
                     onClick = onClick,
                 )
-                .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.lg),
+                .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -175,12 +175,6 @@ private fun CategoryRow(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = Spacing.md),
-            )
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = TextTertiary,
-                modifier = Modifier.size(20.dp),
             )
         }
         HorizontalDivider(

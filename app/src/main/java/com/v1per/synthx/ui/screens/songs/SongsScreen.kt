@@ -142,7 +142,7 @@ private fun SongRow(
                     indication = ripple(color = Accent),
                     onClick = onClick,
                 )
-                .padding(vertical = Spacing.lg),
+                .padding(vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Neon playing indicator bar
