@@ -86,7 +86,12 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    val mainRoutes = setOf(Screen.Home.route, Screen.Library.route, Screen.Search.route)
+    val mainRoutes = setOf(
+        Screen.Home.route,
+        Screen.Library.route,
+        Screen.Search.route,
+        Screen.Songs.route,
+    )
     val isMainRoute = currentRoute == null || currentRoute in mainRoutes
 
     val playbackViewModel = viewModel<PlaybackViewModel>()
