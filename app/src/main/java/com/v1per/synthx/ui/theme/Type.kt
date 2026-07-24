@@ -2,27 +2,18 @@ package com.v1per.synthx.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.sp
 import com.v1per.synthx.R
 
-private val provider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs,
-)
-
-private val outfitFont = GoogleFont("Outfit")
-
 val Outfit = FontFamily(
-    Font(googleFont = outfitFont, fontProvider = provider, weight = FontWeight.Light),
-    Font(googleFont = outfitFont, fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = outfitFont, fontProvider = provider, weight = FontWeight.Medium),
-    Font(googleFont = outfitFont, fontProvider = provider, weight = FontWeight.SemiBold),
-    Font(googleFont = outfitFont, fontProvider = provider, weight = FontWeight.Bold),
+    Font(R.font.outfit_light, FontWeight.Light),
+    Font(R.font.outfit_regular, FontWeight.Normal),
+    Font(R.font.outfit_medium, FontWeight.Medium),
+    Font(R.font.outfit_semibold, FontWeight.SemiBold),
+    Font(R.font.outfit_bold, FontWeight.Bold),
 )
 
 val SynthXTypography = Typography(
