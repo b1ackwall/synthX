@@ -1,10 +1,18 @@
 package com.v1per.synthx.data.repository
 
-class SongRepositoryImpl : SongRepository {
+import android.content.Context
+import android.net.Uri
+import com.v1per.synthx.data.scanner.FolderScanner
+import com.v1per.synthx.preferences.PreferencesManager
 
-    override fun getSongs(): List<Song> = emptyList()
+class SongRepositoryImpl(
+    private val context: Context,
+    private val preferencesManager: PreferencesManager,
+) : SongRepository {
 
-    companion object {
-        val instance: SongRepository = SongRepositoryImpl()
+    override suspend fun getSongs(): List<Song> {
+        val uriString = preferencesManager.musicFolderUri ?: return emptyList()
+        val folderUri = Uri.parse(uriString)
+        return FolderScanner(context).scanFolder(folderUri)
     }
 }

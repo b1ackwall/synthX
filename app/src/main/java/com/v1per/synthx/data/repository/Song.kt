@@ -1,7 +1,7 @@
 package com.v1per.synthx.data.repository
 
 data class Song(
-    val id: Long,
+    val id: String,
     val title: String,
     val artist: String,
     val album: String,

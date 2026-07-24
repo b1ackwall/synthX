@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LibraryMusic
@@ -78,6 +79,15 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                 currentRoute == Screen.Songs.route -> DetailTopBar(
                     title = "Songs",
                     onBack = { navController.popBackStack() },
+                    actions = {
+                        IconButton(onClick = {}) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Sort,
+                                contentDescription = "Sort",
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                    },
                 )
             }
         },
@@ -149,7 +159,11 @@ private fun SynthXTopBar(onSettingsClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DetailTopBar(title: String, onBack: () -> Unit) {
+private fun DetailTopBar(
+    title: String,
+    onBack: () -> Unit,
+    actions: @Composable () -> Unit = {},
+) {
     TopAppBar(
         navigationIcon = {
             IconButton(onClick = onBack) {
@@ -167,6 +181,7 @@ private fun DetailTopBar(title: String, onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onBackground,
             )
         },
+        actions = { actions() },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
             scrolledContainerColor = MaterialTheme.colorScheme.background,

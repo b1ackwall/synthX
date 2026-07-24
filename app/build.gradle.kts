@@ -61,6 +61,7 @@ dependencies {
 
     implementation(libs.accompanist.permissions)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.documentfile)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
