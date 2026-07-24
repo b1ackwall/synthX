@@ -1,5 +1,9 @@
 package com.v1per.synthx.ui.screens.library
 
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.ui.unit.LayoutDirection
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -71,7 +75,11 @@ fun LibraryScreen(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
         LibraryScreenContent(
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.padding(
+                start = innerPadding.calculateStartPadding(LayoutDirection.Ltr),
+                end = innerPadding.calculateEndPadding(LayoutDirection.Ltr),
+                bottom = innerPadding.calculateBottomPadding(),
+            ),
             onPlaylistsClick = viewModel::onPlaylistsClick,
             onArtistsClick = viewModel::onArtistsClick,
             onAlbumsClick = viewModel::onAlbumsClick,

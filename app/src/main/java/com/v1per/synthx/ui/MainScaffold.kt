@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -228,7 +229,7 @@ private fun SynthXTopBar(onSettingsClick: () -> Unit) {
             // val wordmarkFont = FontFamily(Font(R.font.racing_sans_one_regular, FontWeight.Normal))
 
             Text(
-                modifier = Modifier.padding(top = 6.dp),
+                modifier = Modifier.padding(top = 8.dp),
                 text = buildAnnotatedString {
                     withStyle(SpanStyle(
                         color = MaterialTheme.colorScheme.onBackground,
@@ -243,7 +244,7 @@ private fun SynthXTopBar(onSettingsClick: () -> Unit) {
                         append("X")
                     }
                 },
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
             )
         },
         actions = {
