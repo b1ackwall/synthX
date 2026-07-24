@@ -3,6 +3,8 @@ package com.v1per.synthx.ui
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import com.v1per.synthx.R
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -222,13 +224,11 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
 private fun SynthXTopBar(onSettingsClick: () -> Unit) {
     TopAppBar(
         title = {
-            // Swap comments below to switch wordmark font
-            // Option 1: Bitcount Grid Double
             val wordmarkFont = FontFamily(Font(R.font.bitcount_grid_double_regular, FontWeight.Normal))
-            // Option 2: Racing Sans One
             // val wordmarkFont = FontFamily(Font(R.font.racing_sans_one_regular, FontWeight.Normal))
 
             Text(
+                modifier = Modifier.padding(top = 6.dp),
                 text = buildAnnotatedString {
                     withStyle(SpanStyle(
                         color = MaterialTheme.colorScheme.onBackground,
@@ -247,10 +247,9 @@ private fun SynthXTopBar(onSettingsClick: () -> Unit) {
             )
         },
         actions = {
-            OutlinedIconButton(
+            IconButton(
                 onClick = onSettingsClick,
-                modifier = Modifier.padding(end = Spacing.sm),
-                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.padding(end = 4.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
