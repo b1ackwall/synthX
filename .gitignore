@@ -1,14 +1,26 @@
+# Build outputs
+**/build/
+
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
 *.iml
-.gradle
-/local.properties
-/.idea
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+
+# Android Studio captures / profiling
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local machine config
+local.properties
+
+# Keys — never commit
 *.jks
 *.keystore
-**/*.keystore
-**/*.jks
-local.properties
+
+# macOS
+.DS_Store
+Thumbs.db
