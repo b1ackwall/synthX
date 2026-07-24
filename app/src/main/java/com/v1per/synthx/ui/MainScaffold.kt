@@ -1,5 +1,9 @@
 package com.v1per.synthx.ui
 
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import com.v1per.synthx.R
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
@@ -218,12 +222,24 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
 private fun SynthXTopBar(onSettingsClick: () -> Unit) {
     TopAppBar(
         title = {
+            // Swap comments below to switch wordmark font
+            // Option 1: Bitcount Grid Double
+            val wordmarkFont = FontFamily(Font(R.font.bitcount_grid_double_regular, FontWeight.Normal))
+            // Option 2: Racing Sans One
+            // val wordmarkFont = FontFamily(Font(R.font.racing_sans_one_regular, FontWeight.Normal))
+
             Text(
                 text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground)) {
+                    withStyle(SpanStyle(
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontFamily = wordmarkFont
+                    )) {
                         append("synth")
                     }
-                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) {
+                    withStyle(SpanStyle(
+                        color = MaterialTheme.colorScheme.primary,
+                        fontFamily = wordmarkFont
+                    )) {
                         append("X")
                     }
                 },
