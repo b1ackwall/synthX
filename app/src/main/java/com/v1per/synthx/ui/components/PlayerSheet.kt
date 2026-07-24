@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +51,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.size.Size
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
@@ -218,7 +221,7 @@ private fun PlayerSheetContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(modifier = Modifier.height(Spacing.xl))
-                AlbumArt(song = song, isPlaying = isPlaying, size = artSize)
+                AlbumArt(song = song, isPlaying = isPlaying, size = artSize, fullResolution = true)
                 Spacer(modifier = Modifier.height(Spacing.xl))
                 Text(
                     text = song.title,
@@ -257,15 +260,31 @@ private fun PlayerSheetContent(
 }
 
 @Composable
-private fun AlbumArt(song: Song, isPlaying: Boolean, size: Dp) {
+private fun AlbumArt(
+    song: Song,
+    isPlaying: Boolean,
+    size: Dp,
+    fullResolution: Boolean = false,
+) {
     Box(
         modifier = Modifier
             .size(size)
             .clip(RoundedCornerShape(2.dp)),
     ) {
         if (song.albumArtUri != null) {
+            // The mini thumbnail loads at its 44dp display size. The expanded player
+            // opts into Size.ORIGINAL so Coil decodes the artwork at full resolution
+            // instead of upscaling the small cached thumbnail.
+            val model = if (fullResolution) {
+                ImageRequest.Builder(LocalContext.current)
+                    .data(song.albumArtUri)
+                    .size(Size.ORIGINAL)
+                    .build()
+            } else {
+                song.albumArtUri
+            }
             AsyncImage(
-                model = song.albumArtUri,
+                model = model,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
