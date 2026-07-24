@@ -3,8 +3,8 @@ package com.v1per.synthx.ui
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import com.v1per.synthx.R
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -90,9 +90,15 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         Screen.Home.route,
         Screen.Library.route,
         Screen.Search.route,
+    )
+    val bottomBarRoutes = setOf(
+        Screen.Home.route,
+        Screen.Library.route,
+        Screen.Search.route,
         Screen.Songs.route,
     )
     val isMainRoute = currentRoute == null || currentRoute in mainRoutes
+    val showBottomBar = currentRoute == null || currentRoute in bottomBarRoutes
 
     val playbackViewModel = viewModel<PlaybackViewModel>()
     val isPlaying by playbackViewModel.isPlaying.collectAsState()
@@ -136,7 +142,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                     }
                 },
                 bottomBar = {
-                    if (isMainRoute) {
+                    if (showBottomBar) {
                         Column {
                             AnimatedVisibility(
                                 visible = currentSong != null,
@@ -178,6 +184,10 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
+                    enterTransition = { EnterTransition.None },
+                    exitTransition = { ExitTransition.None },
+                    popEnterTransition = { EnterTransition.None },
+                    popExitTransition = { ExitTransition.None },
                 ) {
                     composable(Screen.Home.route) { HomeScreen() }
                     composable(Screen.Library.route) {
@@ -326,7 +336,9 @@ private fun SynthXBottomNav(navController: NavController, currentRoute: String?)
                 NavigationBarItem(
                     selected = selected,
                     onClick = {
-                        if (!selected) {
+                        if (currentRoute == Screen.Songs.route && item.screen.route == Screen.Library.route) {
+                            navController.popBackStack()
+                        } else if (!selected) {
                             navController.navigate(item.screen.route) {
                                 popUpTo(Screen.Home.route) { saveState = true }
                                 launchSingleTop = true
