@@ -42,10 +42,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.v1per.synthx.navigation.Screen
-import com.v1per.synthx.ui.screens.HomeScreen
-import com.v1per.synthx.ui.screens.LibraryScreen
-import com.v1per.synthx.ui.screens.SearchScreen
-import com.v1per.synthx.ui.screens.SettingsScreen
+import com.v1per.synthx.ui.screens.home.HomeScreen
+import com.v1per.synthx.ui.screens.library.LibraryScreen
+import com.v1per.synthx.ui.screens.search.SearchScreen
+import com.v1per.synthx.ui.screens.settings.SettingsScreen
 import com.v1per.synthx.ui.theme.Spacing
 
 @Composable
