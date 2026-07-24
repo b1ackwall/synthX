@@ -51,6 +51,7 @@ import com.v1per.synthx.ui.screens.home.HomeScreen
 import com.v1per.synthx.ui.screens.library.LibraryScreen
 import com.v1per.synthx.ui.screens.search.SearchScreen
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
+import com.v1per.synthx.ui.screens.songs.SongsScreen
 import com.v1per.synthx.ui.theme.Spacing
 
 @Composable
@@ -70,7 +71,12 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                 isMainRoute -> SynthXTopBar(
                     onSettingsClick = { navController.navigate(Screen.Settings.route) },
                 )
-                currentRoute == Screen.Settings.route -> SettingsTopBar(
+                currentRoute == Screen.Settings.route -> DetailTopBar(
+                    title = "Settings",
+                    onBack = { navController.popBackStack() },
+                )
+                currentRoute == Screen.Songs.route -> DetailTopBar(
+                    title = "Songs",
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -92,9 +98,14 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                 .padding(innerPadding),
         ) {
             composable(Screen.Home.route) { HomeScreen() }
-            composable(Screen.Library.route) { LibraryScreen() }
+            composable(Screen.Library.route) {
+                LibraryScreen(
+                    onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
+                )
+            }
             composable(Screen.Search.route) { SearchScreen() }
             composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Songs.route) { SongsScreen() }
         }
     }
 }
@@ -138,7 +149,7 @@ private fun SynthXTopBar(onSettingsClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsTopBar(onBack: () -> Unit) {
+private fun DetailTopBar(title: String, onBack: () -> Unit) {
     TopAppBar(
         navigationIcon = {
             IconButton(onClick = onBack) {
@@ -151,7 +162,7 @@ private fun SettingsTopBar(onBack: () -> Unit) {
         },
         title = {
             Text(
-                text = "Settings",
+                text = title,
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground,
             )
