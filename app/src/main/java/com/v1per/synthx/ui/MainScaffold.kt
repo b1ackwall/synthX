@@ -1,18 +1,23 @@
 package com.v1per.synthx.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LibraryMusic
@@ -31,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -48,11 +55,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.v1per.synthx.navigation.Screen
+import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.ui.components.MiniPlayer
 import com.v1per.synthx.ui.screens.home.HomeScreen
 import com.v1per.synthx.ui.screens.library.LibraryScreen
 import com.v1per.synthx.ui.screens.search.SearchScreen
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
 import com.v1per.synthx.ui.screens.songs.SongsScreen
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 
 @Composable
@@ -63,6 +73,11 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     val mainRoutes = setOf(Screen.Home.route, Screen.Library.route, Screen.Search.route)
     // null means NavController hasn't reported yet — default to showing main chrome
     val isMainRoute = currentRoute == null || currentRoute in mainRoutes
+
+    // Same instance as the one created in MainActivity (already in Activity's ViewModelStore)
+    val playbackViewModel = viewModel<PlaybackViewModel>()
+    val isPlaying by playbackViewModel.isPlaying.collectAsState()
+    val currentSong by playbackViewModel.currentSong.collectAsState()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -93,10 +108,35 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         },
         bottomBar = {
             if (isMainRoute) {
-                SynthXBottomNav(
-                    navController = navController,
-                    currentRoute = currentRoute,
-                )
+                Column {
+                    AnimatedVisibility(
+                        visible = currentSong != null,
+                        enter = slideInVertically(
+                            initialOffsetY = { it },
+                            animationSpec = tween(
+                                durationMillis = Motion.DurationNormal,
+                                easing = Motion.EasingDecelerate,
+                            ),
+                        ) + fadeIn(animationSpec = tween(Motion.DurationNormal)),
+                        exit = slideOutVertically(
+                            targetOffsetY = { it },
+                            animationSpec = tween(
+                                durationMillis = Motion.DurationNormal,
+                                easing = Motion.EasingDecelerate,
+                            ),
+                        ) + fadeOut(animationSpec = tween(Motion.DurationNormal)),
+                    ) {
+                        MiniPlayer(
+                            isPlaying = isPlaying,
+                            currentSong = currentSong,
+                            onPlayPauseClick = playbackViewModel::togglePlayPause,
+                        )
+                    }
+                    SynthXBottomNav(
+                        navController = navController,
+                        currentRoute = currentRoute,
+                    )
+                }
             }
         },
     ) { innerPadding ->
@@ -115,7 +155,9 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             }
             composable(Screen.Search.route) { SearchScreen() }
             composable(Screen.Settings.route) { SettingsScreen() }
-            composable(Screen.Songs.route) { SongsScreen() }
+            composable(Screen.Songs.route) {
+                SongsScreen(playbackViewModel = playbackViewModel)
+            }
         }
     }
 }
@@ -206,7 +248,6 @@ private fun SynthXBottomNav(navController: NavController, currentRoute: String?)
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
             modifier = Modifier.height(70.dp),
-            //windowInsets = WindowInsets(0.dp),
         ) {
             items.forEach { item ->
                 val selected = currentRoute == item.screen.route

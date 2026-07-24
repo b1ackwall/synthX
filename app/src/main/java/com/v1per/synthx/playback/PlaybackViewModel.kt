@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class PlaybackViewModel(private val controller: PlaybackController) : ViewModel() {
 
@@ -16,10 +19,32 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     val currentSongId: StateFlow<String?> = controller.currentSongId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun playSong(song: Song) = controller.playSong(song)
+    private val _currentSong = MutableStateFlow<Song?>(null)
+    val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
+
+    init {
+        // Mirror currentSongId going null (track end, stop) into currentSong
+        viewModelScope.launch {
+            currentSongId.collect { id ->
+                if (id == null) _currentSong.value = null
+            }
+        }
+    }
+
+    fun playSong(song: Song) {
+        _currentSong.value = song
+        controller.playSong(song)
+    }
+
     fun pause() = controller.pause()
+
     fun resume() = controller.resume()
+
     fun stop() = controller.stop()
+
+    fun togglePlayPause() {
+        if (isPlaying.value) pause() else resume()
+    }
 
     override fun onCleared() {
         super.onCleared()

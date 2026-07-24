@@ -1,13 +1,14 @@
 package com.v1per.synthx.playback
 
+import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,20 +17,13 @@ import java.io.ByteArrayOutputStream
 
 class ExoPlayerEngine(context: Context) : PlaybackEngine {
 
-    private val audioAttributes = AudioAttributes.Builder()
-        .setUsage(C.USAGE_MEDIA)
-        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-        .build()
-
-    private val player = ExoPlayer.Builder(context)
-        .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
-        .build()
-
     private val _isPlaying = MutableStateFlow(false)
     override val isPlaying: Flow<Boolean> = _isPlaying.asStateFlow()
 
     private val _currentSongId = MutableStateFlow<String?>(null)
     override val currentSongId: Flow<String?> = _currentSongId.asStateFlow()
+
+    private var controller: MediaController? = null
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -47,11 +41,28 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
         }
     }
 
+    private val controllerFuture = MediaController
+        .Builder(context, SessionToken(context, ComponentName(context, SynthXPlaybackService::class.java)))
+        .buildAsync()
+
     init {
-        player.addListener(listener)
+        controllerFuture.addListener(
+            {
+                try {
+                    val ctrl = controllerFuture.get()
+                    controller = ctrl
+                    ctrl.addListener(listener)
+                } catch (_: Exception) {
+                    // Service connection failed — playback methods will be no-ops until retry
+                }
+            },
+            ContextCompat.getMainExecutor(context),
+        )
     }
 
     override fun playSong(song: Song) {
+        val ctrl = controller ?: return
+
         val metadataBuilder = MediaMetadata.Builder()
             .setTitle(song.title)
             .setArtist(song.artist)
@@ -71,26 +82,26 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
             .setMediaMetadata(metadataBuilder.build())
             .build()
 
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        player.play()
+        ctrl.setMediaItem(mediaItem)
+        ctrl.prepare()
+        ctrl.play()
     }
 
     override fun pause() {
-        player.pause()
+        controller?.pause()
     }
 
     override fun resume() {
-        player.play()
+        controller?.play()
     }
 
     override fun stop() {
-        player.stop()
+        controller?.stop()
         _currentSongId.value = null
     }
 
     override fun release() {
-        player.removeListener(listener)
-        player.release()
+        controller?.removeListener(listener)
+        MediaController.releaseFuture(controllerFuture)
     }
 }

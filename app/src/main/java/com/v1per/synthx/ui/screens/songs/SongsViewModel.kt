@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,13 +21,15 @@ sealed class UiState {
     data class Error(val message: String) : UiState()
 }
 
-class SongsViewModel(private val repository: SongRepository) : ViewModel() {
+class SongsViewModel(
+    private val repository: SongRepository,
+    private val playbackViewModel: PlaybackViewModel,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val _currentlyPlayingSongId = MutableStateFlow<String?>(null)
-    val currentlyPlayingSongId: StateFlow<String?> = _currentlyPlayingSongId.asStateFlow()
+    val currentlyPlayingSongId: StateFlow<String?> = playbackViewModel.currentSongId
 
     init {
         loadSongs()
@@ -44,12 +47,17 @@ class SongsViewModel(private val repository: SongRepository) : ViewModel() {
         }
     }
 
+    fun onSongTap(song: Song) {
+        playbackViewModel.playSong(song)
+    }
+
     class Factory(
         private val context: Context,
         private val preferencesManager: PreferencesManager,
+        private val playbackViewModel: PlaybackViewModel,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            SongsViewModel(SongRepositoryImpl(context, preferencesManager)) as T
+            SongsViewModel(SongRepositoryImpl(context, preferencesManager), playbackViewModel) as T
     }
 }

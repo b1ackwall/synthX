@@ -28,6 +28,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Touch playbackViewModel before setContent so it is in the Activity's ViewModelStore
+        // before MainScaffold calls viewModel<PlaybackViewModel>() without a factory.
+        playbackViewModel
         enableEdgeToEdge()
         setContent {
             SynthXTheme {
