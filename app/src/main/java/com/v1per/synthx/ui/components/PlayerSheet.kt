@@ -69,6 +69,9 @@ import kotlinx.coroutines.launch
  */
 val CollapsedPlayerHeight: Dp = 64.dp
 
+/** Footprint of the bottom nav (70dp NavigationBar + 1dp divider) the collapsed sheet clears. */
+private val BottomNavHeight: Dp = 71.dp
+
 enum class PlayerSheetValue { Collapsed, Expanded }
 
 /**
@@ -83,12 +86,14 @@ fun PlayerSheet(
     song: Song,
     isPlaying: Boolean,
     onPlayPauseClick: () -> Unit,
+    onProgressChanged: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val collapsedHeightPx = with(density) { CollapsedPlayerHeight.toPx() }
-    val decayAnimationSpec = remember { exponentialDecay<Float>() }
+    // Higher friction lets the fling decelerate before handing off to the snap spring.
+    val decayAnimationSpec = remember { exponentialDecay<Float>(frictionMultiplier = 1.8f) }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val availableHeightPx = constraints.maxHeight.toFloat()
@@ -99,8 +104,8 @@ fun PlayerSheet(
                 positionalThreshold = { totalDistance -> totalDistance * 0.4f },
                 velocityThreshold = { with(density) { 200.dp.toPx() } },
                 snapAnimationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMedium,
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
                 ),
                 decayAnimationSpec = decayAnimationSpec,
             )
@@ -127,6 +132,11 @@ fun PlayerSheet(
                 if (collapsedAnchor <= 0f) 0f
                 else ((collapsedAnchor - offset) / collapsedAnchor).coerceIn(0f, 1f)
             }
+        }
+
+        // Report progress upward so chrome (e.g. the bottom nav) can slide with expansion.
+        LaunchedEffect(progress) {
+            onProgressChanged(progress)
         }
 
         PlayerSheetContent(
@@ -158,8 +168,12 @@ private fun PlayerSheetContent(
     val cornerRadius = lerp(0.dp, 24.dp, progress) // flat when collapsed, rounded top when expanded
     val miniPlayerAlpha = (1f - progress * 3f).coerceIn(0f, 1f) // fades out over the first third
     val fullPlayerAlpha = ((progress - 0.4f) * (1f / 0.6f)).coerceIn(0f, 1f) // fades in after 40%
+    // Collapsed, the sheet stops above the bottom nav; expanded, it drops to the screen
+    // edge to cover the nav area (the nav itself slides away in MainScaffold). This inset
+    // is driven by the internal progress only, so it never feeds back into the drag anchors.
+    val bottomInset = lerp(BottomNavHeight, 0.dp, progress)
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomInset)) {
         Box(
             modifier = sheetModifier
                 .fillMaxWidth()

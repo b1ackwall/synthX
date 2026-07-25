@@ -34,6 +34,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -43,7 +46,6 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,9 +65,6 @@ import com.v1per.synthx.ui.screens.library.LibraryScreen
 import com.v1per.synthx.ui.screens.search.SearchScreen
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
 import com.v1per.synthx.ui.screens.songs.SongsScreen
-
-/** Total footprint of [SynthXBottomNav]: 70dp NavigationBar + 1dp divider. */
-private val BottomNavHeight: Dp = 71.dp
 
 @Composable
 fun MainScaffold(navController: NavHostController = rememberNavController()) {
@@ -89,6 +88,10 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     val playbackViewModel = viewModel<PlaybackViewModel>()
     val isPlaying by playbackViewModel.isPlaying.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
+
+    // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerSheet and used
+    // to slide the bottom nav down in lockstep with the sheet's expansion.
+    var playerProgress by remember { mutableStateOf(0f) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -123,6 +126,9 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                     SynthXBottomNav(
                         navController = navController,
                         currentRoute = currentRoute,
+                        // Fall back to 0f when nothing is playing so a stale progress can't
+                        // leave the nav slid off screen after the sheet is gone.
+                        playerProgress = if (currentSong != null) playerProgress else 0f,
                     )
                 }
             },
@@ -155,14 +161,16 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         }
 
         // The player overlays everything as a sibling to the Scaffold so it can expand
-        // upward over the content. It is padded to sit directly above the bottom nav.
+        // upward over the content — and, once expanded, over the nav area the sliding nav
+        // vacates. It fills the whole Box; its own progress-driven inset keeps the collapsed
+        // mini above the nav.
         if (showBottomBar) {
             currentSong?.let { song ->
                 PlayerSheet(
                     song = song,
                     isPlaying = isPlaying,
                     onPlayPauseClick = playbackViewModel::togglePlayPause,
-                    modifier = Modifier.padding(bottom = BottomNavHeight),
+                    onProgressChanged = { playerProgress = it },
                 )
             }
         }
@@ -251,14 +259,22 @@ private fun DetailTopBar(
 }
 
 @Composable
-private fun SynthXBottomNav(navController: NavController, currentRoute: String?) {
+private fun SynthXBottomNav(
+    navController: NavController,
+    currentRoute: String?,
+    playerProgress: Float = 0f,
+) {
     val items = listOf(
         BottomNavItem(Screen.Home, "Home", Icons.Filled.Home, Icons.Outlined.Home),
         BottomNavItem(Screen.Library, "Library", Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic),
         BottomNavItem(Screen.Search, "Search", Icons.Filled.Search, Icons.Outlined.Search),
     )
 
-    Column {
+    // Slides the whole bar (divider + nav) down by its 70dp height as the player expands,
+    // clearing the way for the sheet to cover the full screen at progress = 1f.
+    Column(
+        modifier = Modifier.offset(y = (playerProgress * 70).dp),
+    ) {
         HorizontalDivider(
             thickness = 1.dp,
             color = MaterialTheme.colorScheme.outline,
