@@ -1,5 +1,10 @@
 package com.v1per.synthx.data.repository
 
+import android.net.Uri
+import com.v1per.synthx.data.scanner.ScanResult
+import kotlinx.coroutines.flow.Flow
+
 interface SongRepository {
-    suspend fun getSongs(): List<Song>
+    fun getSongs(): Flow<List<Song>>
+    suspend fun scanLibrary(folderUri: Uri): ScanResult
 }

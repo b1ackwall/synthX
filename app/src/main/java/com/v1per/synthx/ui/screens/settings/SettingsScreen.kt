@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -38,9 +40,13 @@ import com.v1per.synthx.ui.theme.TextTertiary
 fun SettingsScreen() {
     val context = LocalContext.current
     val viewModel: SettingsViewModel = viewModel(
-        factory = SettingsViewModel.Factory(PreferencesManager(context)),
+        factory = SettingsViewModel.Factory(
+            PreferencesManager(context),
+            SongRepositoryImpl.create(context),
+        ),
     )
     val folderUri by viewModel.musicFolderUri.collectAsState()
+    val rescanStatus by viewModel.rescanStatus.collectAsState()
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -56,19 +62,27 @@ fun SettingsScreen() {
 
     SettingsScreenContent(
         folderPath = folderUri?.toString(),
+        rescanStatus = rescanStatus,
         onPickFolder = { folderPicker.launch(null) },
+        onRescan = viewModel::rescanLibrary,
     )
 }
 
 @Composable
 private fun SettingsScreenContent(
     folderPath: String?,
+    rescanStatus: String?,
     onPickFolder: () -> Unit,
+    onRescan: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         MusicFolderRow(
             folderPath = folderPath,
             onClick = onPickFolder,
+        )
+        RescanRow(
+            status = rescanStatus,
+            onClick = onRescan,
         )
     }
 }
@@ -113,6 +127,48 @@ private fun MusicFolderRow(
     }
 }
 
+@Composable
+private fun RescanRow(
+    status: String?,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = Spacing.md),
+        ) {
+            Text(
+                text = "Rescan library",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            if (status != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Icon(
+            imageVector = Icons.Default.Refresh,
+            contentDescription = null,
+            tint = TextTertiary,
+        )
+    }
+}
+
 @Preview(name = "Settings — folder selected", showBackground = true)
 @Composable
 private fun SettingsScreenWithFolderPreview() {
@@ -123,7 +179,9 @@ private fun SettingsScreenWithFolderPreview() {
         ) {
             SettingsScreenContent(
                 folderPath = "content://com.android.externalstorage/tree/primary:Music",
+                rescanStatus = "Done — 12 added, 1 updated, 0 missing",
                 onPickFolder = {},
+                onRescan = {},
             )
         }
     }
@@ -139,7 +197,9 @@ private fun SettingsScreenEmptyPreview() {
         ) {
             SettingsScreenContent(
                 folderPath = null,
+                rescanStatus = null,
                 onPickFolder = {},
+                onRescan = {},
             )
         }
     }

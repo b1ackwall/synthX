@@ -1,0 +1,14 @@
+package com.v1per.synthx.data.db
+
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "albums")
+data class AlbumEntity(
+    // UUID
+    @PrimaryKey val id: String,
+    val title: String,
+    val year: Int?,
+    @ColumnInfo(name = "album_art_uri") val albumArtUri: String?,
+)

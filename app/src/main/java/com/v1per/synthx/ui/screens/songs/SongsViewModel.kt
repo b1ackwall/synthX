@@ -8,10 +8,10 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.playback.PlaybackViewModel
-import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 sealed class UiState {
@@ -32,18 +32,19 @@ class SongsViewModel(
     val currentlyPlayingSongId: StateFlow<String?> = playbackViewModel.currentSongId
 
     init {
-        loadSongs()
+        observeSongs()
     }
 
-    private fun loadSongs() {
+    private fun observeSongs() {
         viewModelScope.launch {
-            _uiState.value = UiState.Loading
-            try {
-                val songs = repository.getSongs()
-                _uiState.value = if (songs.isEmpty()) UiState.Empty else UiState.Success(songs)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to load songs")
-            }
+            repository.getSongs()
+                .catch { e ->
+                    _uiState.value = UiState.Error(e.message ?: "Failed to load songs")
+                }
+                .collect { songs ->
+                    _uiState.value =
+                        if (songs.isEmpty()) UiState.Empty else UiState.Success(songs)
+                }
         }
     }
 
@@ -53,11 +54,10 @@ class SongsViewModel(
 
     class Factory(
         private val context: Context,
-        private val preferencesManager: PreferencesManager,
         private val playbackViewModel: PlaybackViewModel,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            SongsViewModel(SongRepositoryImpl(context, preferencesManager), playbackViewModel) as T
+            SongsViewModel(SongRepositoryImpl.create(context), playbackViewModel) as T
     }
 }

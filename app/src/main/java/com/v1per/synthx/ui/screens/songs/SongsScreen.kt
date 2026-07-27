@@ -46,7 +46,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
-import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.components.GlitchPlaceholder
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
@@ -59,7 +58,7 @@ import com.v1per.synthx.ui.theme.TextTertiary
 fun SongsScreen(playbackViewModel: PlaybackViewModel) {
     val context = LocalContext.current
     val viewModel: SongsViewModel = viewModel(
-        factory = SongsViewModel.Factory(context, PreferencesManager(context), playbackViewModel),
+        factory = SongsViewModel.Factory(context, playbackViewModel),
     )
     val uiState by viewModel.uiState.collectAsState()
     val currentlyPlayingSongId by viewModel.currentlyPlayingSongId.collectAsState()
