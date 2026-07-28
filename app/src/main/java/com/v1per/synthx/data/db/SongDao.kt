@@ -2,6 +2,7 @@ package com.v1per.synthx.data.db
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -19,6 +20,16 @@ interface SongDao {
 
     @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE")
     fun getAllSongs(): Flow<List<SongEntity>>
+
+    @Transaction
+    @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE ASC")
+    fun getAllSongsWithDetails(): Flow<List<SongWithDetails>>
+
+    @Query("SELECT * FROM song_artists WHERE song_id = :songId ORDER BY position ASC")
+    suspend fun getSongArtistRefs(songId: String): List<SongArtistEntity>
+
+    @Query("SELECT * FROM song_artists ORDER BY position ASC")
+    suspend fun getAllSongArtistRefs(): List<SongArtistEntity>
 
     @Query("SELECT * FROM songs")
     suspend fun getAllSongsOnce(): List<SongEntity>

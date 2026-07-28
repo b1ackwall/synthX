@@ -34,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -53,6 +54,9 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
+
+// Material standard disabled-content alpha (Material 3 ships no ContentAlpha token)
+private const val DisabledContentAlpha = 0.38f
 
 @Composable
 fun SongsScreen(playbackViewModel: PlaybackViewModel) {
@@ -136,69 +140,85 @@ private fun SongRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = ripple(color = Accent),
-                    onClick = onClick,
+                .then(
+                    if (song.isMissing) {
+                        Modifier
+                    } else {
+                        Modifier.clickable(
+                            interactionSource = interactionSource,
+                            indication = ripple(color = Accent),
+                            onClick = onClick,
+                        )
+                    }
                 )
                 .padding(vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Neon playing indicator bar
+            // Neon playing indicator bar — a missing song is never marked playing
             Box(
                 modifier = Modifier
                     .width(2.dp)
                     .fillMaxHeight()
-                    .background(if (isCurrentlyPlaying) Accent else Color.Transparent),
+                    .background(
+                        if (isCurrentlyPlaying && !song.isMissing) Accent else Color.Transparent
+                    ),
             )
 
-            // Album art / glitch placeholder
-            Spacer(modifier = Modifier.width(Spacing.md))
-            if (song.albumArtUri != null) {
-                AsyncImage(
-                    model = song.albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                )
-            } else {
-                GlitchPlaceholder(
-                    songId = song.id,
-                    isPlaying = isCurrentlyPlaying,
-                )
-            }
-
-            // Song info
-            Column(
+            // Content dims when the song's file is missing; indicator bar stays outside
+            Row(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = Spacing.md),
+                    .alpha(if (song.isMissing) DisabledContentAlpha else 1f),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = song.title,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = song.artist,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                // Album art / glitch placeholder
+                Spacer(modifier = Modifier.width(Spacing.md))
+                if (song.albumArtUri != null) {
+                    AsyncImage(
+                        model = song.albumArtUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                    )
+                } else {
+                    GlitchPlaceholder(
+                        songId = song.id,
+                        isPlaying = isCurrentlyPlaying,
+                    )
+                }
+
+                // Song info
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = Spacing.md),
+                ) {
+                    Text(
+                        text = song.title,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = song.artist,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                // More options
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = null,
+                    tint = TextTertiary,
+                    modifier = Modifier.padding(end = Spacing.md),
                 )
             }
-
-            // More options
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = null,
-                tint = TextTertiary,
-                modifier = Modifier.padding(end = Spacing.md),
-            )
         }
 
         HorizontalDivider(
@@ -216,6 +236,7 @@ private fun SongsScreenPreview() {
         Song(id = "2", title = "Static Bloom", artist = "KNTRL", album = "Fragments", duration = 198000L, filePath = ""),
         Song(id = "3", title = "Glitch Cascade", artist = "v1per", album = "Ultraviolet", duration = 317000L, filePath = ""),
         Song(id = "4", title = "Low Orbit", artist = "Null Signal", album = "Deep Cut", duration = 272000L, filePath = ""),
+        Song(id = "5", title = "Severed Link", artist = "KNTRL", album = "Fragments", duration = 205000L, filePath = "", isMissing = true),
     )
     SynthXTheme {
         Surface(

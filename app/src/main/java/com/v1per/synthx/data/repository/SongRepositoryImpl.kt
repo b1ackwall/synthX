@@ -2,10 +2,9 @@ package com.v1per.synthx.data.repository
 
 import android.content.Context
 import android.net.Uri
-import com.v1per.synthx.data.db.AlbumDao
-import com.v1per.synthx.data.db.ArtistDao
+import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
-import com.v1per.synthx.data.db.SongEntity
+import com.v1per.synthx.data.db.SongWithDetails
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.ScanResult
@@ -14,33 +13,37 @@ import kotlinx.coroutines.flow.map
 
 class SongRepositoryImpl(
     private val songDao: SongDao,
-    private val artistDao: ArtistDao,
-    private val albumDao: AlbumDao,
     private val folderScanner: FolderScanner,
 ) : SongRepository {
 
     override fun getSongs(): Flow<List<Song>> =
-        songDao.getAllSongs().map { entities -> entities.map { it.toDomain() } }
+        songDao.getAllSongsWithDetails().map { entries ->
+            // One refs query per emission — 2 queries total regardless of library size
+            val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
+            entries.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+        }
 
     override suspend fun scanLibrary(folderUri: Uri): ScanResult =
         folderScanner.scan(folderUri)
 
-    private suspend fun SongEntity.toDomain(): Song {
-        val artists = artistDao.getArtistsForSong(id)
-        val artist = if (artists.isEmpty()) {
+    private fun SongWithDetails.toDomain(refs: List<SongArtistEntity>): Song {
+        // @Relation via Junction returns artists unordered — restore song_artists.position
+        val positionByArtistId = refs.associate { it.artistId to it.position }
+        val orderedArtists = artists.sortedBy { positionByArtistId[it.id] ?: Int.MAX_VALUE }
+        val artist = if (orderedArtists.isEmpty()) {
             "Unknown Artist"
         } else {
-            artists.joinToString(", ") { it.name }
+            orderedArtists.joinToString(", ") { it.name }
         }
-        val album = albumId?.let { albumDao.getAlbumById(it)?.title } ?: "Unknown Album"
         return Song(
-            id = id,
-            title = title,
+            id = song.id,
+            title = song.title,
             artist = artist,
-            album = album,
-            duration = duration,
-            filePath = filePath,
-            albumArtUri = albumArtUri,
+            album = album?.title ?: "Unknown Album",
+            duration = song.duration,
+            filePath = song.filePath,
+            albumArtUri = song.albumArtUri,
+            isMissing = song.isMissing,
         )
     }
 
@@ -51,8 +54,6 @@ class SongRepositoryImpl(
             val db = SynthXDatabase.getInstance(appContext)
             return SongRepositoryImpl(
                 songDao = db.songDao(),
-                artistDao = db.artistDao(),
-                albumDao = db.albumDao(),
                 folderScanner = FolderScanner(
                     context = appContext,
                     songDao = db.songDao(),
