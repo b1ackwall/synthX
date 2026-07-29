@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.screens.search
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -13,8 +14,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.ui.theme.SynthXTheme
 
 @Composable
-fun SearchScreen(viewModel: SearchViewModel = viewModel()) {
-    SearchScreenContent()
+fun SearchScreen(
+    topBar: @Composable () -> Unit,
+    viewModel: SearchViewModel = viewModel(),
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        topBar()
+        SearchScreenContent()
+    }
 }
 
 @Composable

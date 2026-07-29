@@ -9,4 +9,5 @@ data class Song(
     val filePath: String,
     val albumArtUri: String? = null,
     val isMissing: Boolean = false,
+    val dateAdded: Long = 0L,
 )

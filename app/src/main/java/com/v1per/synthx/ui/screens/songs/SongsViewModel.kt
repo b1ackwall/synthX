@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 sealed class UiState {
@@ -19,6 +20,13 @@ sealed class UiState {
     object Empty : UiState()
     data class Success(val songs: List<Song>) : UiState()
     data class Error(val message: String) : UiState()
+}
+
+enum class SortOrder {
+    RECENTLY_ADDED,
+    TITLE,
+    ARTIST,
+    ALBUM,
 }
 
 class SongsViewModel(
@@ -29,15 +37,24 @@ class SongsViewModel(
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+    private val _sortOrder = MutableStateFlow(SortOrder.RECENTLY_ADDED)
+    val sortOrder: StateFlow<SortOrder> = _sortOrder.asStateFlow()
+
     val currentlyPlayingSongId: StateFlow<String?> = playbackViewModel.currentSongId
 
     init {
         observeSongs()
     }
 
+    fun setSortOrder(order: SortOrder) {
+        _sortOrder.value = order
+    }
+
     private fun observeSongs() {
         viewModelScope.launch {
-            repository.getSongs()
+            combine(_sortOrder, repository.getSongs()) { order, songs ->
+                songs.sorted(order)
+            }
                 .catch { e ->
                     _uiState.value = UiState.Error(e.message ?: "Failed to load songs")
                 }
@@ -46,6 +63,13 @@ class SongsViewModel(
                         if (songs.isEmpty()) UiState.Empty else UiState.Success(songs)
                 }
         }
+    }
+
+    private fun List<Song>.sorted(order: SortOrder): List<Song> = when (order) {
+        SortOrder.RECENTLY_ADDED -> sortedByDescending { it.dateAdded }
+        SortOrder.TITLE -> sortedBy { it.title.lowercase() }
+        SortOrder.ARTIST -> sortedBy { it.artist.lowercase() }
+        SortOrder.ALBUM -> sortedBy { it.album.lowercase() }
     }
 
     fun onSongTap(song: Song) {

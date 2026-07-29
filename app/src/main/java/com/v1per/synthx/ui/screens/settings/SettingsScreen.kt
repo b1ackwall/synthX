@@ -37,7 +37,7 @@ import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextTertiary
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(topBar: @Composable () -> Unit) {
     val context = LocalContext.current
     val viewModel: SettingsViewModel = viewModel(
         factory = SettingsViewModel.Factory(
@@ -60,12 +60,15 @@ fun SettingsScreen() {
         }
     }
 
-    SettingsScreenContent(
-        folderPath = folderUri?.toString(),
-        rescanStatus = rescanStatus,
-        onPickFolder = { folderPicker.launch(null) },
-        onRescan = viewModel::rescanLibrary,
-    )
+    Column(modifier = Modifier.fillMaxSize()) {
+        topBar()
+        SettingsScreenContent(
+            folderPath = folderUri?.toString(),
+            rescanStatus = rescanStatus,
+            onPickFolder = { folderPicker.launch(null) },
+            onRescan = viewModel::rescanLibrary,
+        )
+    }
 }
 
 @Composable

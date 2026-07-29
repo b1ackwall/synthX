@@ -22,16 +22,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -52,27 +56,97 @@ import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
+import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 
 // Material standard disabled-content alpha (Material 3 ships no ContentAlpha token)
 private const val DisabledContentAlpha = 0.38f
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SongsScreen(playbackViewModel: PlaybackViewModel) {
+fun SongsScreen(
+    topBar: @Composable (sortOrder: SortOrder, onSortClick: () -> Unit) -> Unit,
+    playbackViewModel: PlaybackViewModel,
+) {
     val context = LocalContext.current
     val viewModel: SongsViewModel = viewModel(
         factory = SongsViewModel.Factory(context, playbackViewModel),
     )
     val uiState by viewModel.uiState.collectAsState()
     val currentlyPlayingSongId by viewModel.currentlyPlayingSongId.collectAsState()
+    val currentSortOrder by viewModel.sortOrder.collectAsState()
 
-    SongsScreenContent(
-        uiState = uiState,
-        currentlyPlayingSongId = currentlyPlayingSongId,
-        onSongTap = viewModel::onSongTap,
-    )
+    var showSortSheet by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        topBar(currentSortOrder, { showSortSheet = true })
+
+        SongsScreenContent(
+            uiState = uiState,
+            currentlyPlayingSongId = currentlyPlayingSongId,
+            onSongTap = viewModel::onSongTap,
+        )
+    }
+
+    if (showSortSheet) {
+        SortBottomSheet(
+            selectedOrder = currentSortOrder,
+            onOrderSelected = { order ->
+                viewModel.setSortOrder(order)
+                showSortSheet = false
+            },
+            onDismiss = { showSortSheet = false },
+        )
+    }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SortBottomSheet(
+    selectedOrder: SortOrder,
+    onOrderSelected: (SortOrder) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Text(
+            text = "Sort by",
+            style = MaterialTheme.typography.labelLarge,
+            color = TextSecondary,
+            modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
+        )
+        SortOrder.entries.forEach { order ->
+            val selected = order == selectedOrder
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(Spacing.xxl)
+                    .clickable { onOrderSelected(order) }
+                    .padding(horizontal = Spacing.HorizontalPadding),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = order.label,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    ),
+                    color = if (selected) Accent else TextPrimary,
+                )
+            }
+        }
+    }
+}
+
+private val SortOrder.label: String
+    get() = when (this) {
+        SortOrder.RECENTLY_ADDED -> "Recently Added"
+        SortOrder.TITLE -> "Title"
+        SortOrder.ARTIST -> "Artist"
+        SortOrder.ALBUM -> "Album"
+    }
 
 @Composable
 private fun SongsScreenContent(

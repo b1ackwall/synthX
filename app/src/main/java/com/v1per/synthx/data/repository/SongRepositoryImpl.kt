@@ -44,6 +44,7 @@ class SongRepositoryImpl(
             filePath = song.filePath,
             albumArtUri = song.albumArtUri,
             isMissing = song.isMissing,
+            dateAdded = song.dateAdded,
         )
     }
 
