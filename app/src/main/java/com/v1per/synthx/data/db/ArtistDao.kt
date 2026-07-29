@@ -3,6 +3,7 @@ package com.v1per.synthx.data.db
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ArtistDao {
@@ -23,5 +24,19 @@ interface ArtistDao {
     )
     suspend fun getArtistsForSong(songId: String): List<ArtistEntity>
 
-    // TODO v2.x: getAllArtists for the Library artists tab, orphan cleanup
+    @Query("SELECT * FROM artists ORDER BY name COLLATE NOCASE ASC")
+    fun getAllArtists(): Flow<List<ArtistEntity>>
+
+    @Query(
+        """
+        SELECT songs.* FROM songs
+        INNER JOIN song_artists ON songs.id = song_artists.song_id
+        WHERE song_artists.artist_id = :artistId
+        AND songs.is_missing = 0
+        ORDER BY songs.title COLLATE NOCASE ASC
+        """
+    )
+    suspend fun getSongsForArtist(artistId: String): List<SongEntity>
+
+    // TODO v2.x: orphan cleanup
 }

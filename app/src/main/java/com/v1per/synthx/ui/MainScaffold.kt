@@ -41,16 +41,20 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.components.PlayerSheet
 import com.v1per.synthx.ui.components.SynthXTopBar
+import com.v1per.synthx.ui.screens.artistdetail.ArtistDetailScreen
+import com.v1per.synthx.ui.screens.artistlist.ArtistListScreen
 import com.v1per.synthx.ui.screens.home.HomeScreen
 import com.v1per.synthx.ui.screens.library.LibraryScreen
 import com.v1per.synthx.ui.screens.search.SearchScreen
@@ -67,6 +71,8 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         Screen.Library.route,
         Screen.Search.route,
         Screen.Songs.route,
+        Screen.ArtistList.route,
+        Screen.ArtistDetail.ROUTE,
     )
     val showBottomBar = currentRoute == null || currentRoute in bottomBarRoutes
 
@@ -128,6 +134,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                             )
                         },
                         onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
+                        onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
                         playbackViewModel = playbackViewModel,
                     )
                 }
@@ -167,6 +174,41 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                                 },
                             )
                         },
+                        playbackViewModel = playbackViewModel,
+                    )
+                }
+                composable(Screen.ArtistList.route) {
+                    ArtistListScreen(
+                        topBar = {
+                            DetailTopBar(
+                                title = "Artists",
+                                onBack = { navController.popBackStack() },
+                            )
+                        },
+                        onArtistClick = { artistId, artistName ->
+                            navController.navigate(
+                                Screen.ArtistDetail.createRoute(artistId, artistName),
+                            )
+                        },
+                    )
+                }
+                composable(
+                    route = Screen.ArtistDetail.ROUTE,
+                    arguments = listOf(
+                        navArgument("artistId") { type = NavType.StringType },
+                        navArgument("artistName") { type = NavType.StringType },
+                    ),
+                ) { entry ->
+                    val artistId = entry.arguments?.getString("artistId") ?: ""
+                    val artistName = entry.arguments?.getString("artistName") ?: ""
+                    ArtistDetailScreen(
+                        topBar = {
+                            DetailTopBar(
+                                title = artistName,
+                                onBack = { navController.popBackStack() },
+                            )
+                        },
+                        artistId = artistId,
                         playbackViewModel = playbackViewModel,
                     )
                 }

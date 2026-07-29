@@ -6,5 +6,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface SongRepository {
     fun getSongs(): Flow<List<Song>>
+    fun getArtists(): Flow<List<Artist>>
+    suspend fun getSongsForArtist(artistId: String): List<Song>
     suspend fun scanLibrary(folderUri: Uri): ScanResult
 }

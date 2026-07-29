@@ -65,6 +65,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 fun LibraryScreen(
     topBar: @Composable () -> Unit,
     onNavigateToSongs: () -> Unit,
+    onNavigateToArtistList: () -> Unit,
     playbackViewModel: PlaybackViewModel,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(LocalContext.current)),
 ) {
@@ -83,6 +84,7 @@ fun LibraryScreen(
         viewModel.navigationEvents.collect { event ->
             when (event) {
                 NavigationEvent.GoToSongs -> onNavigateToSongs()
+                NavigationEvent.GoToArtistList -> onNavigateToArtistList()
             }
         }
     }
