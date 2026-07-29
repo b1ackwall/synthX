@@ -19,6 +19,7 @@ interface SongRepository {
     suspend fun deleteGroup(id: String)
 
     // Playlists
+    fun getAllPlaylists(): Flow<List<Playlist>>
     fun getUngroupedPlaylists(): Flow<List<Playlist>>
     fun getPlaylistsForGroup(groupId: String): Flow<List<Playlist>>
     suspend fun createPlaylist(name: String, groupId: String?)

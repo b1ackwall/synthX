@@ -82,6 +82,11 @@ class SongRepositoryImpl(
     override suspend fun deleteGroup(id: String) =
         playlistDao.deleteGroup(id)
 
+    override fun getAllPlaylists(): Flow<List<Playlist>> =
+        playlistDao.getAllPlaylists().map { entities ->
+            entities.map { it.toDomain() }
+        }
+
     override fun getUngroupedPlaylists(): Flow<List<Playlist>> =
         playlistDao.getUngroupedPlaylists().map { entities ->
             entities.map { it.toDomain() }

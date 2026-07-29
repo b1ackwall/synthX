@@ -161,6 +161,22 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                                 onSettingsClick = { navController.navigate(Screen.Settings.route) },
                             )
                         },
+                        onNavigateToArtistDetail = { artistId, artistName ->
+                            navController.navigate(
+                                Screen.ArtistDetail.createRoute(artistId, artistName),
+                            )
+                        },
+                        onNavigateToAlbumDetail = { albumId, albumTitle ->
+                            navController.navigate(
+                                Screen.AlbumDetail.createRoute(albumId, albumTitle),
+                            )
+                        },
+                        onNavigateToPlaylistDetail = { playlistId, playlistName ->
+                            navController.navigate(
+                                Screen.PlaylistDetail.createRoute(playlistId, playlistName),
+                            )
+                        },
+                        playbackViewModel = playbackViewModel,
                     )
                 }
                 composable(Screen.Settings.route) {
