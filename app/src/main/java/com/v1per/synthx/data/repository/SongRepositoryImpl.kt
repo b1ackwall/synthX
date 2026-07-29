@@ -36,6 +36,21 @@ class SongRepositoryImpl(
     override suspend fun getSongsForArtist(artistId: String): List<Song> =
         artistDao.getSongsForArtist(artistId).map { it.toDomain() }
 
+    override fun getAlbums(): Flow<List<Album>> =
+        albumDao.getAllAlbums().map { entries ->
+            entries.map {
+                Album(
+                    id = it.id,
+                    title = it.title,
+                    artist = it.artistName,
+                    albumArtUri = it.albumArtUri,
+                )
+            }
+        }
+
+    override suspend fun getSongsForAlbum(albumId: String): List<Song> =
+        albumDao.getSongsForAlbum(albumId).map { it.toDomain() }
+
     override suspend fun scanLibrary(folderUri: Uri): ScanResult =
         folderScanner.scan(folderUri)
 

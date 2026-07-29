@@ -53,6 +53,8 @@ import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.components.PlayerSheet
 import com.v1per.synthx.ui.components.SynthXTopBar
+import com.v1per.synthx.ui.screens.albumdetail.AlbumDetailScreen
+import com.v1per.synthx.ui.screens.albumlist.AlbumListScreen
 import com.v1per.synthx.ui.screens.artistdetail.ArtistDetailScreen
 import com.v1per.synthx.ui.screens.artistlist.ArtistListScreen
 import com.v1per.synthx.ui.screens.home.HomeScreen
@@ -73,6 +75,8 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         Screen.Songs.route,
         Screen.ArtistList.route,
         Screen.ArtistDetail.ROUTE,
+        Screen.AlbumList.route,
+        Screen.AlbumDetail.ROUTE,
     )
     val showBottomBar = currentRoute == null || currentRoute in bottomBarRoutes
 
@@ -135,6 +139,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                         },
                         onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
                         onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
+                        onNavigateToAlbumList = { navController.navigate(Screen.AlbumList.route) },
                         playbackViewModel = playbackViewModel,
                     )
                 }
@@ -209,6 +214,41 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                             )
                         },
                         artistId = artistId,
+                        playbackViewModel = playbackViewModel,
+                    )
+                }
+                composable(Screen.AlbumList.route) {
+                    AlbumListScreen(
+                        topBar = {
+                            DetailTopBar(
+                                title = "Albums",
+                                onBack = { navController.popBackStack() },
+                            )
+                        },
+                        onAlbumClick = { albumId, albumTitle ->
+                            navController.navigate(
+                                Screen.AlbumDetail.createRoute(albumId, albumTitle),
+                            )
+                        },
+                    )
+                }
+                composable(
+                    route = Screen.AlbumDetail.ROUTE,
+                    arguments = listOf(
+                        navArgument("albumId") { type = NavType.StringType },
+                        navArgument("albumTitle") { type = NavType.StringType },
+                    ),
+                ) { entry ->
+                    val albumId = entry.arguments?.getString("albumId") ?: ""
+                    val albumTitle = entry.arguments?.getString("albumTitle") ?: ""
+                    AlbumDetailScreen(
+                        topBar = {
+                            DetailTopBar(
+                                title = albumTitle,
+                                onBack = { navController.popBackStack() },
+                            )
+                        },
+                        albumId = albumId,
                         playbackViewModel = playbackViewModel,
                     )
                 }

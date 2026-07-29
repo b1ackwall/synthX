@@ -66,6 +66,7 @@ fun LibraryScreen(
     topBar: @Composable () -> Unit,
     onNavigateToSongs: () -> Unit,
     onNavigateToArtistList: () -> Unit,
+    onNavigateToAlbumList: () -> Unit,
     playbackViewModel: PlaybackViewModel,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(LocalContext.current)),
 ) {
@@ -85,6 +86,7 @@ fun LibraryScreen(
             when (event) {
                 NavigationEvent.GoToSongs -> onNavigateToSongs()
                 NavigationEvent.GoToArtistList -> onNavigateToArtistList()
+                NavigationEvent.GoToAlbumList -> onNavigateToAlbumList()
             }
         }
     }

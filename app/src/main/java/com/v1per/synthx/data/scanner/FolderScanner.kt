@@ -110,6 +110,7 @@ class FolderScanner(
         var rawAlbum: String? = null
         var rawDuration: String? = null
         var rawYear: String? = null
+        var rawTrackNumber: String? = null
         var albumArtUri: String? = null
         try {
             retriever.setDataSource(context, file.uri)
@@ -118,6 +119,7 @@ class FolderScanner(
             rawAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
             rawDuration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             rawYear = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
+            rawTrackNumber = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
             albumArtUri = extractAlbumArt(retriever, id)
         } catch (e: Exception) {
             // Unreadable metadata — fall back to filename below, keep the song tracked
@@ -129,6 +131,8 @@ class FolderScanner(
             ?: file.name?.substringBeforeLast('.')
             ?: "Unknown"
         val year = rawYear?.trim()?.take(4)?.toIntOrNull()
+        // Track metadata is often "5/12" (track 5 of 12) — keep only the track part
+        val trackNumber = rawTrackNumber?.substringBefore("/")?.trim()?.toIntOrNull()
 
         val albumId = rawAlbum?.takeIf { it.isNotBlank() }?.trim()?.let { albumTitle ->
             resolveAlbum(albumTitle, year, albumArtUri).id
@@ -143,6 +147,7 @@ class FolderScanner(
                 filePath = path,
                 albumArtUri = albumArtUri,
                 year = year,
+                trackNumber = trackNumber,
                 dateAdded = System.currentTimeMillis(),
             )
         )

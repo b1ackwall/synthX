@@ -1,0 +1,181 @@
+package com.v1per.synthx.ui.screens.albumlist
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.v1per.synthx.data.repository.Album
+import com.v1per.synthx.ui.components.GlitchPlaceholder
+import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.SynthXTheme
+import com.v1per.synthx.ui.theme.TextPrimary
+import com.v1per.synthx.ui.theme.TextSecondary
+
+@Composable
+fun AlbumListScreen(
+    topBar: @Composable () -> Unit,
+    onAlbumClick: (albumId: String, albumTitle: String) -> Unit,
+    viewModel: AlbumListViewModel = viewModel(
+        factory = AlbumListViewModel.factory(LocalContext.current),
+    ),
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        topBar()
+
+        AlbumListContent(
+            uiState = uiState,
+            onAlbumClick = onAlbumClick,
+        )
+    }
+}
+
+@Composable
+private fun AlbumListContent(
+    uiState: AlbumListViewModel.UiState,
+    onAlbumClick: (albumId: String, albumTitle: String) -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        when (uiState) {
+            is AlbumListViewModel.UiState.Loading -> Unit
+            is AlbumListViewModel.UiState.Empty -> Text(
+                text = "No albums found",
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextSecondary,
+                modifier = Modifier.align(Alignment.Center),
+            )
+            is AlbumListViewModel.UiState.Error -> Text(
+                text = uiState.message,
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextSecondary,
+                modifier = Modifier.align(Alignment.Center),
+            )
+            is AlbumListViewModel.UiState.Success -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(uiState.albums, key = { it.id }) { album ->
+                    AlbumRow(
+                        album = album,
+                        onClick = { onAlbumClick(album.id, album.title) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlbumRow(
+    album: Album,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = ripple(color = Accent),
+                    onClick = onClick,
+                )
+                .padding(horizontal = Spacing.HorizontalPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (album.albumArtUri != null) {
+                AsyncImage(
+                    model = album.albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                )
+            } else {
+                GlitchPlaceholder(
+                    songId = album.id,
+                    isPlaying = false,
+                    size = 44.dp,
+                )
+            }
+            Spacer(modifier = Modifier.width(Spacing.md))
+            Column {
+                Text(
+                    text = album.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = album.artist,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = Hairline,
+        )
+    }
+}
+
+@Preview(name = "Album List — Success", showBackground = true)
+@Composable
+private fun AlbumListPreview() {
+    SynthXTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
+        ) {
+            AlbumListContent(
+                uiState = AlbumListViewModel.UiState.Success(
+                    listOf(
+                        Album(id = "1", title = "Ultraviolet", artist = "v1per", albumArtUri = null),
+                        Album(id = "2", title = "Fragments", artist = "KNTRL", albumArtUri = null),
+                        Album(id = "3", title = "Deep Cut", artist = "Null Signal", albumArtUri = null),
+                    ),
+                ),
+                onAlbumClick = { _, _ -> },
+            )
+        }
+    }
+}

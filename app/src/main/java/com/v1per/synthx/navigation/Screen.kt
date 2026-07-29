@@ -15,4 +15,11 @@ sealed class Screen(val route: String) {
         fun createRoute(artistId: String, artistName: String) =
             "artist_detail/$artistId/${Uri.encode(artistName)}"
     }
+    object AlbumList : Screen("album_list")
+    object AlbumDetail : Screen("album_detail/{albumId}/{albumTitle}") {
+        // Must mirror the constructor arg — a member isn't referencable in the supertype call
+        const val ROUTE = "album_detail/{albumId}/{albumTitle}"
+        fun createRoute(albumId: String, albumTitle: String) =
+            "album_detail/$albumId/${Uri.encode(albumTitle)}"
+    }
 }
