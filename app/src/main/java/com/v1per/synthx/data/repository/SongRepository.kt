@@ -11,4 +11,23 @@ interface SongRepository {
     fun getAlbums(): Flow<List<Album>>
     suspend fun getSongsForAlbum(albumId: String): List<Song>
     suspend fun scanLibrary(folderUri: Uri): ScanResult
+
+    // Groups
+    fun getAllGroups(): Flow<List<PlaylistGroup>>
+    suspend fun createGroup(name: String)
+    suspend fun renameGroup(id: String, name: String)
+    suspend fun deleteGroup(id: String)
+
+    // Playlists
+    fun getUngroupedPlaylists(): Flow<List<Playlist>>
+    fun getPlaylistsForGroup(groupId: String): Flow<List<Playlist>>
+    suspend fun createPlaylist(name: String, groupId: String?)
+    suspend fun renamePlaylist(id: String, name: String)
+    suspend fun movePlaylistToGroup(id: String, groupId: String?)
+    suspend fun deletePlaylist(id: String)
+
+    // Playlist songs
+    fun getSongsForPlaylist(playlistId: String): Flow<List<Song>>
+    suspend fun getSongIdsForPlaylist(playlistId: String): List<String>
+    suspend fun setPlaylistSongs(playlistId: String, songIds: List<String>)
 }

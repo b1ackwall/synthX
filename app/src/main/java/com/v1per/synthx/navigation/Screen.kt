@@ -22,4 +22,23 @@ sealed class Screen(val route: String) {
         fun createRoute(albumId: String, albumTitle: String) =
             "album_detail/$albumId/${Uri.encode(albumTitle)}"
     }
+    object PlaylistList : Screen("playlist_list")
+    object CreatePlaylist : Screen("create_playlist")
+    object GroupDetail : Screen("group_detail/{groupId}/{groupName}") {
+        // Must mirror the constructor arg — a member isn't referencable in the supertype call
+        const val ROUTE = "group_detail/{groupId}/{groupName}"
+        fun createRoute(groupId: String, groupName: String) =
+            "group_detail/$groupId/${Uri.encode(groupName)}"
+    }
+    object PlaylistDetail : Screen("playlist_detail/{playlistId}/{playlistName}") {
+        // Must mirror the constructor arg — a member isn't referencable in the supertype call
+        const val ROUTE = "playlist_detail/{playlistId}/{playlistName}"
+        fun createRoute(playlistId: String, playlistName: String) =
+            "playlist_detail/$playlistId/${Uri.encode(playlistName)}"
+    }
+    object AddSongs : Screen("add_songs/{playlistId}") {
+        // Must mirror the constructor arg — a member isn't referencable in the supertype call
+        const val ROUTE = "add_songs/{playlistId}"
+        fun createRoute(playlistId: String) = "add_songs/$playlistId"
+    }
 }

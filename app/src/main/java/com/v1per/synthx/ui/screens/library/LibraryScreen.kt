@@ -67,6 +67,7 @@ fun LibraryScreen(
     onNavigateToSongs: () -> Unit,
     onNavigateToArtistList: () -> Unit,
     onNavigateToAlbumList: () -> Unit,
+    onNavigateToPlaylistList: () -> Unit,
     playbackViewModel: PlaybackViewModel,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(LocalContext.current)),
 ) {
@@ -87,6 +88,7 @@ fun LibraryScreen(
                 NavigationEvent.GoToSongs -> onNavigateToSongs()
                 NavigationEvent.GoToArtistList -> onNavigateToArtistList()
                 NavigationEvent.GoToAlbumList -> onNavigateToAlbumList()
+                NavigationEvent.GoToPlaylistList -> onNavigateToPlaylistList()
             }
         }
     }

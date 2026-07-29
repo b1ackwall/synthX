@@ -24,6 +24,7 @@ sealed class NavigationEvent {
     object GoToSongs : NavigationEvent()
     object GoToArtistList : NavigationEvent()
     object GoToAlbumList : NavigationEvent()
+    object GoToPlaylistList : NavigationEvent()
 }
 
 class LibraryViewModel(
@@ -51,7 +52,7 @@ class LibraryViewModel(
 
     fun onPlaylistsClick() {
         viewModelScope.launch {
-            _uiEvents.emit(UiEvent.ShowSnackbar("Coming soon"))
+            _navigationEvents.emit(NavigationEvent.GoToPlaylistList)
         }
     }
 

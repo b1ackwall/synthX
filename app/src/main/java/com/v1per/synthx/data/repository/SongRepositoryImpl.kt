@@ -4,6 +4,10 @@ import android.content.Context
 import android.net.Uri
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.ArtistDao
+import com.v1per.synthx.data.db.PlaylistDao
+import com.v1per.synthx.data.db.PlaylistEntity
+import com.v1per.synthx.data.db.PlaylistGroupEntity
+import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongEntity
@@ -11,6 +15,7 @@ import com.v1per.synthx.data.db.SongWithDetails
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.ScanResult
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -18,6 +23,7 @@ class SongRepositoryImpl(
     private val songDao: SongDao,
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
+    private val playlistDao: PlaylistDao,
     private val folderScanner: FolderScanner,
 ) : SongRepository {
 
@@ -53,6 +59,93 @@ class SongRepositoryImpl(
 
     override suspend fun scanLibrary(folderUri: Uri): ScanResult =
         folderScanner.scan(folderUri)
+
+    override fun getAllGroups(): Flow<List<PlaylistGroup>> =
+        playlistDao.getAllGroups().map { entities ->
+            entities.map { PlaylistGroup(id = it.id, name = it.name) }
+        }
+
+    override suspend fun createGroup(name: String) {
+        playlistDao.insertGroup(
+            PlaylistGroupEntity(
+                id = UUID.randomUUID().toString(),
+                name = name,
+                position = 0,
+                createdAt = System.currentTimeMillis(),
+            )
+        )
+    }
+
+    override suspend fun renameGroup(id: String, name: String) =
+        playlistDao.renameGroup(id, name)
+
+    override suspend fun deleteGroup(id: String) =
+        playlistDao.deleteGroup(id)
+
+    override fun getUngroupedPlaylists(): Flow<List<Playlist>> =
+        playlistDao.getUngroupedPlaylists().map { entities ->
+            entities.map { it.toDomain() }
+        }
+
+    override fun getPlaylistsForGroup(groupId: String): Flow<List<Playlist>> =
+        playlistDao.getPlaylistsForGroup(groupId).map { entities ->
+            entities.map { it.toDomain() }
+        }
+
+    override suspend fun createPlaylist(name: String, groupId: String?) {
+        val now = System.currentTimeMillis()
+        playlistDao.insertPlaylist(
+            PlaylistEntity(
+                id = UUID.randomUUID().toString(),
+                name = name,
+                description = null,
+                groupId = groupId,
+                position = 0,
+                createdAt = now,
+                updatedAt = now,
+                coverArtUri = null,
+            )
+        )
+    }
+
+    override suspend fun renamePlaylist(id: String, name: String) =
+        playlistDao.renamePlaylist(id, name, System.currentTimeMillis())
+
+    override suspend fun movePlaylistToGroup(id: String, groupId: String?) =
+        playlistDao.movePlaylistToGroup(id, groupId, System.currentTimeMillis())
+
+    override suspend fun deletePlaylist(id: String) =
+        playlistDao.deletePlaylist(id)
+
+    override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> =
+        playlistDao.getSongsForPlaylist(playlistId).map { entities ->
+            entities.map { it.toDomain() }
+        }
+
+    override suspend fun getSongIdsForPlaylist(playlistId: String): List<String> =
+        playlistDao.getSongIdsForPlaylist(playlistId)
+
+    override suspend fun setPlaylistSongs(playlistId: String, songIds: List<String>) {
+        playlistDao.clearPlaylistSongs(playlistId)
+        songIds.forEachIndexed { index, songId ->
+            playlistDao.insertPlaylistSong(
+                PlaylistSongEntity(
+                    playlistId = playlistId,
+                    songId = songId,
+                    position = index,
+                    addedAt = System.currentTimeMillis(),
+                )
+            )
+        }
+    }
+
+    private fun PlaylistEntity.toDomain(): Playlist =
+        Playlist(
+            id = id,
+            name = name,
+            groupId = groupId,
+            albumArtUri = coverArtUri,
+        )
 
     private suspend fun SongEntity.toDomain(): Song {
         // getArtistsForSong returns artists already ordered by song_artists.position
@@ -107,6 +200,7 @@ class SongRepositoryImpl(
                 songDao = db.songDao(),
                 artistDao = db.artistDao(),
                 albumDao = db.albumDao(),
+                playlistDao = db.playlistDao(),
                 folderScanner = FolderScanner(
                     context = appContext,
                     songDao = db.songDao(),

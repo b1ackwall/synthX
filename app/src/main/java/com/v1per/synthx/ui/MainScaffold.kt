@@ -53,11 +53,16 @@ import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.components.PlayerSheet
 import com.v1per.synthx.ui.components.SynthXTopBar
+import com.v1per.synthx.ui.screens.addsongs.AddSongsScreen
 import com.v1per.synthx.ui.screens.albumdetail.AlbumDetailScreen
 import com.v1per.synthx.ui.screens.albumlist.AlbumListScreen
 import com.v1per.synthx.ui.screens.artistdetail.ArtistDetailScreen
 import com.v1per.synthx.ui.screens.artistlist.ArtistListScreen
+import com.v1per.synthx.ui.screens.createplaylist.CreatePlaylistScreen
+import com.v1per.synthx.ui.screens.groupdetail.GroupDetailScreen
 import com.v1per.synthx.ui.screens.home.HomeScreen
+import com.v1per.synthx.ui.screens.playlistdetail.PlaylistDetailScreen
+import com.v1per.synthx.ui.screens.playlistlist.PlaylistListScreen
 import com.v1per.synthx.ui.screens.library.LibraryScreen
 import com.v1per.synthx.ui.screens.search.SearchScreen
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
@@ -77,6 +82,11 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         Screen.ArtistDetail.ROUTE,
         Screen.AlbumList.route,
         Screen.AlbumDetail.ROUTE,
+        Screen.PlaylistList.route,
+        Screen.CreatePlaylist.route,
+        Screen.GroupDetail.ROUTE,
+        Screen.PlaylistDetail.ROUTE,
+        Screen.AddSongs.ROUTE,
     )
     val showBottomBar = currentRoute == null || currentRoute in bottomBarRoutes
 
@@ -140,6 +150,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                         onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
                         onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
                         onNavigateToAlbumList = { navController.navigate(Screen.AlbumList.route) },
+                        onNavigateToPlaylistList = { navController.navigate(Screen.PlaylistList.route) },
                         playbackViewModel = playbackViewModel,
                     )
                 }
@@ -250,6 +261,105 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                         },
                         albumId = albumId,
                         playbackViewModel = playbackViewModel,
+                    )
+                }
+                composable(Screen.PlaylistList.route) {
+                    PlaylistListScreen(
+                        topBar = {
+                            DetailTopBar(
+                                title = "Playlists",
+                                onBack = { navController.popBackStack() },
+                            )
+                        },
+                        onGroupClick = { groupId, groupName ->
+                            navController.navigate(
+                                Screen.GroupDetail.createRoute(groupId, groupName),
+                            )
+                        },
+                        onPlaylistClick = { playlistId, playlistName ->
+                            navController.navigate(
+                                Screen.PlaylistDetail.createRoute(playlistId, playlistName),
+                            )
+                        },
+                        onCreatePlaylistClick = {
+                            navController.navigate(Screen.CreatePlaylist.route)
+                        },
+                    )
+                }
+                composable(Screen.CreatePlaylist.route) {
+                    CreatePlaylistScreen(
+                        topBar = {
+                            DetailTopBar(
+                                title = "New Playlist",
+                                onBack = { navController.popBackStack() },
+                            )
+                        },
+                        onCreated = { navController.popBackStack() },
+                    )
+                }
+                composable(
+                    route = Screen.GroupDetail.ROUTE,
+                    arguments = listOf(
+                        navArgument("groupId") { type = NavType.StringType },
+                        navArgument("groupName") { type = NavType.StringType },
+                    ),
+                ) { entry ->
+                    val groupId = entry.arguments?.getString("groupId") ?: ""
+                    val groupName = entry.arguments?.getString("groupName") ?: ""
+                    GroupDetailScreen(
+                        topBar = {
+                            DetailTopBar(
+                                title = groupName,
+                                onBack = { navController.popBackStack() },
+                            )
+                        },
+                        onPlaylistClick = { playlistId, playlistName ->
+                            navController.navigate(
+                                Screen.PlaylistDetail.createRoute(playlistId, playlistName),
+                            )
+                        },
+                        groupId = groupId,
+                    )
+                }
+                composable(
+                    route = Screen.PlaylistDetail.ROUTE,
+                    arguments = listOf(
+                        navArgument("playlistId") { type = NavType.StringType },
+                        navArgument("playlistName") { type = NavType.StringType },
+                    ),
+                ) { entry ->
+                    val playlistId = entry.arguments?.getString("playlistId") ?: ""
+                    val playlistName = entry.arguments?.getString("playlistName") ?: ""
+                    PlaylistDetailScreen(
+                        topBar = {
+                            DetailTopBar(
+                                title = playlistName,
+                                onBack = { navController.popBackStack() },
+                            )
+                        },
+                        playlistId = playlistId,
+                        playbackViewModel = playbackViewModel,
+                        onAddSongsClick = {
+                            navController.navigate(Screen.AddSongs.createRoute(playlistId))
+                        },
+                    )
+                }
+                composable(
+                    route = Screen.AddSongs.ROUTE,
+                    arguments = listOf(
+                        navArgument("playlistId") { type = NavType.StringType },
+                    ),
+                ) { entry ->
+                    val playlistId = entry.arguments?.getString("playlistId") ?: ""
+                    AddSongsScreen(
+                        topBar = {
+                            DetailTopBar(
+                                title = "Add Songs",
+                                onBack = { navController.popBackStack() },
+                            )
+                        },
+                        playlistId = playlistId,
+                        onSubmitted = { navController.popBackStack() },
                     )
                 }
             }
