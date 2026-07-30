@@ -1,5 +1,9 @@
 package com.v1per.synthx.ui.components
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -22,16 +26,40 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
+import com.v1per.synthx.ui.theme.Motion
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
-internal fun SynthXTopBar(onSettingsClick: () -> Unit) {
+internal fun SynthXTopBar(
+    onSettingsClick: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
+) {
     TopAppBar(
         title = {
             val wordmarkFont = FontFamily(Font(R.font.bitcount_grid_double_regular, FontWeight.Normal))
 
+            // Participates in the wordmark shared element transition (from Home) only when
+            // both scopes are supplied; other callers get a plain wordmark.
+            val wordmarkModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                with(sharedTransitionScope) {
+                    Modifier.sharedElement(
+                        state = rememberSharedContentState(key = "wordmark"),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        boundsTransform = { _, _ ->
+                            tween(
+                                durationMillis = Motion.DurationNormal,
+                                easing = Motion.EasingDecelerate,
+                            )
+                        },
+                    )
+                }
+            } else {
+                Modifier
+            }
+
             Text(
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = wordmarkModifier.padding(top = 8.dp),
                 text = buildAnnotatedString {
                     withStyle(
                         SpanStyle(
