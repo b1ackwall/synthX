@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -52,36 +53,43 @@ fun HomeScreen(
     // doesn't flash them at full strength before the fade-in begins.
     var gradientAlpha by remember { mutableFloatStateOf(0f) }
     var arrowAlpha by remember { mutableFloatStateOf(0f) }
+    var isNavigating by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Tap sequence: fade the gradient and arrow to black in parallel, then navigate —
-    // Library then fades in on its delayed enterTransition while the wordmark morphs.
+    // Tap sequence: navigate immediately and fade the gradient and arrow out in
+    // parallel — the wordmark morph and the fade run together as one motion.
     fun onArrowClick() {
+        if (isNavigating) return // prevent double tap
+        isNavigating = true
         scope.launch {
-            val gradientAnim = Animatable(gradientAlpha)
-            val arrowAnim = Animatable(arrowAlpha)
             val spec = tween<Float>(
                 durationMillis = Motion.DurationNormal,
                 easing = Motion.EasingAccelerate,
             )
+            // Navigate and fade simultaneously
+            onEnterLibrary()
+            val gradientAnim = Animatable(gradientAlpha)
+            val arrowAnim = Animatable(arrowAlpha)
             launch { gradientAnim.animateTo(0f, spec) { gradientAlpha = value } }
             arrowAnim.animateTo(0f, spec) { arrowAlpha = value }
-            onEnterLibrary()
         }
     }
 
     // On (re-)entering Home the gradient and arrow fade back in, coordinated with the
-    // screen's popEnterTransition fadeIn.
+    // screen's popEnterTransition fadeIn — skipped while a fade-out is in flight.
     LaunchedEffect(Unit) {
-        arrowAlpha = 0f
-        val gradAnim = Animatable(0f)
-        val arrowAnim = Animatable(0f)
-        val spec = tween<Float>(
-            durationMillis = Motion.DurationNormal,
-            easing = Motion.EasingDecelerate,
-        )
-        launch { gradAnim.animateTo(1f, spec) { gradientAlpha = value } }
-        arrowAnim.animateTo(1f, spec) { arrowAlpha = value }
+        if (!isNavigating) {
+            arrowAlpha = 0f
+            gradientAlpha = 0f
+            val spec = tween<Float>(
+                durationMillis = Motion.DurationNormal,
+                easing = Motion.EasingDecelerate,
+            )
+            val gradAnim = Animatable(0f)
+            val arrowAnim = Animatable(0f)
+            launch { gradAnim.animateTo(1f, spec) { gradientAlpha = value } }
+            arrowAnim.animateTo(1f, spec) { arrowAlpha = value }
+        }
     }
 
     // MainScaffold's innerPadding already confines this screen to the safe area between
@@ -128,20 +136,11 @@ fun HomeScreen(
                             sharedContentState = rememberSharedContentState(key = "wordmark"),
                             animatedVisibilityScope = animatedVisibilityScope,
                             renderInOverlayDuringTransition = false,
-                            // Accelerate when rising (Home→Library), decelerate when settling
-                            // back down (Library→Home).
-                            boundsTransform = { startBounds, endBounds ->
-                                if (endBounds.top < startBounds.top) {
-                                    tween(
-                                        durationMillis = Motion.DurationNormal,
-                                        easing = Motion.EasingAccelerate,
-                                    )
-                                } else {
-                                    tween(
-                                        durationMillis = Motion.DurationNormal,
-                                        easing = Motion.EasingDecelerate,
-                                    )
-                                }
+                            boundsTransform = { _, _ ->
+                                tween(
+                                    durationMillis = Motion.DurationNormal,
+                                    easing = Motion.EasingAccelerate,
+                                )
                             },
                         ),
                     )

@@ -49,20 +49,11 @@ internal fun SynthXTopBar(
                     Modifier.sharedBounds(
                         sharedContentState = rememberSharedContentState(key = "wordmark"),
                         animatedVisibilityScope = animatedVisibilityScope,
-                        // Accelerate when rising (Home→Library), decelerate when settling
-                        // back down (Library→Home).
-                        boundsTransform = { startBounds, endBounds ->
-                            if (endBounds.top < startBounds.top) {
-                                tween(
-                                    durationMillis = Motion.DurationNormal,
-                                    easing = Motion.EasingAccelerate,
-                                )
-                            } else {
-                                tween(
-                                    durationMillis = Motion.DurationNormal,
-                                    easing = Motion.EasingDecelerate,
-                                )
-                            }
+                        boundsTransform = { _, _ ->
+                            tween(
+                                durationMillis = Motion.DurationNormal,
+                                easing = Motion.EasingAccelerate,
+                            )
                         },
                     )
                 }
