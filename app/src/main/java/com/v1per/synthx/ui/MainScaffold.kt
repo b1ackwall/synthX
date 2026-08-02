@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -114,6 +115,15 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     // to slide the bottom nav down in lockstep with the sheet's expansion.
     var playerProgress by remember { mutableStateOf(0f) }
 
+    // The route we were on before the current one. The assignment runs in a LaunchedEffect,
+    // i.e. after the composition that observed the route change — so during the frame where
+    // showBottomBar flips, this still holds the outgoing route.
+    var previousRoute by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(currentRoute) {
+        previousRoute = currentRoute
+    }
+
     // Bottom chrome reservation, applied per destination (never on the NavHost itself, so
     // an outgoing screen can't reflow mid-transition; Home gets no wrapper at all).
     val chromeBottomPadding by remember(currentSong, showBottomBar) {
@@ -176,25 +186,35 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                     }
                     composable(
                         route = Screen.Library.route,
-                        // Fades in after the Home gradient's 300ms fade-to-black completes
-                        // (the wordmark shared element overlaps this fade, so it's already
-                        // in position as Library appears); pop fades out under Home's fadeIn.
+                        // Only the Home boundary is animated. Coming from Home, Library fades
+                        // in after the gradient's 300ms fade-to-black completes (the wordmark
+                        // shared element overlaps this fade, so it's already in position as
+                        // Library appears); popping to Home fades out under Home's fadeIn.
+                        // Every other neighbour (Search tab, etc.) is an instant cut.
                         enterTransition = {
-                            fadeIn(
-                                animationSpec = tween(
-                                    durationMillis = Motion.DurationNormal,
-                                    easing = Motion.EasingDecelerate,
-                                    delayMillis = Motion.DurationNormal,
-                                ),
-                            )
+                            if (initialState.destination.route == Screen.Home.route) {
+                                fadeIn(
+                                    animationSpec = tween(
+                                        durationMillis = Motion.DurationNormal,
+                                        easing = Motion.EasingDecelerate,
+                                        delayMillis = Motion.DurationNormal,
+                                    ),
+                                )
+                            } else {
+                                EnterTransition.None
+                            }
                         },
                         popExitTransition = {
-                            fadeOut(
-                                animationSpec = tween(
-                                    durationMillis = Motion.DurationNormal,
-                                    easing = Motion.EasingAccelerate,
-                                ),
-                            )
+                            if (targetState.destination.route == Screen.Home.route) {
+                                fadeOut(
+                                    animationSpec = tween(
+                                        durationMillis = Motion.DurationNormal,
+                                        easing = Motion.EasingAccelerate,
+                                    ),
+                                )
+                            } else {
+                                ExitTransition.None
+                            }
                         },
                     ) {
                         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
@@ -466,9 +486,10 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             }
         }
 
-        // Bottom nav as overlay — never affects layout. Fades in on Library's delayed
-        // schedule (300ms delay + 300ms fade); leaves instantly (exit = None). Always
-        // composed so AnimatedVisibility can actually run the enter animation on the
+        // Bottom nav as overlay — never affects layout. Arriving from Home it fades in on
+        // Library's delayed schedule (300ms delay + 300ms fade); every other arrival —
+        // Settings back included — is instant. Leaves instantly either way (exit = None).
+        // Always composed so AnimatedVisibility can actually run the enter animation on the
         // false→true flip instead of popping in fresh.
         Box(
             modifier = Modifier
@@ -478,13 +499,17 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         ) {
             AnimatedVisibility(
                 visible = showBottomBar,
-                enter = fadeIn(
-                    animationSpec = tween(
-                        durationMillis = Motion.DurationNormal,
-                        easing = Motion.EasingDecelerate,
-                        delayMillis = Motion.DurationNormal,
-                    ),
-                ),
+                enter = if (previousRoute == Screen.Home.route) {
+                    fadeIn(
+                        animationSpec = tween(
+                            durationMillis = Motion.DurationNormal,
+                            easing = Motion.EasingDecelerate,
+                            delayMillis = Motion.DurationNormal,
+                        ),
+                    )
+                } else {
+                    EnterTransition.None
+                },
                 exit = ExitTransition.None,
             ) {
                 SynthXBottomNav(
