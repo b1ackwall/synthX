@@ -525,8 +525,23 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         // The player overlays everything as a sibling to the Scaffold so it can expand
         // upward over the content — and, once expanded, over the nav area the sliding nav
         // vacates. It fills the whole Box; its own progress-driven inset keeps the collapsed
-        // mini above the nav.
-        if (showBottomBar) {
+        // mini above the nav. Enters on the same schedule as the bottom nav: a delayed fade
+        // when arriving from Home, instant everywhere else. Leaves instantly (exit = None).
+        AnimatedVisibility(
+            visible = showBottomBar && currentSong != null,
+            enter = if (previousRoute == Screen.Home.route) {
+                fadeIn(
+                    animationSpec = tween(
+                        durationMillis = Motion.DurationNormal,
+                        easing = Motion.EasingDecelerate,
+                        delayMillis = Motion.DurationNormal,
+                    ),
+                )
+            } else {
+                EnterTransition.None
+            },
+            exit = ExitTransition.None,
+        ) {
             currentSong?.let { song ->
                 PlayerSheet(
                     song = song,
