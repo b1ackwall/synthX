@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,10 +36,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -74,6 +78,9 @@ import com.v1per.synthx.ui.screens.settings.SettingsScreen
 import com.v1per.synthx.ui.screens.songs.SongsScreen
 import com.v1per.synthx.ui.theme.Motion
 
+/** Footprint of the overlay bottom nav (70dp NavigationBar + 1dp divider). */
+private val BottomNavHeight = 71.dp
+
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun MainScaffold(navController: NavHostController = rememberNavController()) {
@@ -107,22 +114,24 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     // to slide the bottom nav down in lockstep with the sheet's expansion.
     var playerProgress by remember { mutableStateOf(0f) }
 
+    // Bottom chrome reservation, applied per destination (never on the NavHost itself, so
+    // an outgoing screen can't reflow mid-transition; Home gets no wrapper at all).
+    val chromeBottomPadding by remember(currentSong, showBottomBar) {
+        derivedStateOf {
+            when {
+                !showBottomBar -> 0.dp
+                currentSong != null -> BottomNavHeight + CollapsedPlayerHeight
+                else -> BottomNavHeight
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             topBar = {},
-            bottomBar = {
-                if (showBottomBar) {
-                    SynthXBottomNav(
-                        navController = navController,
-                        currentRoute = currentRoute,
-                        // Fall back to 0f when nothing is playing so a stale progress can't
-                        // leave the nav slid off screen after the sheet is gone.
-                        playerProgress = if (currentSong != null) playerProgress else 0f,
-                    )
-                }
-            },
+            bottomBar = {},
         ) { innerPadding ->
             SharedTransitionLayout {
                 NavHost(
@@ -133,16 +142,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                         .padding(innerPadding)
                         // Screens render their own TopAppBars now — consume the insets this
                         // padding already covers so those bars don't re-apply the status inset.
-                        .consumeWindowInsets(innerPadding)
-                        // Reserve space for the collapsed mini player that floats above the nav
-                        // bar — except on Home, which has no mini player or bottom nav.
-                        .padding(
-                            bottom = if (currentSong != null && currentRoute != Screen.Home.route) {
-                                CollapsedPlayerHeight
-                            } else {
-                                0.dp
-                            },
-                        ),
+                        .consumeWindowInsets(innerPadding),
                     enterTransition = { EnterTransition.None },
                     exitTransition = { ExitTransition.None },
                     popEnterTransition = { EnterTransition.None },
@@ -150,16 +150,9 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                 ) {
                     composable(
                         route = Screen.Home.route,
-                        // Gradient fades to black while the next screen cuts in instantly;
-                        // fades back in when popped to.
-                        exitTransition = {
-                            fadeOut(
-                                animationSpec = tween(
-                                    durationMillis = Motion.DurationNormal,
-                                    easing = Motion.EasingAccelerate,
-                                ),
-                            )
-                        },
+                        // Forward is an instant cut (the shared-element wordmark carries the
+                        // motion); popping back crossfades Home in over Library's fadeOut.
+                        exitTransition = { ExitTransition.None },
                         popEnterTransition = {
                             fadeIn(
                                 animationSpec = tween(
@@ -181,91 +174,123 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                             animatedVisibilityScope = this@composable,
                         )
                     }
-                    composable(Screen.Library.route) {
-                        LibraryScreen(
-                            topBar = {
-                                SynthXTopBar(
-                                    onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                                    sharedTransitionScope = this@SharedTransitionLayout,
-                                    animatedVisibilityScope = this@composable,
-                                )
-                            },
-                            onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
-                            onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
-                            onNavigateToAlbumList = { navController.navigate(Screen.AlbumList.route) },
-                            onNavigateToPlaylistList = { navController.navigate(Screen.PlaylistList.route) },
-                            playbackViewModel = playbackViewModel,
-                        )
+                    composable(
+                        route = Screen.Library.route,
+                        // Fades in after the Home gradient's 300ms fade-to-black completes
+                        // (the wordmark shared element overlaps this fade, so it's already
+                        // in position as Library appears); pop fades out under Home's fadeIn.
+                        enterTransition = {
+                            fadeIn(
+                                animationSpec = tween(
+                                    durationMillis = Motion.DurationNormal,
+                                    easing = Motion.EasingDecelerate,
+                                    delayMillis = Motion.DurationNormal,
+                                ),
+                            )
+                        },
+                        popExitTransition = {
+                            fadeOut(
+                                animationSpec = tween(
+                                    durationMillis = Motion.DurationNormal,
+                                    easing = Motion.EasingAccelerate,
+                                ),
+                            )
+                        },
+                    ) {
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            LibraryScreen(
+                                topBar = {
+                                    SynthXTopBar(
+                                        onSettingsClick = { navController.navigate(Screen.Settings.route) },
+                                        sharedTransitionScope = this@SharedTransitionLayout,
+                                        animatedVisibilityScope = this@composable,
+                                    )
+                                },
+                                onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
+                                onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
+                                onNavigateToAlbumList = { navController.navigate(Screen.AlbumList.route) },
+                                onNavigateToPlaylistList = { navController.navigate(Screen.PlaylistList.route) },
+                                playbackViewModel = playbackViewModel,
+                            )
+                        }
                     }
                     composable(Screen.Search.route) {
-                        SearchScreen(
-                            topBar = {
-                                SynthXTopBar(
-                                    onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                                )
-                            },
-                            onNavigateToArtistDetail = { artistId, artistName ->
-                                navController.navigate(
-                                    Screen.ArtistDetail.createRoute(artistId, artistName),
-                                )
-                            },
-                            onNavigateToAlbumDetail = { albumId, albumTitle ->
-                                navController.navigate(
-                                    Screen.AlbumDetail.createRoute(albumId, albumTitle),
-                                )
-                            },
-                            onNavigateToPlaylistDetail = { playlistId, playlistName ->
-                                navController.navigate(
-                                    Screen.PlaylistDetail.createRoute(playlistId, playlistName),
-                                )
-                            },
-                            playbackViewModel = playbackViewModel,
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            SearchScreen(
+                                topBar = {
+                                    SynthXTopBar(
+                                        onSettingsClick = { navController.navigate(Screen.Settings.route) },
+                                    )
+                                },
+                                onNavigateToArtistDetail = { artistId, artistName ->
+                                    navController.navigate(
+                                        Screen.ArtistDetail.createRoute(artistId, artistName),
+                                    )
+                                },
+                                onNavigateToAlbumDetail = { albumId, albumTitle ->
+                                    navController.navigate(
+                                        Screen.AlbumDetail.createRoute(albumId, albumTitle),
+                                    )
+                                },
+                                onNavigateToPlaylistDetail = { playlistId, playlistName ->
+                                    navController.navigate(
+                                        Screen.PlaylistDetail.createRoute(playlistId, playlistName),
+                                    )
+                                },
+                                playbackViewModel = playbackViewModel,
+                            )
+                        }
                     }
                     composable(Screen.Settings.route) {
-                        SettingsScreen(
-                            topBar = {
-                                DetailTopBar(
-                                    title = "Settings",
-                                    onBack = { navController.popBackStack() },
-                                )
-                            },
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            SettingsScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = "Settings",
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                            )
+                        }
                     }
                     composable(Screen.Songs.route) {
-                        SongsScreen(
-                            topBar = { sortOrder, onSortClick ->
-                                DetailTopBar(
-                                    title = "Songs",
-                                    onBack = { navController.popBackStack() },
-                                    actions = {
-                                        IconButton(onClick = onSortClick) {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.Sort,
-                                                contentDescription = "Sort",
-                                                tint = MaterialTheme.colorScheme.onBackground,
-                                            )
-                                        }
-                                    },
-                                )
-                            },
-                            playbackViewModel = playbackViewModel,
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            SongsScreen(
+                                topBar = { sortOrder, onSortClick ->
+                                    DetailTopBar(
+                                        title = "Songs",
+                                        onBack = { navController.popBackStack() },
+                                        actions = {
+                                            IconButton(onClick = onSortClick) {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                                                    contentDescription = "Sort",
+                                                    tint = MaterialTheme.colorScheme.onBackground,
+                                                )
+                                            }
+                                        },
+                                    )
+                                },
+                                playbackViewModel = playbackViewModel,
+                            )
+                        }
                     }
                     composable(Screen.ArtistList.route) {
-                        ArtistListScreen(
-                            topBar = {
-                                DetailTopBar(
-                                    title = "Artists",
-                                    onBack = { navController.popBackStack() },
-                                )
-                            },
-                            onArtistClick = { artistId, artistName ->
-                                navController.navigate(
-                                    Screen.ArtistDetail.createRoute(artistId, artistName),
-                                )
-                            },
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            ArtistListScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = "Artists",
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                                onArtistClick = { artistId, artistName ->
+                                    navController.navigate(
+                                        Screen.ArtistDetail.createRoute(artistId, artistName),
+                                    )
+                                },
+                            )
+                        }
                     }
                     composable(
                         route = Screen.ArtistDetail.ROUTE,
@@ -276,31 +301,35 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                     ) { entry ->
                         val artistId = entry.arguments?.getString("artistId") ?: ""
                         val artistName = entry.arguments?.getString("artistName") ?: ""
-                        ArtistDetailScreen(
-                            topBar = {
-                                DetailTopBar(
-                                    title = artistName,
-                                    onBack = { navController.popBackStack() },
-                                )
-                            },
-                            artistId = artistId,
-                            playbackViewModel = playbackViewModel,
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            ArtistDetailScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = artistName,
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                                artistId = artistId,
+                                playbackViewModel = playbackViewModel,
+                            )
+                        }
                     }
                     composable(Screen.AlbumList.route) {
-                        AlbumListScreen(
-                            topBar = {
-                                DetailTopBar(
-                                    title = "Albums",
-                                    onBack = { navController.popBackStack() },
-                                )
-                            },
-                            onAlbumClick = { albumId, albumTitle ->
-                                navController.navigate(
-                                    Screen.AlbumDetail.createRoute(albumId, albumTitle),
-                                )
-                            },
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            AlbumListScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = "Albums",
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                                onAlbumClick = { albumId, albumTitle ->
+                                    navController.navigate(
+                                        Screen.AlbumDetail.createRoute(albumId, albumTitle),
+                                    )
+                                },
+                            )
+                        }
                     }
                     composable(
                         route = Screen.AlbumDetail.ROUTE,
@@ -311,50 +340,56 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                     ) { entry ->
                         val albumId = entry.arguments?.getString("albumId") ?: ""
                         val albumTitle = entry.arguments?.getString("albumTitle") ?: ""
-                        AlbumDetailScreen(
-                            topBar = {
-                                DetailTopBar(
-                                    title = albumTitle,
-                                    onBack = { navController.popBackStack() },
-                                )
-                            },
-                            albumId = albumId,
-                            playbackViewModel = playbackViewModel,
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            AlbumDetailScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = albumTitle,
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                                albumId = albumId,
+                                playbackViewModel = playbackViewModel,
+                            )
+                        }
                     }
                     composable(Screen.PlaylistList.route) {
-                        PlaylistListScreen(
-                            topBar = {
-                                DetailTopBar(
-                                    title = "Playlists",
-                                    onBack = { navController.popBackStack() },
-                                )
-                            },
-                            onGroupClick = { groupId, groupName ->
-                                navController.navigate(
-                                    Screen.GroupDetail.createRoute(groupId, groupName),
-                                )
-                            },
-                            onPlaylistClick = { playlistId, playlistName ->
-                                navController.navigate(
-                                    Screen.PlaylistDetail.createRoute(playlistId, playlistName),
-                                )
-                            },
-                            onCreatePlaylistClick = {
-                                navController.navigate(Screen.CreatePlaylist.route)
-                            },
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            PlaylistListScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = "Playlists",
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                                onGroupClick = { groupId, groupName ->
+                                    navController.navigate(
+                                        Screen.GroupDetail.createRoute(groupId, groupName),
+                                    )
+                                },
+                                onPlaylistClick = { playlistId, playlistName ->
+                                    navController.navigate(
+                                        Screen.PlaylistDetail.createRoute(playlistId, playlistName),
+                                    )
+                                },
+                                onCreatePlaylistClick = {
+                                    navController.navigate(Screen.CreatePlaylist.route)
+                                },
+                            )
+                        }
                     }
                     composable(Screen.CreatePlaylist.route) {
-                        CreatePlaylistScreen(
-                            topBar = {
-                                DetailTopBar(
-                                    title = "New Playlist",
-                                    onBack = { navController.popBackStack() },
-                                )
-                            },
-                            onCreated = { navController.popBackStack() },
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            CreatePlaylistScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = "New Playlist",
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                                onCreated = { navController.popBackStack() },
+                            )
+                        }
                     }
                     composable(
                         route = Screen.GroupDetail.ROUTE,
@@ -365,20 +400,22 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                     ) { entry ->
                         val groupId = entry.arguments?.getString("groupId") ?: ""
                         val groupName = entry.arguments?.getString("groupName") ?: ""
-                        GroupDetailScreen(
-                            topBar = {
-                                DetailTopBar(
-                                    title = groupName,
-                                    onBack = { navController.popBackStack() },
-                                )
-                            },
-                            onPlaylistClick = { playlistId, playlistName ->
-                                navController.navigate(
-                                    Screen.PlaylistDetail.createRoute(playlistId, playlistName),
-                                )
-                            },
-                            groupId = groupId,
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            GroupDetailScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = groupName,
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                                onPlaylistClick = { playlistId, playlistName ->
+                                    navController.navigate(
+                                        Screen.PlaylistDetail.createRoute(playlistId, playlistName),
+                                    )
+                                },
+                                groupId = groupId,
+                            )
+                        }
                     }
                     composable(
                         route = Screen.PlaylistDetail.ROUTE,
@@ -389,19 +426,21 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                     ) { entry ->
                         val playlistId = entry.arguments?.getString("playlistId") ?: ""
                         val playlistName = entry.arguments?.getString("playlistName") ?: ""
-                        PlaylistDetailScreen(
-                            topBar = {
-                                DetailTopBar(
-                                    title = playlistName,
-                                    onBack = { navController.popBackStack() },
-                                )
-                            },
-                            playlistId = playlistId,
-                            playbackViewModel = playbackViewModel,
-                            onAddSongsClick = {
-                                navController.navigate(Screen.AddSongs.createRoute(playlistId))
-                            },
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            PlaylistDetailScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = playlistName,
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                                playlistId = playlistId,
+                                playbackViewModel = playbackViewModel,
+                                onAddSongsClick = {
+                                    navController.navigate(Screen.AddSongs.createRoute(playlistId))
+                                },
+                            )
+                        }
                     }
                     composable(
                         route = Screen.AddSongs.ROUTE,
@@ -410,18 +449,51 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                         ),
                     ) { entry ->
                         val playlistId = entry.arguments?.getString("playlistId") ?: ""
-                        AddSongsScreen(
-                            topBar = {
-                                DetailTopBar(
-                                    title = "Add Songs",
-                                    onBack = { navController.popBackStack() },
-                                )
-                            },
-                            playlistId = playlistId,
-                            onSubmitted = { navController.popBackStack() },
-                        )
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            AddSongsScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = "Add Songs",
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                                playlistId = playlistId,
+                                onSubmitted = { navController.popBackStack() },
+                            )
+                        }
                     }
                 }
+            }
+        }
+
+        // Bottom nav as overlay — never affects layout. Fades in on Library's delayed
+        // schedule (300ms delay + 300ms fade); leaves instantly (exit = None). Always
+        // composed so AnimatedVisibility can actually run the enter animation on the
+        // false→true flip instead of popping in fresh.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            AnimatedVisibility(
+                visible = showBottomBar,
+                enter = fadeIn(
+                    animationSpec = tween(
+                        durationMillis = Motion.DurationNormal,
+                        easing = Motion.EasingDecelerate,
+                        delayMillis = Motion.DurationNormal,
+                    ),
+                ),
+                exit = ExitTransition.None,
+            ) {
+                SynthXBottomNav(
+                    navController = navController,
+                    currentRoute = currentRoute,
+                    // Fall back to 0f when nothing is playing so a stale progress can't
+                    // leave the nav slid off screen after the sheet is gone.
+                    playerProgress = if (currentSong != null) playerProgress else 0f,
+                )
             }
         }
 

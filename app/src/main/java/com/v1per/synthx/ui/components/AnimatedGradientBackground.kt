@@ -4,6 +4,7 @@ import android.graphics.BlurMaskFilter
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -43,6 +45,7 @@ private const val BlurRadiusPx = 200f
 @Composable
 fun AnimatedGradientBackground(
     modifier: Modifier = Modifier,
+    gradientAlpha: Float = 1f,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val startX = remember { Animatable(0f) }
@@ -68,13 +71,16 @@ fun AnimatedGradientBackground(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         // Blurred gradient layer. The Animatable reads inside drawWithCache re-run the cache
         // block (and rebuild the Paint) only while the points are actually moving; content
         // stays on top, unblurred.
         Spacer(
             modifier = Modifier
                 .fillMaxSize()
+                // The 200px BlurMaskFilter paints past the layout edges; clip so the glow
+                // can't bleed into the system bar areas outside these bounds.
+                .clipToBounds()
                 .drawWithCache {
                     val paint = Paint().apply {
                         asFrameworkPaint().apply {
@@ -88,6 +94,9 @@ fun AnimatedGradientBackground(
                         }
                     }
                     onDrawBehind {
+                        // Fades only this gradient layer; the black base coat and the
+                        // content slot stay fully opaque.
+                        paint.asFrameworkPaint().alpha = (gradientAlpha * 255).toInt().coerceIn(0, 255)
                         drawIntoCanvas { canvas ->
                             canvas.drawRect(Rect(Offset.Zero, size), paint)
                         }

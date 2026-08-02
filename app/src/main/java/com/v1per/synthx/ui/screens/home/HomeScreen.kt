@@ -3,6 +3,7 @@ package com.v1per.synthx.ui.screens.home
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,8 +19,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.Font
@@ -31,6 +39,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.AnimatedGradientBackground
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -39,7 +48,47 @@ fun HomeScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
-    AnimatedGradientBackground {
+    // Both start at 0f: the entry LaunchedEffect fades them up, so the first frame
+    // doesn't flash them at full strength before the fade-in begins.
+    var gradientAlpha by remember { mutableFloatStateOf(0f) }
+    var arrowAlpha by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
+
+    // Tap sequence: fade the gradient and arrow to black in parallel, then navigate —
+    // Library then fades in on its delayed enterTransition while the wordmark morphs.
+    fun onArrowClick() {
+        scope.launch {
+            val gradientAnim = Animatable(gradientAlpha)
+            val arrowAnim = Animatable(arrowAlpha)
+            val spec = tween<Float>(
+                durationMillis = Motion.DurationNormal,
+                easing = Motion.EasingAccelerate,
+            )
+            launch { gradientAnim.animateTo(0f, spec) { gradientAlpha = value } }
+            arrowAnim.animateTo(0f, spec) { arrowAlpha = value }
+            onEnterLibrary()
+        }
+    }
+
+    // On (re-)entering Home the gradient and arrow fade back in, coordinated with the
+    // screen's popEnterTransition fadeIn.
+    LaunchedEffect(Unit) {
+        arrowAlpha = 0f
+        val gradAnim = Animatable(0f)
+        val arrowAnim = Animatable(0f)
+        val spec = tween<Float>(
+            durationMillis = Motion.DurationNormal,
+            easing = Motion.EasingDecelerate,
+        )
+        launch { gradAnim.animateTo(1f, spec) { gradientAlpha = value } }
+        arrowAnim.animateTo(1f, spec) { arrowAlpha = value }
+    }
+
+    // MainScaffold's innerPadding already confines this screen to the safe area between
+    // the system bars; the gradient clips its blur to those bounds itself.
+    AnimatedGradientBackground(
+        gradientAlpha = gradientAlpha,
+    ) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
@@ -48,7 +97,9 @@ fun HomeScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                val wordmarkFont = FontFamily(Font(R.font.bitcount_grid_double_regular, FontWeight.Normal))
+                val wordmarkFont = remember {
+                    FontFamily(Font(R.font.bitcount_grid_double_regular, FontWeight.Normal))
+                }
 
                 with(sharedTransitionScope) {
                     Text(
@@ -57,6 +108,7 @@ fun HomeScreen(
                                 SpanStyle(
                                     color = MaterialTheme.colorScheme.onBackground,
                                     fontFamily = wordmarkFont,
+                                    fontWeight = FontWeight.Normal,
                                 ),
                             ) {
                                 append("synth")
@@ -65,20 +117,31 @@ fun HomeScreen(
                                 SpanStyle(
                                     color = MaterialTheme.colorScheme.primary,
                                     fontFamily = wordmarkFont,
+                                    fontWeight = FontWeight.Normal,
                                 ),
                             ) {
                                 append("X")
                             }
                         },
-                        style = MaterialTheme.typography.displayLarge,
-                        modifier = Modifier.sharedElement(
-                            state = rememberSharedContentState(key = "wordmark"),
+                        style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.sharedBounds(
+                            sharedContentState = rememberSharedContentState(key = "wordmark"),
                             animatedVisibilityScope = animatedVisibilityScope,
-                            boundsTransform = { _, _ ->
-                                tween(
-                                    durationMillis = Motion.DurationNormal,
-                                    easing = Motion.EasingDecelerate,
-                                )
+                            renderInOverlayDuringTransition = false,
+                            // Accelerate when rising (Home→Library), decelerate when settling
+                            // back down (Library→Home).
+                            boundsTransform = { startBounds, endBounds ->
+                                if (endBounds.top < startBounds.top) {
+                                    tween(
+                                        durationMillis = Motion.DurationNormal,
+                                        easing = Motion.EasingAccelerate,
+                                    )
+                                } else {
+                                    tween(
+                                        durationMillis = Motion.DurationNormal,
+                                        easing = Motion.EasingDecelerate,
+                                    )
+                                }
                             },
                         ),
                     )
@@ -87,8 +150,10 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(Spacing.xl))
 
                 IconButton(
-                    onClick = onEnterLibrary,
-                    modifier = Modifier.size(48.dp),
+                    onClick = { onArrowClick() },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .alpha(arrowAlpha),
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,

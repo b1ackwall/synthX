@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -37,20 +38,31 @@ internal fun SynthXTopBar(
 ) {
     TopAppBar(
         title = {
-            val wordmarkFont = FontFamily(Font(R.font.bitcount_grid_double_regular, FontWeight.Normal))
+            val wordmarkFont = remember {
+                FontFamily(Font(R.font.bitcount_grid_double_regular, FontWeight.Normal))
+            }
 
             // Participates in the wordmark shared element transition (from Home) only when
             // both scopes are supplied; other callers get a plain wordmark.
             val wordmarkModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
                 with(sharedTransitionScope) {
-                    Modifier.sharedElement(
-                        state = rememberSharedContentState(key = "wordmark"),
+                    Modifier.sharedBounds(
+                        sharedContentState = rememberSharedContentState(key = "wordmark"),
                         animatedVisibilityScope = animatedVisibilityScope,
-                        boundsTransform = { _, _ ->
-                            tween(
-                                durationMillis = Motion.DurationNormal,
-                                easing = Motion.EasingDecelerate,
-                            )
+                        // Accelerate when rising (Home→Library), decelerate when settling
+                        // back down (Library→Home).
+                        boundsTransform = { startBounds, endBounds ->
+                            if (endBounds.top < startBounds.top) {
+                                tween(
+                                    durationMillis = Motion.DurationNormal,
+                                    easing = Motion.EasingAccelerate,
+                                )
+                            } else {
+                                tween(
+                                    durationMillis = Motion.DurationNormal,
+                                    easing = Motion.EasingDecelerate,
+                                )
+                            }
                         },
                     )
                 }
@@ -59,12 +71,13 @@ internal fun SynthXTopBar(
             }
 
             Text(
-                modifier = wordmarkModifier.padding(top = 8.dp),
+                modifier = wordmarkModifier,
                 text = buildAnnotatedString {
                     withStyle(
                         SpanStyle(
                             color = MaterialTheme.colorScheme.onBackground,
                             fontFamily = wordmarkFont,
+                            fontWeight = FontWeight.Normal,
                         ),
                     ) {
                         append("synth")
@@ -73,6 +86,7 @@ internal fun SynthXTopBar(
                         SpanStyle(
                             color = MaterialTheme.colorScheme.primary,
                             fontFamily = wordmarkFont,
+                            fontWeight = FontWeight.Normal,
                         ),
                     ) {
                         append("X")
