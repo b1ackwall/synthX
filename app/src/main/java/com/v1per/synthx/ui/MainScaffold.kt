@@ -120,6 +120,12 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     // showBottomBar flips, this still holds the outgoing route.
     var previousRoute by remember { mutableStateOf<String?>(null) }
 
+    // True when we're leaving a bottom-bar route for Home — the one departure that should
+    // fade the chrome out instead of cutting it. Derived during composition, not in the
+    // effect, so it's already correct on the frame showBottomBar flips false.
+    val targetHomeTransition = previousRoute in bottomBarRoutes &&
+        currentRoute == Screen.Home.route
+
     LaunchedEffect(currentRoute) {
         previousRoute = currentRoute
     }
@@ -488,9 +494,9 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
 
         // Bottom nav as overlay — never affects layout. Arriving from Home it fades in on
         // Library's delayed schedule (300ms delay + 300ms fade); every other arrival —
-        // Settings back included — is instant. Leaves instantly either way (exit = None).
-        // Always composed so AnimatedVisibility can actually run the enter animation on the
-        // false→true flip instead of popping in fresh.
+        // Settings back included — is instant. Leaving to Home it fades out with Library's
+        // pop easing; every other departure is instant. Always composed so AnimatedVisibility
+        // can actually run the animations on the visibility flip instead of popping.
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -510,7 +516,16 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                 } else {
                     EnterTransition.None
                 },
-                exit = ExitTransition.None,
+                exit = if (targetHomeTransition) {
+                    fadeOut(
+                        animationSpec = tween(
+                            durationMillis = Motion.DurationNormal,
+                            easing = Motion.EasingAccelerate,
+                        ),
+                    )
+                } else {
+                    ExitTransition.None
+                },
             ) {
                 SynthXBottomNav(
                     navController = navController,
@@ -525,8 +540,8 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         // The player overlays everything as a sibling to the Scaffold so it can expand
         // upward over the content — and, once expanded, over the nav area the sliding nav
         // vacates. It fills the whole Box; its own progress-driven inset keeps the collapsed
-        // mini above the nav. Enters on the same schedule as the bottom nav: a delayed fade
-        // when arriving from Home, instant everywhere else. Leaves instantly (exit = None).
+        // mini above the nav. Runs the same schedule as the bottom nav: a delayed fade when
+        // arriving from Home, a fade out when leaving to Home, instant everywhere else.
         AnimatedVisibility(
             visible = showBottomBar && currentSong != null,
             enter = if (previousRoute == Screen.Home.route) {
@@ -540,7 +555,16 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             } else {
                 EnterTransition.None
             },
-            exit = ExitTransition.None,
+            exit = if (targetHomeTransition) {
+                fadeOut(
+                    animationSpec = tween(
+                        durationMillis = Motion.DurationNormal,
+                        easing = Motion.EasingAccelerate,
+                    ),
+                )
+            } else {
+                ExitTransition.None
+            },
         ) {
             currentSong?.let { song ->
                 PlayerSheet(
