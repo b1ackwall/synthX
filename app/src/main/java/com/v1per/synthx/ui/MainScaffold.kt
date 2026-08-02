@@ -100,6 +100,8 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     val playbackViewModel = viewModel<PlaybackViewModel>()
     val isPlaying by playbackViewModel.isPlaying.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
+    val currentPosition by playbackViewModel.currentPosition.collectAsState()
+    val duration by playbackViewModel.duration.collectAsState()
 
     // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerSheet and used
     // to slide the bottom nav down in lockstep with the sheet's expansion.
@@ -426,7 +428,10 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                 PlayerSheet(
                     song = song,
                     isPlaying = isPlaying,
+                    currentPosition = currentPosition,
+                    duration = duration,
                     onPlayPauseClick = playbackViewModel::togglePlayPause,
+                    onSeek = playbackViewModel::seekTo,
                     onProgressChanged = { playerProgress = it },
                 )
             }

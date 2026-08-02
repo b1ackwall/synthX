@@ -10,9 +10,12 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.v1per.synthx.data.repository.Song
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 import java.io.ByteArrayOutputStream
 
 class ExoPlayerEngine(context: Context) : PlaybackEngine {
@@ -22,6 +25,22 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
 
     private val _currentSongId = MutableStateFlow<String?>(null)
     override val currentSongId: Flow<String?> = _currentSongId.asStateFlow()
+
+    // Cold polling flows: collected on the caller's dispatcher (the ViewModel collects on
+    // Main.immediate via stateIn), which satisfies MediaController's main-thread requirement.
+    override val currentPosition: Flow<Long> = flow {
+        while (true) {
+            emit(controller?.currentPosition ?: 0L)
+            delay(500)
+        }
+    }.distinctUntilChanged()
+
+    override val duration: Flow<Long> = flow {
+        while (true) {
+            emit(controller?.duration?.takeIf { it > 0 } ?: 0L)
+            delay(500)
+        }
+    }.distinctUntilChanged()
 
     private var controller: MediaController? = null
 
@@ -98,6 +117,10 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
     override fun stop() {
         controller?.stop()
         _currentSongId.value = null
+    }
+
+    override fun seekTo(positionMs: Long) {
+        controller?.seekTo(positionMs)
     }
 
     override fun release() {

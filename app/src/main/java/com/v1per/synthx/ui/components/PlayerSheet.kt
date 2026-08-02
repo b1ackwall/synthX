@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.components
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -11,6 +12,7 @@ import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.gestures.animateTo
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -25,11 +27,17 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -58,10 +67,12 @@ import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 /**
  * Height of the collapsed mini-player bar. Exposed so MainScaffold can reserve the
@@ -85,7 +96,10 @@ enum class PlayerSheetValue { Collapsed, Expanded }
 fun PlayerSheet(
     song: Song,
     isPlaying: Boolean,
+    currentPosition: Long,
+    duration: Long,
     onPlayPauseClick: () -> Unit,
+    onSeek: (Long) -> Unit,
     onProgressChanged: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -142,10 +156,13 @@ fun PlayerSheet(
         PlayerSheetContent(
             song = song,
             isPlaying = isPlaying,
+            currentPosition = currentPosition,
+            duration = duration,
             progress = progress,
             fullWidth = maxWidth,
             fullHeight = maxHeight,
             onPlayPauseClick = onPlayPauseClick,
+            onSeek = onSeek,
             onExpand = { scope.launch { draggableState.animateTo(PlayerSheetValue.Expanded) } },
             sheetModifier = Modifier.anchoredDraggable(draggableState, Orientation.Vertical),
         )
@@ -156,10 +173,13 @@ fun PlayerSheet(
 private fun PlayerSheetContent(
     song: Song,
     isPlaying: Boolean,
+    currentPosition: Long,
+    duration: Long,
     progress: Float,
     fullWidth: Dp,
     fullHeight: Dp,
     onPlayPauseClick: () -> Unit,
+    onSeek: (Long) -> Unit,
     onExpand: () -> Unit,
     sheetModifier: Modifier = Modifier,
 ) {
@@ -204,14 +224,22 @@ private fun PlayerSheetContent(
             ) {
                 AlbumArt(song = song, isPlaying = isPlaying, size = 44.dp)
                 Spacer(modifier = Modifier.width(Spacing.sm))
-                Text(
-                    text = song.title,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = song.title,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = song.artist,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 IconButton(
                     onClick = onPlayPauseClick,
                     enabled = miniPlayerAlpha > 0.5f,
@@ -255,19 +283,111 @@ private fun PlayerSheetContent(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                IconButton(
-                    onClick = onPlayPauseClick,
-                    enabled = fullPlayerAlpha > 0.5f,
-                    modifier = Modifier.size(72.dp),
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = if (isPlaying) Accent else TextPrimary,
-                        modifier = Modifier.size(48.dp),
+
+                // Seek bar section
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Slider(
+                        value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
+                        onValueChange = { fraction -> onSeek((fraction * duration).toLong()) },
+                        enabled = fullPlayerAlpha > 0.5f,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Accent,
+                            activeTrackColor = Accent,
+                            inactiveTrackColor = SurfaceVariant,
+                        ),
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = formatDuration(currentPosition),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                        )
+                        Text(
+                            text = formatDuration(duration),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(Spacing.xxl))
+
+                Spacer(modifier = Modifier.height(Spacing.lg))
+
+                // Controls row — prev, play/pause, next
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Previous — placeholder
+                    IconButton(
+                        onClick = {},
+                        enabled = fullPlayerAlpha > 0.5f,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.SkipPrevious,
+                            contentDescription = "Previous",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(32.dp),
+                        )
+                    }
+                    IconButton(
+                        onClick = onPlayPauseClick,
+                        enabled = fullPlayerAlpha > 0.5f,
+                        modifier = Modifier.size(72.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = if (isPlaying) Accent else TextPrimary,
+                            modifier = Modifier.size(48.dp),
+                        )
+                    }
+                    // Next — placeholder
+                    IconButton(
+                        onClick = {},
+                        enabled = fullPlayerAlpha > 0.5f,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.SkipNext,
+                            contentDescription = "Next",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(32.dp),
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.lg))
+
+                // Bottom row — queue + more options placeholders
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    IconButton(onClick = {}, enabled = fullPlayerAlpha > 0.5f) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = "Queue",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                    IconButton(onClick = {}, enabled = fullPlayerAlpha > 0.5f) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = "More options",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.md))
             }
         }
     }
@@ -280,9 +400,19 @@ private fun AlbumArt(
     size: Dp,
     fullResolution: Boolean = false,
 ) {
+    // "Breathe" — the art relaxes inward when paused and springs back on play.
+    val scale by animateFloatAsState(
+        targetValue = if (isPlaying) 1.0f else 0.85f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "artScale",
+    )
     Box(
         modifier = Modifier
             .size(size)
+            .scale(scale)
             .clip(RoundedCornerShape(2.dp)),
     ) {
         if (song.albumArtUri != null) {
@@ -313,6 +443,13 @@ private fun AlbumArt(
     }
 }
 
+private fun formatDuration(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return String.format(Locale.US, "%d:%02d", minutes, seconds)
+}
+
 private val PreviewSong = Song(
     id = "preview_1",
     title = "Neon Pulse",
@@ -331,10 +468,13 @@ private fun PlayerSheetCollapsedPreview() {
             PlayerSheetContent(
                 song = PreviewSong,
                 isPlaying = false,
+                currentPosition = 63_000L,
+                duration = 243_000L,
                 progress = 0f,
                 fullWidth = 400.dp,
                 fullHeight = 800.dp,
                 onPlayPauseClick = {},
+                onSeek = {},
                 onExpand = {},
             )
         }
@@ -349,10 +489,13 @@ private fun PlayerSheetExpandedPreview() {
             PlayerSheetContent(
                 song = PreviewSong,
                 isPlaying = true,
+                currentPosition = 63_000L,
+                duration = 243_000L,
                 progress = 1f,
                 fullWidth = 400.dp,
                 fullHeight = 800.dp,
                 onPlayPauseClick = {},
+                onSeek = {},
                 onExpand = {},
             )
         }

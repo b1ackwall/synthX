@@ -22,6 +22,12 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
 
+    val currentPosition: StateFlow<Long> = controller.currentPosition
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+
+    val duration: StateFlow<Long> = controller.duration
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+
     init {
         // Mirror currentSongId going null (track end, stop) into currentSong
         viewModelScope.launch {
@@ -41,6 +47,8 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     fun resume() = controller.resume()
 
     fun stop() = controller.stop()
+
+    fun seekTo(positionMs: Long) = controller.seekTo(positionMs)
 
     fun togglePlayPause() {
         if (isPlaying.value) pause() else resume()
