@@ -170,7 +170,13 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                         },
                     ) {
                         HomeScreen(
-                            onEnterLibrary = { navController.navigate(Screen.Library.route) },
+                            onEnterLibrary = {
+                                navController.navigate(Screen.Library.route) {
+                                    popUpTo(Screen.Home.route) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedVisibilityScope = this@composable,
                         )
@@ -470,13 +476,22 @@ private fun SynthXBottomNav(
                 NavigationBarItem(
                     selected = selected,
                     onClick = {
-                        if (currentRoute == Screen.Songs.route && item.screen.route == Screen.Library.route) {
-                            navController.popBackStack()
-                        } else if (!selected) {
-                            navController.navigate(item.screen.route) {
-                                popUpTo(Screen.Home.route) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
+                        when {
+                            item.screen.route == Screen.Home.route -> {
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Home.route) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                            currentRoute == Screen.Songs.route && item.screen.route == Screen.Library.route -> {
+                                navController.popBackStack()
+                            }
+                            !selected -> {
+                                navController.navigate(item.screen.route) {
+                                    popUpTo(Screen.Home.route) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
                         }
                     },
