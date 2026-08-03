@@ -7,18 +7,17 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
@@ -127,48 +126,64 @@ private fun LibraryScreenContent(
     onSeeAllClick: () -> Unit,
     onSongClick: (Song) -> Unit,
 ) {
-    Column(modifier = modifier.fillMaxSize()) {
-        Text(
-            text = "Library",
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier
-                .padding(horizontal = Spacing.HorizontalPadding)
-                .padding(top = Spacing.lg),
-        )
-
-        Spacer(modifier = Modifier.height(Spacing.md))
-
-        CategoryRow(
-            icon = Icons.AutoMirrored.Filled.QueueMusic,
-            label = "Playlists",
-            onClick = onPlaylistsClick,
-        )
-        CategoryRow(
-            icon = Icons.Default.Person,
-            label = "Artists",
-            onClick = onArtistsClick,
-        )
-        CategoryRow(
-            icon = Icons.Default.Album,
-            label = "Albums",
-            onClick = onAlbumsClick,
-        )
-        CategoryRow(
-            icon = Icons.Default.MusicNote,
-            label = "Songs",
-            onClick = onSongsClick,
-        )
-
-        if (recentSongs.isNotEmpty()) {
-            RecentlyAddedSection(
-                songs = recentSongs,
-                onSeeAllClick = onSeeAllClick,
-                onSongClick = onSongClick,
+    LazyColumn(modifier = modifier.fillMaxSize()) {
+        item {
+            Text(
+                text = "Library",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier
+                    .padding(horizontal = Spacing.HorizontalPadding)
+                    .padding(top = Spacing.lg),
             )
         }
 
-        Spacer(modifier = Modifier.height(Spacing.lg))
+        item {
+            Spacer(modifier = Modifier.height(Spacing.md))
+        }
+
+        item {
+            CategoryRow(
+                icon = Icons.AutoMirrored.Filled.QueueMusic,
+                label = "Playlists",
+                onClick = onPlaylistsClick,
+            )
+        }
+        item {
+            CategoryRow(
+                icon = Icons.Default.Person,
+                label = "Artists",
+                onClick = onArtistsClick,
+            )
+        }
+        item {
+            CategoryRow(
+                icon = Icons.Default.Album,
+                label = "Albums",
+                onClick = onAlbumsClick,
+            )
+        }
+        item {
+            CategoryRow(
+                icon = Icons.Default.MusicNote,
+                label = "Songs",
+                onClick = onSongsClick,
+            )
+        }
+
+        item {
+            if (recentSongs.isNotEmpty()) {
+                RecentlyAddedSection(
+                    songs = recentSongs,
+                    onSeeAllClick = onSeeAllClick,
+                    onSongClick = onSongClick,
+                )
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(Spacing.lg))
+        }
     }
 }
 
@@ -178,38 +193,55 @@ private fun RecentlyAddedSection(
     onSeeAllClick: () -> Unit,
     onSongClick: (Song) -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.HorizontalPadding)
-            .padding(top = Spacing.lg),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "Recently Added",
-            style = MaterialTheme.typography.titleMedium,
-            color = TextPrimary,
-        )
-        Text(
-            text = "See All",
-            style = MaterialTheme.typography.labelMedium,
-            color = TextSecondary,
-            modifier = Modifier.clickable(onClick = onSeeAllClick),
-        )
-    }
-
-    Spacer(modifier = Modifier.height(Spacing.md))
-
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = Spacing.HorizontalPadding),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
-    ) {
-        items(songs, key = { it.id }) { song ->
-            RecentSongTile(
-                song = song,
-                onClick = { onSongClick(song) },
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.HorizontalPadding)
+                .padding(top = Spacing.lg),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Recently Added",
+                style = MaterialTheme.typography.titleMedium,
+                color = TextPrimary,
             )
+            Text(
+                text = "See All",
+                style = MaterialTheme.typography.labelMedium,
+                color = TextSecondary,
+                modifier = Modifier.clickable(onClick = onSeeAllClick),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.md))
+
+        val rows = songs.chunked(2)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.HorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
+        ) {
+            rows.forEach { rowSongs ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
+                ) {
+                    rowSongs.forEach { song ->
+                        RecentSongTile(
+                            song = song,
+                            onClick = { onSongClick(song) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    // Fill empty space if odd number of songs
+                    if (rowSongs.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
 }
@@ -218,11 +250,10 @@ private fun RecentlyAddedSection(
 private fun RecentSongTile(
     song: Song,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier
-            .width(100.dp)
-            .clickable(onClick = onClick),
+        modifier = modifier.clickable(onClick = onClick),
     ) {
         if (song.albumArtUri != null) {
             AsyncImage(
@@ -230,15 +261,24 @@ private fun RecentSongTile(
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(100.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
                     .clip(RoundedCornerShape(2.dp)),
             )
         } else {
-            GlitchPlaceholder(
-                songId = song.id,
-                isPlaying = false,
-                size = 100.dp,
-            )
+            // GlitchPlaceholder applies .size() internally, so resolve the
+            // square edge from the tile width before handing it down.
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+            ) {
+                GlitchPlaceholder(
+                    songId = song.id,
+                    isPlaying = false,
+                    size = maxWidth,
+                )
+            }
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
