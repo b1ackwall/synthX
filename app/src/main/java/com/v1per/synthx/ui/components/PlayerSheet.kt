@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,16 +29,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -162,7 +162,6 @@ fun PlayerSheet(
             fullWidth = maxWidth,
             fullHeight = maxHeight,
             onPlayPauseClick = onPlayPauseClick,
-            onSeek = onSeek,
             onExpand = { scope.launch { draggableState.animateTo(PlayerSheetValue.Expanded) } },
             sheetModifier = Modifier.anchoredDraggable(draggableState, Orientation.Vertical),
         )
@@ -179,12 +178,11 @@ private fun PlayerSheetContent(
     fullWidth: Dp,
     fullHeight: Dp,
     onPlayPauseClick: () -> Unit,
-    onSeek: (Long) -> Unit,
     onExpand: () -> Unit,
     sheetModifier: Modifier = Modifier,
 ) {
     val sheetHeight = lerp(CollapsedPlayerHeight, fullHeight, progress)
-    val artSize = lerp(44.dp, fullWidth - Spacing.HorizontalPadding * 2, progress)
+    val artSize = lerp(44.dp, fullWidth - Spacing.HorizontalPadding * 4, progress)
     val cornerRadius = lerp(0.dp, 24.dp, progress) // flat when collapsed, rounded top when expanded
     val miniPlayerAlpha = (1f - progress * 3f).coerceIn(0f, 1f) // fades out over the first third
     val fullPlayerAlpha = ((progress - 0.4f) * (1f / 0.6f)).coerceIn(0f, 1f) // fades in after 40%
@@ -262,41 +260,93 @@ private fun PlayerSheetContent(
                     .padding(horizontal = Spacing.HorizontalPadding),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(modifier = Modifier.height(Spacing.xl))
-                AlbumArt(song = song, isPlaying = isPlaying, size = artSize, fullResolution = true)
-                Spacer(modifier = Modifier.height(Spacing.xl))
-                Text(
-                    text = song.title,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth(),
+                // Flexible top
+                Spacer(modifier = Modifier.weight(1.5f))
+
+                AlbumArt(
+                    song = song,
+                    isPlaying = isPlaying,
+                    size = artSize,
+                    fullResolution = true,
                 )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Text(
-                    text = song.artist,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+
+                // Flexible between art and title
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Seek bar section
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Slider(
-                        value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
-                        onValueChange = { fraction -> onSeek((fraction * duration).toLong()) },
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = Spacing.lg, end = 12.dp), // 12dp intentional: Spacing.xs (4dp) + 8dp added
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = song.title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = song.artist,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    IconButton(
+                        onClick = {},
                         enabled = fullPlayerAlpha > 0.5f,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = SliderDefaults.colors(
-                            thumbColor = Accent,
-                            activeTrackColor = Accent,
-                            inactiveTrackColor = SurfaceVariant,
-                        ),
-                    )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                // Seek bar section — visual only, no scrubbing.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.lg),
+                ) {
+                    // Thin progress line
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp),
+                    ) {
+                        val fraction = if (duration > 0) {
+                            (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                        } else {
+                            0f
+                        }
+                        // Unplayed track
+                        drawLine(
+                            color = SurfaceVariant,
+                            start = Offset(0f, size.height / 2),
+                            end = Offset(size.width, size.height / 2),
+                            strokeWidth = size.height,
+                        )
+                        // Played track
+                        if (fraction > 0f) {
+                            drawLine(
+                                color = Accent,
+                                start = Offset(0f, size.height / 2),
+                                end = Offset(size.width * fraction, size.height / 2),
+                                strokeWidth = size.height,
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    // Timestamps
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -314,79 +364,83 @@ private fun PlayerSheetContent(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.lg))
+                // Flexible between seek and controls
+                Spacer(modifier = Modifier.weight(1f))
 
                 // Controls row — prev, play/pause, next
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Spacer(modifier = Modifier.weight(2f))
                     // Previous — placeholder
                     IconButton(
                         onClick = {},
+                        modifier = Modifier.size(72.dp),
                         enabled = fullPlayerAlpha > 0.5f,
-                        modifier = Modifier.size(48.dp),
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.SkipPrevious,
+                            imageVector = Icons.Filled.FastRewind,
                             contentDescription = "Previous",
                             tint = TextPrimary,
-                            modifier = Modifier.size(32.dp),
+                            modifier = Modifier.size(56.dp),
                         )
                     }
+                    Spacer(modifier = Modifier.weight(1f))
                     IconButton(
                         onClick = onPlayPauseClick,
+                        modifier = Modifier.size(96.dp),
                         enabled = fullPlayerAlpha > 0.5f,
-                        modifier = Modifier.size(72.dp),
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
                             tint = if (isPlaying) Accent else TextPrimary,
-                            modifier = Modifier.size(48.dp),
+                            modifier = Modifier.size(64.dp),
                         )
                     }
+                    Spacer(modifier = Modifier.weight(1f))
                     // Next — placeholder
                     IconButton(
                         onClick = {},
+                        modifier = Modifier.size(72.dp),
                         enabled = fullPlayerAlpha > 0.5f,
-                        modifier = Modifier.size(48.dp),
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.SkipNext,
+                            imageVector = Icons.Filled.FastForward,
                             contentDescription = "Next",
                             tint = TextPrimary,
-                            modifier = Modifier.size(32.dp),
+                            modifier = Modifier.size(56.dp),
                         )
                     }
+                    Spacer(modifier = Modifier.weight(2f))
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.lg))
+                // Flexible between controls and queue
+                Spacer(modifier = Modifier.weight(1f))
 
-                // Bottom row — queue + more options placeholders
+                // Bottom row — queue placeholder
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.Center,
                 ) {
-                    IconButton(onClick = {}, enabled = fullPlayerAlpha > 0.5f) {
+                    IconButton(
+                        onClick = {},
+                        enabled = fullPlayerAlpha > 0.5f,
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                             contentDescription = "Queue",
                             tint = TextSecondary,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                    IconButton(onClick = {}, enabled = fullPlayerAlpha > 0.5f) {
-                        Icon(
-                            imageVector = Icons.Filled.MoreVert,
-                            contentDescription = "More options",
-                            tint = TextSecondary,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(28.dp),
                         )
                     }
                 }
 
+                // Flexible breathing room below bottom icons section
+                Spacer(modifier = Modifier.weight(0.5f))
+
+                // Fixed bottom edge
                 Spacer(modifier = Modifier.height(Spacing.md))
             }
         }
@@ -402,7 +456,7 @@ private fun AlbumArt(
 ) {
     // "Breathe" — the art relaxes inward when paused and springs back on play.
     val scale by animateFloatAsState(
-        targetValue = if (isPlaying) 1.0f else 0.85f,
+        targetValue = if (isPlaying) 1.0f else 0.90f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow,
@@ -474,7 +528,6 @@ private fun PlayerSheetCollapsedPreview() {
                 fullWidth = 400.dp,
                 fullHeight = 800.dp,
                 onPlayPauseClick = {},
-                onSeek = {},
                 onExpand = {},
             )
         }
@@ -495,7 +548,6 @@ private fun PlayerSheetExpandedPreview() {
                 fullWidth = 400.dp,
                 fullHeight = 800.dp,
                 onPlayPauseClick = {},
-                onSeek = {},
                 onExpand = {},
             )
         }
