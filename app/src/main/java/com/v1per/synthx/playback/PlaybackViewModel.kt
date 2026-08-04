@@ -38,9 +38,12 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
         }
     }
 
+    // Stays a plain fun so every UI call site keeps working — the engine's suspend
+    // artwork work is launched into viewModelScope (Main), which is also the
+    // dispatcher MediaController requires when the engine resumes.
     fun playSong(song: Song) {
         _currentSong.value = song
-        controller.playSong(song)
+        viewModelScope.launch { controller.playSong(song) }
     }
 
     fun pause() = controller.pause()

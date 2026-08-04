@@ -10,7 +10,7 @@ class PlaybackController(private val engine: PlaybackEngine) {
     val currentPosition: Flow<Long> = engine.currentPosition
     val duration: Flow<Long> = engine.duration
 
-    fun playSong(song: Song) = engine.playSong(song)
+    suspend fun playSong(song: Song) = engine.playSong(song)
     fun pause() = engine.pause()
     fun resume() = engine.resume()
     fun stop() = engine.stop()

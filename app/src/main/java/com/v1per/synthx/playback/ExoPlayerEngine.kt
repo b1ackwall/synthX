@@ -10,15 +10,20 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.v1per.synthx.data.repository.Song
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
 class ExoPlayerEngine(context: Context) : PlaybackEngine {
+
+    // Needed to resolve album-art content:// URIs through the ContentResolver
+    private val appContext = context.applicationContext
 
     private val _isPlaying = MutableStateFlow(false)
     override val isPlaying: Flow<Boolean> = _isPlaying.asStateFlow()
@@ -79,21 +84,37 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
         )
     }
 
-    override fun playSong(song: Song) {
-        val ctrl = controller ?: return
-
+    override suspend fun playSong(song: Song) {
         val metadataBuilder = MediaMetadata.Builder()
             .setTitle(song.title)
             .setArtist(song.artist)
 
-        if (song.albumArtUri != null) {
-            metadataBuilder.setArtworkUri(Uri.parse(song.albumArtUri))
-        } else {
-            val bitmap = GlitchBitmapGenerator.generateGlitchBitmap(song.id)
-            val stream = ByteArrayOutputStream()
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
-            metadataBuilder.setArtworkData(stream.toByteArray(), MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+        // Load artwork bytes in-process and embed directly — cross-process consumers
+        // (notification, lock screen, Android Auto) cannot read our app-private files,
+        // so an artwork URI would silently resolve to nothing on their side.
+        val artworkBytes: ByteArray? = withContext(Dispatchers.IO) {
+            song.albumArtUri?.let { uriString ->
+                try {
+                    appContext.contentResolver
+                        .openInputStream(Uri.parse(uriString))
+                        ?.use { it.readBytes() }
+                } catch (e: Exception) {
+                    null
+                }
+            }
         }
+
+        val artworkData: ByteArray = withContext(Dispatchers.Default) {
+            artworkBytes ?: run {
+                val bitmap = GlitchBitmapGenerator.generateGlitchBitmap(song.id)
+                val stream = ByteArrayOutputStream()
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+                bitmap.recycle()
+                stream.toByteArray()
+            }
+        }
+
+        metadataBuilder.setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
 
         val mediaItem = MediaItem.Builder()
             .setMediaId(song.id)
@@ -101,9 +122,13 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
             .setMediaMetadata(metadataBuilder.build())
             .build()
 
-        ctrl.setMediaItem(mediaItem)
-        ctrl.prepare()
-        ctrl.play()
+        // MediaController is main-thread-only and the hops above may have moved us off it
+        withContext(Dispatchers.Main.immediate) {
+            val ctrl = controller ?: return@withContext
+            ctrl.setMediaItem(mediaItem)
+            ctrl.prepare()
+            ctrl.play()
+        }
     }
 
     override fun pause() {

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.AlbumEntity
@@ -40,6 +41,12 @@ class FolderScanner(
     // interleave their read-then-write pairs and corrupt the library.
     suspend fun scan(folderUri: Uri): ScanResult = withContext(Dispatchers.IO) {
         SynthXDatabase.scanMutex.withLock {
+            // Cleanup: delete old file:// art files from cacheDir. Art now lives in
+            // filesDir/art/; these are orphans from before that move. No-op once drained.
+            context.cacheDir
+                .listFiles { file -> file.name.startsWith("art_") && file.name.endsWith(".png") }
+                ?.forEach { it.delete() }
+
             val root = DocumentFile.fromTreeUri(context, folderUri)
                 ?: return@withLock ScanResult(added = 0, updated = 0, missing = 0, unchanged = 0)
 
@@ -199,11 +206,22 @@ class FolderScanner(
         return try {
             val artBytes = retriever.embeddedPicture ?: return null
             val bitmap = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size) ?: return null
-            val artFile = File(context.cacheDir, "art_$songId.png")
+
+            // Store in filesDir/art/ — permanent, survives cache clears
+            val artDir = File(context.filesDir, "art").also { it.mkdirs() }
+            val artFile = File(artDir, "art_$songId.png")
+
             FileOutputStream(artFile).use { fos ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
             }
-            Uri.fromFile(artFile).toString()
+            bitmap.recycle()
+
+            // Return content:// URI via FileProvider — safe across process boundaries
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                artFile,
+            ).toString()
         } catch (e: Exception) {
             null
         }

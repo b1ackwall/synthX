@@ -8,7 +8,7 @@ interface PlaybackEngine {
     val currentSongId: Flow<String?>
     val currentPosition: Flow<Long>
     val duration: Flow<Long>
-    fun playSong(song: Song)
+    suspend fun playSong(song: Song)
     fun pause()
     fun resume()
     fun stop()
