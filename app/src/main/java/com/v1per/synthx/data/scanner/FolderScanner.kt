@@ -55,6 +55,12 @@ class FolderScanner(
             if (existing != null) {
                 when {
                     existing.filePath != path -> {
+                        // Check if another song already occupies this path — remove it first
+                        // to avoid UNIQUE constraint violation on file_path index
+                        val occupant = songDao.getSongByPath(path)
+                        if (occupant != null && occupant.id != existing.id) {
+                            songDao.deleteSongById(occupant.id)
+                        }
                         songDao.upsertSong(
                             existing.copy(filePath = path, isMissing = false, missingSince = null)
                         )

@@ -16,10 +16,13 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.SET_NULL,
         ),
     ],
-    indices = [Index("album_id")],
+    indices = [
+        Index("album_id"),
+        Index(value = ["file_path"], unique = true),
+    ],
 )
 data class SongEntity(
-    // SHA-256 of the first 64KB of the file, lowercase hex
+    // SHA-256 of the first 64KB + last 64KB + file size, lowercase hex
     @PrimaryKey val id: String,
     val title: String,
     @ColumnInfo(name = "album_id") val albumId: String?,
