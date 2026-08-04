@@ -36,6 +36,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Album
+import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.GlitchPlaceholder
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
@@ -67,28 +68,28 @@ fun AlbumListScreen(
 
 @Composable
 private fun AlbumListContent(
-    uiState: AlbumListViewModel.UiState,
+    uiState: UiState<List<Album>>,
     onAlbumClick: (albumId: String, albumTitle: String) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
-            is AlbumListViewModel.UiState.Loading -> Unit
-            is AlbumListViewModel.UiState.Empty -> Text(
+            is UiState.Loading -> Unit
+            is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_albums),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
-            is AlbumListViewModel.UiState.Error -> Text(
+            is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
-            is AlbumListViewModel.UiState.Success -> LazyColumn(
+            is UiState.Success -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(uiState.albums, key = { it.id }) { album ->
+                items(uiState.data, key = { it.id }) { album ->
                     AlbumRow(
                         album = album,
                         onClick = { onAlbumClick(album.id, album.title) },
@@ -169,8 +170,8 @@ private fun AlbumListPreview() {
             color = Background,
         ) {
             AlbumListContent(
-                uiState = AlbumListViewModel.UiState.Success(
-                    listOf(
+                uiState = UiState.Success(
+                    data = listOf(
                         Album(id = "1", title = "Ultraviolet", artist = "v1per", albumArtUri = null),
                         Album(id = "2", title = "Fragments", artist = "KNTRL", albumArtUri = null),
                         Album(id = "3", title = "Deep Cut", artist = "Null Signal", albumArtUri = null),

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,15 +18,8 @@ class ArtistListViewModel(
     private val repository: SongRepository,
 ) : ViewModel() {
 
-    sealed class UiState {
-        object Loading : UiState()
-        object Empty : UiState()
-        data class Success(val artists: List<Artist>) : UiState()
-        data class Error(val message: String) : UiState()
-    }
-
-    private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
-    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow<UiState<List<Artist>>>(UiState.Loading)
+    val uiState: StateFlow<UiState<List<Artist>>> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -35,7 +29,7 @@ class ArtistListViewModel(
                 }
                 .collect { artists ->
                     _uiState.value =
-                        if (artists.isEmpty()) UiState.Empty else UiState.Success(artists)
+                        if (artists.isEmpty()) UiState.Empty else UiState.Success(data = artists)
                 }
         }
     }

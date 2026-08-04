@@ -30,16 +30,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.AnimatedGradientBackground
-import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.components.rememberWordmark
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -108,32 +103,11 @@ fun HomeScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                val wordmarkFont = remember {
-                    FontFamily(Font(R.font.bitcount_grid_double_regular, FontWeight.Normal))
-                }
+                val wordmark = rememberWordmark()
 
                 with(sharedTransitionScope) {
                     Text(
-                        text = buildAnnotatedString {
-                            withStyle(
-                                SpanStyle(
-                                    color = TextPrimary,
-                                    fontFamily = wordmarkFont,
-                                    fontWeight = FontWeight.Normal,
-                                ),
-                            ) {
-                                append("synth")
-                            }
-                            withStyle(
-                                SpanStyle(
-                                    color = Accent,
-                                    fontFamily = wordmarkFont,
-                                    fontWeight = FontWeight.Normal,
-                                ),
-                            ) {
-                                append("X")
-                            }
-                        },
+                        text = wordmark,
                         style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.sharedBounds(
                             sharedContentState = rememberSharedContentState(key = "wordmark"),

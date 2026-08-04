@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -49,30 +50,30 @@ fun AlbumDetailScreen(
 
 @Composable
 private fun AlbumDetailContent(
-    uiState: AlbumDetailViewModel.UiState,
+    uiState: UiState<List<Song>>,
     currentlyPlayingSongId: String?,
     onSongTap: (Song) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
-            is AlbumDetailViewModel.UiState.Loading -> Unit
-            is AlbumDetailViewModel.UiState.Empty -> Text(
+            is UiState.Loading -> Unit
+            is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_songs),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
-            is AlbumDetailViewModel.UiState.Error -> Text(
+            is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
-            is AlbumDetailViewModel.UiState.Success -> LazyColumn(
+            is UiState.Success -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = Spacing.md),
             ) {
-                items(uiState.songs, key = { it.id }) { song ->
+                items(uiState.data, key = { it.id }) { song ->
                     SongRow(
                         song = song,
                         isCurrentlyPlaying = song.id == currentlyPlayingSongId,

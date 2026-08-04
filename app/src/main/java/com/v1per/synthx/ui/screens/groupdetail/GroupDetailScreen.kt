@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
+import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
@@ -40,17 +41,17 @@ fun GroupDetailScreen(
 
         Box(modifier = Modifier.fillMaxSize()) {
             when (val state = uiState) {
-                is GroupDetailViewModel.UiState.Loading -> Unit
-                is GroupDetailViewModel.UiState.Empty -> Text(
+                is UiState.Loading -> Unit
+                is UiState.Empty -> Text(
                     text = stringResource(R.string.empty_group_no_playlists),
                     style = MaterialTheme.typography.bodyLarge,
                     color = TextSecondary,
                     modifier = Modifier.align(Alignment.Center),
                 )
-                is GroupDetailViewModel.UiState.Success -> LazyColumn(
+                is UiState.Success -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(state.playlists, key = { it.id }) { playlist ->
+                    items(state.data, key = { it.id }) { playlist ->
                         PlaylistRow(
                             playlist = playlist,
                             onClick = { onPlaylistClick(playlist.id, playlist.name) },
@@ -59,7 +60,7 @@ fun GroupDetailScreen(
                         )
                     }
                 }
-                is GroupDetailViewModel.UiState.Error -> Text(
+                is UiState.Error -> Text(
                     text = state.message,
                     style = MaterialTheme.typography.bodyLarge,
                     color = Error,

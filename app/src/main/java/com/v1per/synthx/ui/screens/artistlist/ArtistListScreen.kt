@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Artist
+import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
@@ -60,28 +61,28 @@ fun ArtistListScreen(
 
 @Composable
 private fun ArtistListContent(
-    uiState: ArtistListViewModel.UiState,
+    uiState: UiState<List<Artist>>,
     onArtistClick: (artistId: String, artistName: String) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
-            is ArtistListViewModel.UiState.Loading -> Unit
-            is ArtistListViewModel.UiState.Empty -> Text(
+            is UiState.Loading -> Unit
+            is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_artists),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
-            is ArtistListViewModel.UiState.Error -> Text(
+            is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
-            is ArtistListViewModel.UiState.Success -> LazyColumn(
+            is UiState.Success -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(uiState.artists, key = { it.id }) { artist ->
+                items(uiState.data, key = { it.id }) { artist ->
                     ArtistRow(
                         artist = artist,
                         onClick = { onArtistClick(artist.id, artist.name) },
@@ -136,8 +137,8 @@ private fun ArtistListPreview() {
             color = Background,
         ) {
             ArtistListContent(
-                uiState = ArtistListViewModel.UiState.Success(
-                    listOf(
+                uiState = UiState.Success(
+                    data = listOf(
                         Artist(id = "1", name = "v1per"),
                         Artist(id = "2", name = "KNTRL"),
                         Artist(id = "3", name = "Null Signal"),

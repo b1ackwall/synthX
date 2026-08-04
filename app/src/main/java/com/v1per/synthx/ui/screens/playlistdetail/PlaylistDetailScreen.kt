@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
@@ -78,18 +79,18 @@ fun PlaylistDetailScreen(
 
         Box(modifier = Modifier.fillMaxSize()) {
             when (val state = uiState) {
-                is PlaylistDetailViewModel.UiState.Loading -> Unit
-                is PlaylistDetailViewModel.UiState.Empty -> Text(
+                is UiState.Loading -> Unit
+                is UiState.Empty -> Text(
                     text = stringResource(R.string.empty_playlist_no_songs),
                     style = MaterialTheme.typography.bodyLarge,
                     color = TextSecondary,
                     modifier = Modifier.align(Alignment.Center),
                 )
-                is PlaylistDetailViewModel.UiState.Success -> LazyColumn(
+                is UiState.Success -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = Spacing.md),
                 ) {
-                    items(state.songs, key = { it.id }) { song ->
+                    items(state.data, key = { it.id }) { song ->
                         SongRow(
                             song = song,
                             isCurrentlyPlaying = song.id == currentSong?.id,
@@ -97,7 +98,7 @@ fun PlaylistDetailScreen(
                         )
                     }
                 }
-                is PlaylistDetailViewModel.UiState.Error -> Text(
+                is UiState.Error -> Text(
                     text = state.message,
                     style = MaterialTheme.typography.bodyLarge,
                     color = Error,

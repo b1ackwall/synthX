@@ -33,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
@@ -130,7 +131,7 @@ private val SortOrder.label: String
 
 @Composable
 private fun SongsScreenContent(
-    uiState: UiState,
+    uiState: UiState<List<Song>>,
     currentlyPlayingSongId: String?,
     onSongTap: (Song) -> Unit,
 ) {
@@ -153,7 +154,7 @@ private fun SongsScreenContent(
                 modifier = Modifier.align(Alignment.Center),
             )
             is UiState.Success -> SongList(
-                songs = uiState.songs,
+                songs = uiState.data,
                 currentlyPlayingSongId = currentlyPlayingSongId,
                 onSongTap = onSongTap,
             )
@@ -197,7 +198,7 @@ private fun SongsScreenPreview() {
             color = Background,
         ) {
             SongsScreenContent(
-                uiState = UiState.Success(sampleSongs),
+                uiState = UiState.Success(data = sampleSongs),
                 currentlyPlayingSongId = "1",
                 onSongTap = {},
             )
