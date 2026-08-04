@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -57,6 +58,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.v1per.synthx.R
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
@@ -280,7 +282,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                             SettingsScreen(
                                 topBar = {
                                     DetailTopBar(
-                                        title = "Settings",
+                                        title = stringResource(R.string.screen_settings),
                                         onBack = { navController.popBackStack() },
                                     )
                                 },
@@ -292,13 +294,13 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                             SongsScreen(
                                 topBar = { sortOrder, onSortClick ->
                                     DetailTopBar(
-                                        title = "Songs",
+                                        title = stringResource(R.string.screen_songs),
                                         onBack = { navController.popBackStack() },
                                         actions = {
                                             IconButton(onClick = onSortClick) {
                                                 Icon(
                                                     imageVector = Icons.AutoMirrored.Filled.Sort,
-                                                    contentDescription = "Sort",
+                                                    contentDescription = stringResource(R.string.cd_sort),
                                                     tint = TextPrimary,
                                                 )
                                             }
@@ -314,7 +316,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                             ArtistListScreen(
                                 topBar = {
                                     DetailTopBar(
-                                        title = "Artists",
+                                        title = stringResource(R.string.screen_artists),
                                         onBack = { navController.popBackStack() },
                                     )
                                 },
@@ -353,7 +355,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                             AlbumListScreen(
                                 topBar = {
                                     DetailTopBar(
-                                        title = "Albums",
+                                        title = stringResource(R.string.screen_albums),
                                         onBack = { navController.popBackStack() },
                                     )
                                 },
@@ -392,7 +394,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                             PlaylistListScreen(
                                 topBar = {
                                     DetailTopBar(
-                                        title = "Playlists",
+                                        title = stringResource(R.string.screen_playlists),
                                         onBack = { navController.popBackStack() },
                                     )
                                 },
@@ -417,7 +419,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                             CreatePlaylistScreen(
                                 topBar = {
                                     DetailTopBar(
-                                        title = "New Playlist",
+                                        title = stringResource(R.string.screen_new_playlist),
                                         onBack = { navController.popBackStack() },
                                     )
                                 },
@@ -487,7 +489,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                             AddSongsScreen(
                                 topBar = {
                                     DetailTopBar(
-                                        title = "Add Songs",
+                                        title = stringResource(R.string.screen_add_songs),
                                         onBack = { navController.popBackStack() },
                                     )
                                 },
@@ -596,9 +598,24 @@ private fun SynthXBottomNav(
     playerProgress: Float = 0f,
 ) {
     val items = listOf(
-        BottomNavItem(Screen.Home, "Home", Icons.Filled.Home, Icons.Outlined.Home),
-        BottomNavItem(Screen.Library, "Library", Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic),
-        BottomNavItem(Screen.Search, "Search", Icons.Filled.Search, Icons.Outlined.Search),
+        BottomNavItem(
+            Screen.Home,
+            stringResource(R.string.nav_home),
+            Icons.Filled.Home,
+            Icons.Outlined.Home,
+        ),
+        BottomNavItem(
+            Screen.Library,
+            stringResource(R.string.nav_library),
+            Icons.Filled.LibraryMusic,
+            Icons.Outlined.LibraryMusic,
+        ),
+        BottomNavItem(
+            Screen.Search,
+            stringResource(R.string.nav_search),
+            Icons.Filled.Search,
+            Icons.Outlined.Search,
+        ),
     )
 
     // Slides the whole bar (divider + nav) down by its 70dp height as the player expands,

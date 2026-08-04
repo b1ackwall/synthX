@@ -53,10 +53,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Accent
@@ -102,7 +104,7 @@ fun PlaylistListScreen(
                 )
                 Spacer(modifier = Modifier.width(Spacing.xs))
                 Text(
-                    text = "New Playlist",
+                    text = stringResource(R.string.action_new_playlist),
                     color = TextSecondary,
                     style = MaterialTheme.typography.labelLarge,
                 )
@@ -119,7 +121,7 @@ fun PlaylistListScreen(
                 )
                 Spacer(modifier = Modifier.width(Spacing.xs))
                 Text(
-                    text = "New Group",
+                    text = stringResource(R.string.action_new_group),
                     color = TextSecondary,
                     style = MaterialTheme.typography.labelLarge,
                 )
@@ -173,7 +175,7 @@ fun PlaylistListScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = "No playlists yet",
+                            text = stringResource(R.string.empty_no_playlists),
                             style = MaterialTheme.typography.bodyLarge,
                             color = TextSecondary,
                         )
@@ -200,7 +202,7 @@ private fun CreateGroupCard(
     ) {
         Column(modifier = Modifier.padding(Spacing.md)) {
             Text(
-                text = "New Group",
+                text = stringResource(R.string.action_new_group),
                 style = MaterialTheme.typography.labelLarge,
                 color = TextSecondary,
             )
@@ -208,7 +210,9 @@ private fun CreateGroupCard(
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                placeholder = { Text(text = "Group name", color = TextTertiary) },
+                placeholder = {
+                    Text(text = stringResource(R.string.hint_group_name), color = TextTertiary)
+                },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -224,7 +228,7 @@ private fun CreateGroupCard(
                 horizontalArrangement = Arrangement.End,
             ) {
                 TextButton(onClick = onDismiss) {
-                    Text(text = "Cancel", color = TextSecondary)
+                    Text(text = stringResource(R.string.action_cancel), color = TextSecondary)
                 }
                 Spacer(modifier = Modifier.width(Spacing.sm))
                 Button(
@@ -232,7 +236,7 @@ private fun CreateGroupCard(
                     shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
                 ) {
-                    Text(text = "Create", color = TextPrimary)
+                    Text(text = stringResource(R.string.action_create), color = TextPrimary)
                 }
             }
         }
@@ -325,7 +329,7 @@ private fun GroupThreeDotsMenu(
         IconButton(onClick = { showMenu = true }) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
-                contentDescription = "More options",
+                contentDescription = stringResource(R.string.cd_more_options),
                 tint = TextTertiary,
             )
         }
@@ -334,14 +338,14 @@ private fun GroupThreeDotsMenu(
             onDismissRequest = { showMenu = false },
         ) {
             DropdownMenuItem(
-                text = { Text("Rename") },
+                text = { Text(stringResource(R.string.action_rename)) },
                 onClick = {
                     showMenu = false
                     onRename()
                 },
             )
             DropdownMenuItem(
-                text = { Text("Delete") },
+                text = { Text(stringResource(R.string.action_delete)) },
                 onClick = {
                     showMenu = false
                     onDelete()

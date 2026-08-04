@@ -34,10 +34,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.ui.theme.Accent
@@ -152,7 +154,7 @@ private fun PlaylistThreeDotsMenu(
         IconButton(onClick = { showMenu = true }) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
-                contentDescription = "More options",
+                contentDescription = stringResource(R.string.cd_more_options),
                 tint = TextTertiary,
             )
         }
@@ -161,7 +163,7 @@ private fun PlaylistThreeDotsMenu(
             onDismissRequest = { showMenu = false },
         ) {
             DropdownMenuItem(
-                text = { Text("Rename") },
+                text = { Text(stringResource(R.string.action_rename)) },
                 onClick = {
                     showMenu = false
                     onRename()
@@ -170,7 +172,13 @@ private fun PlaylistThreeDotsMenu(
             if (availableGroups.isNotEmpty()) {
                 DropdownMenuItem(
                     text = {
-                        Text(if (currentGroupId == null) "Add to group" else "Move to group")
+                        Text(
+                            if (currentGroupId == null) {
+                                stringResource(R.string.action_add_to_group)
+                            } else {
+                                stringResource(R.string.action_move_to_group)
+                            }
+                        )
                     },
                     onClick = {
                         showMenu = false
@@ -179,7 +187,7 @@ private fun PlaylistThreeDotsMenu(
                 )
             }
             DropdownMenuItem(
-                text = { Text("Delete") },
+                text = { Text(stringResource(R.string.action_delete)) },
                 onClick = {
                     showMenu = false
                     onDelete()

@@ -26,9 +26,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.SongRow
@@ -90,7 +92,7 @@ private fun SortBottomSheet(
         containerColor = SurfaceColor,
     ) {
         Text(
-            text = "Sort by",
+            text = stringResource(R.string.sort_by),
             style = MaterialTheme.typography.labelLarge,
             color = TextSecondary,
             modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
@@ -117,12 +119,13 @@ private fun SortBottomSheet(
     }
 }
 
+// Composable getter: stringResource needs a composition to read resources from.
 private val SortOrder.label: String
-    get() = when (this) {
-        SortOrder.RECENTLY_ADDED -> "Recently Added"
-        SortOrder.TITLE -> "Title"
-        SortOrder.ARTIST -> "Artist"
-        SortOrder.ALBUM -> "Album"
+    @Composable get() = when (this) {
+        SortOrder.RECENTLY_ADDED -> stringResource(R.string.sort_recently_added)
+        SortOrder.TITLE -> stringResource(R.string.sort_title)
+        SortOrder.ARTIST -> stringResource(R.string.sort_artist)
+        SortOrder.ALBUM -> stringResource(R.string.sort_album)
     }
 
 @Composable
@@ -138,7 +141,7 @@ private fun SongsScreenContent(
                 modifier = Modifier.align(Alignment.Center),
             )
             is UiState.Empty -> Text(
-                text = "No songs found",
+                text = stringResource(R.string.empty_no_songs),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),

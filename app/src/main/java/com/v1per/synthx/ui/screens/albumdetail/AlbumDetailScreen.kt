@@ -14,7 +14,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.SongRow
@@ -55,7 +57,7 @@ private fun AlbumDetailContent(
         when (uiState) {
             is AlbumDetailViewModel.UiState.Loading -> Unit
             is AlbumDetailViewModel.UiState.Empty -> Text(
-                text = "No songs found",
+                text = stringResource(R.string.empty_no_songs),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),

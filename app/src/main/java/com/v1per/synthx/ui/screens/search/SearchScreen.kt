@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.search
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -40,10 +41,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Album
 import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.data.repository.Playlist
@@ -86,7 +89,9 @@ fun SearchScreen(
         OutlinedTextField(
             value = query,
             onValueChange = viewModel::onQueryChange,
-            placeholder = { Text(text = "Search your library", color = TextTertiary) },
+            placeholder = {
+                Text(text = stringResource(R.string.search_placeholder), color = TextTertiary)
+            },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Search,
@@ -99,7 +104,7 @@ fun SearchScreen(
                     IconButton(onClick = { viewModel.onQueryChange("") }) {
                         Icon(
                             imageVector = Icons.Default.Clear,
-                            contentDescription = "Clear",
+                            contentDescription = stringResource(R.string.cd_clear),
                             tint = TextSecondary,
                         )
                     }
@@ -129,11 +134,11 @@ fun SearchScreen(
                     label = {
                         Text(
                             text = when (filterOption) {
-                                SearchFilter.ALL -> "All"
-                                SearchFilter.SONGS -> "Songs"
-                                SearchFilter.PLAYLISTS -> "Playlists"
-                                SearchFilter.ARTISTS -> "Artists"
-                                SearchFilter.ALBUMS -> "Albums"
+                                SearchFilter.ALL -> stringResource(R.string.filter_all)
+                                SearchFilter.SONGS -> stringResource(R.string.screen_songs)
+                                SearchFilter.PLAYLISTS -> stringResource(R.string.screen_playlists)
+                                SearchFilter.ARTISTS -> stringResource(R.string.screen_artists)
+                                SearchFilter.ALBUMS -> stringResource(R.string.screen_albums)
                             },
                             style = MaterialTheme.typography.labelLarge,
                         )
@@ -176,7 +181,7 @@ fun SearchScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "Search your library",
+                        text = stringResource(R.string.search_placeholder),
                         style = MaterialTheme.typography.bodyLarge,
                         color = TextSecondary,
                     )
@@ -187,7 +192,7 @@ fun SearchScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "No results found",
+                        text = stringResource(R.string.empty_no_results),
                         style = MaterialTheme.typography.bodyLarge,
                         color = TextSecondary,
                     )
@@ -214,19 +219,19 @@ fun SearchScreen(
                         )
                         SearchFilter.ALL -> {
                             if (results.playlists.isNotEmpty()) {
-                                sectionHeader("Playlists")
+                                sectionHeader(R.string.screen_playlists)
                                 playlistItems(results.playlists, onNavigateToPlaylistDetail)
                             }
                             if (results.artists.isNotEmpty()) {
-                                sectionHeader("Artists")
+                                sectionHeader(R.string.screen_artists)
                                 artistItems(results.artists, onNavigateToArtistDetail)
                             }
                             if (results.albums.isNotEmpty()) {
-                                sectionHeader("Albums")
+                                sectionHeader(R.string.screen_albums)
                                 albumItems(results.albums, onNavigateToAlbumDetail)
                             }
                             if (results.songs.isNotEmpty()) {
-                                sectionHeader("Songs")
+                                sectionHeader(R.string.screen_songs)
                                 songItems(results.songs, currentSong, playbackViewModel)
                             }
                         }
@@ -237,10 +242,12 @@ fun SearchScreen(
     }
 }
 
-private fun LazyListScope.sectionHeader(title: String) {
-    item(key = "header_$title") {
+// Takes a resource id, not a String: LazyListScope is not a composable scope, so the
+// lookup has to happen inside item {} where a composition is available.
+private fun LazyListScope.sectionHeader(@StringRes titleRes: Int) {
+    item(key = "header_$titleRes") {
         Text(
-            text = title,
+            text = stringResource(titleRes),
             style = MaterialTheme.typography.labelLarge,
             color = TextSecondary,
             modifier = Modifier

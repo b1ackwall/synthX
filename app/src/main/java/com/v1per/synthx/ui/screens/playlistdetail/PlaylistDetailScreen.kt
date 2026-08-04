@@ -24,9 +24,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.R
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.theme.Error
@@ -67,7 +69,7 @@ fun PlaylistDetailScreen(
                 )
                 Spacer(modifier = Modifier.width(Spacing.xs))
                 Text(
-                    text = "Add Songs",
+                    text = stringResource(R.string.action_add_songs),
                     color = TextSecondary,
                     style = MaterialTheme.typography.labelLarge,
                 )
@@ -78,7 +80,7 @@ fun PlaylistDetailScreen(
             when (val state = uiState) {
                 is PlaylistDetailViewModel.UiState.Loading -> Unit
                 is PlaylistDetailViewModel.UiState.Empty -> Text(
-                    text = "No songs yet. Tap Add Songs to get started.",
+                    text = stringResource(R.string.empty_playlist_no_songs),
                     style = MaterialTheme.typography.bodyLarge,
                     color = TextSecondary,
                     modifier = Modifier.align(Alignment.Center),

@@ -41,12 +41,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.GlitchPlaceholder
@@ -121,7 +123,7 @@ private fun LibraryScreenContent(
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item {
             Text(
-                text = "Library",
+                text = stringResource(R.string.library_title),
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                 color = TextPrimary,
                 modifier = Modifier
@@ -137,28 +139,28 @@ private fun LibraryScreenContent(
         item {
             CategoryRow(
                 icon = Icons.AutoMirrored.Filled.QueueMusic,
-                label = "Playlists",
+                label = stringResource(R.string.screen_playlists),
                 onClick = onPlaylistsClick,
             )
         }
         item {
             CategoryRow(
                 icon = Icons.Default.Person,
-                label = "Artists",
+                label = stringResource(R.string.screen_artists),
                 onClick = onArtistsClick,
             )
         }
         item {
             CategoryRow(
                 icon = Icons.Default.Album,
-                label = "Albums",
+                label = stringResource(R.string.screen_albums),
                 onClick = onAlbumsClick,
             )
         }
         item {
             CategoryRow(
                 icon = Icons.Default.MusicNote,
-                label = "Songs",
+                label = stringResource(R.string.screen_songs),
                 onClick = onSongsClick,
             )
         }
@@ -211,12 +213,12 @@ private fun RecentlyAddedSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Recently Added",
+                text = stringResource(R.string.library_recently_added),
                 style = MaterialTheme.typography.titleMedium,
                 color = TextPrimary,
             )
             Text(
-                text = "See All",
+                text = stringResource(R.string.action_see_all),
                 style = MaterialTheme.typography.labelMedium,
                 color = TextSecondary,
                 modifier = Modifier.clickable(onClick = onSeeAllClick),

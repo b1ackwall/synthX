@@ -14,8 +14,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
@@ -40,7 +42,7 @@ fun GroupDetailScreen(
             when (val state = uiState) {
                 is GroupDetailViewModel.UiState.Loading -> Unit
                 is GroupDetailViewModel.UiState.Empty -> Text(
-                    text = "No playlists in this group",
+                    text = stringResource(R.string.empty_group_no_playlists),
                     style = MaterialTheme.typography.bodyLarge,
                     color = TextSecondary,
                     modifier = Modifier.align(Alignment.Center),

@@ -53,6 +53,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -62,6 +63,7 @@ import androidx.compose.ui.unit.lerp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Size
+import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
@@ -244,7 +246,11 @@ private fun PlayerSheetContent(
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        contentDescription = if (isPlaying) {
+                            stringResource(R.string.cd_pause)
+                        } else {
+                            stringResource(R.string.cd_play)
+                        },
                         tint = if (isPlaying) Accent else TextPrimary,
                         modifier = Modifier.size(28.dp),
                     )
@@ -302,7 +308,7 @@ private fun PlayerSheetContent(
                     ) {
                         Icon(
                             imageVector = Icons.Default.MoreVert,
-                            contentDescription = "More options",
+                            contentDescription = stringResource(R.string.cd_more_options),
                             tint = TextSecondary,
                             modifier = Modifier.size(24.dp),
                         )
@@ -381,7 +387,7 @@ private fun PlayerSheetContent(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.FastRewind,
-                            contentDescription = "Previous",
+                            contentDescription = stringResource(R.string.cd_previous_track),
                             tint = TextPrimary,
                             modifier = Modifier.size(56.dp),
                         )
@@ -394,7 +400,11 @@ private fun PlayerSheetContent(
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            contentDescription = if (isPlaying) {
+                                stringResource(R.string.cd_pause)
+                            } else {
+                                stringResource(R.string.cd_play)
+                            },
                             tint = if (isPlaying) Accent else TextPrimary,
                             modifier = Modifier.size(64.dp),
                         )
@@ -408,7 +418,7 @@ private fun PlayerSheetContent(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.FastForward,
-                            contentDescription = "Next",
+                            contentDescription = stringResource(R.string.cd_next_track),
                             tint = TextPrimary,
                             modifier = Modifier.size(56.dp),
                         )
@@ -430,7 +440,7 @@ private fun PlayerSheetContent(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                            contentDescription = "Queue",
+                            contentDescription = stringResource(R.string.cd_queue),
                             tint = TextSecondary,
                             modifier = Modifier.size(28.dp),
                         )

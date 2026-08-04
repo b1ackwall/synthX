@@ -34,10 +34,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.GlitchPlaceholder
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
@@ -74,7 +76,9 @@ fun AddSongsScreen(
             value = "",
             onValueChange = {},
             enabled = false,
-            placeholder = { Text(text = "Search songs...", color = TextTertiary) },
+            placeholder = {
+                Text(text = stringResource(R.string.hint_search_songs), color = TextTertiary)
+            },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Search,
@@ -125,7 +129,7 @@ fun AddSongsScreen(
             colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
         ) {
             Text(
-                text = "Done",
+                text = stringResource(R.string.action_done),
                 style = MaterialTheme.typography.labelLarge,
                 color = TextPrimary,
             )

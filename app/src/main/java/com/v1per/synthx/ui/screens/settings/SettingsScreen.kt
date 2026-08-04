@@ -26,10 +26,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
@@ -48,6 +50,10 @@ fun SettingsScreen(topBar: @Composable () -> Unit) {
     val rescanStatus by viewModel.rescanStatus.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val folderError by viewModel.folderError.collectAsState()
+
+    // Resolved here, not in the callback below: the launcher result lambda is not a
+    // composable scope, so stringResource cannot be called from inside it.
+    val permissionDeniedMessage = stringResource(R.string.error_folder_permission_denied)
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -74,9 +80,7 @@ fun SettingsScreen(topBar: @Composable () -> Unit) {
                 )
                 viewModel.saveMusicFolder(newUri)
             } catch (e: SecurityException) {
-                viewModel.setFolderError(
-                    "Failed to get permission for the selected folder. Please try again."
-                )
+                viewModel.setFolderError(permissionDeniedMessage)
             }
         }
     }
@@ -146,13 +150,13 @@ private fun MusicFolderRow(
                 .padding(end = Spacing.md),
         ) {
             Text(
-                text = "Music folder",
+                text = stringResource(R.string.settings_music_folder),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextPrimary,
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = folderPath ?: "No folder selected",
+                text = folderPath ?: stringResource(R.string.settings_no_folder_selected),
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary,
                 maxLines = 1,
@@ -188,7 +192,7 @@ private fun RescanRow(
                 .padding(end = Spacing.md),
         ) {
             Text(
-                text = "Rescan library",
+                text = stringResource(R.string.settings_rescan_library),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextPrimary,
             )

@@ -33,11 +33,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
@@ -77,14 +79,16 @@ fun CreatePlaylistScreen(
             Spacer(modifier = Modifier.height(Spacing.xl))
 
             Text(
-                text = "Playlist name",
+                text = stringResource(R.string.label_playlist_name),
                 style = MaterialTheme.typography.labelLarge,
                 color = TextSecondary,
             )
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                placeholder = { Text(text = "My Playlist", color = TextTertiary) },
+                placeholder = {
+                    Text(text = stringResource(R.string.hint_playlist_name), color = TextTertiary)
+                },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -95,13 +99,13 @@ fun CreatePlaylistScreen(
             )
 
             Text(
-                text = "Add to group (optional)",
+                text = stringResource(R.string.label_add_to_group_optional),
                 style = MaterialTheme.typography.labelLarge,
                 color = TextSecondary,
             )
             if (groups.isEmpty()) {
                 Text(
-                    text = "No groups yet",
+                    text = stringResource(R.string.empty_no_groups),
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextTertiary,
                 )
@@ -166,7 +170,7 @@ fun CreatePlaylistScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
             ) {
                 Text(
-                    text = "Create Playlist",
+                    text = stringResource(R.string.action_create_playlist),
                     style = MaterialTheme.typography.labelLarge,
                     color = TextPrimary,
                 )
