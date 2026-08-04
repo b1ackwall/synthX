@@ -19,7 +19,7 @@ import kotlinx.coroutines.sync.Mutex
         PlaylistSongEntity::class,
         ListenHistoryEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -69,6 +69,18 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Artist splitting delimiter changed — wipe song/artist data for full rescan
+                database.execSQL("DELETE FROM listen_history")
+                database.execSQL("DELETE FROM playlist_songs")
+                database.execSQL("DELETE FROM song_artists")
+                database.execSQL("DELETE FROM songs")
+                database.execSQL("DELETE FROM artists")
+                database.execSQL("DELETE FROM albums")
+            }
+        }
+
         fun getInstance(context: Context): SynthXDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -76,7 +88,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     SynthXDatabase::class.java,
                     "synthx.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
             }

@@ -230,7 +230,6 @@ class FolderScanner(
     companion object {
         private val SUPPORTED_EXTENSIONS = setOf("mp3", "flac", "aac", "m4a", "wav", "ogg")
 
-        private val ARTIST_DELIMITERS =
-            listOf(" feat. ", " ft. ", " featuring ", " & ", " and ", ",")
+        private val ARTIST_DELIMITERS = listOf(",")
     }
 }
