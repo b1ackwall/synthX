@@ -77,6 +77,7 @@ fun SearchScreen(
     val query by viewModel.query.collectAsState()
     val filter by viewModel.filter.collectAsState()
     val results by viewModel.results.collectAsState()
+    val error by viewModel.error.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -152,6 +153,18 @@ fun SearchScreen(
                     shape = RoundedCornerShape(2.dp),
                 )
             }
+        }
+
+        error?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(
+                    horizontal = Spacing.HorizontalPadding,
+                    vertical = Spacing.sm,
+                ),
+            )
         }
 
         Spacer(modifier = Modifier.height(Spacing.sm))

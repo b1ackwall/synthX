@@ -7,10 +7,12 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -39,15 +41,27 @@ class AddSongsViewModel(
     private val _submitted = MutableStateFlow(false)
     val submitted: StateFlow<Boolean> = _submitted.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     init {
         viewModelScope.launch {
-            // Load existing playlist song IDs once
-            val existingIds = repository.getSongIdsForPlaylist(playlistId).toSet()
-            _checkedIds.value = existingIds
+            try {
+                // Load existing playlist song IDs once
+                val existingIds = repository.getSongIdsForPlaylist(playlistId).toSet()
+                _checkedIds.value = existingIds
 
-            // Collect live song list — checkbox state is independent
-            repository.getSongs().collect { allSongs ->
-                _allSongs.value = allSongs
+                // Collect live song list — checkbox state is independent
+                repository.getSongs()
+                    .catch { e -> _error.value = "Failed to load songs: ${e.message}" }
+                    .collect { allSongs ->
+                        _allSongs.value = allSongs
+                        _error.value = null
+                    }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = "Failed to load playlist: ${e.message}"
             }
         }
     }
@@ -60,9 +74,16 @@ class AddSongsViewModel(
 
     fun submit() {
         viewModelScope.launch {
-            val checkedIds = _checkedIds.value.toList()
-            repository.setPlaylistSongs(playlistId, checkedIds)
-            _submitted.value = true
+            try {
+                val checkedIds = _checkedIds.value.toList()
+                repository.setPlaylistSongs(playlistId, checkedIds)
+                _error.value = null
+                _submitted.value = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = "Failed to save playlist: ${e.message}"
+            }
         }
     }
 

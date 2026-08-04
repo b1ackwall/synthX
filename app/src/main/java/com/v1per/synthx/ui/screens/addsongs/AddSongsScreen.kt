@@ -60,6 +60,7 @@ fun AddSongsScreen(
     )
     val songs by viewModel.songs.collectAsState()
     val submitted by viewModel.submitted.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     LaunchedEffect(submitted) {
         if (submitted) onSubmitted()
@@ -100,6 +101,18 @@ fun AddSongsScreen(
                     onToggle = { viewModel.toggleSong(item.song.id) },
                 )
             }
+        }
+
+        error?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(
+                    horizontal = Spacing.HorizontalPadding,
+                    vertical = Spacing.sm,
+                ),
+            )
         }
 
         Button(

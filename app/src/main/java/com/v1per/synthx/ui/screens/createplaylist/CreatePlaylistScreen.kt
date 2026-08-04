@@ -57,6 +57,7 @@ fun CreatePlaylistScreen(
 ) {
     val groups by viewModel.groups.collectAsState()
     val created by viewModel.created.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     var name by remember { mutableStateOf("") }
     var selectedGroupId by remember { mutableStateOf<String?>(null) }
@@ -147,6 +148,15 @@ fun CreatePlaylistScreen(
             }
 
             Spacer(modifier = Modifier.weight(1f))
+
+            error?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(vertical = Spacing.sm),
+                )
+            }
 
             Button(
                 onClick = { viewModel.createPlaylist(name, selectedGroupId) },

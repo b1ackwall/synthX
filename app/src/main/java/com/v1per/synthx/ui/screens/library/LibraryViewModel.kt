@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -39,13 +40,20 @@ class LibraryViewModel(
     private val _recentSongs = MutableStateFlow<List<Song>>(emptyList())
     val recentSongs: StateFlow<List<Song>> = _recentSongs.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.getSongs()
+                .catch { e -> _error.value = "Failed to load recently added: ${e.message}" }
                 .map { songs ->
                     songs.sortedByDescending { it.dateAdded }.take(20)
                 }
-                .collect { _recentSongs.value = it }
+                .collect {
+                    _recentSongs.value = it
+                    _error.value = null
+                }
         }
     }
 

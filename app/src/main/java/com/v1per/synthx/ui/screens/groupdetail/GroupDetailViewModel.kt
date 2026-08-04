@@ -7,9 +7,11 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 class GroupDetailViewModel(
@@ -21,6 +23,7 @@ class GroupDetailViewModel(
         object Loading : UiState()
         object Empty : UiState()
         data class Success(val playlists: List<Playlist>) : UiState()
+        data class Error(val message: String) : UiState()
     }
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
@@ -29,6 +32,9 @@ class GroupDetailViewModel(
     init {
         viewModelScope.launch {
             repository.getPlaylistsForGroup(groupId)
+                .catch { e ->
+                    _uiState.value = UiState.Error("Failed to load playlists: ${e.message}")
+                }
                 .collect { playlists ->
                     _uiState.value =
                         if (playlists.isEmpty()) UiState.Empty else UiState.Success(playlists)
@@ -38,11 +44,27 @@ class GroupDetailViewModel(
 
     fun renamePlaylist(id: String, name: String) {
         if (name.isBlank()) return
-        viewModelScope.launch { repository.renamePlaylist(id, name.trim()) }
+        viewModelScope.launch {
+            try {
+                repository.renamePlaylist(id, name.trim())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error("Failed to rename playlist: ${e.message}")
+            }
+        }
     }
 
     fun deletePlaylist(id: String) {
-        viewModelScope.launch { repository.deletePlaylist(id) }
+        viewModelScope.launch {
+            try {
+                repository.deletePlaylist(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error("Failed to delete playlist: ${e.message}")
+            }
+        }
     }
 
     companion object {

@@ -69,6 +69,7 @@ fun LibraryScreen(
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(LocalContext.current)),
 ) {
     val recentSongs by viewModel.recentSongs.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
@@ -93,6 +94,7 @@ fun LibraryScreen(
                 bottom = innerPadding.calculateBottomPadding(),
             ),
             recentSongs = recentSongs,
+            error = error,
             onPlaylistsClick = viewModel::onPlaylistsClick,
             onArtistsClick = viewModel::onArtistsClick,
             onAlbumsClick = viewModel::onAlbumsClick,
@@ -107,6 +109,7 @@ fun LibraryScreen(
 private fun LibraryScreenContent(
     modifier: Modifier = Modifier,
     recentSongs: List<Song>,
+    error: String?,
     onPlaylistsClick: () -> Unit,
     onArtistsClick: () -> Unit,
     onAlbumsClick: () -> Unit,
@@ -157,6 +160,22 @@ private fun LibraryScreenContent(
                 label = "Songs",
                 onClick = onSongsClick,
             )
+        }
+
+        item {
+            error?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = Spacing.HorizontalPadding,
+                            vertical = Spacing.sm,
+                        ),
+                )
+            }
         }
 
         item {
@@ -341,6 +360,7 @@ private fun LibraryScreenPreview() {
                     Song(id = "1", title = "Neon Pulse", artist = "v1per", album = "Ultraviolet", duration = 243000L, filePath = ""),
                     Song(id = "2", title = "Static Bloom", artist = "KNTRL", album = "Fragments", duration = 198000L, filePath = ""),
                 ),
+                error = null,
                 onPlaylistsClick = {},
                 onArtistsClick = {},
                 onAlbumsClick = {},

@@ -10,6 +10,7 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 class PlaylistDetailViewModel(
@@ -21,6 +22,7 @@ class PlaylistDetailViewModel(
         object Loading : UiState()
         object Empty : UiState()
         data class Success(val songs: List<Song>) : UiState()
+        data class Error(val message: String) : UiState()
     }
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
@@ -29,6 +31,9 @@ class PlaylistDetailViewModel(
     init {
         viewModelScope.launch {
             repository.getSongsForPlaylist(playlistId)
+                .catch { e ->
+                    _uiState.value = UiState.Error("Failed to load playlist songs: ${e.message}")
+                }
                 .collect { songs ->
                     _uiState.value =
                         if (songs.isEmpty()) UiState.Empty else UiState.Success(songs)

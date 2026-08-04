@@ -7,9 +7,11 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 class CreatePlaylistViewModel(
@@ -22,17 +24,29 @@ class CreatePlaylistViewModel(
     private val _created = MutableStateFlow(false)
     val created: StateFlow<Boolean> = _created.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     init {
         viewModelScope.launch {
-            repository.getAllGroups().collect { _groups.value = it }
+            repository.getAllGroups()
+                .catch { e -> _error.value = "Failed to load groups: ${e.message}" }
+                .collect { _groups.value = it }
         }
     }
 
     fun createPlaylist(name: String, groupId: String?) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            repository.createPlaylist(name.trim(), groupId)
-            _created.value = true
+            try {
+                repository.createPlaylist(name.trim(), groupId)
+                _error.value = null
+                _created.value = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = "Failed to create playlist: ${e.message}"
+            }
         }
     }
 

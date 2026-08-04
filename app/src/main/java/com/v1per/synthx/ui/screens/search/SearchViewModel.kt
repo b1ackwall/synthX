@@ -14,6 +14,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
@@ -45,6 +46,9 @@ class SearchViewModel(
     private val _results = MutableStateFlow(SearchResults())
     val results: StateFlow<SearchResults> = _results.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     init {
         viewModelScope.launch {
             combine(
@@ -68,7 +72,12 @@ class SearchViewModel(
                     },
                     playlists = playlists.filter { it.name.lowercase().contains(q) },
                 )
-            }.collect { _results.value = it }
+            }
+                .catch { e -> _error.value = "Search failed: ${e.message}" }
+                .collect {
+                    _results.value = it
+                    _error.value = null
+                }
         }
     }
 
