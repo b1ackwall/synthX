@@ -30,8 +30,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.v1per.synthx.data.repository.SongRepositoryImpl
-import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -40,24 +38,42 @@ import com.v1per.synthx.ui.theme.TextTertiary
 fun SettingsScreen(topBar: @Composable () -> Unit) {
     val context = LocalContext.current
     val viewModel: SettingsViewModel = viewModel(
-        factory = SettingsViewModel.Factory(
-            PreferencesManager(context),
-            SongRepositoryImpl.create(context),
-        ),
+        factory = SettingsViewModel.Factory(context),
     )
     val folderUri by viewModel.musicFolderUri.collectAsState()
     val rescanStatus by viewModel.rescanStatus.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
+    val folderError by viewModel.folderError.collectAsState()
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
-        uri?.let {
-            context.contentResolver.takePersistableUriPermission(
-                it,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-            viewModel.saveMusicFolder(it)
+        uri?.let { newUri ->
+            // Release the old grant before taking the new one — grants are capped
+            // per app, and nothing else ever releases them.
+            val oldUri = viewModel.musicFolderUri.value
+            if (oldUri != null) {
+                try {
+                    context.contentResolver.releasePersistableUriPermission(
+                        oldUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                } catch (e: SecurityException) {
+                    // Old grant already gone — nothing to release
+                }
+            }
+            // Take the new grant
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    newUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+                viewModel.saveMusicFolder(newUri)
+            } catch (e: SecurityException) {
+                viewModel.setFolderError(
+                    "Failed to get permission for the selected folder. Please try again."
+                )
+            }
         }
     }
 
@@ -65,6 +81,7 @@ fun SettingsScreen(topBar: @Composable () -> Unit) {
         topBar()
         SettingsScreenContent(
             folderPath = folderUri?.toString(),
+            folderError = folderError,
             rescanStatus = rescanStatus,
             isScanning = isScanning,
             onPickFolder = { folderPicker.launch(null) },
@@ -76,6 +93,7 @@ fun SettingsScreen(topBar: @Composable () -> Unit) {
 @Composable
 private fun SettingsScreenContent(
     folderPath: String?,
+    folderError: String?,
     rescanStatus: String?,
     isScanning: Boolean,
     onPickFolder: () -> Unit,
@@ -86,6 +104,17 @@ private fun SettingsScreenContent(
             folderPath = folderPath,
             onClick = onPickFolder,
         )
+        folderError?.let { error ->
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(
+                    horizontal = Spacing.HorizontalPadding,
+                    vertical = Spacing.xs,
+                ),
+            )
+        }
         RescanRow(
             status = rescanStatus,
             isScanning = isScanning,
@@ -188,6 +217,7 @@ private fun SettingsScreenWithFolderPreview() {
         ) {
             SettingsScreenContent(
                 folderPath = "content://com.android.externalstorage/tree/primary:Music",
+                folderError = null,
                 rescanStatus = "Done — 12 added, 1 updated, 0 missing",
                 isScanning = false,
                 onPickFolder = {},
@@ -207,6 +237,7 @@ private fun SettingsScreenEmptyPreview() {
         ) {
             SettingsScreenContent(
                 folderPath = null,
+                folderError = null,
                 rescanStatus = null,
                 isScanning = false,
                 onPickFolder = {},

@@ -36,11 +36,27 @@ class MainActivity : ComponentActivity() {
 
     // Fire-and-forget: UI reads the DB via Flow immediately, scan results stream in
     private fun scanLibraryOnLaunch() {
-        val uriString = PreferencesManager(applicationContext).musicFolderUri ?: return
+        val preferences = PreferencesManager(applicationContext)
+        val uriString = preferences.musicFolderUri ?: return
+        val uri = Uri.parse(uriString)
+
+        // Validate grant is still active — a stored URI survives a backup restore or a
+        // revoked grant, but scanning without it silently flags the library missing.
+        val grantValid = contentResolver.persistedUriPermissions.any { permission ->
+            permission.uri == uri && permission.isReadPermission
+        }
+
+        if (!grantValid) {
+            // Clear stale URI — user will need to re-select folder in Settings
+            preferences.musicFolderUri = null
+            Log.w(TAG, "Music folder grant revoked — cleared stored URI")
+            return
+        }
+
         val repository = SongRepositoryImpl.create(applicationContext)
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val result = repository.scanLibrary(Uri.parse(uriString))
+                val result = repository.scanLibrary(uri)
                 Log.d(TAG, "Launch scan complete: $result")
             } catch (e: Exception) {
                 Log.e(TAG, "Launch scan failed", e)
