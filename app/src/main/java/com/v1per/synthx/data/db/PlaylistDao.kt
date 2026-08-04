@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -54,19 +55,52 @@ interface PlaylistDao {
         INNER JOIN playlist_songs ON playlist_songs.song_id = songs.id
         WHERE playlist_songs.playlist_id = :playlistId
         AND songs.is_missing = 0
-        ORDER BY playlist_songs.added_at DESC
+        ORDER BY playlist_songs.position ASC
         """
     )
     fun getSongsForPlaylist(playlistId: String): Flow<List<SongEntity>>
 
-    @Query("SELECT song_id FROM playlist_songs WHERE playlist_id = :playlistId")
+    @Query(
+        "SELECT song_id FROM playlist_songs WHERE playlist_id = :playlistId ORDER BY position ASC"
+    )
     suspend fun getSongIdsForPlaylist(playlistId: String): List<String>
+
+    @Query("SELECT * FROM playlist_songs WHERE playlist_id = :playlistId")
+    suspend fun getPlaylistSongRefs(playlistId: String): List<PlaylistSongEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylistSong(playlistSong: PlaylistSongEntity)
 
     @Query("DELETE FROM playlist_songs WHERE playlist_id = :playlistId")
     suspend fun clearPlaylistSongs(playlistId: String)
+
+    /**
+     * Replaces the playlist's songs in one atomic step: [songIds] becomes the new
+     * contents, `position` follows list order, and a song already in the playlist
+     * keeps its original `added_at` so "when was this added" survives an edit.
+     */
+    @Transaction
+    suspend fun replacePlaylistSongs(playlistId: String, songIds: List<String>) {
+        // Fetch existing addedAt values before clearing
+        val existingRows = getPlaylistSongRefs(playlistId)
+        val existingAddedAt = existingRows.associate { it.songId to it.addedAt }
+
+        // Clear all current songs
+        clearPlaylistSongs(playlistId)
+
+        // Reinsert with preserved addedAt and correct position
+        val now = System.currentTimeMillis()
+        songIds.forEachIndexed { index, songId ->
+            insertPlaylistSong(
+                PlaylistSongEntity(
+                    playlistId = playlistId,
+                    songId = songId,
+                    position = index,
+                    addedAt = existingAddedAt[songId] ?: now,
+                )
+            )
+        }
+    }
 
     @Query("DELETE FROM playlist_songs WHERE playlist_id = :playlistId AND song_id = :songId")
     suspend fun removePlaylistSong(playlistId: String, songId: String)

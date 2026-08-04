@@ -42,7 +42,7 @@ class GroupDetailViewModel(
     }
 
     fun deletePlaylist(id: String) {
-        // Placeholder — no-op for now, secure delete deferred
+        viewModelScope.launch { repository.deletePlaylist(id) }
     }
 
     companion object {

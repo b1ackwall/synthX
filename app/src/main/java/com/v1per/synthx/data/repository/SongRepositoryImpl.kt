@@ -7,7 +7,6 @@ import com.v1per.synthx.data.db.ArtistDao
 import com.v1per.synthx.data.db.PlaylistDao
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
-import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongEntity
@@ -131,17 +130,7 @@ class SongRepositoryImpl(
         playlistDao.getSongIdsForPlaylist(playlistId)
 
     override suspend fun setPlaylistSongs(playlistId: String, songIds: List<String>) {
-        playlistDao.clearPlaylistSongs(playlistId)
-        songIds.forEachIndexed { index, songId ->
-            playlistDao.insertPlaylistSong(
-                PlaylistSongEntity(
-                    playlistId = playlistId,
-                    songId = songId,
-                    position = index,
-                    addedAt = System.currentTimeMillis(),
-                )
-            )
-        }
+        playlistDao.replacePlaylistSongs(playlistId, songIds)
     }
 
     private fun PlaylistEntity.toDomain(): Playlist =

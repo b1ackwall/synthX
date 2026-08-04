@@ -8,8 +8,12 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class AddSongsViewModel(
@@ -22,33 +26,41 @@ class AddSongsViewModel(
         val isChecked: Boolean,
     )
 
-    private val _songs = MutableStateFlow<List<SongItem>>(emptyList())
-    val songs: StateFlow<List<SongItem>> = _songs.asStateFlow()
+    // Mutable set of checked song IDs — source of truth for checkbox state.
+    // Kept separate from the song list so live library emissions can refresh
+    // the list without discarding the user's in-progress selection.
+    private val _checkedIds = MutableStateFlow<Set<String>>(emptySet())
+    private val _allSongs = MutableStateFlow<List<Song>>(emptyList())
+
+    val songs: StateFlow<List<SongItem>> = combine(_allSongs, _checkedIds) { songs, checked ->
+        songs.map { SongItem(song = it, isChecked = it.id in checked) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _submitted = MutableStateFlow(false)
     val submitted: StateFlow<Boolean> = _submitted.asStateFlow()
 
     init {
         viewModelScope.launch {
+            // Load existing playlist song IDs once
             val existingIds = repository.getSongIdsForPlaylist(playlistId).toSet()
-            repository.getSongs()
-                .collect { allSongs ->
-                    _songs.value = allSongs.map { song ->
-                        SongItem(song = song, isChecked = song.id in existingIds)
-                    }
-                }
+            _checkedIds.value = existingIds
+
+            // Collect live song list — checkbox state is independent
+            repository.getSongs().collect { allSongs ->
+                _allSongs.value = allSongs
+            }
         }
     }
 
     fun toggleSong(songId: String) {
-        _songs.value = _songs.value.map { item ->
-            if (item.song.id == songId) item.copy(isChecked = !item.isChecked) else item
+        _checkedIds.update { current ->
+            if (songId in current) current - songId else current + songId
         }
     }
 
     fun submit() {
         viewModelScope.launch {
-            val checkedIds = _songs.value.filter { it.isChecked }.map { it.song.id }
+            val checkedIds = _checkedIds.value.toList()
             repository.setPlaylistSongs(playlistId, checkedIds)
             _submitted.value = true
         }

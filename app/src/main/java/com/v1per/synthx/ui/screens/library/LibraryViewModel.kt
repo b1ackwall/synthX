@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -15,10 +16,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-
-sealed class UiEvent {
-    data class ShowSnackbar(val message: String) : UiEvent()
-}
 
 sealed class NavigationEvent {
     object GoToSongs : NavigationEvent()
@@ -31,10 +28,12 @@ class LibraryViewModel(
     private val repository: SongRepository,
 ) : ViewModel() {
 
-    private val _uiEvents = MutableSharedFlow<UiEvent>()
-    val uiEvents: SharedFlow<UiEvent> = _uiEvents.asSharedFlow()
-
-    private val _navigationEvents = MutableSharedFlow<NavigationEvent>()
+    // Buffered so a click emitted while the screen is between compositions
+    // is delivered on resubscribe instead of being dropped.
+    private val _navigationEvents = MutableSharedFlow<NavigationEvent>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
     val navigationEvents: SharedFlow<NavigationEvent> = _navigationEvents.asSharedFlow()
 
     private val _recentSongs = MutableStateFlow<List<Song>>(emptyList())
