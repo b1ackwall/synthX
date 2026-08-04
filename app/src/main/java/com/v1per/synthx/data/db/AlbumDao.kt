@@ -60,5 +60,6 @@ interface AlbumDao {
     )
     fun getAllAlbums(): Flow<List<AlbumWithArtist>>
 
-    // TODO v2.x: orphan cleanup
+    @Query("DELETE FROM albums WHERE id NOT IN (SELECT album_id FROM songs WHERE album_id IS NOT NULL)")
+    suspend fun deleteOrphanAlbums()
 }

@@ -36,5 +36,6 @@ interface ArtistDao {
     @Query("SELECT * FROM artists ORDER BY name COLLATE NOCASE ASC")
     fun getAllArtists(): Flow<List<ArtistEntity>>
 
-    // TODO v2.x: orphan cleanup
+    @Query("DELETE FROM artists WHERE id NOT IN (SELECT DISTINCT artist_id FROM song_artists)")
+    suspend fun deleteOrphanArtists()
 }

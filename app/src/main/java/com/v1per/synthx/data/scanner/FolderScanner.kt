@@ -109,7 +109,16 @@ class FolderScanner(
                 }
             }
 
-            ScanResult(added = added, updated = updated, missing = missing, unchanged = unchanged)
+            // Clean up artist and album rows that no longer have any songs referencing them
+            artistDao.deleteOrphanArtists()
+            albumDao.deleteOrphanAlbums()
+
+            return@withLock ScanResult(
+                added = added,
+                updated = updated,
+                missing = missing,
+                unchanged = unchanged,
+            )
         }
     }
 
