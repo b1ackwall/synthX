@@ -17,17 +17,18 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.LinearGradientShader
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val GradientColors = listOf(
-    Color(0xFFCAFF00).copy(alpha = 0.4f),
-    Color(0xFF000000),
-    Color(0xFFCAFF00).copy(alpha = 0.4f),
+    Accent.copy(alpha = 0.4f),
+    Background,
+    Accent.copy(alpha = 0.4f),
 )
 
 // Start/end point pairs (in fractions of the layer size) the gradient drifts between.
@@ -71,7 +72,7 @@ fun AnimatedGradientBackground(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = modifier.fillMaxSize().background(Background)) {
         // Blurred gradient layer. The Animatable reads inside drawWithCache re-run the cache
         // block (and rebuild the Paint) only while the points are actually moving; content
         // stays on top, unblurred.

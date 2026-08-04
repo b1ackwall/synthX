@@ -45,6 +45,7 @@ import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
+import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 
 @Composable
@@ -105,8 +106,8 @@ internal fun PlaylistRow(
                         },
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Accent,
-                        cursorColor = Accent,
+                        focusedBorderColor = TextSecondary,
+                        cursorColor = TextPrimary,
                     ),
                 )
             } else {

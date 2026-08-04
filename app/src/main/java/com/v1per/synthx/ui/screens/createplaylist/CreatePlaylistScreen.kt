@@ -39,10 +39,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
-import com.v1per.synthx.ui.theme.OnAccent
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -90,8 +89,8 @@ fun CreatePlaylistScreen(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Accent,
-                    cursorColor = Accent,
+                    focusedBorderColor = TextSecondary,
+                    cursorColor = TextPrimary,
                 ),
             )
 
@@ -125,7 +124,7 @@ fun CreatePlaylistScreen(
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                                     ),
-                                    color = if (selected) Accent else TextPrimary,
+                                    color = TextPrimary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f),
@@ -134,7 +133,7 @@ fun CreatePlaylistScreen(
                                     Icon(
                                         imageVector = Icons.Default.Check,
                                         contentDescription = null,
-                                        tint = Accent,
+                                        tint = TextPrimary,
                                     )
                                 }
                             }
@@ -164,12 +163,12 @@ fun CreatePlaylistScreen(
                     .fillMaxWidth()
                     .height(Spacing.xxl),
                 shape = RoundedCornerShape(2.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
             ) {
                 Text(
                     text = "Create Playlist",
                     style = MaterialTheme.typography.labelLarge,
-                    color = OnAccent,
+                    color = TextPrimary,
                 )
             }
 

@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.SongRow
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextSecondary
 
@@ -58,18 +57,18 @@ fun PlaylistDetailScreen(
         ) {
             OutlinedButton(
                 onClick = onAddSongsClick,
-                border = BorderStroke(1.dp, Accent),
+                border = BorderStroke(1.dp, TextSecondary),
                 shape = RoundedCornerShape(2.dp),
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
-                    tint = Accent,
+                    tint = TextSecondary,
                 )
                 Spacer(modifier = Modifier.width(Spacing.xs))
                 Text(
                     text = "Add Songs",
-                    color = Accent,
+                    color = TextSecondary,
                     style = MaterialTheme.typography.labelLarge,
                 )
             }

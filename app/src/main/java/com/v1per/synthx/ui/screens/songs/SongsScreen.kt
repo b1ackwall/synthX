@@ -32,7 +32,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.SongRow
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -107,7 +106,7 @@ private fun SortBottomSheet(
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                     ),
-                    color = if (selected) Accent else TextPrimary,
+                    color = TextPrimary,
                 )
             }
         }

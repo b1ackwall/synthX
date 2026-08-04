@@ -55,8 +55,8 @@ import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.screens.search.SearchViewModel.SearchFilter
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
-import com.v1per.synthx.ui.theme.OnAccent
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -110,8 +110,8 @@ fun SearchScreen(
                 .fillMaxWidth()
                 .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Accent,
-                cursorColor = Accent,
+                focusedBorderColor = TextSecondary,
+                cursorColor = TextPrimary,
             ),
             shape = RoundedCornerShape(2.dp),
         )
@@ -139,8 +139,8 @@ fun SearchScreen(
                         )
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Accent,
-                        selectedLabelColor = OnAccent,
+                        selectedContainerColor = TextPrimary,
+                        selectedLabelColor = Background,
                         containerColor = SurfaceVariant,
                         labelColor = TextSecondary,
                     ),

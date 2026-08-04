@@ -62,8 +62,8 @@ import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
-import com.v1per.synthx.ui.theme.OnAccent
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -92,18 +92,18 @@ fun PlaylistListScreen(
         ) {
             OutlinedButton(
                 onClick = onCreatePlaylistClick,
-                border = BorderStroke(1.dp, Accent),
+                border = BorderStroke(1.dp, TextSecondary),
                 shape = RoundedCornerShape(2.dp),
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
-                    tint = Accent,
+                    tint = TextSecondary,
                 )
                 Spacer(modifier = Modifier.width(Spacing.xs))
                 Text(
                     text = "New Playlist",
-                    color = Accent,
+                    color = TextSecondary,
                     style = MaterialTheme.typography.labelLarge,
                 )
             }
@@ -214,8 +214,8 @@ private fun CreateGroupCard(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onConfirm(name) }),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Accent,
-                    cursorColor = Accent,
+                    focusedBorderColor = TextSecondary,
+                    cursorColor = TextPrimary,
                 ),
             )
             Spacer(modifier = Modifier.height(Spacing.sm))
@@ -230,9 +230,9 @@ private fun CreateGroupCard(
                 Button(
                     onClick = { onConfirm(name) },
                     shape = RoundedCornerShape(2.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
                 ) {
-                    Text(text = "Create", color = OnAccent)
+                    Text(text = "Create", color = TextPrimary)
                 }
             }
         }
@@ -285,8 +285,8 @@ private fun GroupRow(
                         },
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Accent,
-                        cursorColor = Accent,
+                        focusedBorderColor = TextSecondary,
+                        cursorColor = TextPrimary,
                     ),
                 )
             } else {

@@ -40,10 +40,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.v1per.synthx.ui.components.GlitchPlaceholder
-import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
-import com.v1per.synthx.ui.theme.OnAccent
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -122,12 +122,12 @@ fun AddSongsScreen(
                 .padding(Spacing.HorizontalPadding)
                 .height(Spacing.xxl),
             shape = RoundedCornerShape(2.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Accent),
+            colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
         ) {
             Text(
                 text = "Done",
                 style = MaterialTheme.typography.labelLarge,
-                color = OnAccent,
+                color = TextPrimary,
             )
         }
     }
@@ -151,9 +151,9 @@ private fun AddSongRow(
                 checked = songItem.isChecked,
                 onCheckedChange = { onToggle() },
                 colors = CheckboxDefaults.colors(
-                    checkedColor = Accent,
+                    checkedColor = TextPrimary,
                     uncheckedColor = TextSecondary,
-                    checkmarkColor = OnAccent,
+                    checkmarkColor = Background,
                 ),
             )
             Spacer(modifier = Modifier.width(Spacing.md))
