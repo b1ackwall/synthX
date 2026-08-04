@@ -10,6 +10,7 @@ import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 
 @OptIn(FlowPreview::class)
@@ -73,6 +75,7 @@ class SearchViewModel(
                     playlists = playlists.filter { it.name.lowercase().contains(q) },
                 )
             }
+                .flowOn(Dispatchers.Default)
                 .catch { e -> _error.value = "Search failed: ${e.message}" }
                 .collect {
                     _results.value = it

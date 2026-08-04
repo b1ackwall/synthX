@@ -15,8 +15,12 @@ import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.ScanResult
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 class SongRepositoryImpl(
     private val songDao: SongDao,
@@ -39,7 +43,9 @@ class SongRepositoryImpl(
         }
 
     override suspend fun getSongsForArtist(artistId: String): List<Song> =
-        artistDao.getSongsForArtist(artistId).map { it.toDomain() }
+        withContext(Dispatchers.Default) {
+            artistDao.getSongsForArtist(artistId).map { it.toDomain() }
+        }
 
     override fun getAlbums(): Flow<List<Album>> =
         albumDao.getAllAlbums().map { entries ->
@@ -54,7 +60,9 @@ class SongRepositoryImpl(
         }
 
     override suspend fun getSongsForAlbum(albumId: String): List<Song> =
-        albumDao.getSongsForAlbum(albumId).map { it.toDomain() }
+        withContext(Dispatchers.Default) {
+            albumDao.getSongsForAlbum(albumId).map { it.toDomain() }
+        }
 
     override suspend fun scanLibrary(folderUri: Uri): ScanResult =
         folderScanner.scan(folderUri)
@@ -121,10 +129,20 @@ class SongRepositoryImpl(
     override suspend fun deletePlaylist(id: String) =
         playlistDao.deletePlaylist(id)
 
+    // The playlist query supplies membership, `position` order, and the is_missing
+    // filter; getAllSongsWithDetails supplies artists + album in one batched read.
+    // 3 queries per emission regardless of playlist size, replacing 2 per song.
     override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> =
-        playlistDao.getSongsForPlaylist(playlistId).map { entities ->
-            entities.map { it.toDomain() }
-        }
+        combine(
+            playlistDao.getSongsForPlaylist(playlistId),
+            songDao.getAllSongsWithDetails(),
+        ) { playlistEntities, allDetails ->
+            val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
+            val detailsById = allDetails.associateBy { it.song.id }
+            playlistEntities.mapNotNull { entity ->
+                detailsById[entity.id]?.toDomain(refsBySongId[entity.id] ?: emptyList())
+            }
+        }.flowOn(Dispatchers.Default)
 
     override suspend fun getSongIdsForPlaylist(playlistId: String): List<String> =
         playlistDao.getSongIdsForPlaylist(playlistId)

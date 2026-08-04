@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -46,10 +48,11 @@ class LibraryViewModel(
     init {
         viewModelScope.launch {
             repository.getSongs()
-                .catch { e -> _error.value = "Failed to load recently added: ${e.message}" }
                 .map { songs ->
                     songs.sortedByDescending { it.dateAdded }.take(20)
                 }
+                .flowOn(Dispatchers.Default)
+                .catch { e -> _error.value = "Failed to load recently added: ${e.message}" }
                 .collect {
                     _recentSongs.value = it
                     _error.value = null

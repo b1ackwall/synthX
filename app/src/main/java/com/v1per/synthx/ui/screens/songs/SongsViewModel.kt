@@ -8,11 +8,13 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.playback.PlaybackViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 
 sealed class UiState {
@@ -55,6 +57,7 @@ class SongsViewModel(
             combine(_sortOrder, repository.getSongs()) { order, songs ->
                 songs.sorted(order)
             }
+                .flowOn(Dispatchers.Default)
                 .catch { e ->
                     _uiState.value = UiState.Error(e.message ?: "Failed to load songs")
                 }
