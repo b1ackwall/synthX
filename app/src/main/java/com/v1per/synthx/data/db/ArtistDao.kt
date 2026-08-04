@@ -33,29 +33,8 @@ interface ArtistDao {
         return artist
     }
 
-    @Query(
-        """
-        SELECT artists.* FROM artists
-        INNER JOIN song_artists ON song_artists.artist_id = artists.id
-        WHERE song_artists.song_id = :songId
-        ORDER BY song_artists.position
-        """
-    )
-    suspend fun getArtistsForSong(songId: String): List<ArtistEntity>
-
     @Query("SELECT * FROM artists ORDER BY name COLLATE NOCASE ASC")
     fun getAllArtists(): Flow<List<ArtistEntity>>
-
-    @Query(
-        """
-        SELECT songs.* FROM songs
-        INNER JOIN song_artists ON songs.id = song_artists.song_id
-        WHERE song_artists.artist_id = :artistId
-        AND songs.is_missing = 0
-        ORDER BY songs.title COLLATE NOCASE ASC
-        """
-    )
-    suspend fun getSongsForArtist(artistId: String): List<SongEntity>
 
     // TODO v2.x: orphan cleanup
 }

@@ -34,9 +34,6 @@ interface AlbumDao {
         return album
     }
 
-    @Query("SELECT * FROM albums WHERE id = :id")
-    suspend fun getAlbumById(id: String): AlbumEntity?
-
     // Primary artist = position-0 artist of the album's first song (lowest track
     // number, falling back to lowest rowid for untagged files). Room's SQL parser
     // rejects window functions and NULLS LAST, so this uses a correlated subquery
@@ -62,16 +59,6 @@ interface AlbumDao {
         """
     )
     fun getAllAlbums(): Flow<List<AlbumWithArtist>>
-
-    @Query(
-        """
-        SELECT * FROM songs
-        WHERE album_id = :albumId
-        AND is_missing = 0
-        ORDER BY track_number IS NULL, track_number ASC, title COLLATE NOCASE ASC
-        """
-    )
-    suspend fun getSongsForAlbum(albumId: String): List<SongEntity>
 
     // TODO v2.x: orphan cleanup
 }

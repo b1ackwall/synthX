@@ -9,7 +9,6 @@ import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
-import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SongWithDetails
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.FolderScanner
@@ -44,7 +43,10 @@ class SongRepositoryImpl(
 
     override suspend fun getSongsForArtist(artistId: String): List<Song> =
         withContext(Dispatchers.Default) {
-            artistDao.getSongsForArtist(artistId).map { it.toDomain() }
+            val details = songDao.getSongsWithDetailsForArtist(artistId)
+            val allRefs = songDao.getAllSongArtistRefs()
+            val refsBySongId = allRefs.groupBy { it.songId }
+            details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }
 
     override fun getAlbums(): Flow<List<Album>> =
@@ -61,7 +63,10 @@ class SongRepositoryImpl(
 
     override suspend fun getSongsForAlbum(albumId: String): List<Song> =
         withContext(Dispatchers.Default) {
-            albumDao.getSongsForAlbum(albumId).map { it.toDomain() }
+            val details = songDao.getSongsWithDetailsForAlbum(albumId)
+            val allRefs = songDao.getAllSongArtistRefs()
+            val refsBySongId = allRefs.groupBy { it.songId }
+            details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }
 
     override suspend fun scanLibrary(folderUri: Uri): ScanResult =
@@ -158,28 +163,6 @@ class SongRepositoryImpl(
             groupId = groupId,
             albumArtUri = coverArtUri,
         )
-
-    private suspend fun SongEntity.toDomain(): Song {
-        // getArtistsForSong returns artists already ordered by song_artists.position
-        val artists = artistDao.getArtistsForSong(id)
-        val artist = if (artists.isEmpty()) {
-            "Unknown Artist"
-        } else {
-            artists.joinToString(", ") { it.name }
-        }
-        val album = albumId?.let { albumDao.getAlbumById(it) }
-        return Song(
-            id = id,
-            title = title,
-            artist = artist,
-            album = album?.title ?: "Unknown Album",
-            duration = duration,
-            filePath = filePath,
-            albumArtUri = albumArtUri,
-            isMissing = isMissing,
-            dateAdded = dateAdded,
-        )
-    }
 
     private fun SongWithDetails.toDomain(refs: List<SongArtistEntity>): Song {
         // @Relation via Junction returns artists unordered — restore song_artists.position
