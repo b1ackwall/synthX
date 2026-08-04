@@ -17,6 +17,8 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = TextPrimary,
     onSurfaceVariant = TextSecondary,
     outline = Hairline,
+    error = Error,
+    onError = Background,
 )
 
 // TODO: light theme — not in scope, synthX is dark-only by design

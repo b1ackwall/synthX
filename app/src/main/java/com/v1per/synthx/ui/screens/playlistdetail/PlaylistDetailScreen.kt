@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
@@ -30,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.SongRow
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextSecondary
 
@@ -58,7 +58,7 @@ fun PlaylistDetailScreen(
             OutlinedButton(
                 onClick = onAddSongsClick,
                 border = BorderStroke(1.dp, TextSecondary),
-                shape = RoundedCornerShape(2.dp),
+                shape = MaterialTheme.shapes.small,
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -98,7 +98,7 @@ fun PlaylistDetailScreen(
                 is PlaylistDetailViewModel.UiState.Error -> Text(
                     text = state.message,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error,
+                    color = Error,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .align(Alignment.Center)

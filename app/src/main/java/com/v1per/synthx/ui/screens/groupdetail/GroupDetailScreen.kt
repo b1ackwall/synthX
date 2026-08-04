@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.ui.components.PlaylistRow
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextSecondary
 
@@ -59,7 +60,7 @@ fun GroupDetailScreen(
                 is GroupDetailViewModel.UiState.Error -> Text(
                     text = state.message,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error,
+                    color = Error,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .align(Alignment.Center)

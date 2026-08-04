@@ -28,7 +28,6 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -78,7 +77,13 @@ import com.v1per.synthx.ui.screens.library.LibraryScreen
 import com.v1per.synthx.ui.screens.search.SearchScreen
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
 import com.v1per.synthx.ui.screens.songs.SongsScreen
+import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Motion
+import com.v1per.synthx.ui.theme.Surface
+import com.v1per.synthx.ui.theme.TextPrimary
+import com.v1per.synthx.ui.theme.TextSecondary
 
 /** Footprint of the overlay bottom nav (70dp NavigationBar + 1dp divider). */
 private val BottomNavHeight = 71.dp
@@ -147,8 +152,8 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.onBackground,
+            containerColor = Background,
+            contentColor = TextPrimary,
             topBar = {},
             bottomBar = {},
         ) { innerPadding ->
@@ -294,7 +299,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                                                 Icon(
                                                     imageVector = Icons.AutoMirrored.Filled.Sort,
                                                     contentDescription = "Sort",
-                                                    tint = MaterialTheme.colorScheme.onBackground,
+                                                    tint = TextPrimary,
                                                 )
                                             }
                                         },
@@ -603,10 +608,10 @@ private fun SynthXBottomNav(
     ) {
         HorizontalDivider(
             thickness = 1.dp,
-            color = MaterialTheme.colorScheme.outline,
+            color = Hairline,
         )
         NavigationBar(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = Surface,
             tonalElevation = 0.dp,
             modifier = Modifier.height(70.dp),
         ) {
@@ -666,10 +671,10 @@ private fun SynthXBottomNav(
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedIconColor = Accent,
+                        unselectedIconColor = TextSecondary,
+                        selectedTextColor = Accent,
+                        unselectedTextColor = TextSecondary,
                         indicatorColor = Color.Transparent,
                     ),
                 )

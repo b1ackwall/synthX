@@ -38,8 +38,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.AnimatedGradientBackground
+import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.TextPrimary
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -114,7 +116,7 @@ fun HomeScreen(
                         text = buildAnnotatedString {
                             withStyle(
                                 SpanStyle(
-                                    color = MaterialTheme.colorScheme.onBackground,
+                                    color = TextPrimary,
                                     fontFamily = wordmarkFont,
                                     fontWeight = FontWeight.Normal,
                                 ),
@@ -123,7 +125,7 @@ fun HomeScreen(
                             }
                             withStyle(
                                 SpanStyle(
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = Accent,
                                     fontFamily = wordmarkFont,
                                     fontWeight = FontWeight.Normal,
                                 ),
@@ -157,7 +159,7 @@ fun HomeScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Enter library",
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                        tint = TextPrimary.copy(alpha = 0.6f),
                         modifier = Modifier.size(32.dp),
                     )
                 }

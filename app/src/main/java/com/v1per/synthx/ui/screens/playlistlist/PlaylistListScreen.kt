@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -63,6 +62,7 @@ import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -93,7 +93,7 @@ fun PlaylistListScreen(
             OutlinedButton(
                 onClick = onCreatePlaylistClick,
                 border = BorderStroke(1.dp, TextSecondary),
-                shape = RoundedCornerShape(2.dp),
+                shape = MaterialTheme.shapes.small,
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -110,7 +110,7 @@ fun PlaylistListScreen(
             OutlinedButton(
                 onClick = viewModel::onCreateGroupClick,
                 border = BorderStroke(1.dp, TextSecondary),
-                shape = RoundedCornerShape(2.dp),
+                shape = MaterialTheme.shapes.small,
             ) {
                 Icon(
                     imageVector = Icons.Default.CreateNewFolder,
@@ -195,8 +195,8 @@ private fun CreateGroupCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
-        shape = RoundedCornerShape(2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.small,
+        colors = CardDefaults.cardColors(containerColor = Surface),
     ) {
         Column(modifier = Modifier.padding(Spacing.md)) {
             Text(
@@ -229,7 +229,7 @@ private fun CreateGroupCard(
                 Spacer(modifier = Modifier.width(Spacing.sm))
                 Button(
                     onClick = { onConfirm(name) },
-                    shape = RoundedCornerShape(2.dp),
+                    shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
                 ) {
                     Text(text = "Create", color = TextPrimary)

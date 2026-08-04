@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
@@ -56,6 +55,7 @@ import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.screens.search.SearchViewModel.SearchFilter
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
@@ -113,7 +113,7 @@ fun SearchScreen(
                 focusedBorderColor = TextSecondary,
                 cursorColor = TextPrimary,
             ),
-            shape = RoundedCornerShape(2.dp),
+            shape = MaterialTheme.shapes.small,
         )
 
         LazyRow(
@@ -150,7 +150,7 @@ fun SearchScreen(
                         borderColor = Color.Transparent,
                         selectedBorderColor = Color.Transparent,
                     ),
-                    shape = RoundedCornerShape(2.dp),
+                    shape = MaterialTheme.shapes.small,
                 )
             }
         }
@@ -159,7 +159,7 @@ fun SearchScreen(
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
+                color = Error,
                 modifier = Modifier.padding(
                     horizontal = Spacing.HorizontalPadding,
                     vertical = Spacing.sm,
@@ -364,7 +364,7 @@ private fun AlbumResultRow(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(RoundedCornerShape(2.dp)),
+                        .clip(MaterialTheme.shapes.small),
                 )
             } else {
                 GlitchPlaceholder(

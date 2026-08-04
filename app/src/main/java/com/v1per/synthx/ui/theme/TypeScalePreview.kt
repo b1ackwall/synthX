@@ -20,26 +20,26 @@ private fun TypeScalePreview() {
     SynthXTheme {
         Column(
             modifier = Modifier
-                .background(MaterialTheme.colorScheme.background)
+                .background(Background)
                 .padding(horizontal = Spacing.md, vertical = Spacing.md)
                 .fillMaxWidth(),
         ) {
             TypeRow("DisplayLarge · Bold 57sp", MaterialTheme.typography.displayLarge, "synthX")
             TypeRow("DisplayMedium · SemiBold 45sp", MaterialTheme.typography.displayMedium, "synthX")
             Spacer(Modifier.height(Spacing.sm))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            HorizontalDivider(color = Hairline)
             Spacer(Modifier.height(Spacing.sm))
             TypeRow("TitleLarge · SemiBold 22sp", MaterialTheme.typography.titleLarge, "Now Playing")
             TypeRow("TitleMedium · Medium 16sp", MaterialTheme.typography.titleMedium, "Blinding Lights")
             TypeRow("TitleSmall · Medium 14sp", MaterialTheme.typography.titleSmall, "The Weeknd")
             Spacer(Modifier.height(Spacing.sm))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            HorizontalDivider(color = Hairline)
             Spacer(Modifier.height(Spacing.sm))
             TypeRow("BodyLarge · Regular 16sp", MaterialTheme.typography.bodyLarge, "After Hours · 2020")
             TypeRow("BodyMedium · Regular 14sp", MaterialTheme.typography.bodyMedium, "3 minutes 20 seconds")
             TypeRow("BodySmall · Light 12sp", MaterialTheme.typography.bodySmall, "/music/afterhours.mp3")
             Spacer(Modifier.height(Spacing.sm))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            HorizontalDivider(color = Hairline)
             Spacer(Modifier.height(Spacing.sm))
             TypeRow("LabelLarge · Medium 14sp", MaterialTheme.typography.labelLarge, "LIBRARY")
             TypeRow("LabelSmall · Regular 11sp", MaterialTheme.typography.labelSmall, "42 songs")
@@ -52,13 +52,13 @@ private fun TypeRow(label: String, style: androidx.compose.ui.text.TextStyle, sa
     Text(
         text = label,
         style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.primary,
+        color = Accent,
         modifier = Modifier.padding(top = Spacing.xs),
     )
     Text(
         text = sample,
         style = style,
-        color = MaterialTheme.colorScheme.onBackground,
+        color = TextPrimary,
     )
     Spacer(Modifier.height(Spacing.xs))
 }

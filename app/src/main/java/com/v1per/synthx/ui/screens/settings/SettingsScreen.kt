@@ -30,8 +30,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
+import com.v1per.synthx.ui.theme.TextPrimary
+import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 
 @Composable
@@ -108,7 +112,7 @@ private fun SettingsScreenContent(
             Text(
                 text = error,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
+                color = Error,
                 modifier = Modifier.padding(
                     horizontal = Spacing.HorizontalPadding,
                     vertical = Spacing.xs,
@@ -144,13 +148,13 @@ private fun MusicFolderRow(
             Text(
                 text = "Music folder",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = TextPrimary,
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = folderPath ?: "No folder selected",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -186,14 +190,14 @@ private fun RescanRow(
             Text(
                 text = "Rescan library",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = TextPrimary,
             )
             if (status != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = status,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -213,7 +217,7 @@ private fun SettingsScreenWithFolderPreview() {
     SynthXTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
+            color = Background,
         ) {
             SettingsScreenContent(
                 folderPath = "content://com.android.externalstorage/tree/primary:Music",
@@ -233,7 +237,7 @@ private fun SettingsScreenEmptyPreview() {
     SynthXTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
+            color = Background,
         ) {
             SettingsScreenContent(
                 folderPath = null,

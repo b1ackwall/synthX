@@ -467,7 +467,7 @@ private fun AlbumArt(
         modifier = Modifier
             .size(size)
             .scale(scale)
-            .clip(RoundedCornerShape(2.dp)),
+            .clip(MaterialTheme.shapes.small),
     ) {
         if (song.albumArtUri != null) {
             // The mini thumbnail loads at its 44dp display size. The expanded player

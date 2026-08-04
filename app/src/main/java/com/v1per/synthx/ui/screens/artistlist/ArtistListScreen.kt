@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -130,7 +131,7 @@ private fun ArtistListPreview() {
     SynthXTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
+            color = Background,
         ) {
             ArtistListContent(
                 uiState = ArtistListViewModel.UiState.Success(

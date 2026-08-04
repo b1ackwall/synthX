@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -39,6 +38,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
@@ -152,7 +152,7 @@ fun CreatePlaylistScreen(
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = Error,
                     modifier = Modifier.padding(vertical = Spacing.sm),
                 )
             }
@@ -162,7 +162,7 @@ fun CreatePlaylistScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(Spacing.xxl),
-                shape = RoundedCornerShape(2.dp),
+                shape = MaterialTheme.shapes.small,
                 colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
             ) {
                 Text(

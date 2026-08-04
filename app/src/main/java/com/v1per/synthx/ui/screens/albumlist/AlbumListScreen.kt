@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -37,6 +36,7 @@ import coil.compose.AsyncImage
 import com.v1per.synthx.data.repository.Album
 import com.v1per.synthx.ui.components.GlitchPlaceholder
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -124,7 +124,7 @@ private fun AlbumRow(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(RoundedCornerShape(2.dp)),
+                        .clip(MaterialTheme.shapes.small),
                 )
             } else {
                 GlitchPlaceholder(
@@ -164,7 +164,7 @@ private fun AlbumListPreview() {
     SynthXTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
+            color = Background,
         ) {
             AlbumListContent(
                 uiState = AlbumListViewModel.UiState.Success(

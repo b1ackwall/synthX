@@ -18,3 +18,6 @@ val TextTertiary = Color(0xFF545B66)
 
 // Structural
 val Hairline = Color(0x14CAFF00)  // neon at ~8% alpha — 1dp dividers and borders
+
+// Status
+val Error = Color(0xFFFF4444)

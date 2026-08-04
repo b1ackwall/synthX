@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.HorizontalDivider
@@ -38,6 +37,8 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.TextPrimary
+import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 
 // Material standard disabled-content alpha (Material 3 ships no ContentAlpha token)
@@ -96,7 +97,7 @@ internal fun SongRow(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(48.dp)
-                            .clip(RoundedCornerShape(2.dp)),
+                            .clip(MaterialTheme.shapes.small),
                     )
                 } else {
                     GlitchPlaceholder(
@@ -114,14 +115,14 @@ internal fun SongRow(
                     Text(
                         text = song.title,
                         style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onBackground,
+                        color = TextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = song.artist,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = TextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

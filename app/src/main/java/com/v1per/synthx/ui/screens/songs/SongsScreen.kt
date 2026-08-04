@@ -32,7 +32,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.SongRow
+import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Spacing
+// Aliased: the Material3 `Surface` composable already owns this simple name in this file.
+import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -83,7 +87,7 @@ private fun SortBottomSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = SurfaceColor,
     ) {
         Text(
             text = "Sort by",
@@ -130,7 +134,7 @@ private fun SongsScreenContent(
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
             is UiState.Loading -> CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.primary,
+                color = Accent,
                 modifier = Modifier.align(Alignment.Center),
             )
             is UiState.Empty -> Text(
@@ -187,7 +191,7 @@ private fun SongsScreenPreview() {
     SynthXTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
+            color = Background,
         ) {
             SongsScreenContent(
                 uiState = UiState.Success(sampleSongs),

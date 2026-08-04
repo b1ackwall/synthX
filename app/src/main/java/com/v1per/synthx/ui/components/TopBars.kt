@@ -27,7 +27,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
+import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Motion
+import com.v1per.synthx.ui.theme.TextPrimary
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -66,7 +69,7 @@ internal fun SynthXTopBar(
                 text = buildAnnotatedString {
                     withStyle(
                         SpanStyle(
-                            color = MaterialTheme.colorScheme.onBackground,
+                            color = TextPrimary,
                             fontFamily = wordmarkFont,
                             fontWeight = FontWeight.Normal,
                         ),
@@ -75,7 +78,7 @@ internal fun SynthXTopBar(
                     }
                     withStyle(
                         SpanStyle(
-                            color = MaterialTheme.colorScheme.primary,
+                            color = Accent,
                             fontFamily = wordmarkFont,
                             fontWeight = FontWeight.Normal,
                         ),
@@ -94,13 +97,13 @@ internal fun SynthXTopBar(
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "More options",
-                    tint = MaterialTheme.colorScheme.onBackground,
+                    tint = TextPrimary,
                 )
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            scrolledContainerColor = MaterialTheme.colorScheme.background,
+            containerColor = Background,
+            scrolledContainerColor = Background,
         ),
     )
 }
@@ -118,7 +121,7 @@ internal fun DetailTopBar(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onBackground,
+                    tint = TextPrimary,
                 )
             }
         },
@@ -126,13 +129,13 @@ internal fun DetailTopBar(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = TextPrimary,
             )
         },
         actions = actions,
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            scrolledContainerColor = MaterialTheme.colorScheme.background,
+            containerColor = Background,
+            scrolledContainerColor = Background,
         ),
     )
 }

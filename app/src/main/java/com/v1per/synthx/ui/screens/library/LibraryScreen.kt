@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.MusicNote
@@ -52,6 +51,8 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.GlitchPlaceholder
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -83,7 +84,7 @@ fun LibraryScreen(
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Background,
         topBar = topBar,
     ) { innerPadding ->
         LibraryScreenContent(
@@ -122,7 +123,7 @@ private fun LibraryScreenContent(
             Text(
                 text = "Library",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onBackground,
+                color = TextPrimary,
                 modifier = Modifier
                     .padding(horizontal = Spacing.HorizontalPadding)
                     .padding(top = Spacing.lg),
@@ -167,7 +168,7 @@ private fun LibraryScreenContent(
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = Error,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(
@@ -270,7 +271,7 @@ private fun RecentSongTile(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .clip(RoundedCornerShape(2.dp)),
+                    .clip(MaterialTheme.shapes.small),
             )
         } else {
             // GlitchPlaceholder applies .size() internally, so resolve the
@@ -328,13 +329,13 @@ private fun CategoryRow(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
+                tint = TextPrimary,
                 modifier = Modifier.size(24.dp),
             )
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = TextPrimary,
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = Spacing.md),
@@ -353,7 +354,7 @@ private fun LibraryScreenPreview() {
     SynthXTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
+            color = Background,
         ) {
             LibraryScreenContent(
                 recentSongs = listOf(

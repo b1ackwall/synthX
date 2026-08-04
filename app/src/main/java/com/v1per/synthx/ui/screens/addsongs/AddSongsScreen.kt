@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -41,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.v1per.synthx.ui.components.GlitchPlaceholder
 import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
@@ -91,7 +91,7 @@ fun AddSongsScreen(
                 disabledPlaceholderColor = TextTertiary,
                 disabledLeadingIconColor = TextTertiary,
             ),
-            shape = RoundedCornerShape(2.dp),
+            shape = MaterialTheme.shapes.small,
         )
 
         LazyColumn(modifier = Modifier.weight(1f)) {
@@ -107,7 +107,7 @@ fun AddSongsScreen(
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
+                color = Error,
                 modifier = Modifier.padding(
                     horizontal = Spacing.HorizontalPadding,
                     vertical = Spacing.sm,
@@ -121,7 +121,7 @@ fun AddSongsScreen(
                 .fillMaxWidth()
                 .padding(Spacing.HorizontalPadding)
                 .height(Spacing.xxl),
-            shape = RoundedCornerShape(2.dp),
+            shape = MaterialTheme.shapes.small,
             colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
         ) {
             Text(
@@ -164,7 +164,7 @@ private fun AddSongRow(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(RoundedCornerShape(2.dp)),
+                        .clip(MaterialTheme.shapes.small),
                 )
             } else {
                 GlitchPlaceholder(
