@@ -95,6 +95,9 @@ class SettingsViewModel(
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (!modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
+                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+            }
             val appContext = context.applicationContext
             @Suppress("UNCHECKED_CAST")
             return SettingsViewModel(

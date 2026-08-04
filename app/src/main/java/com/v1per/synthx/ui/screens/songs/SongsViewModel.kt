@@ -77,8 +77,12 @@ class SongsViewModel(
         private val context: Context,
         private val playbackViewModel: PlaybackViewModel,
     ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            SongsViewModel(SongRepositoryImpl.create(context), playbackViewModel) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (!modelClass.isAssignableFrom(SongsViewModel::class.java)) {
+                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+            }
+            @Suppress("UNCHECKED_CAST")
+            return SongsViewModel(SongRepositoryImpl.create(context), playbackViewModel) as T
+        }
     }
 }
