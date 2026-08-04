@@ -7,7 +7,6 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.lifecycleScope
@@ -15,9 +14,6 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.v1per.synthx.data.repository.SongRepositoryImpl
-import com.v1per.synthx.playback.ExoPlayerEngine
-import com.v1per.synthx.playback.PlaybackController
-import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.MainScaffold
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -26,18 +22,8 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
-    // Engine choice is made here — swap ExoPlayerEngine for any PlaybackEngine implementation
-    private val playbackViewModel: PlaybackViewModel by viewModels {
-        PlaybackViewModel.Factory(
-            PlaybackController(ExoPlayerEngine(applicationContext))
-        )
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Touch playbackViewModel before setContent so it is in the Activity's ViewModelStore
-        // before MainScaffold calls viewModel<PlaybackViewModel>() without a factory.
-        playbackViewModel
         scanLibraryOnLaunch()
         enableEdgeToEdge()
         setContent {

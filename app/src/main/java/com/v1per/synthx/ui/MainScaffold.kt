@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -105,7 +106,9 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     )
     val showBottomBar = currentRoute in bottomBarRoutes
 
-    val playbackViewModel = viewModel<PlaybackViewModel>()
+    val playbackViewModel = viewModel<PlaybackViewModel>(
+        factory = PlaybackViewModel.Factory(LocalContext.current.applicationContext)
+    )
     val isPlaying by playbackViewModel.isPlaying.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
     val currentPosition by playbackViewModel.currentPosition.collectAsState()

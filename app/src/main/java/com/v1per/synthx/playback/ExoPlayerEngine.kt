@@ -126,5 +126,8 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
     override fun release() {
         controller?.removeListener(listener)
         MediaController.releaseFuture(controllerFuture)
+        // Cleared so the `controller?.` guards in the playback methods actually
+        // short-circuit after release instead of calling into a released instance.
+        controller = null
     }
 }

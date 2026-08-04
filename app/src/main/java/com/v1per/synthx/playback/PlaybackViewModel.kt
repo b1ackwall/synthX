@@ -1,5 +1,6 @@
 package com.v1per.synthx.playback
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -59,9 +60,22 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
         controller.release()
     }
 
-    class Factory(private val controller: PlaybackController) : ViewModelProvider.Factory {
+    /**
+     * Builds the engine inside [create] rather than holding a prebuilt one. An
+     * ExoPlayerEngine opens a MediaController binding to SynthXPlaybackService in its
+     * constructor, so constructing one eagerly — as a factory constructor argument —
+     * orphans that binding whenever ViewModelProvider finds an existing ViewModel and
+     * never calls [create]. Only the Context is held here; it is cheap to rebuild.
+     */
+    class Factory(private val context: Context) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            PlaybackViewModel(controller) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (!modelClass.isAssignableFrom(PlaybackViewModel::class.java)) {
+                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+            }
+            val engine = ExoPlayerEngine(context.applicationContext)
+            val controller = PlaybackController(engine)
+            return PlaybackViewModel(controller) as T
+        }
     }
 }
