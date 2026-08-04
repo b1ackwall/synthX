@@ -69,7 +69,7 @@ internal fun SynthXTopBar(
             ) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.cd_more_options),
+                    contentDescription = stringResource(R.string.screen_settings),
                     tint = TextPrimary,
                 )
             }

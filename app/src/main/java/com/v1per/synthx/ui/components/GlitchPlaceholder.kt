@@ -68,8 +68,7 @@ fun GlitchPlaceholder(
     val pixelOffset = if (isPlaying) animOffset else 0f
 
     Box(
-        modifier = modifier
-            .size(size)
+        modifier = modifier.size(size)
             .clip(MaterialTheme.shapes.small),
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {

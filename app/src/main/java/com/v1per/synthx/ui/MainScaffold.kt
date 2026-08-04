@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -48,7 +49,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
@@ -292,7 +292,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                     composable(Screen.Songs.route) {
                         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
                             SongsScreen(
-                                topBar = { sortOrder, onSortClick ->
+                                topBar = { onSortClick ->
                                     DetailTopBar(
                                         title = stringResource(R.string.screen_songs),
                                         onBack = { navController.popBackStack() },
@@ -684,7 +684,7 @@ private fun SynthXBottomNav(
                     label = {
                         Text(
                             text = item.label,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.labelSmall,
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(

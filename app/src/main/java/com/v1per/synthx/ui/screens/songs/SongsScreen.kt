@@ -46,7 +46,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 
 @Composable
 fun SongsScreen(
-    topBar: @Composable (sortOrder: SortOrder, onSortClick: () -> Unit) -> Unit,
+    topBar: @Composable (onSortClick: () -> Unit) -> Unit,
     playbackViewModel: PlaybackViewModel,
 ) {
     val context = LocalContext.current
@@ -60,7 +60,7 @@ fun SongsScreen(
     var showSortSheet by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        topBar(currentSortOrder, { showSortSheet = true })
+        topBar({ showSortSheet = true })
 
         SongsScreenContent(
             uiState = uiState,
