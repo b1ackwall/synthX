@@ -25,6 +25,9 @@ class SettingsViewModel(
     private val _rescanStatus = MutableStateFlow<String?>(null)
     val rescanStatus: StateFlow<String?> = _rescanStatus.asStateFlow()
 
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+
     fun saveMusicFolder(uri: Uri) {
         preferencesManager.musicFolderUri = uri.toString()
         _musicFolderUri.value = uri
@@ -33,10 +36,12 @@ class SettingsViewModel(
     }
 
     fun rescanLibrary() {
+        if (_isScanning.value) return // guard against double-tap
         val folderUri = _musicFolderUri.value ?: run {
             _rescanStatus.value = "No folder selected"
             return
         }
+        _isScanning.value = true
         viewModelScope.launch(Dispatchers.IO) {
             _rescanStatus.value = "Scanning…"
             try {
@@ -46,6 +51,8 @@ class SettingsViewModel(
                         "${result.missing} missing"
             } catch (e: Exception) {
                 _rescanStatus.value = "Scan failed"
+            } finally {
+                _isScanning.value = false
             }
         }
     }

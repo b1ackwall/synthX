@@ -47,6 +47,7 @@ fun SettingsScreen(topBar: @Composable () -> Unit) {
     )
     val folderUri by viewModel.musicFolderUri.collectAsState()
     val rescanStatus by viewModel.rescanStatus.collectAsState()
+    val isScanning by viewModel.isScanning.collectAsState()
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -65,6 +66,7 @@ fun SettingsScreen(topBar: @Composable () -> Unit) {
         SettingsScreenContent(
             folderPath = folderUri?.toString(),
             rescanStatus = rescanStatus,
+            isScanning = isScanning,
             onPickFolder = { folderPicker.launch(null) },
             onRescan = viewModel::rescanLibrary,
         )
@@ -75,6 +77,7 @@ fun SettingsScreen(topBar: @Composable () -> Unit) {
 private fun SettingsScreenContent(
     folderPath: String?,
     rescanStatus: String?,
+    isScanning: Boolean,
     onPickFolder: () -> Unit,
     onRescan: () -> Unit,
 ) {
@@ -85,6 +88,7 @@ private fun SettingsScreenContent(
         )
         RescanRow(
             status = rescanStatus,
+            isScanning = isScanning,
             onClick = onRescan,
         )
     }
@@ -133,12 +137,14 @@ private fun MusicFolderRow(
 @Composable
 private fun RescanRow(
     status: String?,
+    isScanning: Boolean,
     onClick: () -> Unit,
 ) {
     Row(
+        // Disabled while a scan is in progress — the status line reports progress
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = !isScanning, onClick = onClick)
             .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -183,6 +189,7 @@ private fun SettingsScreenWithFolderPreview() {
             SettingsScreenContent(
                 folderPath = "content://com.android.externalstorage/tree/primary:Music",
                 rescanStatus = "Done — 12 added, 1 updated, 0 missing",
+                isScanning = false,
                 onPickFolder = {},
                 onRescan = {},
             )
@@ -201,6 +208,7 @@ private fun SettingsScreenEmptyPreview() {
             SettingsScreenContent(
                 folderPath = null,
                 rescanStatus = null,
+                isScanning = false,
                 onPickFolder = {},
                 onRescan = {},
             )

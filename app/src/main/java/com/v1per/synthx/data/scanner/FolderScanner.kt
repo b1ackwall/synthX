@@ -14,10 +14,11 @@ import com.v1per.synthx.data.db.SongArtistDao
 import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongEntity
+import com.v1per.synthx.data.db.SynthXDatabase
 import java.io.File
 import java.io.FileOutputStream
-import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class ScanResult(
@@ -35,66 +36,74 @@ class FolderScanner(
     private val songArtistDao: SongArtistDao,
 ) {
 
+    // Serialized process-wide: a launch scan and a Settings rescan can otherwise
+    // interleave their read-then-write pairs and corrupt the library.
     suspend fun scan(folderUri: Uri): ScanResult = withContext(Dispatchers.IO) {
-        val root = DocumentFile.fromTreeUri(context, folderUri)
-            ?: return@withContext ScanResult(added = 0, updated = 0, missing = 0, unchanged = 0)
+        SynthXDatabase.scanMutex.withLock {
+            val root = DocumentFile.fromTreeUri(context, folderUri)
+                ?: return@withLock ScanResult(added = 0, updated = 0, missing = 0, unchanged = 0)
 
-        val audioFiles = collectAudioFiles(root)
-        val foundPaths = audioFiles.mapTo(mutableSetOf()) { it.uri.toString() }
+            val audioFiles = collectAudioFiles(root)
+            val foundPaths = audioFiles.mapTo(mutableSetOf()) { it.uri.toString() }
 
-        var added = 0
-        var updated = 0
-        var unchanged = 0
+            var added = 0
+            var updated = 0
+            var unchanged = 0
 
-        for (file in audioFiles) {
-            val path = file.uri.toString()
-            // Unreadable file: no identity, nothing we can safely store
-            val id = HashUtils.computeSongId(file, context) ?: continue
+            for (file in audioFiles) {
+                val path = file.uri.toString()
+                // Unreadable file: no identity, nothing we can safely store
+                val id = HashUtils.computeSongId(file, context) ?: continue
 
-            val existing = songDao.getSongById(id)
-            if (existing != null) {
-                when {
-                    existing.filePath != path -> {
-                        // Check if another song already occupies this path — remove it first
-                        // to avoid UNIQUE constraint violation on file_path index
-                        val occupant = songDao.getSongByPath(path)
-                        if (occupant != null && occupant.id != existing.id) {
-                            songDao.deleteSongById(occupant.id)
+                val existing = songDao.getSongById(id)
+                if (existing != null) {
+                    when {
+                        existing.filePath != path -> {
+                            // Check if another song already occupies this path — remove it
+                            // first to avoid UNIQUE constraint violation on file_path index
+                            val occupant = songDao.getSongByPath(path)
+                            if (occupant != null && occupant.id != existing.id) {
+                                songDao.deleteSongById(occupant.id)
+                            }
+                            songDao.upsertSong(
+                                existing.copy(
+                                    filePath = path,
+                                    isMissing = false,
+                                    missingSince = null,
+                                )
+                            )
+                            updated++
                         }
-                        songDao.upsertSong(
-                            existing.copy(filePath = path, isMissing = false, missingSince = null)
-                        )
-                        updated++
+                        existing.isMissing -> {
+                            // Same path, previously flagged missing — the file is back
+                            songDao.markFound(id)
+                            updated++
+                        }
+                        else -> unchanged++
                     }
-                    existing.isMissing -> {
-                        // Same path, previously flagged missing — the file is back
-                        songDao.markFound(id)
-                        updated++
-                    }
-                    else -> unchanged++
+                    continue
                 }
-                continue
+
+                // Same path, different hash: the file content changed — treat as new
+                songDao.getSongByPath(path)?.let { stale -> songDao.deleteSongById(stale.id) }
+
+                insertNewSong(file, id, path)
+                added++
             }
 
-            // Same path, different hash: the file content changed — treat as a new song
-            songDao.getSongByPath(path)?.let { stale -> songDao.deleteSongById(stale.id) }
-
-            insertNewSong(file, id, path)
-            added++
-        }
-
-        var missing = 0
-        val now = System.currentTimeMillis()
-        for (song in songDao.getAllSongsOnce()) {
-            if (song.filePath !in foundPaths) {
-                if (!song.isMissing) {
-                    songDao.markMissing(song.id, now)
+            var missing = 0
+            val now = System.currentTimeMillis()
+            for (song in songDao.getAllSongsOnce()) {
+                if (song.filePath !in foundPaths) {
+                    if (!song.isMissing) {
+                        songDao.markMissing(song.id, now)
+                    }
+                    missing++
                 }
-                missing++
             }
-        }
 
-        ScanResult(added = added, updated = updated, missing = missing, unchanged = unchanged)
+            ScanResult(added = added, updated = updated, missing = missing, unchanged = unchanged)
+        }
     }
 
     private fun collectAudioFiles(dir: DocumentFile): List<DocumentFile> {
@@ -170,28 +179,12 @@ class FolderScanner(
             }
     }
 
-    private suspend fun resolveAlbum(title: String, year: Int?, albumArtUri: String?): AlbumEntity {
-        albumDao.getAlbumByTitle(title)?.let { return it }
-        val album = AlbumEntity(
-            id = UUID.randomUUID().toString(),
-            title = title,
-            year = year,
-            albumArtUri = albumArtUri,
-        )
-        albumDao.upsertAlbum(album)
-        return album
-    }
+    private suspend fun resolveAlbum(title: String, year: Int?, albumArtUri: String?): AlbumEntity =
+        albumDao.getOrInsertAlbum(title, year, albumArtUri)
 
     private suspend fun resolveArtist(name: String): ArtistEntity {
         val normalized = name.trim().lowercase()
-        artistDao.getArtistByNormalizedName(normalized)?.let { return it }
-        val artist = ArtistEntity(
-            id = UUID.randomUUID().toString(),
-            name = name,
-            nameNormalized = normalized,
-        )
-        artistDao.upsertArtist(artist)
-        return artist
+        return artistDao.getOrInsertArtist(name.trim(), normalized)
     }
 
     private fun splitArtists(raw: String): List<String> {

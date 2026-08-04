@@ -2,7 +2,9 @@ package com.v1per.synthx.data.db
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -13,6 +15,24 @@ interface AlbumDao {
 
     @Query("SELECT * FROM albums WHERE title = :title COLLATE NOCASE LIMIT 1")
     suspend fun getAlbumByTitle(title: String): AlbumEntity?
+
+    /**
+     * Look up an album by title, inserting it if absent. Atomic so two concurrent
+     * scans cannot both miss the lookup and mint duplicate rows — `title` is
+     * indexed but not unique, so SQLite would accept both.
+     */
+    @Transaction
+    suspend fun getOrInsertAlbum(title: String, year: Int?, albumArtUri: String?): AlbumEntity {
+        getAlbumByTitle(title)?.let { return it }
+        val album = AlbumEntity(
+            id = UUID.randomUUID().toString(),
+            title = title,
+            year = year,
+            albumArtUri = albumArtUri,
+        )
+        upsertAlbum(album)
+        return album
+    }
 
     @Query("SELECT * FROM albums WHERE id = :id")
     suspend fun getAlbumById(id: String): AlbumEntity?
