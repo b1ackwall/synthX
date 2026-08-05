@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">synthX</string>
+    <!-- app_name is provided per-build-type via resValue in app/build.gradle.kts -->
 
     <!-- Navigation -->
     <string name="nav_home">Home</string>
