@@ -16,6 +16,7 @@ captures/
 
 # Local machine config
 local.properties
+.claude/settings.local.json
 
 # Keys — never commit
 *.jks
