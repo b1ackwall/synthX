@@ -6,14 +6,18 @@ import android.net.Uri
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
@@ -30,6 +34,20 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
 
     private val _currentSongId = MutableStateFlow<String?>(null)
     override val currentSongId: Flow<String?> = _currentSongId.asStateFlow()
+
+    // replay = 0 with a 1-slot buffer: a failure that lands while nothing is collecting
+    // is dropped rather than replayed later as a stale message.
+    private val _errors = MutableSharedFlow<PlaybackError>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    override val errors: Flow<PlaybackError> = _errors.asSharedFlow()
+
+    // Last song handed to playSong. Written and read on the main thread only (the
+    // setMediaItem block below and Player.Listener callbacks both run there), so it
+    // needs no synchronisation. MediaItem metadata would also carry the title, but
+    // reading it back after stop() depends on the controller retaining the item.
+    private var currentSongTitle: String? = null
 
     // Cold polling flows: collected on the caller's dispatcher (the ViewModel collects on
     // Main.immediate via stateIn), which satisfies MediaController's main-thread requirement.
@@ -61,6 +79,17 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_ENDED) {
                 stop()
+            }
+        }
+
+        // A failed prepare lands in STATE_IDLE, which onPlaybackStateChanged above
+        // deliberately ignores — without this the mini player would sit on a song that
+        // never plays. stop() clears currentSongId, which cascades to currentSong.
+        override fun onPlayerError(error: PlaybackException) {
+            val title = currentSongTitle
+            stop()
+            if (title != null) {
+                _errors.tryEmit(PlaybackError.PlaybackFailed(title))
             }
         }
     }
@@ -125,6 +154,7 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
         // MediaController is main-thread-only and the hops above may have moved us off it
         withContext(Dispatchers.Main.immediate) {
             val ctrl = controller ?: return@withContext
+            currentSongTitle = song.title
             ctrl.setMediaItem(mediaItem)
             ctrl.prepare()
             ctrl.play()

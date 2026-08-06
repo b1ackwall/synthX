@@ -33,6 +33,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -60,6 +62,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.v1per.synthx.R
 import com.v1per.synthx.navigation.Screen
+import com.v1per.synthx.playback.PlaybackError
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.DetailTopBar
@@ -115,9 +118,24 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     )
     val showBottomBar = currentRoute in bottomBarRoutes
 
+    val context = LocalContext.current
     val playbackViewModel = viewModel<PlaybackViewModel>(
-        factory = PlaybackViewModel.Factory(LocalContext.current.applicationContext)
+        factory = PlaybackViewModel.Factory(context.applicationContext)
     )
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // context.getString rather than stringResource: the collect lambda is not a composable
+    // scope, and the message needs the song title formatted in at emit time.
+    LaunchedEffect(Unit) {
+        playbackViewModel.errors.collect { error ->
+            val message = when (error) {
+                is PlaybackError.PlaybackFailed ->
+                    context.getString(R.string.playback_error_failed, error.songTitle)
+            }
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     val isPlaying by playbackViewModel.isPlaying.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
     val currentPosition by playbackViewModel.currentPosition.collectAsState()
@@ -619,6 +637,19 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                     onProgressChanged = { playerProgress = it },
                 )
             }
+        }
+
+        // Declared last so it draws over the nav and player, and offset by the same
+        // chrome reservation the destinations use so it never sits behind them. Both
+        // are needed: chromeBottomPadding goes to 0 on routes without the bottom bar.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(bottom = chromeBottomPadding),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            SnackbarHost(hostState = snackbarHostState)
         }
     }
 }

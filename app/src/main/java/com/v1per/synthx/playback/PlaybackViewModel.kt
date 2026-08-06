@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +29,11 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
 
     val duration: StateFlow<Long> = controller.duration
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+
+    // Passed through as a plain Flow, unlike the state above: these are one-off events,
+    // and stateIn/shareIn would replay the last failure to every new collector — showing
+    // a stale snackbar on every navigation back to the scaffold.
+    val errors: Flow<PlaybackError> = controller.errors
 
     init {
         // Mirror currentSongId going null (track end, stop) into currentSong

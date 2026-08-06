@@ -3,11 +3,17 @@ package com.v1per.synthx.playback
 import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.flow.Flow
 
+/** One-off playback failures, surfaced to the UI as transient messages. */
+sealed class PlaybackError {
+    data class PlaybackFailed(val songTitle: String) : PlaybackError()
+}
+
 interface PlaybackEngine {
     val isPlaying: Flow<Boolean>
     val currentSongId: Flow<String?>
     val currentPosition: Flow<Long>
     val duration: Flow<Long>
+    val errors: Flow<PlaybackError>
     suspend fun playSong(song: Song)
     fun pause()
     fun resume()
