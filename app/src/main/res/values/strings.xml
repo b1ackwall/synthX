@@ -13,6 +13,7 @@
     <string name="screen_albums">Albums</string>
     <string name="screen_playlists">Playlists</string>
     <string name="screen_settings">Settings</string>
+    <string name="screen_library_management">Library Management</string>
     <string name="screen_new_playlist">New Playlist</string>
     <string name="screen_add_songs">Add Songs</string>
 
@@ -65,6 +66,7 @@
     <string name="label_add_to_group_optional">Add to group (optional)</string>
 
     <!-- Settings -->
+    <string name="settings_library_management">Library Management</string>
     <string name="settings_music_folder">Music folder</string>
     <string name="settings_no_folder_selected">No folder selected</string>
     <string name="settings_rescan_library">Rescan library</string>
