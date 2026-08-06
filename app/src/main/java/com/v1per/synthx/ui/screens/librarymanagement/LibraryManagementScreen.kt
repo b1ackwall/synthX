@@ -43,7 +43,10 @@ import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 
 @Composable
-fun LibraryManagementScreen(topBar: @Composable () -> Unit) {
+fun LibraryManagementScreen(
+    topBar: @Composable () -> Unit,
+    onIssuesClick: () -> Unit,
+) {
     val context = LocalContext.current
     val viewModel: LibraryManagementViewModel = viewModel(
         factory = LibraryManagementViewModel.Factory(context),
@@ -53,6 +56,7 @@ fun LibraryManagementScreen(topBar: @Composable () -> Unit) {
     val isScanning by viewModel.isScanning.collectAsState()
     val scanProgress by viewModel.scanProgress.collectAsState()
     val folderError by viewModel.folderError.collectAsState()
+    val missingSongCount by viewModel.missingSongCount.collectAsState()
 
     // Resolved here, not in the callback below: the launcher result lambda is not a
     // composable scope, so stringResource cannot be called from inside it.
@@ -96,9 +100,11 @@ fun LibraryManagementScreen(topBar: @Composable () -> Unit) {
             rescanStatus = rescanStatus,
             isScanning = isScanning,
             scanProgress = scanProgress,
+            missingSongCount = missingSongCount,
             onPickFolder = { folderPicker.launch(null) },
             onRescan = viewModel::rescanLibrary,
             onCancelScan = viewModel::cancelScan,
+            onIssuesClick = onIssuesClick,
         )
     }
 }
@@ -110,9 +116,11 @@ private fun LibraryManagementScreenContent(
     rescanStatus: String?,
     isScanning: Boolean,
     scanProgress: ScanProgress?,
+    missingSongCount: Int,
     onPickFolder: () -> Unit,
     onRescan: () -> Unit,
     onCancelScan: () -> Unit,
+    onIssuesClick: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         MusicFolderRow(
@@ -139,6 +147,48 @@ private fun LibraryManagementScreenContent(
             ScanProgressBar(progress = scanProgress)
             CancelScanRow(onClick = onCancelScan)
         }
+        IssuesRow(
+            count = missingSongCount,
+            onClick = onIssuesClick,
+        )
+    }
+}
+
+/** Badge appears only when there is something to report; the row itself is always present. */
+@Composable
+private fun IssuesRow(
+    count: Int,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.settings_issues),
+            style = MaterialTheme.typography.bodyLarge,
+            color = TextPrimary,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = Spacing.md),
+        )
+        if (count > 0) {
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextSecondary,
+                modifier = Modifier.padding(end = Spacing.sm),
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = TextTertiary,
+        )
     }
 }
 
@@ -287,9 +337,11 @@ private fun LibraryManagementWithFolderPreview() {
                 rescanStatus = "Done — 12 added, 1 updated, 0 missing",
                 isScanning = false,
                 scanProgress = null,
+                missingSongCount = 3,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
+                onIssuesClick = {},
             )
         }
     }
@@ -309,9 +361,11 @@ private fun LibraryManagementEmptyPreview() {
                 rescanStatus = null,
                 isScanning = false,
                 scanProgress = null,
+                missingSongCount = 0,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
+                onIssuesClick = {},
             )
         }
     }
@@ -331,9 +385,11 @@ private fun LibraryManagementScanningPreview() {
                 rescanStatus = "Scanning… 240 of 512",
                 isScanning = true,
                 scanProgress = ScanProgress(current = 240, total = 512),
+                missingSongCount = 0,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
+                onIssuesClick = {},
             )
         }
     }

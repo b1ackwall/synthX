@@ -76,6 +76,10 @@ class SongRepositoryImpl(
 
     override suspend fun verifyLibrary(): Int = folderScanner.verify()
 
+    override fun getMissingSongs(): Flow<List<MissingSongInfo>> = songDao.getMissingSongs()
+
+    override fun getMissingSongCount(): Flow<Int> = songDao.getMissingSongCount()
+
     override fun getAllGroups(): Flow<List<PlaylistGroup>> =
         playlistDao.getAllGroups().map { entities ->
             entities.map { PlaylistGroup(id = it.id, name = it.name) }

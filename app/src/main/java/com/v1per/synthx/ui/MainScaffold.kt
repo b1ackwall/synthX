@@ -73,6 +73,7 @@ import com.v1per.synthx.ui.screens.artistlist.ArtistListScreen
 import com.v1per.synthx.ui.screens.createplaylist.CreatePlaylistScreen
 import com.v1per.synthx.ui.screens.groupdetail.GroupDetailScreen
 import com.v1per.synthx.ui.screens.home.HomeScreen
+import com.v1per.synthx.ui.screens.issues.IssuesScreen
 import com.v1per.synthx.ui.screens.playlistdetail.PlaylistDetailScreen
 import com.v1per.synthx.ui.screens.playlistlist.PlaylistListScreen
 import com.v1per.synthx.ui.screens.library.LibraryScreen
@@ -299,6 +300,21 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                                 topBar = {
                                     DetailTopBar(
                                         title = stringResource(R.string.screen_library_management),
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                },
+                                onIssuesClick = {
+                                    navController.navigate(Screen.Issues.route)
+                                },
+                            )
+                        }
+                    }
+                    composable(Screen.Issues.route) {
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            IssuesScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = stringResource(R.string.screen_issues),
                                         onBack = { navController.popBackStack() },
                                     )
                                 },

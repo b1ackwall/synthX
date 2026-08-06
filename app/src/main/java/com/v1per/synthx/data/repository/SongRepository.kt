@@ -18,6 +18,10 @@ interface SongRepository {
     /** Lightweight existence check over every stored song. Returns the count newly flagged missing. */
     suspend fun verifyLibrary(): Int
 
+    // Issues — songs flagged is_missing
+    fun getMissingSongs(): Flow<List<MissingSongInfo>>
+    fun getMissingSongCount(): Flow<Int>
+
     // Groups
     fun getAllGroups(): Flow<List<PlaylistGroup>>
     suspend fun createGroup(name: String)

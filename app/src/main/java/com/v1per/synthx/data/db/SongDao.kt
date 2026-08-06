@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.v1per.synthx.data.repository.MissingSongInfo
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -64,6 +65,33 @@ interface SongDao {
 
     @Query("UPDATE songs SET is_missing = 0, missing_since = NULL WHERE id = :id")
     suspend fun markFound(id: String)
+
+    // Primary artist = the position-0 entry in song_artists, resolved by correlated
+    // subquery so the projection stays one row per song. missing_since is guaranteed
+    // non-null by the is_missing = 1 filter, but COALESCE keeps SQLite from handing
+    // Room a null if a row is ever written inconsistently.
+    @Query(
+        """
+        SELECT
+            songs.id AS id,
+            songs.title AS title,
+            COALESCE(artists.name, 'Unknown Artist') AS artist,
+            COALESCE(songs.missing_since, 0) AS missing_since
+        FROM songs
+        LEFT JOIN artists ON artists.id = (
+            SELECT song_artists.artist_id
+            FROM song_artists
+            WHERE song_artists.song_id = songs.id AND song_artists.position = 0
+            LIMIT 1
+        )
+        WHERE songs.is_missing = 1
+        ORDER BY songs.missing_since DESC
+        """
+    )
+    fun getMissingSongs(): Flow<List<MissingSongInfo>>
+
+    @Query("SELECT COUNT(*) FROM songs WHERE is_missing = 1")
+    fun getMissingSongCount(): Flow<Int>
 
     @Query("SELECT * FROM songs WHERE verified = 0")
     fun getUnverifiedSongs(): Flow<List<SongEntity>>

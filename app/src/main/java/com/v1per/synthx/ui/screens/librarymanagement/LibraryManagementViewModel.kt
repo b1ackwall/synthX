@@ -8,12 +8,15 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.v1per.synthx.data.repository.SongRepository
+import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -28,9 +31,15 @@ data class ScanProgress(val current: Int, val total: Int) {
 class LibraryManagementViewModel(
     private val context: Context,
     private val preferencesManager: PreferencesManager,
+    private val repository: SongRepository,
 ) : ViewModel() {
 
     private val workManager = WorkManager.getInstance(context)
+
+    /** Drives the Issues row badge. Counted in SQL rather than by collecting the list. */
+    val missingSongCount: StateFlow<Int> = repository.getMissingSongCount()
+        .catch { emit(0) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     private val _musicFolderUri = MutableStateFlow(
         preferencesManager.musicFolderUri?.let { Uri.parse(it) }
@@ -144,6 +153,7 @@ class LibraryManagementViewModel(
             return LibraryManagementViewModel(
                 context = appContext,
                 preferencesManager = PreferencesManager(appContext),
+                repository = SongRepositoryImpl.create(appContext),
             ) as T
         }
     }
