@@ -1,7 +1,6 @@
 package com.v1per.synthx
 
 import android.Manifest
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -14,7 +13,6 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.v1per.synthx.data.repository.SongRepositoryImpl
-import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.MainScaffold
 import com.v1per.synthx.ui.theme.SynthXTheme
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +22,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        scanLibraryOnLaunch()
+        verifyLibraryOnLaunch()
         enableEdgeToEdge()
         setContent {
             SynthXTheme {
@@ -34,32 +32,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Fire-and-forget: UI reads the DB via Flow immediately, scan results stream in
-    private fun scanLibraryOnLaunch() {
-        val preferences = PreferencesManager(applicationContext)
-        val uriString = preferences.musicFolderUri ?: return
-        val uri = Uri.parse(uriString)
-
-        // Validate grant is still active — a stored URI survives a backup restore or a
-        // revoked grant, but scanning without it silently flags the library missing.
-        val grantValid = contentResolver.persistedUriPermissions.any { permission ->
-            permission.uri == uri && permission.isReadPermission
-        }
-
-        if (!grantValid) {
-            // Clear stale URI — user will need to re-select folder in Settings
-            preferences.musicFolderUri = null
-            Log.w(TAG, "Music folder grant revoked — cleared stored URI")
-            return
-        }
-
+    // Launch does the cheap pass only: flag songs whose files have gone. The full scan
+    // stays user-triggered from Library Management. Tied to lifecycleScope deliberately —
+    // this is short, silent, and not worth surviving the Activity.
+    private fun verifyLibraryOnLaunch() {
         val repository = SongRepositoryImpl.create(applicationContext)
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val result = repository.scanLibrary(uri)
-                Log.d(TAG, "Launch scan complete: $result")
+                val newlyMissing = repository.verifyLibrary()
+                Log.d(TAG, "Launch verify complete: $newlyMissing newly missing")
             } catch (e: Exception) {
-                Log.e(TAG, "Launch scan failed", e)
+                Log.e(TAG, "Launch verify failed", e)
             }
         }
     }

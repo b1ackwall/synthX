@@ -5,35 +5,102 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.v1per.synthx.data.repository.SongRepository
-import com.v1per.synthx.data.repository.SongRepositoryImpl
+import androidx.work.ExistingWorkPolicy
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.preferences.PreferencesManager
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** Determinate when [total] is positive; otherwise the scan is in an uncounted phase. */
+data class ScanProgress(val current: Int, val total: Int) {
+    val isDeterminate: Boolean get() = total > 0
+    val fraction: Float get() = if (isDeterminate) current.toFloat() / total else 0f
+}
 
 class LibraryManagementViewModel(
     private val context: Context,
     private val preferencesManager: PreferencesManager,
-    private val repository: SongRepository,
 ) : ViewModel() {
+
+    private val workManager = WorkManager.getInstance(context)
 
     private val _musicFolderUri = MutableStateFlow(
         preferencesManager.musicFolderUri?.let { Uri.parse(it) }
     )
     val musicFolderUri: StateFlow<Uri?> = _musicFolderUri.asStateFlow()
 
-    private val _rescanStatus = MutableStateFlow<String?>(null)
-    val rescanStatus: StateFlow<String?> = _rescanStatus.asStateFlow()
-
-    private val _isScanning = MutableStateFlow(false)
-    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
-
     private val _folderError = MutableStateFlow<String?>(null)
     val folderError: StateFlow<String?> = _folderError.asStateFlow()
+
+    // Set only for states WorkManager can't express — currently just "no folder picked",
+    // which never reaches the worker. Cleared as soon as a scan is actually enqueued.
+    private val _localStatus = MutableStateFlow<String?>(null)
+
+    // The single source of truth for scan state. Reading it from WorkManager rather than
+    // from local flows is what makes progress survive navigation and app restart: a
+    // freshly constructed ViewModel observing a scan already in flight sees its real
+    // state, not a default.
+    private val workInfo: StateFlow<WorkInfo?> = workManager
+        .getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
+        .map { infos -> infos.firstOrNull() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val isScanning: StateFlow<Boolean> = workInfo
+        .map { info -> info != null && !info.state.isFinished }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val scanProgress: StateFlow<ScanProgress?> = workInfo
+        .map { info ->
+            if (info == null || info.state != WorkInfo.State.RUNNING) return@map null
+            ScanProgress(
+                current = info.progress.getInt(LibraryScanWorker.KEY_CURRENT, -1),
+                total = info.progress.getInt(LibraryScanWorker.KEY_TOTAL, -1),
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val rescanStatus: StateFlow<String?> = combine(workInfo, _localStatus) { info, local ->
+        local ?: statusFor(info)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    init {
+        // The worker clears the stored URI when it finds the grant revoked. Mirror that
+        // back into the UI so the folder row stops showing a path the app can't read.
+        viewModelScope.launch {
+            workInfo.collect { info ->
+                if (info?.state == WorkInfo.State.FAILED) {
+                    _musicFolderUri.value = preferencesManager.musicFolderUri?.let { Uri.parse(it) }
+                }
+            }
+        }
+    }
+
+    private fun statusFor(info: WorkInfo?): String? = when (info?.state) {
+        null -> null
+        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> "Scanning…"
+        WorkInfo.State.RUNNING -> {
+            val current = info.progress.getInt(LibraryScanWorker.KEY_CURRENT, -1)
+            val total = info.progress.getInt(LibraryScanWorker.KEY_TOTAL, -1)
+            if (total > 0) "Scanning… $current of $total" else "Scanning…"
+        }
+        WorkInfo.State.SUCCEEDED -> {
+            val data = info.outputData
+            "Done — ${data.getInt(LibraryScanWorker.KEY_ADDED, 0)} added, " +
+                "${data.getInt(LibraryScanWorker.KEY_UPDATED, 0)} updated, " +
+                "${data.getInt(LibraryScanWorker.KEY_MISSING, 0)} missing"
+        }
+        WorkInfo.State.FAILED ->
+            "Scan failed: ${info.outputData.getString(LibraryScanWorker.KEY_ERROR) ?: "unknown error"}"
+        WorkInfo.State.CANCELLED -> "Scan cancelled"
+    }
 
     fun setFolderError(message: String) {
         _folderError.value = message
@@ -47,50 +114,24 @@ class LibraryManagementViewModel(
         preferencesManager.musicFolderUri = uri.toString()
         _musicFolderUri.value = uri
         clearFolderError()
-        // Newly picked folder — populate the library right away
-        rescanLibrary()
+        _localStatus.value = null
+        // REPLACE, not KEEP: any scan still running is walking the folder the user just
+        // replaced, so its results are already stale.
+        LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE)
     }
 
     fun rescanLibrary() {
-        if (_isScanning.value) return // guard against double-tap
-        val folderUri = _musicFolderUri.value ?: run {
-            _rescanStatus.value = "No folder selected"
+        if (_musicFolderUri.value == null) {
+            _localStatus.value = "No folder selected"
             return
         }
-        // A stored URI outlives its grant (revoked access, restored backup). Scanning
-        // without the grant reports a successful empty scan and flags the whole
-        // library missing, so drop the stale URI and prompt for a re-pick instead.
-        if (!isGrantValid(folderUri)) {
-            preferencesManager.musicFolderUri = null
-            _musicFolderUri.value = null
-            _folderError.value =
-                "Access to your music folder has been revoked. Please select it again."
-            return
-        }
-        // Set synchronously, before the launch: rescanLibrary is called from the main
-        // thread, so a second tap would otherwise pass the guard above before the
-        // first coroutine body runs.
-        _isScanning.value = true
-        viewModelScope.launch(Dispatchers.IO) {
-            _rescanStatus.value = "Scanning…"
-            try {
-                val result = repository.scanLibrary(folderUri)
-                _rescanStatus.value =
-                    "Done — ${result.added} added, ${result.updated} updated, " +
-                        "${result.missing} missing"
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                _rescanStatus.value = "Scan failed: ${e.message}"
-            } finally {
-                _isScanning.value = false
-            }
-        }
+        _localStatus.value = null
+        // KEEP — tapping rescan while a scan runs is a no-op rather than a duplicate.
+        LibraryScanWorker.enqueue(context, ExistingWorkPolicy.KEEP)
     }
 
-    private fun isGrantValid(uri: Uri): Boolean {
-        return context.contentResolver.persistedUriPermissions.any { permission ->
-            permission.uri == uri && permission.isReadPermission
-        }
+    fun cancelScan() {
+        LibraryScanWorker.cancel(context)
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {
@@ -103,7 +144,6 @@ class LibraryManagementViewModel(
             return LibraryManagementViewModel(
                 context = appContext,
                 preferencesManager = PreferencesManager(appContext),
-                repository = SongRepositoryImpl.create(appContext),
             ) as T
         }
     }

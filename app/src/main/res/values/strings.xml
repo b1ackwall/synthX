@@ -71,6 +71,16 @@
     <string name="settings_no_folder_selected">No folder selected</string>
     <string name="settings_rescan_library">Rescan library</string>
 
+    <!-- Library scan -->
+    <string name="scan_channel_name">Library scan</string>
+    <string name="scan_channel_description">Shows progress while your music folder is being scanned</string>
+    <string name="scan_notification_title">Scanning library</string>
+    <string name="scan_notification_preparing">Finding files…</string>
+    <string name="scan_notification_progress">%1$d of %2$d songs</string>
+    <string name="scan_progress_preparing">Scanning…</string>
+    <string name="scan_progress_counted">Scanning… %1$d of %2$d</string>
+    <string name="scan_cancelled">Scan cancelled</string>
+
     <!-- Errors -->
     <string name="error_folder_permission_denied">Failed to get permission for the selected folder. Please try again.</string>
 

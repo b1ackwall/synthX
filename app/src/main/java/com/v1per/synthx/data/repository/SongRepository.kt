@@ -10,7 +10,13 @@ interface SongRepository {
     suspend fun getSongsForArtist(artistId: String): List<Song>
     fun getAlbums(): Flow<List<Album>>
     suspend fun getSongsForAlbum(albumId: String): List<Song>
-    suspend fun scanLibrary(folderUri: Uri): ScanResult
+    suspend fun scanLibrary(
+        folderUri: Uri,
+        onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
+    ): ScanResult
+
+    /** Lightweight existence check over every stored song. Returns the count newly flagged missing. */
+    suspend fun verifyLibrary(): Int
 
     // Groups
     fun getAllGroups(): Flow<List<PlaylistGroup>>

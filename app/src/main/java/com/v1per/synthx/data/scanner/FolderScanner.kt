@@ -16,10 +16,12 @@ import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
+import androidx.room.withTransaction
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 data class ScanResult(
@@ -31,33 +33,60 @@ data class ScanResult(
 
 class FolderScanner(
     private val context: Context,
+    private val database: SynthXDatabase,
     private val songDao: SongDao,
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
     private val songArtistDao: SongArtistDao,
 ) {
 
-    // Serialized process-wide: a launch scan and a Settings rescan can otherwise
-    // interleave their read-then-write pairs and corrupt the library.
-    suspend fun scan(folderUri: Uri): ScanResult = withContext(Dispatchers.IO) {
-        SynthXDatabase.scanMutex.withLock {
-            // Cleanup: delete old file:// art files from cacheDir. Art now lives in
-            // filesDir/art/; these are orphans from before that move. No-op once drained.
-            context.cacheDir
-                .listFiles { file -> file.name.startsWith("art_") && file.name.endsWith(".png") }
-                ?.forEach { it.delete() }
+    /**
+     * Scans [folderUri] and reconciles the library against it.
+     *
+     * Concurrency is no longer guarded here — LibraryScanWorker enqueues under a unique
+     * work name, so only one scan can be in flight per process.
+     *
+     * [onProgress] receives `(current, total)` where `current` is the number of audio
+     * files fully processed so far. Two phases have no meaningful denominator — the
+     * file-system walk before the file list exists, and the missing-detection plus
+     * orphan-cleanup passes afterwards — and report [PROGRESS_INDETERMINATE] for **both**
+     * arguments. Callers should treat `total <= 0` as "show a spinner, not a bar".
+     *
+     * The whole mutation phase runs in one Room transaction, so a cancelled or failed
+     * scan rolls back rather than leaving the library half-reconciled. Cancellation is
+     * checked once per file, so it takes effect within one file's work.
+     */
+    suspend fun scan(
+        folderUri: Uri,
+        onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
+    ): ScanResult = withContext(Dispatchers.IO) {
+        onProgress(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE)
 
-            val root = DocumentFile.fromTreeUri(context, folderUri)
-                ?: return@withLock ScanResult(added = 0, updated = 0, missing = 0, unchanged = 0)
+        // Cleanup: delete old file:// art files from cacheDir. Art now lives in
+        // filesDir/art/; these are orphans from before that move. No-op once drained.
+        context.cacheDir
+            .listFiles { file -> file.name.startsWith("art_") && file.name.endsWith(".png") }
+            ?.forEach { it.delete() }
 
-            val audioFiles = collectAudioFiles(root)
-            val foundPaths = audioFiles.mapTo(mutableSetOf()) { it.uri.toString() }
+        val root = DocumentFile.fromTreeUri(context, folderUri)
+            ?: return@withContext ScanResult(added = 0, updated = 0, missing = 0, unchanged = 0)
 
+        // File-system walk stays outside the transaction — it is the slowest phase and
+        // touches no DB state.
+        val audioFiles = collectAudioFiles(root)
+        val foundPaths = audioFiles.mapTo(mutableSetOf()) { it.uri.toString() }
+
+        database.withTransaction {
             var added = 0
             var updated = 0
             var unchanged = 0
 
-            for (file in audioFiles) {
+            for ((index, file) in audioFiles.withIndex()) {
+                // Cooperative cancellation: the per-file work below is mostly blocking
+                // I/O, so without this a cancelled scan would run to the end of the list.
+                currentCoroutineContext().ensureActive()
+                onProgress(index, audioFiles.size)
+
                 val path = file.uri.toString()
                 // Unreadable file: no identity, nothing we can safely store
                 val id = HashUtils.computeSongId(file, context) ?: continue
@@ -98,6 +127,9 @@ class FolderScanner(
                 added++
             }
 
+            // No per-file denominator from here on — back to indeterminate.
+            onProgress(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE)
+
             var missing = 0
             val now = System.currentTimeMillis()
             for (song in songDao.getAllSongsOnce()) {
@@ -113,13 +145,46 @@ class FolderScanner(
             artistDao.deleteOrphanArtists()
             albumDao.deleteOrphanAlbums()
 
-            return@withLock ScanResult(
+            ScanResult(
                 added = added,
                 updated = updated,
                 missing = missing,
                 unchanged = unchanged,
             )
         }
+    }
+
+    /**
+     * Cheap existence sweep over the whole library: flags songs whose stored `file_path`
+     * no longer resolves. No hashing, no metadata, no folder walk — one `exists()` probe
+     * per row, committed row by row rather than in a transaction, so it can run on launch
+     * without blocking anything.
+     *
+     * Deliberately one-way. A song that resolves is left exactly as it is, including one
+     * already flagged missing — un-flagging is [scan]'s job, since only a real scan can
+     * confirm the file's content still matches the row's identity hash.
+     *
+     * @return the number of songs newly flagged missing by this pass.
+     */
+    suspend fun verify(): Int = withContext(Dispatchers.IO) {
+        var newlyMissing = 0
+        for (song in songDao.getAllSongsOnce()) {
+            currentCoroutineContext().ensureActive()
+            if (song.isMissing) continue // already flagged — nothing this pass can add
+
+            val exists = try {
+                DocumentFile.fromSingleUri(context, Uri.parse(song.filePath))?.exists() == true
+            } catch (e: Exception) {
+                // Unparseable or revoked URI — treat as gone, same as a failed probe
+                false
+            }
+
+            if (!exists) {
+                songDao.markMissing(song.id, System.currentTimeMillis())
+                newlyMissing++
+            }
+        }
+        newlyMissing
     }
 
     private fun collectAudioFiles(dir: DocumentFile): List<DocumentFile> {
@@ -237,6 +302,9 @@ class FolderScanner(
     }
 
     companion object {
+        /** Sentinel for both `onProgress` arguments while no file count is known yet. */
+        const val PROGRESS_INDETERMINATE = -1
+
         private val SUPPORTED_EXTENSIONS = setOf("mp3", "flac", "aac", "m4a", "wav", "ogg")
 
         private val ARTIST_DELIMITERS = listOf(",")

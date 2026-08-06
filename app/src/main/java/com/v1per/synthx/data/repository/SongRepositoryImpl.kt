@@ -69,8 +69,12 @@ class SongRepositoryImpl(
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }
 
-    override suspend fun scanLibrary(folderUri: Uri): ScanResult =
-        folderScanner.scan(folderUri)
+    override suspend fun scanLibrary(
+        folderUri: Uri,
+        onProgress: suspend (current: Int, total: Int) -> Unit,
+    ): ScanResult = folderScanner.scan(folderUri, onProgress)
+
+    override suspend fun verifyLibrary(): Int = folderScanner.verify()
 
     override fun getAllGroups(): Flow<List<PlaylistGroup>> =
         playlistDao.getAllGroups().map { entities ->
@@ -198,6 +202,7 @@ class SongRepositoryImpl(
                 playlistDao = db.playlistDao(),
                 folderScanner = FolderScanner(
                     context = appContext,
+                    database = db,
                     songDao = db.songDao(),
                     artistDao = db.artistDao(),
                     albumDao = db.albumDao(),

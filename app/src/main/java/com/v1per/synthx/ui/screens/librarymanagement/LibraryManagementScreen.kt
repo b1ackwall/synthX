@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,6 +25,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
+import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -48,6 +51,7 @@ fun LibraryManagementScreen(topBar: @Composable () -> Unit) {
     val folderUri by viewModel.musicFolderUri.collectAsState()
     val rescanStatus by viewModel.rescanStatus.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
+    val scanProgress by viewModel.scanProgress.collectAsState()
     val folderError by viewModel.folderError.collectAsState()
 
     // Resolved here, not in the callback below: the launcher result lambda is not a
@@ -91,8 +95,10 @@ fun LibraryManagementScreen(topBar: @Composable () -> Unit) {
             folderError = folderError,
             rescanStatus = rescanStatus,
             isScanning = isScanning,
+            scanProgress = scanProgress,
             onPickFolder = { folderPicker.launch(null) },
             onRescan = viewModel::rescanLibrary,
+            onCancelScan = viewModel::cancelScan,
         )
     }
 }
@@ -103,8 +109,10 @@ private fun LibraryManagementScreenContent(
     folderError: String?,
     rescanStatus: String?,
     isScanning: Boolean,
+    scanProgress: ScanProgress?,
     onPickFolder: () -> Unit,
     onRescan: () -> Unit,
+    onCancelScan: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         MusicFolderRow(
@@ -126,6 +134,57 @@ private fun LibraryManagementScreenContent(
             status = rescanStatus,
             isScanning = isScanning,
             onClick = onRescan,
+        )
+        if (isScanning) {
+            ScanProgressBar(progress = scanProgress)
+            CancelScanRow(onClick = onCancelScan)
+        }
+    }
+}
+
+/**
+ * Determinate once the file list has been counted, indeterminate during the walk and the
+ * missing-detection/cleanup passes. Deliberately not [com.v1per.synthx.ui.theme.Accent] —
+ * the neon is reserved for the five contexts in the design system, and progress is not
+ * one of them.
+ */
+@Composable
+private fun ScanProgressBar(progress: ScanProgress?) {
+    val modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm)
+        .clip(MaterialTheme.shapes.small)
+
+    if (progress != null && progress.isDeterminate) {
+        LinearProgressIndicator(
+            progress = { progress.fraction },
+            modifier = modifier,
+            color = TextPrimary,
+            trackColor = Hairline,
+            drawStopIndicator = {},
+        )
+    } else {
+        LinearProgressIndicator(
+            modifier = modifier,
+            color = TextPrimary,
+            trackColor = Hairline,
+        )
+    }
+}
+
+@Composable
+private fun CancelScanRow(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.action_cancel),
+            style = MaterialTheme.typography.bodyLarge,
+            color = Error,
         )
     }
 }
@@ -227,8 +286,10 @@ private fun LibraryManagementWithFolderPreview() {
                 folderError = null,
                 rescanStatus = "Done — 12 added, 1 updated, 0 missing",
                 isScanning = false,
+                scanProgress = null,
                 onPickFolder = {},
                 onRescan = {},
+                onCancelScan = {},
             )
         }
     }
@@ -247,8 +308,32 @@ private fun LibraryManagementEmptyPreview() {
                 folderError = null,
                 rescanStatus = null,
                 isScanning = false,
+                scanProgress = null,
                 onPickFolder = {},
                 onRescan = {},
+                onCancelScan = {},
+            )
+        }
+    }
+}
+
+@Preview(name = "Library Management — scanning", showBackground = true)
+@Composable
+private fun LibraryManagementScanningPreview() {
+    SynthXTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Background,
+        ) {
+            LibraryManagementScreenContent(
+                folderPath = "content://com.android.externalstorage/tree/primary:Music",
+                folderError = null,
+                rescanStatus = "Scanning… 240 of 512",
+                isScanning = true,
+                scanProgress = ScanProgress(current = 240, total = 512),
+                onPickFolder = {},
+                onRescan = {},
+                onCancelScan = {},
             )
         }
     }

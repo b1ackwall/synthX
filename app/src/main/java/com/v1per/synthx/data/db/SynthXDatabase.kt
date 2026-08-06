@@ -6,7 +6,6 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import kotlinx.coroutines.sync.Mutex
 
 @Database(
     entities = [
@@ -33,11 +32,6 @@ abstract class SynthXDatabase : RoomDatabase() {
 
     companion object {
         @Volatile private var INSTANCE: SynthXDatabase? = null
-
-        // Process-wide mutex — only one scan may run at a time regardless of entry
-        // point. MainActivity and SettingsViewModel build separate FolderScanner
-        // instances, so the guard has to live here alongside the database singleton.
-        val scanMutex = Mutex()
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
