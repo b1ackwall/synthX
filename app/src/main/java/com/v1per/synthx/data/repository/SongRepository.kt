@@ -22,6 +22,9 @@ interface SongRepository {
     fun getMissingSongs(): Flow<List<MissingSongInfo>>
     fun getMissingSongCount(): Flow<Int>
 
+    /** Permanently deletes a song, its art file, and (via CASCADE) all rows referencing it. */
+    suspend fun deleteSong(id: String)
+
     // Groups
     fun getAllGroups(): Flow<List<PlaylistGroup>>
     suspend fun createGroup(name: String)

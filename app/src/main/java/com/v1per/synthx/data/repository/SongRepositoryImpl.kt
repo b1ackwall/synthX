@@ -11,8 +11,10 @@ import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongWithDetails
 import com.v1per.synthx.data.db.SynthXDatabase
+import androidx.room.withTransaction
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.ScanResult
+import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +24,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 class SongRepositoryImpl(
+    private val context: Context,
+    private val database: SynthXDatabase,
     private val songDao: SongDao,
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
@@ -75,6 +79,40 @@ class SongRepositoryImpl(
     ): ScanResult = folderScanner.scan(folderUri, onProgress)
 
     override suspend fun verifyLibrary(): Int = folderScanner.verify()
+
+    /**
+     * Permanently removes a song. Its song_artists, listen_history and playlist_songs rows
+     * go with it via FK CASCADE — nothing here deletes them explicitly.
+     *
+     * The album's cover is re-pointed first if this song was supplying it, so the album is
+     * never left referencing a deleted song's art. That re-point and the row delete share
+     * one transaction; the art file is unlinked only after it commits, since a file delete
+     * cannot be rolled back alongside the DB.
+     */
+    override suspend fun deleteSong(id: String) = withContext(Dispatchers.IO) {
+        val song = songDao.getSongById(id) ?: return@withContext
+        val albumId = song.albumId
+        val artUri = song.albumArtUri
+
+        database.withTransaction {
+            // Only re-point when this song is the one the album borrowed its cover from;
+            // reassigning unconditionally could replace good art with a null.
+            if (albumId != null && artUri != null) {
+                val album = albumDao.getAlbumById(albumId)
+                if (album?.albumArtUri == artUri) {
+                    albumDao.updateAlbumArt(
+                        id = albumId,
+                        albumArtUri = songDao.findReplacementAlbumArt(albumId, id),
+                    )
+                }
+            }
+            songDao.deleteSongById(id)
+        }
+
+        // Best-effort: returns false when the song never had embedded art, which is normal.
+        File(File(context.filesDir, "art"), "art_$id.png").delete()
+        Unit
+    }
 
     override fun getMissingSongs(): Flow<List<MissingSongInfo>> = songDao.getMissingSongs()
 
@@ -200,6 +238,8 @@ class SongRepositoryImpl(
             val appContext = context.applicationContext
             val db = SynthXDatabase.getInstance(appContext)
             return SongRepositoryImpl(
+                context = appContext,
+                database = db,
                 songDao = db.songDao(),
                 artistDao = db.artistDao(),
                 albumDao = db.albumDao(),

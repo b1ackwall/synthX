@@ -3,6 +3,7 @@ package com.v1per.synthx.ui.screens.issues
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,13 +11,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,12 +41,15 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.MissingSongInfo
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
+// Aliased: the Material3 `Surface` composable already owns this simple name in this file.
+import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
 @Composable
 fun IssuesScreen(
@@ -48,12 +63,18 @@ fun IssuesScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         topBar()
 
-        IssuesContent(uiState = uiState)
+        IssuesContent(
+            uiState = uiState,
+            onDelete = viewModel::deleteSong,
+        )
     }
 }
 
 @Composable
-private fun IssuesContent(uiState: UiState<List<MissingSongInfo>>) {
+private fun IssuesContent(
+    uiState: UiState<List<MissingSongInfo>>,
+    onDelete: (String) -> Unit,
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
             is UiState.Loading -> Unit
@@ -73,49 +94,119 @@ private fun IssuesContent(uiState: UiState<List<MissingSongInfo>>) {
                 modifier = Modifier.fillMaxSize(),
             ) {
                 items(uiState.data, key = { it.id }) { song ->
-                    MissingSongRow(song = song)
+                    MissingSongRow(
+                        song = song,
+                        onDelete = { onDelete(song.id) },
+                    )
                 }
             }
         }
     }
 }
 
-/** Informational only — a missing song has no file to act on, so the row is inert. */
+/** The row body is inert — a missing song has no file to play. Actions live in the menu. */
 @Composable
-private fun MissingSongRow(song: MissingSongInfo) {
+private fun MissingSongRow(
+    song: MissingSongInfo,
+    onDelete: () -> Unit,
+) {
     Column {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
+                .padding(start = Spacing.HorizontalPadding, top = Spacing.md, bottom = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = stringResource(R.string.issues_missing_since, relativeTime(song.missingSince)),
-                style = MaterialTheme.typography.bodySmall,
-                color = TextTertiary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = song.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = song.artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = stringResource(
+                        R.string.issues_missing_since,
+                        relativeTime(song.missingSince),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            MissingSongMenu(onDelete = onDelete)
         }
         HorizontalDivider(
             thickness = 1.dp,
             color = Hairline,
+        )
+    }
+}
+
+@Composable
+private fun MissingSongMenu(onDelete: () -> Unit) {
+    var showMenu by remember { mutableStateOf(false) }
+    var showConfirm by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { showMenu = true }) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = stringResource(R.string.cd_more_options),
+                tint = TextTertiary,
+            )
+        }
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.issues_delete_song)) },
+                onClick = {
+                    showMenu = false
+                    showConfirm = true
+                },
+            )
+        }
+    }
+
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text(stringResource(R.string.issues_delete_dialog_title)) },
+            text = { Text(stringResource(R.string.issues_delete_dialog_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showConfirm = false
+                        onDelete()
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_delete),
+                        color = Error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+            containerColor = SurfaceColor,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
         )
     }
 }
@@ -165,6 +256,7 @@ private fun IssuesPreview() {
                         ),
                     ),
                 ),
+                onDelete = {},
             )
         }
     }
@@ -178,7 +270,10 @@ private fun IssuesEmptyPreview() {
             modifier = Modifier.fillMaxSize(),
             color = Background,
         ) {
-            IssuesContent(uiState = UiState.Empty)
+            IssuesContent(
+                uiState = UiState.Empty,
+                onDelete = {},
+            )
         }
     }
 }

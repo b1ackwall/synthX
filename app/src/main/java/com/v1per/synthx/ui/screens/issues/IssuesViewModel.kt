@@ -34,6 +34,13 @@ class IssuesViewModel(
         }
     }
 
+    // The list is Flow-backed, so Room's invalidation drops the row from the UI on its own.
+    fun deleteSong(id: String) {
+        viewModelScope.launch {
+            repository.deleteSong(id)
+        }
+    }
+
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (!modelClass.isAssignableFrom(IssuesViewModel::class.java)) {

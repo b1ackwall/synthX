@@ -96,6 +96,20 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE verified = 0")
     fun getUnverifiedSongs(): Flow<List<SongEntity>>
 
+    // Art URI of any other song still in the album, for re-pointing albums.album_art_uri
+    // when the song that supplied it is deleted. Prefers a song that actually has art so
+    // the album doesn't lose its cover to a song that never had one.
+    @Query(
+        """
+        SELECT album_art_uri FROM songs
+        WHERE album_id = :albumId
+          AND id != :excludeSongId
+          AND album_art_uri IS NOT NULL
+        LIMIT 1
+        """
+    )
+    suspend fun findReplacementAlbumArt(albumId: String, excludeSongId: String): String?
+
     @Query("DELETE FROM songs WHERE id = :id")
     suspend fun deleteSongById(id: String)
 

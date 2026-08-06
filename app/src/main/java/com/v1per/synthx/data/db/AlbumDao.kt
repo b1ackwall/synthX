@@ -60,6 +60,12 @@ interface AlbumDao {
     )
     fun getAllAlbums(): Flow<List<AlbumWithArtist>>
 
+    @Query("SELECT * FROM albums WHERE id = :id")
+    suspend fun getAlbumById(id: String): AlbumEntity?
+
+    @Query("UPDATE albums SET album_art_uri = :albumArtUri WHERE id = :id")
+    suspend fun updateAlbumArt(id: String, albumArtUri: String?)
+
     @Query("DELETE FROM albums WHERE id NOT IN (SELECT album_id FROM songs WHERE album_id IS NOT NULL)")
     suspend fun deleteOrphanAlbums()
 }
