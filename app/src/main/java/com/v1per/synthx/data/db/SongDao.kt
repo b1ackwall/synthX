@@ -38,7 +38,7 @@ interface SongDao {
         ORDER BY songs.title COLLATE NOCASE ASC
         """
     )
-    suspend fun getSongsWithDetailsForArtist(artistId: String): List<SongWithDetails>
+    fun getSongsWithDetailsForArtist(artistId: String): Flow<List<SongWithDetails>>
 
     @Transaction
     @Query(
@@ -49,7 +49,7 @@ interface SongDao {
         ORDER BY track_number IS NULL, track_number ASC, title COLLATE NOCASE ASC
         """
     )
-    suspend fun getSongsWithDetailsForAlbum(albumId: String): List<SongWithDetails>
+    fun getSongsWithDetailsForAlbum(albumId: String): Flow<List<SongWithDetails>>
 
     @Query("SELECT * FROM song_artists WHERE song_id = :songId ORDER BY position ASC")
     suspend fun getSongArtistRefs(songId: String): List<SongArtistEntity>

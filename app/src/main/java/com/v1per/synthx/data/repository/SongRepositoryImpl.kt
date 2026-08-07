@@ -49,13 +49,12 @@ class SongRepositoryImpl(
             entities.map { Artist(id = it.id, name = it.name) }
         }
 
-    override suspend fun getSongsForArtist(artistId: String): List<Song> =
-        withContext(Dispatchers.Default) {
-            val details = songDao.getSongsWithDetailsForArtist(artistId)
-            val allRefs = songDao.getAllSongArtistRefs()
-            val refsBySongId = allRefs.groupBy { it.songId }
+    // Sort order (title) stays in the DAO query; the Flow conversion preserves it.
+    override fun getSongsForArtist(artistId: String): Flow<List<Song>> =
+        songDao.getSongsWithDetailsForArtist(artistId).map { details ->
+            val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
-        }
+        }.flowOn(Dispatchers.Default)
 
     override fun getAlbums(): Flow<List<Album>> =
         albumDao.getAllAlbums().map { entries ->
@@ -69,13 +68,12 @@ class SongRepositoryImpl(
             }
         }
 
-    override suspend fun getSongsForAlbum(albumId: String): List<Song> =
-        withContext(Dispatchers.Default) {
-            val details = songDao.getSongsWithDetailsForAlbum(albumId)
-            val allRefs = songDao.getAllSongArtistRefs()
-            val refsBySongId = allRefs.groupBy { it.songId }
+    // Sort order (track number, then title) stays in the DAO query.
+    override fun getSongsForAlbum(albumId: String): Flow<List<Song>> =
+        songDao.getSongsWithDetailsForAlbum(albumId).map { details ->
+            val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
-        }
+        }.flowOn(Dispatchers.Default)
 
     override suspend fun scanLibrary(
         folderUri: Uri,

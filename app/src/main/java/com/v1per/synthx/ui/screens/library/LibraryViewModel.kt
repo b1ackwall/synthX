@@ -49,7 +49,11 @@ class LibraryViewModel(
         viewModelScope.launch {
             repository.getSongs()
                 .map { songs ->
-                    songs.sortedByDescending { it.dateAdded }.take(20)
+                    // Filtered before the take, so a run of missing songs can't crowd out
+                    // playable ones. RecentSongTile has no disabled state, unlike SongRow.
+                    songs.filter { !it.isMissing }
+                        .sortedByDescending { it.dateAdded }
+                        .take(20)
                 }
                 .flowOn(Dispatchers.Default)
                 .catch { e -> _error.value = "Failed to load recently added: ${e.message}" }

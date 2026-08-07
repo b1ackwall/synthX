@@ -11,6 +11,7 @@ import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 class AlbumDetailViewModel(
@@ -23,13 +24,14 @@ class AlbumDetailViewModel(
 
     init {
         viewModelScope.launch {
-            try {
-                val songs = repository.getSongsForAlbum(albumId)
-                _uiState.value =
-                    if (songs.isEmpty()) UiState.Empty else UiState.Success(data = songs)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(e.message ?: "Failed to load songs")
-            }
+            repository.getSongsForAlbum(albumId)
+                .catch { e ->
+                    _uiState.value = UiState.Error(e.message ?: "Failed to load songs")
+                }
+                .collect { songs ->
+                    _uiState.value =
+                        if (songs.isEmpty()) UiState.Empty else UiState.Success(data = songs)
+                }
         }
     }
 

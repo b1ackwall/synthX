@@ -7,9 +7,9 @@ import kotlinx.coroutines.flow.Flow
 interface SongRepository {
     fun getSongs(): Flow<List<Song>>
     fun getArtists(): Flow<List<Artist>>
-    suspend fun getSongsForArtist(artistId: String): List<Song>
+    fun getSongsForArtist(artistId: String): Flow<List<Song>>
     fun getAlbums(): Flow<List<Album>>
-    suspend fun getSongsForAlbum(albumId: String): List<Song>
+    fun getSongsForAlbum(albumId: String): Flow<List<Song>>
     suspend fun scanLibrary(
         folderUri: Uri,
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
