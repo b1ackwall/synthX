@@ -34,6 +34,15 @@ interface PlaybackEngine {
     /** Replaces the whole queue with [songs] and starts playing at [startIndex]. */
     suspend fun playQueue(songs: List<Song>, startIndex: Int)
 
+    /**
+     * Reloads the queue persisted by the previous session and prepares it *paused*, at the
+     * saved item and position. A no-op when nothing was saved.
+     */
+    suspend fun restoreSavedQueue()
+
+    /** Snapshots the current item index and position so a restart can resume there. */
+    fun persistPlaybackState()
+
     fun next()
     fun previous()
     fun setShuffleEnabled(enabled: Boolean)

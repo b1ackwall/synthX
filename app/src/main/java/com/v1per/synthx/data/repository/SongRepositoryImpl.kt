@@ -11,6 +11,7 @@ import com.v1per.synthx.data.db.PlaylistDao
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.PlaylistSongEntity
+import com.v1per.synthx.data.db.QueueDao
 import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongWithDetails
@@ -34,6 +35,7 @@ class SongRepositoryImpl(
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
     private val playlistDao: PlaylistDao,
+    private val queueDao: QueueDao,
     private val folderScanner: FolderScanner,
     private val backupManager: BackupManager,
 ) : SongRepository {
@@ -233,6 +235,19 @@ class SongRepositoryImpl(
     override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) =
         playlistDao.removePlaylistSong(playlistId, songId)
 
+    override suspend fun getQueueSongs(): List<Song> = withContext(Dispatchers.IO) {
+        val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
+        queueDao.getQueueItems().map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+    }
+
+    override suspend fun getQueueSongIds(): List<String> = withContext(Dispatchers.IO) {
+        queueDao.getQueueSongIds()
+    }
+
+    override suspend fun setQueueSongs(songIds: List<String>) = withContext(Dispatchers.IO) {
+        queueDao.replaceQueue(songIds)
+    }
+
     private fun PlaylistEntity.toDomain(): Playlist =
         Playlist(
             id = id,
@@ -278,6 +293,7 @@ class SongRepositoryImpl(
                 artistDao = db.artistDao(),
                 albumDao = db.albumDao(),
                 playlistDao = db.playlistDao(),
+                queueDao = db.queueDao(),
                 folderScanner = FolderScanner(
                     context = appContext,
                     database = db,

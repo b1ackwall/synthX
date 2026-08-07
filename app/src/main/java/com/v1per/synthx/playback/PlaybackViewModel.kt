@@ -75,6 +75,17 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
         viewModelScope.launch { controller.playQueue(songs, startIndex) }
     }
 
+    /**
+     * Loads last session's queue, paused and ready. Safe to call more than once — the
+     * engine ignores it once a timeline exists.
+     */
+    fun restoreSavedQueue() {
+        viewModelScope.launch { controller.restoreSavedQueue() }
+    }
+
+    /** Called when the app goes to the background, so the resume point survives a kill. */
+    fun persistPlaybackState() = controller.persistPlaybackState()
+
     fun next() = controller.next()
 
     fun previous() = controller.previous()
@@ -117,7 +128,10 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
             if (!modelClass.isAssignableFrom(PlaybackViewModel::class.java)) {
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
-            val engine = ExoPlayerEngine(context.applicationContext)
+            val engine = ExoPlayerEngine(
+                context = context.applicationContext,
+                persistence = QueuePersistence.create(context.applicationContext),
+            )
             val controller = PlaybackController(engine)
             return PlaybackViewModel(controller) as T
         }

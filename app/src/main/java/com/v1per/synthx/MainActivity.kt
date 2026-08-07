@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -17,6 +18,7 @@ import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.MainScaffold
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -24,6 +26,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    /**
+     * Resolved here rather than only inside MainScaffold so the queue restore can start
+     * before first composition. ViewModelProvider with the default key returns the very
+     * same instance `viewModel<PlaybackViewModel>()` picks up in the Compose tree — this
+     * activity is the store owner for both.
+     */
+    private val playbackViewModel: PlaybackViewModel by lazy {
+        ViewModelProvider(this, PlaybackViewModel.Factory(applicationContext))[
+            PlaybackViewModel::class.java
+        ]
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,6 +52,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * The app is single-Activity, so this is also "the app was backgrounded" — the point
+     * at which the resume position has to be durable, since the process can be killed
+     * from here without further warning. Chosen over adding lifecycle-process just for
+     * ProcessLifecycleOwner, which would observe the same edge in this app.
+     */
+    override fun onStop() {
+        super.onStop()
+        playbackViewModel.persistPlaybackState()
+    }
+
+    /**
      * Ordered deliberately: the pre-migration snapshot must be taken before anything
      * opens the Room database, because opening it is what runs the migration.
      * BackupManager checkpoints through a raw SQLite handle for exactly this reason.
@@ -45,10 +70,19 @@ class MainActivity : ComponentActivity() {
     private fun runLaunchMaintenance() {
         val preferences = PreferencesManager(applicationContext)
         val backupManager = BackupManager.create(applicationContext)
+        // Resolved on the main thread before the coroutine: ViewModel creation (and the
+        // MediaController binding it starts) belongs there, unlike the call below.
+        val playback = playbackViewModel
 
         lifecycleScope.launch(Dispatchers.IO) {
             backupBeforeMigration(preferences, backupManager)
             backupDailyIfDue(preferences, backupManager)
+            // Sits inside this chain, not beside it: the restore queries Room, and a query
+            // is what triggers the migration the snapshot above has to precede. Ahead of
+            // verifyLibrary so the mini player comes back without waiting on a full
+            // existence sweep — a song that vanished since last session fails on play with
+            // the normal error snackbar.
+            playback.restoreSavedQueue()
             verifyLibrary()
         }
     }

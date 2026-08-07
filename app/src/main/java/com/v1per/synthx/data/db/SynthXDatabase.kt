@@ -17,8 +17,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistEntity::class,
         PlaylistSongEntity::class,
         ListenHistoryEntity::class,
+        QueueItemEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -29,10 +30,11 @@ abstract class SynthXDatabase : RoomDatabase() {
     abstract fun songArtistDao(): SongArtistDao
     abstract fun playlistDao(): PlaylistDao
     abstract fun listenHistoryDao(): ListenHistoryDao
+    abstract fun queueDao(): QueueDao
 
     companion object {
         /** Must track the `version` in the @Database annotation above. */
-        const val VERSION = 4
+        const val VERSION = 5
 
         const val DB_NAME = "synthx.db"
 
@@ -80,6 +82,27 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        // Purely additive: queue_items is new, so there is nothing to migrate into it and
+        // no reason to wipe song data the way 2_3 and 3_4 had to.
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS queue_items (
+                        position INTEGER NOT NULL,
+                        song_id TEXT NOT NULL,
+                        PRIMARY KEY(position),
+                        FOREIGN KEY(song_id) REFERENCES songs(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_queue_items_song_id ON queue_items(song_id)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): SynthXDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -87,7 +110,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     SynthXDatabase::class.java,
                     DB_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { INSTANCE = it }
             }

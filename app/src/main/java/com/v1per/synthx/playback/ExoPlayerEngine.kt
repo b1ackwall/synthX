@@ -3,6 +3,7 @@ package com.v1per.synthx.playback
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -13,6 +14,7 @@ import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.v1per.synthx.data.repository.Song
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,7 +33,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
-class ExoPlayerEngine(context: Context) : PlaybackEngine {
+class ExoPlayerEngine(
+    context: Context,
+    private val persistence: QueuePersistence,
+) : PlaybackEngine {
 
     // Needed to resolve album-art content:// URIs through the ContentResolver
     private val appContext = context.applicationContext
@@ -111,14 +116,18 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
             prefetchArtwork()
         }
 
+        // Persisted here rather than in the setters below so a change made anywhere —
+        // including the notification or another controller on the same session — is saved.
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
             _shuffleEnabled.value = shuffleModeEnabled
+            persistence.shuffleEnabled = shuffleModeEnabled
             // Shuffle changes which item comes next, so the lookahead target moves.
             prefetchArtwork()
         }
 
         override fun onRepeatModeChanged(repeatMode: Int) {
             _repeatMode.value = repeatMode.toRepeatMode()
+            persistence.repeatMode = repeatMode
             prefetchArtwork()
         }
 
@@ -154,6 +163,11 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
         .Builder(context, SessionToken(context, ComponentName(context, SynthXPlaybackService::class.java)))
         .buildAsync()
 
+    // Completed (true or false) exactly once, when the session connection resolves. Only the
+    // restore path waits on it: it runs at launch, i.e. the one moment the controller is
+    // reliably not connected yet.
+    private val controllerReady = CompletableDeferred<Boolean>()
+
     init {
         controllerFuture.addListener(
             {
@@ -166,8 +180,10 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
                     _shuffleEnabled.value = ctrl.shuffleModeEnabled
                     _repeatMode.value = ctrl.repeatMode.toRepeatMode()
                     refreshQueue()
+                    controllerReady.complete(true)
                 } catch (_: Exception) {
                     // Service connection failed — playback methods will be no-ops until retry
+                    controllerReady.complete(false)
                 }
             },
             ContextCompat.getMainExecutor(context),
@@ -200,8 +216,62 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
             ctrl.play()
 
             refreshQueue()
+            persistQueue()
             prefetchArtwork()
         }
+    }
+
+    /**
+     * Restores without playing: [MediaController.prepare] buffers to STATE_READY but
+     * playWhenReady stays false, so the mini player comes up loaded and paused (Apple
+     * Music's behaviour) and the user starts it.
+     */
+    override suspend fun restoreSavedQueue() {
+        val restored = persistence.loadQueue() ?: return
+        val startSong = restored.songs[restored.startIndex]
+        val startArtwork = buildArtworkData(startSong)
+
+        val mediaItems = restored.songs.map { song ->
+            buildMediaItem(song, if (song.id == startSong.id) startArtwork else null)
+        }
+
+        withContext(Dispatchers.Main.immediate) {
+            val ctrl = awaitController() ?: return@withContext
+            // Not restored over an in-progress session: the user has already started
+            // something, and replacing it with last session's queue would be a surprise.
+            if (ctrl.mediaItemCount > 0) return@withContext
+
+            songsById.clear()
+            restored.songs.forEach { songsById[it.id] = it }
+            artworkLoadedIds.clear()
+            artworkLoadedIds.add(startSong.id)
+
+            ctrl.shuffleModeEnabled = persistence.shuffleEnabled
+            ctrl.repeatMode = persistence.repeatMode
+            ctrl.setMediaItems(mediaItems, restored.startIndex, restored.positionMs)
+            ctrl.prepare()
+
+            refreshQueue()
+            // The stored rows disagree with what actually loaded — rewrite them so the
+            // saved index and the queue cannot drift further apart on the next restore.
+            if (restored.droppedCount > 0) {
+                Log.i(
+                    TAG,
+                    "Restored ${restored.songs.size} queue items, " +
+                        "${restored.droppedCount} no longer available",
+                )
+                persistQueue()
+                persistence.savePlaybackState(restored.startIndex, restored.positionMs)
+            }
+            prefetchArtwork()
+        }
+    }
+
+    override fun persistPlaybackState() {
+        val ctrl = controller ?: return
+        val index = ctrl.currentMediaItemIndex
+        if (index == C.INDEX_UNSET || ctrl.mediaItemCount == 0) return
+        persistence.savePlaybackState(index, ctrl.currentPosition)
     }
 
     override fun next() {
@@ -226,6 +296,7 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
         val insertAt = (ctrl.currentMediaItemIndex + 1).coerceIn(0, ctrl.mediaItemCount)
         ctrl.addMediaItem(insertAt, buildMediaItem(song, artworkData = null))
         refreshQueue()
+        persistQueue()
         prefetchArtwork()
     }
 
@@ -234,11 +305,15 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
         songsById[song.id] = song
         ctrl.addMediaItem(buildMediaItem(song, artworkData = null))
         refreshQueue()
+        persistQueue()
         prefetchArtwork()
     }
 
     override fun pause() {
         controller?.pause()
+        // Pause and app-backgrounded are the only position writes: saving on every tick
+        // would mean a SharedPreferences commit twice a second for a whole album.
+        persistPlaybackState()
     }
 
     override fun resume() {
@@ -257,6 +332,9 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
     override fun release() {
         artworkJob?.cancel()
         engineScope.cancel()
+        // Unblocks a restore still waiting on a connection that will now never land.
+        controllerReady.complete(false)
+        persistence.release()
         controller?.removeListener(listener)
         MediaController.releaseFuture(controllerFuture)
         // Cleared so the `controller?.` guards in the playback methods actually
@@ -265,6 +343,19 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
     }
 
     // --- queue state -------------------------------------------------------------
+
+    private suspend fun awaitController(): MediaController? {
+        controllerReady.await()
+        return controller
+    }
+
+    /**
+     * Writes the timeline as it stands now. Called after every structural change; a future
+     * reorder or remove only has to call this too.
+     */
+    private fun persistQueue() {
+        persistence.saveQueue(_queue.value)
+    }
 
     /**
      * Rebuilds [queue]/[currentIndex] from the controller's timeline. The timeline is the
@@ -392,5 +483,9 @@ class ExoPlayerEngine(context: Context) : PlaybackEngine {
         RepeatMode.Off -> Player.REPEAT_MODE_OFF
         RepeatMode.All -> Player.REPEAT_MODE_ALL
         RepeatMode.One -> Player.REPEAT_MODE_ONE
+    }
+
+    private companion object {
+        const val TAG = "SynthXQueue"
     }
 }

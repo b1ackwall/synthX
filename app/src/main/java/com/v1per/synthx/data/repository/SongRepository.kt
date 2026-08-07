@@ -51,4 +51,15 @@ interface SongRepository {
      */
     suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean
     suspend fun removeSongFromPlaylist(playlistId: String, songId: String)
+
+    // Playback queue — persisted so it survives a restart
+
+    /** The saved queue, resolved to songs. Shorter than [getQueueSongIds] when songs went away. */
+    suspend fun getQueueSongs(): List<Song>
+
+    /** The saved queue as raw ids, including entries that no longer resolve to a playable song. */
+    suspend fun getQueueSongIds(): List<String>
+
+    /** Overwrites the saved queue with [songIds], in order. */
+    suspend fun setQueueSongs(songIds: List<String>)
 }
