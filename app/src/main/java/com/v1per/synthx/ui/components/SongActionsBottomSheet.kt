@@ -67,6 +67,8 @@ fun SongActionsBottomSheet(
     onGoToArtist: (artistId: String) -> Unit,
     onAddToPlaylist: (playlistId: String) -> Unit,
     onRemoveFromPlaylist: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     // Keyed to the song so reopening on a different row always starts on Actions, while
@@ -88,6 +90,8 @@ fun SongActionsBottomSheet(
                 onGoToAlbum = onGoToAlbum,
                 onGoToArtist = onGoToArtist,
                 onRemoveFromPlaylist = onRemoveFromPlaylist,
+                onPlayNext = onPlayNext,
+                onAddToQueue = onAddToQueue,
                 onShowPlaylists = { page = SheetPage.Playlists },
                 onShowArtists = { page = SheetPage.Artists },
             )
@@ -126,6 +130,8 @@ private fun ActionsPage(
     onGoToAlbum: (String) -> Unit,
     onGoToArtist: (String) -> Unit,
     onRemoveFromPlaylist: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
     onShowPlaylists: () -> Unit,
     onShowArtists: () -> Unit,
 ) {
@@ -160,18 +166,15 @@ private fun ActionsPage(
             )
         }
 
-        // Placeholders until a queue exists (Phase 3) — shown but inert.
         ActionRow(
             icon = Icons.AutoMirrored.Filled.PlaylistPlay,
             label = stringResource(R.string.actions_play_next),
-            enabled = false,
-            onClick = {},
+            onClick = onPlayNext,
         )
         ActionRow(
             icon = Icons.AutoMirrored.Filled.QueueMusic,
             label = stringResource(R.string.actions_add_to_queue),
-            enabled = false,
-            onClick = {},
+            onClick = onAddToQueue,
         )
 
         song.albumId?.let { albumId ->

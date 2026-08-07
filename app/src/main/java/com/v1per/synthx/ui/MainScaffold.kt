@@ -184,6 +184,8 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         onNavigateToArtist = { artistId, artistName ->
             navController.navigate(Screen.ArtistDetail.createRoute(artistId, artistName))
         },
+        onPlayNext = playbackViewModel::playNext,
+        onAddToQueue = playbackViewModel::addToQueue,
     ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(

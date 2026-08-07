@@ -94,9 +94,27 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
 
     fun setRepeatMode(mode: RepeatMode) = controller.setRepeatMode(mode)
 
-    fun playNext(song: Song) = controller.playNext(song)
+    /**
+     * Queues [song] directly after the current item — or just plays it when there is no
+     * active playback to queue behind. The engine's insert is timeline-only (no prepare,
+     * no play), so without this branch "Play Next" against a dead queue would put the song
+     * in the timeline and leave the player idle.
+     */
+    fun playNext(song: Song) {
+        if (hasActivePlayback()) controller.playNext(song) else playQueue(listOf(song), 0)
+    }
 
-    fun addToQueue(song: Song) = controller.addToQueue(song)
+    /** Appends [song], with the same fall back to starting playback as [playNext]. */
+    fun addToQueue(song: Song) {
+        if (hasActivePlayback()) controller.addToQueue(song) else playQueue(listOf(song), 0)
+    }
+
+    /**
+     * False both when nothing was ever queued and when a queue ran to its end — stop()
+     * leaves the timeline populated but idle, so the item count alone would be misleading.
+     */
+    private fun hasActivePlayback(): Boolean =
+        currentSongId.value != null && queue.value.isNotEmpty()
 
     fun pause() = controller.pause()
 
