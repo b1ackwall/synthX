@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -32,7 +33,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
@@ -44,13 +46,21 @@ import com.v1per.synthx.ui.theme.TextTertiary
 // Material standard disabled-content alpha (Material 3 ships no ContentAlpha token)
 private const val DisabledContentAlpha = 0.38f
 
+/**
+ * @param currentPlaylistId set only by PlaylistDetailScreen, so the actions sheet can
+ *   offer "Remove from Playlist" in place of "Add to Playlist".
+ */
 @Composable
 internal fun SongRow(
     song: Song,
     isCurrentlyPlaying: Boolean,
     onClick: () -> Unit,
+    currentPlaylistId: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    // Pulled from composition rather than passed down: five screens use SongRow and none
+    // of them need to know the sheet exists. See SongActionsHost.
+    val songActions = LocalSongActions.current
 
     Column {
         Row(
@@ -88,53 +98,22 @@ internal fun SongRow(
                     .alpha(if (song.isMissing) DisabledContentAlpha else 1f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Album art / glitch placeholder
-                Spacer(modifier = Modifier.width(Spacing.md))
-                if (song.albumArtUri != null) {
-                    AsyncImage(
-                        model = song.albumArtUri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(MaterialTheme.shapes.small),
-                    )
-                } else {
-                    GlitchPlaceholder(
-                        songId = song.id,
-                        isPlaying = isCurrentlyPlaying,
-                    )
-                }
-
-                // Song info
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = Spacing.md),
-                ) {
-                    Text(
-                        text = song.title,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                        color = TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = song.artist,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                // More options
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = null,
-                    tint = TextTertiary,
-                    modifier = Modifier.padding(end = Spacing.md),
+                SongIdentity(
+                    song = song,
+                    isCurrentlyPlaying = isCurrentlyPlaying,
+                    modifier = Modifier.weight(1f),
                 )
+
+                IconButton(
+                    onClick = { songActions.show(song, currentPlaylistId) },
+                    modifier = Modifier.padding(end = Spacing.sm),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.cd_more_options),
+                        tint = TextTertiary,
+                    )
+                }
             }
         }
 

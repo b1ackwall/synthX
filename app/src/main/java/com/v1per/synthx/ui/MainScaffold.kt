@@ -67,6 +67,7 @@ import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.components.PlayerSheet
+import com.v1per.synthx.ui.components.SongActionsHost
 import com.v1per.synthx.ui.components.SynthXTopBar
 import com.v1per.synthx.ui.screens.addsongs.AddSongsScreen
 import com.v1per.synthx.ui.screens.albumdetail.AlbumDetailScreen
@@ -173,6 +174,17 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         }
     }
 
+    // Hosted here so every SongRow inside the NavHost, and the PlayerSheet below it,
+    // share one sheet instance with navigation already wired.
+    SongActionsHost(
+        snackbarHostState = snackbarHostState,
+        onNavigateToAlbum = { albumId, albumTitle ->
+            navController.navigate(Screen.AlbumDetail.createRoute(albumId, albumTitle))
+        },
+        onNavigateToArtist = { artistId, artistName ->
+            navController.navigate(Screen.ArtistDetail.createRoute(artistId, artistName))
+        },
+    ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = Background,
@@ -667,6 +679,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         ) {
             SnackbarHost(hostState = snackbarHostState)
         }
+    }
     }
 }
 

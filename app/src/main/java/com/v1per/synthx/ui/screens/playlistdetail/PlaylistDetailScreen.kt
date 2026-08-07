@@ -95,6 +95,8 @@ fun PlaylistDetailScreen(
                             song = song,
                             isCurrentlyPlaying = song.id == currentSong?.id,
                             onClick = { playbackViewModel.playSong(song) },
+                            // Swaps "Add to Playlist" for "Remove from Playlist" in the sheet.
+                            currentPlaylistId = playlistId,
                         )
                     }
                 }

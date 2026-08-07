@@ -40,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.MissingSongInfo
 import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.components.DeleteSongDialog
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
@@ -182,31 +183,12 @@ private fun MissingSongMenu(onDelete: () -> Unit) {
     }
 
     if (showConfirm) {
-        AlertDialog(
-            onDismissRequest = { showConfirm = false },
-            title = { Text(stringResource(R.string.issues_delete_dialog_title)) },
-            text = { Text(stringResource(R.string.issues_delete_dialog_message)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showConfirm = false
-                        onDelete()
-                    },
-                ) {
-                    Text(
-                        text = stringResource(R.string.action_delete),
-                        color = Error,
-                    )
-                }
+        DeleteSongDialog(
+            onConfirm = {
+                showConfirm = false
+                onDelete()
             },
-            dismissButton = {
-                TextButton(onClick = { showConfirm = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
-            containerColor = SurfaceColor,
-            titleContentColor = TextPrimary,
-            textContentColor = TextSecondary,
+            onDismiss = { showConfirm = false },
         )
     }
 }

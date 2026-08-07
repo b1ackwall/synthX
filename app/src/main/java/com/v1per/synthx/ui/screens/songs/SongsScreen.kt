@@ -15,13 +15,16 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,7 +46,9 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongsScreen(
     topBar: @Composable (onSortClick: () -> Unit) -> Unit,
@@ -58,6 +63,17 @@ fun SongsScreen(
     val currentSortOrder by viewModel.sortOrder.collectAsState()
 
     var showSortSheet by remember { mutableStateOf(false) }
+    val sortSheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+
+    // Animate the sheet out before dropping it from composition — clearing the flag
+    // first would snap it shut with no exit animation.
+    fun dismissSortSheet(after: () -> Unit = {}) {
+        scope.launch { sortSheetState.hide() }.invokeOnCompletion {
+            showSortSheet = false
+            after()
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         topBar({ showSortSheet = true })
@@ -72,11 +88,9 @@ fun SongsScreen(
     if (showSortSheet) {
         SortBottomSheet(
             selectedOrder = currentSortOrder,
-            onOrderSelected = { order ->
-                viewModel.setSortOrder(order)
-                showSortSheet = false
-            },
-            onDismiss = { showSortSheet = false },
+            sheetState = sortSheetState,
+            onOrderSelected = { order -> dismissSortSheet { viewModel.setSortOrder(order) } },
+            onDismiss = { dismissSortSheet() },
         )
     }
 }
@@ -85,12 +99,15 @@ fun SongsScreen(
 @Composable
 private fun SortBottomSheet(
     selectedOrder: SortOrder,
+    sheetState: SheetState,
     onOrderSelected: (SortOrder) -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = SurfaceColor,
+        shape = MaterialTheme.shapes.small,
     ) {
         Text(
             text = stringResource(R.string.sort_by),

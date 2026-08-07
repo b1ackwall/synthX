@@ -104,4 +104,14 @@ interface PlaylistDao {
 
     @Query("DELETE FROM playlist_songs WHERE playlist_id = :playlistId AND song_id = :songId")
     suspend fun removePlaylistSong(playlistId: String, songId: String)
+
+    /** Null when the playlist is empty — callers append at 0 in that case. */
+    @Query("SELECT MAX(position) FROM playlist_songs WHERE playlist_id = :playlistId")
+    suspend fun getMaxPosition(playlistId: String): Int?
+
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM playlist_songs " +
+            "WHERE playlist_id = :playlistId AND song_id = :songId)"
+    )
+    suspend fun containsSong(playlistId: String, songId: String): Boolean
 }

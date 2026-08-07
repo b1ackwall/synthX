@@ -44,4 +44,11 @@ interface SongRepository {
     fun getSongsForPlaylist(playlistId: String): Flow<List<Song>>
     suspend fun getSongIdsForPlaylist(playlistId: String): List<String>
     suspend fun setPlaylistSongs(playlistId: String, songIds: List<String>)
+
+    /**
+     * Appends to the end of the playlist.
+     * @return false when the song was already a member, in which case nothing changed.
+     */
+    suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean
+    suspend fun removeSongFromPlaylist(playlistId: String, songId: String)
 }

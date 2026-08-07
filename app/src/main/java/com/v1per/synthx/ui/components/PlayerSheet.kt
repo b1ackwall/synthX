@@ -183,6 +183,8 @@ private fun PlayerSheetContent(
     onExpand: () -> Unit,
     sheetModifier: Modifier = Modifier,
 ) {
+    // Same sheet SongRow opens; the player is never playlist-scoped so the id is null.
+    val songActions = LocalSongActions.current
     val sheetHeight = lerp(CollapsedPlayerHeight, fullHeight, progress)
     val artSize = lerp(44.dp, fullWidth - Spacing.HorizontalPadding * 4, progress)
     val cornerRadius = lerp(0.dp, 24.dp, progress) // flat when collapsed, rounded top when expanded
@@ -303,7 +305,7 @@ private fun PlayerSheetContent(
                         )
                     }
                     IconButton(
-                        onClick = {},
+                        onClick = { songActions.show(song, null) },
                         enabled = fullPlayerAlpha > 0.5f,
                     ) {
                         Icon(
