@@ -2,6 +2,9 @@ package com.v1per.synthx.data.repository
 
 import android.content.Context
 import android.net.Uri
+import com.v1per.synthx.data.backup.BackupManager
+import com.v1per.synthx.data.backup.BackupReason
+import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.ArtistDao
 import com.v1per.synthx.data.db.PlaylistDao
@@ -31,6 +34,7 @@ class SongRepositoryImpl(
     private val albumDao: AlbumDao,
     private val playlistDao: PlaylistDao,
     private val folderScanner: FolderScanner,
+    private val backupManager: BackupManager,
 ) : SongRepository {
 
     override fun getSongs(): Flow<List<Song>> =
@@ -90,6 +94,10 @@ class SongRepositoryImpl(
      * cannot be rolled back alongside the DB.
      */
     override suspend fun deleteSong(id: String) = withContext(Dispatchers.IO) {
+        // Backup-then-act: a failed backup (no folder configured) must not block the
+        // delete the user explicitly asked for.
+        backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_SONG)
+
         val song = songDao.getSongById(id) ?: return@withContext
         val albumId = song.albumId
         val artUri = song.albumArtUri
@@ -177,8 +185,12 @@ class SongRepositoryImpl(
     override suspend fun movePlaylistToGroup(id: String, groupId: String?) =
         playlistDao.movePlaylistToGroup(id, groupId, System.currentTimeMillis())
 
-    override suspend fun deletePlaylist(id: String) =
+    // Hooked here rather than in the ViewModels because both PlaylistListViewModel and
+    // GroupDetailViewModel delete playlists through this one call.
+    override suspend fun deletePlaylist(id: String) {
+        backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_PLAYLIST)
         playlistDao.deletePlaylist(id)
+    }
 
     // The playlist query supplies membership, `position` order, and the is_missing
     // filter; getAllSongsWithDetails supplies artists + album in one batched read.
@@ -252,6 +264,7 @@ class SongRepositoryImpl(
                     albumDao = db.albumDao(),
                     songArtistDao = db.songArtistDao(),
                 ),
+                backupManager = BackupManager.create(appContext),
             )
         }
     }

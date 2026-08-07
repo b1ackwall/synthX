@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +47,7 @@ import com.v1per.synthx.ui.theme.TextTertiary
 fun LibraryManagementScreen(
     topBar: @Composable () -> Unit,
     onIssuesClick: () -> Unit,
+    onRestoreClick: () -> Unit,
 ) {
     val context = LocalContext.current
     val viewModel: LibraryManagementViewModel = viewModel(
@@ -57,6 +59,8 @@ fun LibraryManagementScreen(
     val scanProgress by viewModel.scanProgress.collectAsState()
     val folderError by viewModel.folderError.collectAsState()
     val missingSongCount by viewModel.missingSongCount.collectAsState()
+    val backupFolderUri by viewModel.backupFolderUri.collectAsState()
+    val backupStatus by viewModel.backupStatus.collectAsState()
 
     // Resolved here, not in the callback below: the launcher result lambda is not a
     // composable scope, so stringResource cannot be called from inside it.
@@ -92,6 +96,24 @@ fun LibraryManagementScreen(
         }
     }
 
+    // Backups need write access, unlike the read-only music folder grant above.
+    val backupFolderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        uri?.let { newUri ->
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    newUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+                viewModel.saveBackupFolder(newUri)
+            } catch (e: SecurityException) {
+                viewModel.setFolderError(permissionDeniedMessage)
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         topBar()
         LibraryManagementScreenContent(
@@ -101,10 +123,15 @@ fun LibraryManagementScreen(
             isScanning = isScanning,
             scanProgress = scanProgress,
             missingSongCount = missingSongCount,
+            backupFolderPath = backupFolderUri?.toString(),
+            backupStatus = backupStatus,
             onPickFolder = { folderPicker.launch(null) },
             onRescan = viewModel::rescanLibrary,
             onCancelScan = viewModel::cancelScan,
             onIssuesClick = onIssuesClick,
+            onPickBackupFolder = { backupFolderPicker.launch(null) },
+            onBackupNow = viewModel::createManualBackup,
+            onRestoreClick = onRestoreClick,
         )
     }
 }
@@ -117,10 +144,15 @@ private fun LibraryManagementScreenContent(
     isScanning: Boolean,
     scanProgress: ScanProgress?,
     missingSongCount: Int,
+    backupFolderPath: String?,
+    backupStatus: String?,
     onPickFolder: () -> Unit,
     onRescan: () -> Unit,
     onCancelScan: () -> Unit,
     onIssuesClick: () -> Unit,
+    onPickBackupFolder: () -> Unit,
+    onBackupNow: () -> Unit,
+    onRestoreClick: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         MusicFolderRow(
@@ -150,6 +182,68 @@ private fun LibraryManagementScreenContent(
         IssuesRow(
             count = missingSongCount,
             onClick = onIssuesClick,
+        )
+
+        HorizontalDivider(thickness = 1.dp, color = Hairline)
+
+        TwoLineRow(
+            title = stringResource(R.string.settings_backup_folder),
+            subtitle = backupFolderPath ?: stringResource(R.string.settings_no_folder_selected),
+            onClick = onPickBackupFolder,
+        )
+        TwoLineRow(
+            title = stringResource(R.string.settings_backup_now),
+            subtitle = backupStatus,
+            onClick = onBackupNow,
+        )
+        TwoLineRow(
+            title = stringResource(R.string.settings_restore),
+            subtitle = null,
+            onClick = onRestoreClick,
+        )
+    }
+}
+
+/** Shared shape for the menu rows: title, optional secondary line, trailing chevron. */
+@Composable
+private fun TwoLineRow(
+    title: String,
+    subtitle: String?,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = Spacing.md),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextPrimary,
+            )
+            if (subtitle != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = TextTertiary,
         )
     }
 }
@@ -338,10 +432,15 @@ private fun LibraryManagementWithFolderPreview() {
                 isScanning = false,
                 scanProgress = null,
                 missingSongCount = 3,
+                backupFolderPath = null,
+                backupStatus = null,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
                 onIssuesClick = {},
+                onPickBackupFolder = {},
+                onBackupNow = {},
+                onRestoreClick = {},
             )
         }
     }
@@ -362,10 +461,15 @@ private fun LibraryManagementEmptyPreview() {
                 isScanning = false,
                 scanProgress = null,
                 missingSongCount = 0,
+                backupFolderPath = null,
+                backupStatus = null,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
                 onIssuesClick = {},
+                onPickBackupFolder = {},
+                onBackupNow = {},
+                onRestoreClick = {},
             )
         }
     }
@@ -386,11 +490,17 @@ private fun LibraryManagementScanningPreview() {
                 isScanning = true,
                 scanProgress = ScanProgress(current = 240, total = 512),
                 missingSongCount = 0,
+                backupFolderPath = null,
+                backupStatus = null,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
                 onIssuesClick = {},
+                onPickBackupFolder = {},
+                onBackupNow = {},
+                onRestoreClick = {},
             )
         }
     }
 }
+

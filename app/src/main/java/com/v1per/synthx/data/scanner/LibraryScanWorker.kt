@@ -14,6 +14,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.v1per.synthx.R
+import com.v1per.synthx.data.backup.BackupManager
+import com.v1per.synthx.data.backup.BackupReason
+import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.CancellationException
@@ -45,6 +48,15 @@ class LibraryScanWorker(
             preferences.musicFolderUri = null
             return Result.failure(workDataOf(KEY_ERROR to GRANT_REVOKED_MESSAGE))
         }
+
+        // Snapshot before the scan mutates anything. cancelActiveScan = false is required:
+        // this worker *is* the active scan, so the usual await-terminal-state guard would
+        // wait on itself forever.
+        BackupManager.create(applicationContext).createBackup(
+            tier = BackupTier.Auto,
+            reason = BackupReason.RESCAN,
+            cancelActiveScan = false,
+        )
 
         createNotificationChannel()
         setForeground(buildForegroundInfo(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE))

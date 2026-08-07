@@ -8,6 +8,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.v1per.synthx.data.backup.BackupManager
+import com.v1per.synthx.data.backup.BackupReason
+import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
@@ -32,6 +35,7 @@ class LibraryManagementViewModel(
     private val context: Context,
     private val preferencesManager: PreferencesManager,
     private val repository: SongRepository,
+    private val backupManager: BackupManager,
 ) : ViewModel() {
 
     private val workManager = WorkManager.getInstance(context)
@@ -48,6 +52,14 @@ class LibraryManagementViewModel(
 
     private val _folderError = MutableStateFlow<String?>(null)
     val folderError: StateFlow<String?> = _folderError.asStateFlow()
+
+    private val _backupFolderUri = MutableStateFlow(
+        preferencesManager.backupFolderUri?.let { Uri.parse(it) }
+    )
+    val backupFolderUri: StateFlow<Uri?> = _backupFolderUri.asStateFlow()
+
+    private val _backupStatus = MutableStateFlow<String?>(null)
+    val backupStatus: StateFlow<String?> = _backupStatus.asStateFlow()
 
     // Set only for states WorkManager can't express — currently just "no folder picked",
     // which never reaches the worker. Cleared as soon as a scan is actually enqueued.
@@ -120,13 +132,39 @@ class LibraryManagementViewModel(
     }
 
     fun saveMusicFolder(uri: Uri) {
-        preferencesManager.musicFolderUri = uri.toString()
-        _musicFolderUri.value = uri
-        clearFolderError()
-        _localStatus.value = null
-        // REPLACE, not KEEP: any scan still running is walking the folder the user just
-        // replaced, so its results are already stale.
-        LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE)
+        // Backup first, then persist: the snapshot must capture the library as it was
+        // under the old folder, before the change invalidates it.
+        viewModelScope.launch {
+            backupManager.createBackup(BackupTier.Auto, BackupReason.FOLDER_CHANGE)
+
+            preferencesManager.musicFolderUri = uri.toString()
+            _musicFolderUri.value = uri
+            clearFolderError()
+            _localStatus.value = null
+            // REPLACE, not KEEP: any scan still running is walking the folder the user just
+            // replaced, so its results are already stale.
+            LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE)
+        }
+    }
+
+    fun saveBackupFolder(uri: Uri) {
+        preferencesManager.backupFolderUri = uri.toString()
+        _backupFolderUri.value = uri
+        viewModelScope.launch {
+            val created = backupManager.ensureFolderStructure(uri)
+            _backupStatus.value = if (created) null else "Couldn't create backup folders"
+        }
+    }
+
+    fun createManualBackup() {
+        viewModelScope.launch {
+            _backupStatus.value = "Backing up…"
+            val result = backupManager.createBackup(BackupTier.Manual)
+            _backupStatus.value = result.fold(
+                onSuccess = { "Backup created" },
+                onFailure = { e -> "Backup failed: ${e.message ?: "unknown error"}" },
+            )
+        }
     }
 
     fun rescanLibrary() {
@@ -154,6 +192,7 @@ class LibraryManagementViewModel(
                 context = appContext,
                 preferencesManager = PreferencesManager(appContext),
                 repository = SongRepositoryImpl.create(appContext),
+                backupManager = BackupManager.create(appContext),
             ) as T
         }
     }

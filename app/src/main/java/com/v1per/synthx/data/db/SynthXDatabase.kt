@@ -31,6 +31,11 @@ abstract class SynthXDatabase : RoomDatabase() {
     abstract fun listenHistoryDao(): ListenHistoryDao
 
     companion object {
+        /** Must track the `version` in the @Database annotation above. */
+        const val VERSION = 4
+
+        const val DB_NAME = "synthx.db"
+
         @Volatile private var INSTANCE: SynthXDatabase? = null
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -80,11 +85,26 @@ abstract class SynthXDatabase : RoomDatabase() {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     SynthXDatabase::class.java,
-                    "synthx.db",
+                    DB_NAME,
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
+            }
+        }
+
+        /**
+         * Closes the database and drops the singleton so the next [getInstance] rebuilds it.
+         *
+         * Only safe when nothing else is going to touch the old handle — every repository
+         * and ViewModel built before this call still holds DAOs bound to the closed
+         * instance and will throw on use. The restore flow therefore terminates the
+         * process immediately afterwards rather than trying to keep the session alive.
+         */
+        fun closeInstance() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
             }
         }
     }

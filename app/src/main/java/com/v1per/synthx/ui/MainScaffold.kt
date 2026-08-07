@@ -79,6 +79,7 @@ import com.v1per.synthx.ui.screens.home.HomeScreen
 import com.v1per.synthx.ui.screens.issues.IssuesScreen
 import com.v1per.synthx.ui.screens.playlistdetail.PlaylistDetailScreen
 import com.v1per.synthx.ui.screens.playlistlist.PlaylistListScreen
+import com.v1per.synthx.ui.screens.restore.RestoreScreen
 import com.v1per.synthx.ui.screens.library.LibraryScreen
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementScreen
 import com.v1per.synthx.ui.screens.search.SearchScreen
@@ -323,6 +324,21 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
                                 },
                                 onIssuesClick = {
                                     navController.navigate(Screen.Issues.route)
+                                },
+                                onRestoreClick = {
+                                    navController.navigate(Screen.Restore.route)
+                                },
+                            )
+                        }
+                    }
+                    composable(Screen.Restore.route) {
+                        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+                            RestoreScreen(
+                                topBar = {
+                                    DetailTopBar(
+                                        title = stringResource(R.string.screen_restore),
+                                        onBack = { navController.popBackStack() },
+                                    )
                                 },
                             )
                         }
