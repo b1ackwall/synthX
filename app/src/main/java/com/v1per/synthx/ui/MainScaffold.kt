@@ -64,9 +64,11 @@ import com.v1per.synthx.R
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackError
 import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.playback.QueuePromptEvent
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.components.PlayerSheet
+import com.v1per.synthx.ui.components.QueuePromptDialog
 import com.v1per.synthx.ui.components.SongActionsHost
 import com.v1per.synthx.ui.components.SynthXTopBar
 import com.v1per.synthx.ui.screens.addsongs.AddSongsScreen
@@ -136,6 +138,13 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             }
             snackbarHostState.showSnackbar(message)
         }
+    }
+
+    // Held as state rather than shown from inside the collector: the event fires once, but
+    // the dialog has to stay up until the user answers it.
+    var queuePrompt by remember { mutableStateOf<QueuePromptEvent?>(null) }
+    LaunchedEffect(Unit) {
+        playbackViewModel.queuePrompts.collect { queuePrompt = it }
     }
 
     val isPlaying by playbackViewModel.isPlaying.collectAsState()
@@ -680,6 +689,22 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             contentAlignment = Alignment.BottomCenter,
         ) {
             SnackbarHost(hostState = snackbarHostState)
+        }
+
+        // Keep acts on the tapped song alone; Clear rebuilds from the list it came from.
+        // Dismissing does neither — the current song and queue are left exactly as they are.
+        queuePrompt?.let { prompt ->
+            QueuePromptDialog(
+                onKeep = {
+                    playbackViewModel.keepQueueAndPlayNext(prompt.tappedSong)
+                    queuePrompt = null
+                },
+                onClear = {
+                    playbackViewModel.clearQueueAndPlay(prompt.contextSongs, prompt.startIndex)
+                    queuePrompt = null
+                },
+                onDismiss = { queuePrompt = null },
+            )
         }
     }
     }

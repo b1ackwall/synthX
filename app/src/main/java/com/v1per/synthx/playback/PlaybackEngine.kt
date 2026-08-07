@@ -31,6 +31,13 @@ interface PlaybackEngine {
     val shuffleEnabled: Flow<Boolean>
     val repeatMode: Flow<RepeatMode>
 
+    /**
+     * True once the queue has been hand-modified since it was last set wholesale — today
+     * by playNext/addToQueue, tomorrow by reorder/remove. In-memory only: a restart or the
+     * next [playQueue] puts it back to false.
+     */
+    val isQueueCustomized: Flow<Boolean>
+
     /** Replaces the whole queue with [songs] and starts playing at [startIndex]. */
     suspend fun playQueue(songs: List<Song>, startIndex: Int)
 

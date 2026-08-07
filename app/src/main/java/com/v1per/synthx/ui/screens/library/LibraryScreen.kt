@@ -103,7 +103,7 @@ fun LibraryScreen(
             onAlbumsClick = viewModel::onAlbumsClick,
             onSongsClick = viewModel::onSongsClick,
             onSeeAllClick = onNavigateToSongs,
-            onSongClick = { index -> playbackViewModel.playQueue(recentSongs, index) },
+            onSongClick = { index -> playbackViewModel.requestPlayQueue(recentSongs, index) },
         )
     }
 }

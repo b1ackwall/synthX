@@ -268,7 +268,7 @@ private fun LazyListScope.songItems(
             song = song,
             isCurrentlyPlaying = song.id == currentSong?.id,
             // Queues the song results as shown, so playback continues down the list.
-            onClick = { playbackViewModel.playQueue(songs, index) },
+            onClick = { playbackViewModel.requestPlayQueue(songs, index) },
         )
     }
 }

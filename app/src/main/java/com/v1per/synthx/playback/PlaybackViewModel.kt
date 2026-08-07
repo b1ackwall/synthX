@@ -5,13 +5,31 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/**
+ * Asks the user what to do with a hand-modified queue before it gets replaced.
+ *
+ * Carries both readings of the tap, because the two answers need different ones: "Keep"
+ * only ever acts on [tappedSong], while "Clear" rebuilds the queue from [contextSongs] at
+ * [startIndex]. Keeping [tappedSong] as its own field rather than making the UI index back
+ * into the list is what stops the two from drifting apart.
+ */
+data class QueuePromptEvent(
+    val tappedSong: Song,
+    val contextSongs: List<Song>,
+    val startIndex: Int,
+)
 
 class PlaybackViewModel(private val controller: PlaybackController) : ViewModel() {
 
@@ -39,6 +57,12 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     val repeatMode: StateFlow<RepeatMode> = controller.repeatMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RepeatMode.Off)
 
+    // Eagerly for the same reason as queue above: requestPlayQueue reads .value on every
+    // song tap, and under WhileSubscribed that would be a stale false whenever no UI
+    // happens to be collecting it.
+    val isQueueCustomized: StateFlow<Boolean> = controller.isQueueCustomized
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val currentPosition: StateFlow<Long> = controller.currentPosition
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
 
@@ -49,6 +73,15 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     // and stateIn/shareIn would replay the last failure to every new collector — showing
     // a stale snackbar on every navigation back to the scaffold.
     val errors: Flow<PlaybackError> = controller.errors
+
+    // Same one-off event shape as errors above and SongActionsViewModel.events: buffered
+    // by one, newest wins, never replayed — a prompt the user already answered must not
+    // reappear on the next collector.
+    private val _queuePrompts = MutableSharedFlow<QueuePromptEvent>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val queuePrompts: SharedFlow<QueuePromptEvent> = _queuePrompts.asSharedFlow()
 
     init {
         // Mirror currentSongId into currentSong: null (queue end, stop) clears it, and an
@@ -73,6 +106,50 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
         // starting item's artwork has been decoded.
         _currentSong.value = songs.getOrNull(startIndex)
         viewModelScope.launch { controller.playQueue(songs, startIndex) }
+    }
+
+    /**
+     * The entry point every song tap goes through. Replacing a queue the user built by
+     * hand is the one case where playing a song is destructive, so that case asks first
+     * and everything else plays immediately.
+     *
+     * Also requires active playback: a customised queue that has since run to its end is
+     * nothing to preserve, and "Keep" against a stopped player would insert into a dead
+     * timeline.
+     */
+    fun requestPlayQueue(songs: List<Song>, startIndex: Int) {
+        val tapped = songs.getOrNull(startIndex)
+        if (tapped != null && isQueueCustomized.value && hasActivePlayback()) {
+            _queuePrompts.tryEmit(
+                QueuePromptEvent(
+                    tappedSong = tapped,
+                    contextSongs = songs,
+                    startIndex = startIndex,
+                )
+            )
+        } else {
+            playQueue(songs, startIndex)
+        }
+    }
+
+    /**
+     * Keep: the customised queue survives untouched, the tapped song is spliced in right
+     * after the current item and jumped to, so what the user queued up plays after it. The
+     * list the song was tapped from is deliberately discarded — only the song matters here.
+     */
+    fun keepQueueAndPlayNext(song: Song) {
+        // The queue can have ended between the prompt being raised and answered.
+        if (!hasActivePlayback()) {
+            playQueue(listOf(song), 0)
+            return
+        }
+        controller.playNext(song)
+        controller.next()
+    }
+
+    /** Clear: the ordinary fresh-queue path, discarding whatever the user had queued. */
+    fun clearQueueAndPlay(songs: List<Song>, startIndex: Int) {
+        playQueue(songs, startIndex)
     }
 
     /**

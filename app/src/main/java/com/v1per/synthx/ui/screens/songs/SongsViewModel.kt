@@ -74,7 +74,7 @@ class SongsViewModel(
         // neighbours play in the order the user can see.
         val songs = (_uiState.value as? UiState.Success)?.data ?: listOf(song)
         val index = songs.indexOfFirst { it.id == song.id }.takeIf { it >= 0 } ?: 0
-        playbackViewModel.playQueue(songs, index)
+        playbackViewModel.requestPlayQueue(songs, index)
     }
 
     class Factory(

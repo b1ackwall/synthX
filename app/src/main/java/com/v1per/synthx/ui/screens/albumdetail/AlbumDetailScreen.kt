@@ -43,7 +43,7 @@ fun AlbumDetailScreen(
         AlbumDetailContent(
             uiState = uiState,
             currentlyPlayingSongId = currentSong?.id,
-            onSongTap = playbackViewModel::playQueue,
+            onSongTap = playbackViewModel::requestPlayQueue,
         )
     }
 }

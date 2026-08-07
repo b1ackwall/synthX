@@ -59,6 +59,9 @@ class ExoPlayerEngine(
     private val _repeatMode = MutableStateFlow(RepeatMode.Off)
     override val repeatMode: Flow<RepeatMode> = _repeatMode.asStateFlow()
 
+    private val _isQueueCustomized = MutableStateFlow(false)
+    override val isQueueCustomized: Flow<Boolean> = _isQueueCustomized.asStateFlow()
+
     // replay = 0 with a 1-slot buffer: a failure that lands while nothing is collecting
     // is dropped rather than replayed later as a stale message.
     private val _errors = MutableSharedFlow<PlaybackError>(
@@ -215,9 +218,7 @@ class ExoPlayerEngine(
             ctrl.prepare()
             ctrl.play()
 
-            refreshQueue()
-            persistQueue()
-            prefetchArtwork()
+            onQueueStructureChanged(fresh = true)
         }
     }
 
@@ -251,7 +252,11 @@ class ExoPlayerEngine(
             ctrl.setMediaItems(mediaItems, restored.startIndex, restored.positionMs)
             ctrl.prepare()
 
+            // Not routed through onQueueStructureChanged: the persist below is conditional,
+            // and a restored queue counts as pristine — the customisation flag is session
+            // state that deliberately does not survive the restart.
             refreshQueue()
+            _isQueueCustomized.value = false
             // The stored rows disagree with what actually loaded — rewrite them so the
             // saved index and the queue cannot drift further apart on the next restore.
             if (restored.droppedCount > 0) {
@@ -295,18 +300,14 @@ class ExoPlayerEngine(
         songsById[song.id] = song
         val insertAt = (ctrl.currentMediaItemIndex + 1).coerceIn(0, ctrl.mediaItemCount)
         ctrl.addMediaItem(insertAt, buildMediaItem(song, artworkData = null))
-        refreshQueue()
-        persistQueue()
-        prefetchArtwork()
+        onQueueStructureChanged(fresh = false)
     }
 
     override fun addToQueue(song: Song) {
         val ctrl = controller ?: return
         songsById[song.id] = song
         ctrl.addMediaItem(buildMediaItem(song, artworkData = null))
-        refreshQueue()
-        persistQueue()
-        prefetchArtwork()
+        onQueueStructureChanged(fresh = false)
     }
 
     override fun pause() {
@@ -350,9 +351,20 @@ class ExoPlayerEngine(
     }
 
     /**
-     * Writes the timeline as it stands now. Called after every structural change; a future
-     * reorder or remove only has to call this too.
+     * The single hook every structural change to the timeline runs through: re-derives the
+     * queue flows, writes the new structure to storage, and records whether the queue is
+     * still a pristine context list or has been hand-modified.
+     *
+     * A future reorder or remove only has to call this — with [fresh] false, since anything
+     * that is not a wholesale [playQueue] is by definition the user customising the queue.
      */
+    private fun onQueueStructureChanged(fresh: Boolean) {
+        refreshQueue()
+        persistQueue()
+        _isQueueCustomized.value = !fresh
+        prefetchArtwork()
+    }
+
     private fun persistQueue() {
         persistence.saveQueue(_queue.value)
     }

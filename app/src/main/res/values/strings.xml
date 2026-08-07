@@ -106,6 +106,12 @@
     <string name="restore_done_message">Your library has been restored. Please reopen synthX.</string>
     <string name="restore_failed_title">Restore failed</string>
     <string name="action_ok">OK</string>
+    <string name="action_keep">Keep</string>
+    <string name="action_clear">Clear</string>
+
+    <!-- Queue -->
+    <string name="queue_prompt_title">Keep the songs in your Up Next queue?</string>
+    <string name="queue_prompt_message">Keep plays this song now and continues with the songs you queued. Clear replaces the queue with the list you tapped from.</string>
 
     <!-- Library scan -->
     <string name="scan_channel_name">Library scan</string>

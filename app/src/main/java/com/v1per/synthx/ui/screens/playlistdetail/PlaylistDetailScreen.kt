@@ -94,7 +94,7 @@ fun PlaylistDetailScreen(
                         SongRow(
                             song = song,
                             isCurrentlyPlaying = song.id == currentSong?.id,
-                            onClick = { playbackViewModel.playQueue(state.data, index) },
+                            onClick = { playbackViewModel.requestPlayQueue(state.data, index) },
                             // Swaps "Add to Playlist" for "Remove from Playlist" in the sheet.
                             currentPlaylistId = playlistId,
                         )
