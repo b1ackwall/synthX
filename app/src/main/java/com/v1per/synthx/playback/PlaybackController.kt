@@ -10,8 +10,18 @@ class PlaybackController(private val engine: PlaybackEngine) {
     val currentPosition: Flow<Long> = engine.currentPosition
     val duration: Flow<Long> = engine.duration
     val errors: Flow<PlaybackError> = engine.errors
+    val queue: Flow<List<Song>> = engine.queue
+    val currentIndex: Flow<Int> = engine.currentIndex
+    val shuffleEnabled: Flow<Boolean> = engine.shuffleEnabled
+    val repeatMode: Flow<RepeatMode> = engine.repeatMode
 
-    suspend fun playSong(song: Song) = engine.playSong(song)
+    suspend fun playQueue(songs: List<Song>, startIndex: Int) = engine.playQueue(songs, startIndex)
+    fun next() = engine.next()
+    fun previous() = engine.previous()
+    fun setShuffleEnabled(enabled: Boolean) = engine.setShuffleEnabled(enabled)
+    fun setRepeatMode(mode: RepeatMode) = engine.setRepeatMode(mode)
+    fun playNext(song: Song) = engine.playNext(song)
+    fun addToQueue(song: Song) = engine.addToQueue(song)
     fun pause() = engine.pause()
     fun resume() = engine.resume()
     fun stop() = engine.stop()

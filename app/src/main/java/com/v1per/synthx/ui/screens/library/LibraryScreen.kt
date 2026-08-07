@@ -103,7 +103,7 @@ fun LibraryScreen(
             onAlbumsClick = viewModel::onAlbumsClick,
             onSongsClick = viewModel::onSongsClick,
             onSeeAllClick = onNavigateToSongs,
-            onSongClick = playbackViewModel::playSong,
+            onSongClick = { index -> playbackViewModel.playQueue(recentSongs, index) },
         )
     }
 }
@@ -118,7 +118,8 @@ private fun LibraryScreenContent(
     onAlbumsClick: () -> Unit,
     onSongsClick: () -> Unit,
     onSeeAllClick: () -> Unit,
-    onSongClick: (Song) -> Unit,
+    // Takes the tapped song's index in [recentSongs]: the whole row becomes the queue.
+    onSongClick: (Int) -> Unit,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item {
@@ -201,7 +202,7 @@ private fun LibraryScreenContent(
 private fun RecentlyAddedSection(
     songs: List<Song>,
     onSeeAllClick: () -> Unit,
-    onSongClick: (Song) -> Unit,
+    onSongClick: (Int) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -234,15 +235,17 @@ private fun RecentlyAddedSection(
                 .padding(horizontal = Spacing.HorizontalPadding),
             verticalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
         ) {
-            rows.forEach { rowSongs ->
+            rows.forEachIndexed { rowIndex, rowSongs ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
                 ) {
-                    rowSongs.forEach { song ->
+                    rowSongs.forEachIndexed { columnIndex, song ->
+                        // chunked(2) above, so the flat index is row * 2 + column.
+                        val songIndex = rowIndex * 2 + columnIndex
                         RecentSongTile(
                             song = song,
-                            onClick = { onSongClick(song) },
+                            onClick = { onSongClick(songIndex) },
                             modifier = Modifier.weight(1f),
                         )
                     }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
@@ -262,11 +263,12 @@ private fun LazyListScope.songItems(
     currentSong: Song?,
     playbackViewModel: PlaybackViewModel,
 ) {
-    items(songs, key = { "song_${it.id}" }) { song ->
+    itemsIndexed(songs, key = { _, song -> "song_${song.id}" }) { index, song ->
         SongRow(
             song = song,
             isCurrentlyPlaying = song.id == currentSong?.id,
-            onClick = { playbackViewModel.playSong(song) },
+            // Queues the song results as shown, so playback continues down the list.
+            onClick = { playbackViewModel.playQueue(songs, index) },
         )
     }
 }

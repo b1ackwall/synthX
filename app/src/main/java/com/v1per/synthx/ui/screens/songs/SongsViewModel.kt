@@ -70,7 +70,11 @@ class SongsViewModel(
     }
 
     fun onSongTap(song: Song) {
-        playbackViewModel.playSong(song)
+        // The queue is the list as currently sorted and shown, so the tapped song's
+        // neighbours play in the order the user can see.
+        val songs = (_uiState.value as? UiState.Success)?.data ?: listOf(song)
+        val index = songs.indexOfFirst { it.id == song.id }.takeIf { it >= 0 } ?: 0
+        playbackViewModel.playQueue(songs, index)
     }
 
     class Factory(

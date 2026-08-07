@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
@@ -90,11 +90,11 @@ fun PlaylistDetailScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = Spacing.md),
                 ) {
-                    items(state.data, key = { it.id }) { song ->
+                    itemsIndexed(state.data, key = { _, song -> song.id }) { index, song ->
                         SongRow(
                             song = song,
                             isCurrentlyPlaying = song.id == currentSong?.id,
-                            onClick = { playbackViewModel.playSong(song) },
+                            onClick = { playbackViewModel.playQueue(state.data, index) },
                             // Swaps "Add to Playlist" for "Remove from Playlist" in the sheet.
                             currentPlaylistId = playlistId,
                         )

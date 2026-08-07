@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,7 +43,7 @@ fun ArtistDetailScreen(
         ArtistDetailContent(
             uiState = uiState,
             currentlyPlayingSongId = currentSong?.id,
-            onSongTap = playbackViewModel::playSong,
+            onSongTap = playbackViewModel::playQueue,
         )
     }
 }
@@ -52,7 +52,8 @@ fun ArtistDetailScreen(
 private fun ArtistDetailContent(
     uiState: UiState<List<Song>>,
     currentlyPlayingSongId: String?,
-    onSongTap: (Song) -> Unit,
+    // Takes the whole artist list plus the tapped index: playback queues from there.
+    onSongTap: (List<Song>, Int) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
@@ -73,11 +74,11 @@ private fun ArtistDetailContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = Spacing.md),
             ) {
-                items(uiState.data, key = { it.id }) { song ->
+                itemsIndexed(uiState.data, key = { _, song -> song.id }) { index, song ->
                     SongRow(
                         song = song,
                         isCurrentlyPlaying = song.id == currentlyPlayingSongId,
-                        onClick = { onSongTap(song) },
+                        onClick = { onSongTap(uiState.data, index) },
                     )
                 }
             }

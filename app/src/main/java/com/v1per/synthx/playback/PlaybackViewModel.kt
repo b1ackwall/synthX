@@ -24,6 +24,21 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
 
+    // Eagerly, unlike the state below: currentSong is resolved against queue.value in
+    // init, which only holds a real list while something is subscribed. The upstream is a
+    // hot StateFlow in the engine, so there is nothing to keep warm at a cost.
+    val queue: StateFlow<List<Song>> = controller.queue
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val currentIndex: StateFlow<Int> = controller.currentIndex
+        .stateIn(viewModelScope, SharingStarted.Eagerly, -1)
+
+    val shuffleEnabled: StateFlow<Boolean> = controller.shuffleEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val repeatMode: StateFlow<RepeatMode> = controller.repeatMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RepeatMode.Off)
+
     val currentPosition: StateFlow<Long> = controller.currentPosition
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
 
@@ -36,10 +51,16 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     val errors: Flow<PlaybackError> = controller.errors
 
     init {
-        // Mirror currentSongId going null (track end, stop) into currentSong
+        // Mirror currentSongId into currentSong: null (queue end, stop) clears it, and an
+        // auto-advance to the next queue item resolves the new id against the queue. The
+        // fallback keeps the previous song rather than blanking the player if the id
+        // arrives before the queue does.
         viewModelScope.launch {
             currentSongId.collect { id ->
-                if (id == null) _currentSong.value = null
+                _currentSong.value = when (id) {
+                    null -> null
+                    else -> queue.value.firstOrNull { it.id == id } ?: _currentSong.value
+                }
             }
         }
     }
@@ -47,10 +68,24 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     // Stays a plain fun so every UI call site keeps working — the engine's suspend
     // artwork work is launched into viewModelScope (Main), which is also the
     // dispatcher MediaController requires when the engine resumes.
-    fun playSong(song: Song) {
-        _currentSong.value = song
-        viewModelScope.launch { controller.playSong(song) }
+    fun playQueue(songs: List<Song>, startIndex: Int) {
+        // Set optimistically so the mini player appears on tap rather than after the
+        // starting item's artwork has been decoded.
+        _currentSong.value = songs.getOrNull(startIndex)
+        viewModelScope.launch { controller.playQueue(songs, startIndex) }
     }
+
+    fun next() = controller.next()
+
+    fun previous() = controller.previous()
+
+    fun setShuffleEnabled(enabled: Boolean) = controller.setShuffleEnabled(enabled)
+
+    fun setRepeatMode(mode: RepeatMode) = controller.setRepeatMode(mode)
+
+    fun playNext(song: Song) = controller.playNext(song)
+
+    fun addToQueue(song: Song) = controller.addToQueue(song)
 
     fun pause() = controller.pause()
 
