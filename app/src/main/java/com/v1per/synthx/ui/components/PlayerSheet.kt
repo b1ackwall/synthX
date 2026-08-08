@@ -1,43 +1,23 @@
 package com.v1per.synthx.ui.components
 
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.gestures.animateTo
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -46,35 +26,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import coil.size.Size
-import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
-import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.SynthXTheme
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 /**
  * Height of the collapsed mini-player bar. Exposed so MainScaffold can reserve the
@@ -183,8 +146,6 @@ private fun PlayerSheetContent(
     onExpand: () -> Unit,
     sheetModifier: Modifier = Modifier,
 ) {
-    // Same sheet SongRow opens; the player is never playlist-scoped so the id is null.
-    val songActions = LocalSongActions.current
     val sheetHeight = lerp(CollapsedPlayerHeight, fullHeight, progress)
     val artSize = lerp(44.dp, fullWidth - Spacing.HorizontalPadding * 4, progress)
     val cornerRadius = lerp(0.dp, 24.dp, progress) // flat when collapsed, rounded top when expanded
@@ -213,307 +174,26 @@ private fun PlayerSheetContent(
                     .align(Alignment.TopCenter),
             )
 
-            // COLLAPSED — mini player row, tap anywhere (but the button) to expand.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(CollapsedPlayerHeight)
-                    .align(Alignment.TopCenter)
-                    .alpha(miniPlayerAlpha)
-                    .clickable(enabled = miniPlayerAlpha > 0.5f, onClick = onExpand)
-                    .padding(horizontal = Spacing.md),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AlbumArt(song = song, isPlaying = isPlaying, size = 44.dp)
-                Spacer(modifier = Modifier.width(Spacing.sm))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = song.title,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                        color = TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = song.artist,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                IconButton(
-                    onClick = onPlayPauseClick,
-                    enabled = miniPlayerAlpha > 0.5f,
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) {
-                            stringResource(R.string.cd_pause)
-                        } else {
-                            stringResource(R.string.cd_play)
-                        },
-                        tint = if (isPlaying) Accent else TextPrimary,
-                        modifier = Modifier.size(28.dp),
-                    )
-                }
-            }
-
-            // EXPANDED — full player.
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(fullPlayerAlpha)
-                    .statusBarsPadding()
-                    .padding(horizontal = Spacing.HorizontalPadding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // Flexible top
-                Spacer(modifier = Modifier.weight(1.5f))
-
-                AlbumArt(
-                    song = song,
-                    isPlaying = isPlaying,
-                    size = artSize,
-                    fullResolution = true,
-                )
-
-                // Flexible between art and title
-                Spacer(modifier = Modifier.weight(1f))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = Spacing.lg, end = 12.dp), // 12dp intentional: Spacing.xs (4dp) + 8dp added
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = song.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = song.artist,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = TextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    IconButton(
-                        onClick = { songActions.show(song, null) },
-                        enabled = fullPlayerAlpha > 0.5f,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = stringResource(R.string.cd_more_options),
-                            tint = TextSecondary,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(Spacing.md))
-
-                // Seek bar section — visual only, no scrubbing.
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.lg),
-                ) {
-                    // Thin progress line
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(4.dp),
-                    ) {
-                        val fraction = if (duration > 0) {
-                            (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-                        } else {
-                            0f
-                        }
-                        // Unplayed track
-                        drawLine(
-                            color = SurfaceVariant,
-                            start = Offset(0f, size.height / 2),
-                            end = Offset(size.width, size.height / 2),
-                            strokeWidth = size.height,
-                        )
-                        // Played track
-                        if (fraction > 0f) {
-                            drawLine(
-                                color = Accent,
-                                start = Offset(0f, size.height / 2),
-                                end = Offset(size.width * fraction, size.height / 2),
-                                strokeWidth = size.height,
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-                    // Timestamps
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = formatDuration(currentPosition),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary,
-                        )
-                        Text(
-                            text = formatDuration(duration),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary,
-                        )
-                    }
-                }
-
-                // Flexible between seek and controls
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Controls row — prev, play/pause, next
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Spacer(modifier = Modifier.weight(2f))
-                    // Previous — placeholder
-                    IconButton(
-                        onClick = {},
-                        modifier = Modifier.size(72.dp),
-                        enabled = fullPlayerAlpha > 0.5f,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.FastRewind,
-                            contentDescription = stringResource(R.string.cd_previous_track),
-                            tint = TextPrimary,
-                            modifier = Modifier.size(56.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    IconButton(
-                        onClick = onPlayPauseClick,
-                        modifier = Modifier.size(96.dp),
-                        enabled = fullPlayerAlpha > 0.5f,
-                    ) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (isPlaying) {
-                                stringResource(R.string.cd_pause)
-                            } else {
-                                stringResource(R.string.cd_play)
-                            },
-                            tint = if (isPlaying) Accent else TextPrimary,
-                            modifier = Modifier.size(64.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    // Next — placeholder
-                    IconButton(
-                        onClick = {},
-                        modifier = Modifier.size(72.dp),
-                        enabled = fullPlayerAlpha > 0.5f,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.FastForward,
-                            contentDescription = stringResource(R.string.cd_next_track),
-                            tint = TextPrimary,
-                            modifier = Modifier.size(56.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.weight(2f))
-                }
-
-                // Flexible between controls and queue
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Bottom row — queue placeholder
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    IconButton(
-                        onClick = {},
-                        enabled = fullPlayerAlpha > 0.5f,
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                            contentDescription = stringResource(R.string.cd_queue),
-                            tint = TextSecondary,
-                            modifier = Modifier.size(28.dp),
-                        )
-                    }
-                }
-
-                // Flexible breathing room below bottom icons section
-                Spacer(modifier = Modifier.weight(0.5f))
-
-                // Fixed bottom edge
-                Spacer(modifier = Modifier.height(Spacing.md))
-            }
-        }
-    }
-}
-
-@Composable
-private fun AlbumArt(
-    song: Song,
-    isPlaying: Boolean,
-    size: Dp,
-    fullResolution: Boolean = false,
-) {
-    // "Breathe" — the art relaxes inward when paused and springs back on play.
-    val scale by animateFloatAsState(
-        targetValue = if (isPlaying) 1.0f else 0.90f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
-        label = "artScale",
-    )
-    Box(
-        modifier = Modifier
-            .size(size)
-            .scale(scale)
-            .clip(MaterialTheme.shapes.small),
-    ) {
-        if (song.albumArtUri != null) {
-            // The mini thumbnail loads at its 44dp display size. The expanded player
-            // opts into Size.ORIGINAL so Coil decodes the artwork at full resolution
-            // instead of upscaling the small cached thumbnail.
-            val model = if (fullResolution) {
-                ImageRequest.Builder(LocalContext.current)
-                    .data(song.albumArtUri)
-                    .size(Size.ORIGINAL)
-                    .build()
-            } else {
-                song.albumArtUri
-            }
-            AsyncImage(
-                model = model,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            GlitchPlaceholder(
-                songId = song.id,
+            PlayerMiniBar(
+                song = song,
                 isPlaying = isPlaying,
-                size = size,
+                alpha = miniPlayerAlpha,
+                onPlayPauseClick = onPlayPauseClick,
+                onExpand = onExpand,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+
+            PlayerExpandedContent(
+                song = song,
+                isPlaying = isPlaying,
+                currentPosition = currentPosition,
+                duration = duration,
+                alpha = fullPlayerAlpha,
+                artSize = artSize,
+                onPlayPauseClick = onPlayPauseClick,
             )
         }
     }
-}
-
-private fun formatDuration(ms: Long): String {
-    val totalSeconds = ms / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return String.format(Locale.US, "%d:%02d", minutes, seconds)
 }
 
 private val PreviewSong = Song(

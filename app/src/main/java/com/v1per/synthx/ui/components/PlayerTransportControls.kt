@@ -1,0 +1,85 @@
+package com.v1per.synthx.ui.components
+
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.v1per.synthx.R
+import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.TextPrimary
+
+/**
+ * Prev / play-pause / next transport row. Prev and next are currently inert
+ * placeholders — wiring them up is a future task.
+ */
+@Composable
+fun PlayerTransportControls(
+    isPlaying: Boolean,
+    onPlayPauseClick: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Spacer(modifier = Modifier.weight(2f))
+        // Previous — placeholder
+        IconButton(
+            onClick = {},
+            modifier = Modifier.size(72.dp),
+            enabled = enabled,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.FastRewind,
+                contentDescription = stringResource(R.string.cd_previous_track),
+                tint = TextPrimary,
+                modifier = Modifier.size(56.dp),
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = onPlayPauseClick,
+            modifier = Modifier.size(96.dp),
+            enabled = enabled,
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = if (isPlaying) {
+                    stringResource(R.string.cd_pause)
+                } else {
+                    stringResource(R.string.cd_play)
+                },
+                tint = if (isPlaying) Accent else TextPrimary,
+                modifier = Modifier.size(64.dp),
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        // Next — placeholder
+        IconButton(
+            onClick = {},
+            modifier = Modifier.size(72.dp),
+            enabled = enabled,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.FastForward,
+                contentDescription = stringResource(R.string.cd_next_track),
+                tint = TextPrimary,
+                modifier = Modifier.size(56.dp),
+            )
+        }
+        Spacer(modifier = Modifier.weight(2f))
+    }
+}
