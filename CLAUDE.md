@@ -11,7 +11,7 @@ First, check the machine:
 
 Then set JAVA_HOME for this session accordingly:
 - --15 → $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-- [ hostname — TBD, ask  if unknown]
+- V1PER → $env:JAVA_HOME = "C:\Users\\.jdks\jbr-21.0.11"
 
 Verify before building:
     & "$env:JAVA_HOME\bin\java.exe" -version
