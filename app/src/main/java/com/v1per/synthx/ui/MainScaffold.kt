@@ -40,8 +40,8 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    // Home is a full-screen takeover: no bottom nav, no PlayerSheet.
     val bottomBarRoutes = setOf(
+        Screen.Home.route,
         Screen.Library.route,
         Screen.Search.route,
         Screen.Songs.route,
@@ -96,23 +96,8 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     // same reasoning as PlayerSheet itself.
     var queueVisible by remember { mutableStateOf(false) }
 
-    // The route we were on before the current one. The assignment runs in a LaunchedEffect,
-    // i.e. after the composition that observed the route change — so during the frame where
-    // showBottomBar flips, this still holds the outgoing route.
-    var previousRoute by remember { mutableStateOf<String?>(null) }
-
-    // True when we're leaving a bottom-bar route for Home — the one departure that should
-    // fade the chrome out instead of cutting it. Derived during composition, not in the
-    // effect, so it's already correct on the frame showBottomBar flips false.
-    val targetHomeTransition = previousRoute in bottomBarRoutes &&
-        currentRoute == Screen.Home.route
-
-    LaunchedEffect(currentRoute) {
-        previousRoute = currentRoute
-    }
-
     // Bottom chrome reservation, applied per destination (never on the NavHost itself, so
-    // an outgoing screen can't reflow mid-transition; Home gets no wrapper at all).
+    // an outgoing screen can't reflow mid-transition).
     val chromeBottomPadding by remember(currentSong, showBottomBar) {
         derivedStateOf {
             when {
@@ -147,8 +132,6 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             navController = navController,
             currentRoute = currentRoute,
             showBottomBar = showBottomBar,
-            previousRoute = previousRoute,
-            targetHomeTransition = targetHomeTransition,
             currentSong = currentSong,
             isPlaying = isPlaying,
             currentPosition = currentPosition,

@@ -2,12 +2,6 @@ package com.v1per.synthx.ui
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
-import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,10 +44,8 @@ import com.v1per.synthx.ui.screens.search.SearchScreen
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
 import com.v1per.synthx.ui.screens.songs.SongsScreen
 import com.v1per.synthx.ui.theme.Background
-import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.TextPrimary
 
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun SynthXNavHost(
     navController: NavHostController,
@@ -66,116 +58,50 @@ fun SynthXNavHost(
         topBar = {},
         bottomBar = {},
     ) { innerPadding ->
-        SharedTransitionLayout {
-            NavHost(
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Home.route,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                // Screens render their own TopAppBars now — consume the insets this
+                // padding already covers so those bars don't re-apply the status inset.
+                .consumeWindowInsets(innerPadding),
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None },
+        ) {
+            coreRoutes(
                 navController = navController,
-                startDestination = Screen.Home.route,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    // Screens render their own TopAppBars now — consume the insets this
-                    // padding already covers so those bars don't re-apply the status inset.
-                    .consumeWindowInsets(innerPadding),
-                enterTransition = { EnterTransition.None },
-                exitTransition = { ExitTransition.None },
-                popEnterTransition = { EnterTransition.None },
-                popExitTransition = { ExitTransition.None },
-            ) {
-                coreRoutes(
-                    navController = navController,
-                    playbackViewModel = playbackViewModel,
-                    chromeBottomPadding = chromeBottomPadding,
-                    sharedTransitionScope = this@SharedTransitionLayout,
-                )
-                libraryDetailRoutes(
-                    navController = navController,
-                    playbackViewModel = playbackViewModel,
-                    chromeBottomPadding = chromeBottomPadding,
-                )
-            }
+                playbackViewModel = playbackViewModel,
+                chromeBottomPadding = chromeBottomPadding,
+            )
+            libraryDetailRoutes(
+                navController = navController,
+                playbackViewModel = playbackViewModel,
+                chromeBottomPadding = chromeBottomPadding,
+            )
         }
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class)
 private fun NavGraphBuilder.coreRoutes(
     navController: NavHostController,
     playbackViewModel: PlaybackViewModel,
     chromeBottomPadding: Dp,
-    sharedTransitionScope: SharedTransitionScope,
 ) {
-    composable(
-        route = Screen.Home.route,
-        // Forward is an instant cut (the shared-element wordmark carries the
-        // motion); popping back from Library crossfades Home in over Library's
-        // fadeOut. Popping back from anywhere else (Search) is an instant cut,
-        // matching every other non-Home/Library boundary.
-        exitTransition = { ExitTransition.None },
-        popEnterTransition = {
-            if (initialState.destination.route == Screen.Library.route) {
-                fadeIn(
-                    animationSpec = tween(
-                        durationMillis = Motion.DurationNormal,
-                        easing = Motion.EasingDecelerate,
-                    ),
-                )
-            } else {
-                EnterTransition.None
-            }
-        },
-    ) {
-        HomeScreen(
-            onEnterLibrary = {
-                navController.navigate(Screen.Library.route) {
-                    popUpTo(Screen.Home.route) { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            },
-            sharedTransitionScope = sharedTransitionScope,
-            animatedVisibilityScope = this@composable,
-        )
+    composable(Screen.Home.route) {
+        Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
+            HomeScreen()
+        }
     }
-    composable(
-        route = Screen.Library.route,
-        // Only the Home boundary is animated. Coming from Home, Library fades
-        // in after the gradient's 300ms fade-to-black completes (the wordmark
-        // shared element overlaps this fade, so it's already in position as
-        // Library appears); popping to Home fades out under Home's fadeIn.
-        // Every other neighbour (Search tab, etc.) is an instant cut.
-        enterTransition = {
-            if (initialState.destination.route == Screen.Home.route) {
-                fadeIn(
-                    animationSpec = tween(
-                        durationMillis = Motion.DurationNormal,
-                        easing = Motion.EasingDecelerate,
-                        delayMillis = Motion.DurationNormal,
-                    ),
-                )
-            } else {
-                EnterTransition.None
-            }
-        },
-        popExitTransition = {
-            if (targetState.destination.route == Screen.Home.route) {
-                fadeOut(
-                    animationSpec = tween(
-                        durationMillis = Motion.DurationNormal,
-                        easing = Motion.EasingAccelerate,
-                    ),
-                )
-            } else {
-                ExitTransition.None
-            }
-        },
-    ) {
+    composable(Screen.Library.route) {
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
             LibraryScreen(
                 topBar = {
                     SynthXTopBar(
                         onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedVisibilityScope = this@composable,
                     )
                 },
                 onNavigateToSongs = { navController.navigate(Screen.Songs.route) },

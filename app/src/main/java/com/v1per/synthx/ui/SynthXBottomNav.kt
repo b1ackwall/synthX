@@ -1,11 +1,6 @@
 package com.v1per.synthx.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,7 +39,6 @@ import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.PlayerSheet
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
-import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextSecondary
 
@@ -53,8 +47,6 @@ fun BottomChromeOverlay(
     navController: NavController,
     currentRoute: String?,
     showBottomBar: Boolean,
-    previousRoute: String?,
-    targetHomeTransition: Boolean,
     currentSong: Song?,
     isPlaying: Boolean,
     currentPosition: Long,
@@ -64,41 +56,13 @@ fun BottomChromeOverlay(
     onQueueClick: () -> Unit,
     playbackViewModel: PlaybackViewModel,
 ) {
-    // Bottom nav as overlay — never affects layout. Arriving from Home it fades in on
-    // Library's delayed schedule (300ms delay + 300ms fade); every other arrival —
-    // Settings back included — is instant. Leaving to Home it fades out with Library's
-    // pop easing; every other departure is instant. Always composed so AnimatedVisibility
-    // can actually run the animations on the visibility flip instead of popping.
     Box(
         modifier = Modifier
             .fillMaxSize()
             .navigationBarsPadding(),
         contentAlignment = Alignment.BottomCenter,
     ) {
-        AnimatedVisibility(
-            visible = showBottomBar,
-            enter = if (previousRoute == Screen.Home.route) {
-                fadeIn(
-                    animationSpec = tween(
-                        durationMillis = Motion.DurationNormal,
-                        easing = Motion.EasingDecelerate,
-                        delayMillis = Motion.DurationNormal,
-                    ),
-                )
-            } else {
-                EnterTransition.None
-            },
-            exit = if (targetHomeTransition) {
-                fadeOut(
-                    animationSpec = tween(
-                        durationMillis = Motion.DurationNormal,
-                        easing = Motion.EasingAccelerate,
-                    ),
-                )
-            } else {
-                ExitTransition.None
-            },
-        ) {
+        AnimatedVisibility(visible = showBottomBar) {
             SynthXBottomNav(
                 navController = navController,
                 currentRoute = currentRoute,
@@ -112,32 +76,8 @@ fun BottomChromeOverlay(
     // The player overlays everything as a sibling to the Scaffold so it can expand
     // upward over the content — and, once expanded, over the nav area the sliding nav
     // vacates. It fills the whole Box; its own progress-driven inset keeps the collapsed
-    // mini above the nav. Runs the same schedule as the bottom nav: a delayed fade when
-    // arriving from Home, a fade out when leaving to Home, instant everywhere else.
-    AnimatedVisibility(
-        visible = showBottomBar && currentSong != null,
-        enter = if (previousRoute == Screen.Home.route) {
-            fadeIn(
-                animationSpec = tween(
-                    durationMillis = Motion.DurationNormal,
-                    easing = Motion.EasingDecelerate,
-                    delayMillis = Motion.DurationNormal,
-                ),
-            )
-        } else {
-            EnterTransition.None
-        },
-        exit = if (targetHomeTransition) {
-            fadeOut(
-                animationSpec = tween(
-                    durationMillis = Motion.DurationNormal,
-                    easing = Motion.EasingAccelerate,
-                ),
-            )
-        } else {
-            ExitTransition.None
-        },
-    ) {
+    // mini above the nav.
+    AnimatedVisibility(visible = showBottomBar && currentSong != null) {
         currentSong?.let { song ->
             val hasNext by playbackViewModel.hasNext.collectAsState()
             val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
@@ -205,42 +145,12 @@ private fun SynthXBottomNav(
                 NavigationBarItem(
                     selected = selected,
                     onClick = {
-                        when (item.screen.route) {
-                            Screen.Home.route -> {
-                                // Home is only ever reached as a pop from Library, so that the
-                                // Home/Library crossfade pair runs. From anywhere deeper, land
-                                // on Library's root first — with its saved state deliberately
-                                // discarded, not restored — and stop; a second tap then pops
-                                // through to Home.
-                                if (currentRoute == Screen.Library.route) {
-                                    navController.popBackStack(Screen.Home.route, inclusive = false)
-                                } else {
-                                    navController.navigate(Screen.Library.route) {
-                                        popUpTo(navController.graph.startDestinationId) {
-                                            saveState = false
-                                        }
-                                        launchSingleTop = true
-                                    }
-                                }
+                        navController.navigate(item.screen.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
                             }
-                            Screen.Library.route -> {
-                                navController.navigate(Screen.Library.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                            Screen.Search.route -> {
-                                navController.navigate(Screen.Search.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
                     },
                     icon = {
