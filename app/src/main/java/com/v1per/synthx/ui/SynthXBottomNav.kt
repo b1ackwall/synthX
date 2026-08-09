@@ -1,6 +1,8 @@
 package com.v1per.synthx.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +44,11 @@ import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextSecondary
 
+// Shared by both overlay AnimatedVisibility blocks below — instant cut, matching the
+// app-wide convention (the only animated transition anywhere is mini-player↔full-player).
+private val ChromeEnterTransition = EnterTransition.None
+private val ChromeExitTransition = ExitTransition.None
+
 @Composable
 fun BottomChromeOverlay(
     navController: NavController,
@@ -62,7 +69,11 @@ fun BottomChromeOverlay(
             .navigationBarsPadding(),
         contentAlignment = Alignment.BottomCenter,
     ) {
-        AnimatedVisibility(visible = showBottomBar) {
+        AnimatedVisibility(
+            visible = showBottomBar,
+            enter = ChromeEnterTransition,
+            exit = ChromeExitTransition,
+        ) {
             SynthXBottomNav(
                 navController = navController,
                 currentRoute = currentRoute,
@@ -77,7 +88,11 @@ fun BottomChromeOverlay(
     // upward over the content — and, once expanded, over the nav area the sliding nav
     // vacates. It fills the whole Box; its own progress-driven inset keeps the collapsed
     // mini above the nav.
-    AnimatedVisibility(visible = showBottomBar && currentSong != null) {
+    AnimatedVisibility(
+        visible = showBottomBar && currentSong != null,
+        enter = ChromeEnterTransition,
+        exit = ChromeExitTransition,
+    ) {
         currentSong?.let { song ->
             val hasNext by playbackViewModel.hasNext.collectAsState()
             val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
