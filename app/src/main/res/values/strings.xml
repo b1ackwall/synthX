@@ -46,6 +46,7 @@
     <string name="actions_go_to_album">Go to Album</string>
     <string name="actions_go_to_artist">Go to Artist</string>
     <string name="actions_already_in_playlist">Already in %1$s</string>
+    <string name="actions_added_to_playlist">Added to %1$s</string>
     <string name="actions_playing_next">Playing next</string>
     <string name="actions_added_to_queue">Added to queue</string>
 

@@ -43,6 +43,7 @@ fun interface SongActionsController {
 /** Outcomes worth telling the user about, surfaced as a Snackbar by [SongActionsHost]. */
 sealed class SongActionEvent {
     data class AlreadyInPlaylist(val playlistName: String) : SongActionEvent()
+    data class AddedToPlaylist(val playlistName: String) : SongActionEvent()
     data object PlayingNext : SongActionEvent()
     data object AddedToQueue : SongActionEvent()
 }
@@ -90,6 +91,8 @@ fun SongActionsHost(
             val message = when (event) {
                 is SongActionEvent.AlreadyInPlaylist ->
                     context.getString(R.string.actions_already_in_playlist, event.playlistName)
+                is SongActionEvent.AddedToPlaylist ->
+                    context.getString(R.string.actions_added_to_playlist, event.playlistName)
                 SongActionEvent.PlayingNext -> context.getString(R.string.actions_playing_next)
                 SongActionEvent.AddedToQueue -> context.getString(R.string.actions_added_to_queue)
             }
@@ -192,10 +195,11 @@ class SongActionsViewModel(
     fun addToPlaylist(playlistId: String, songId: String) {
         viewModelScope.launch {
             val added = repository.addSongToPlaylist(playlistId, songId)
-            if (!added) {
-                val name = playlists.value.firstOrNull { it.id == playlistId }?.name.orEmpty()
-                _events.tryEmit(SongActionEvent.AlreadyInPlaylist(name))
-            }
+            val name = playlists.value.firstOrNull { it.id == playlistId }?.name.orEmpty()
+            _events.tryEmit(
+                if (added) SongActionEvent.AddedToPlaylist(name)
+                else SongActionEvent.AlreadyInPlaylist(name)
+            )
         }
     }
 
