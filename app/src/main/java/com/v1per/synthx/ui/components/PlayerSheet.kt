@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.spring
@@ -93,6 +94,13 @@ fun PlayerSheet(
                 ),
                 decayAnimationSpec = decayAnimationSpec,
             )
+        }
+
+        // While expanded, back collapses the sheet instead of falling through to the
+        // NavHost's own back handling (which would otherwise navigate away). Consumes the
+        // press entirely; disabled (and inert) whenever the sheet is collapsed.
+        BackHandler(enabled = draggableState.currentValue == PlayerSheetValue.Expanded) {
+            scope.launch { draggableState.animateTo(PlayerSheetValue.Collapsed) }
         }
 
         // Anchors depend on the measured height, which is only known inside BoxWithConstraints.
