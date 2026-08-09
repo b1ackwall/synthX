@@ -51,6 +51,11 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     val currentIndex: StateFlow<Int> = controller.currentIndex
         .stateIn(viewModelScope, SharingStarted.Eagerly, -1)
 
+    // Screen-scoped like shuffleEnabled/repeatMode below: only the Queue screen reads this,
+    // and nothing here needs a synchronous .value the way requestPlayQueue needs queue.value.
+    val upcomingQueue: StateFlow<List<Song>> = controller.upcomingQueue
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val shuffleEnabled: StateFlow<Boolean> = controller.shuffleEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
@@ -192,11 +197,13 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
         if (hasActivePlayback()) controller.addToQueue(song) else playQueue(listOf(song), 0)
     }
 
+    /** [fromIndex]/[toIndex] are positions in [upcomingQueue] — the Up Next screen's rows. */
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = controller.moveQueueItem(fromIndex, toIndex)
 
+    /** [index] is a position in [upcomingQueue] — the Up Next screen's rows. */
     fun removeQueueItem(index: Int) = controller.removeQueueItem(index)
 
-    /** Jumps to and plays the queue item at [index] — the Up Next screen's row tap. */
+    /** Jumps to and plays the item at [index] in [upcomingQueue] — the Up Next screen's row tap. */
     fun playQueueItem(index: Int) = controller.seekToQueueItem(index)
 
     /**

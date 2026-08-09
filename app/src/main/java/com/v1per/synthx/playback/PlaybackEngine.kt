@@ -28,6 +28,15 @@ interface PlaybackEngine {
     /** Index into [queue] of the item currently playing, or -1 when the queue is empty. */
     val currentIndex: Flow<Int>
 
+    /**
+     * The real forward playback order starting immediately after the current item, and
+     * excluding it — i.e. exactly what [next] will walk through, one call at a time. When
+     * [shuffleEnabled] is on this is shuffle order, not timeline order: it is built by
+     * walking media3's own next-window traversal, so what this shows is guaranteed to match
+     * what actually plays next rather than a display-only approximation of it.
+     */
+    val upcomingQueue: Flow<List<Song>>
+
     val shuffleEnabled: Flow<Boolean>
     val repeatMode: Flow<RepeatMode>
 
@@ -84,13 +93,20 @@ interface PlaybackEngine {
     /** Appends [song] to the end of the queue. */
     fun addToQueue(song: Song)
 
-    /** Moves the item at [fromIndex] to [toIndex] within [queue], leaving playback running. */
+    /**
+     * Moves the item at [fromIndex] to [toIndex] within [upcomingQueue], leaving playback
+     * running. A no-op while shuffle is enabled: media3's `moveMediaItem` does not reindex
+     * its internal shuffle order (see [ExoPlayerEngine.moveQueueItem]'s implementation
+     * comment), so honouring this call under shuffle would desync what's displayed from
+     * what actually plays next. Callers are expected to also disable the affected UI, this
+     * is the backstop.
+     */
     fun moveQueueItem(fromIndex: Int, toIndex: Int)
 
-    /** Removes the item at [index] from [queue]. */
+    /** Removes the item at [index] in [upcomingQueue]. Safe under shuffle. */
     fun removeQueueItem(index: Int)
 
-    /** Jumps playback to the item at [index] in [queue] and plays it. */
+    /** Jumps playback to the item at [index] in [upcomingQueue] and plays it. */
     fun seekToQueueItem(index: Int)
 
     fun pause()

@@ -5,12 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
@@ -24,28 +22,37 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextTertiary
 
+// Material standard disabled-content alpha (Material 3 ships no ContentAlpha token) — same
+// value and same reasoning as SongRow's/PlayerTransportControls' DisabledContentAlpha.
+private const val DisabledContentAlpha = 0.38f
+
 /**
  * One Up Next row: swipe left/right to remove, tap to jump to and play, drag the trailing
  * handle to reorder. The handle is the only part [dragHandleModifier] is applied to — the
  * rest of the row must never start a reorder-drag, only [onClick] or the swipe.
+ *
+ * The currently-playing song is never rendered as a row here (it lives in QueueHeader
+ * instead), so there is no "is this the playing row" state to track any more.
+ * [dragEnabled] is false while shuffle is on — reordering isn't safe there, see
+ * [com.v1per.synthx.playback.ExoPlayerEngine.moveQueueItem]'s doc comment.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QueueRow(
     song: Song,
-    isCurrentlyPlaying: Boolean,
+    dragEnabled: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     dragHandleModifier: Modifier,
@@ -91,28 +98,22 @@ fun QueueRow(
                     .padding(vertical = Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Same neon playing-indicator bar convention as SongRow.
-                Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .fillMaxHeight()
-                        .background(if (isCurrentlyPlaying) Accent else Color.Transparent),
-                )
-
                 SongIdentity(
                     song = song,
-                    isCurrentlyPlaying = isCurrentlyPlaying,
+                    isCurrentlyPlaying = false,
                     modifier = Modifier.weight(1f),
                 )
 
                 IconButton(
                     onClick = {},
+                    enabled = dragEnabled,
                     modifier = dragHandleModifier.padding(end = Spacing.sm),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.DragHandle,
                         contentDescription = stringResource(R.string.cd_drag_handle),
                         tint = TextTertiary,
+                        modifier = Modifier.alpha(if (dragEnabled) 1f else DisabledContentAlpha),
                     )
                 }
             }

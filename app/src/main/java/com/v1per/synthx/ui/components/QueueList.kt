@@ -14,16 +14,21 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
- * The Up Next list. Reordering is visual-only until the drag ends — [localQueue] mirrors
- * [queue] and animates through intermediate positions, but [onMove] (the engine mutation)
- * only fires once, on drop, with the net from/to indices. [queue] is still the single
- * source of truth: once the engine's move lands, the next [queue] emission resets
- * [localQueue] to match it.
+ * The Up Next list — [queue] is the upcoming-only, shuffle-respecting order (the currently
+ * playing song is never one of its rows). Reordering is visual-only until the drag ends —
+ * [localQueue] mirrors [queue] and animates through intermediate positions, but [onMove]
+ * (the engine mutation) only fires once, on drop, with the net from/to indices. [queue] is
+ * still the single source of truth: once the engine's move lands, the next [queue] emission
+ * resets [localQueue] to match it.
+ *
+ * Drag-reorder is disabled whenever [shuffleEnabled] is true — moving an item while
+ * shuffled is unsafe (see [com.v1per.synthx.playback.ExoPlayerEngine.moveQueueItem]'s doc
+ * comment for why); swipe-to-remove has no such restriction and stays enabled either way.
  */
 @Composable
 fun QueueList(
     queue: List<Song>,
-    currentSongId: String?,
+    shuffleEnabled: Boolean,
     onSongClick: (index: Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
     onRemove: (index: Int) -> Unit,
@@ -44,10 +49,11 @@ fun QueueList(
             ReorderableItem(reorderableState, key = song.id) {
                 QueueRow(
                     song = song,
-                    isCurrentlyPlaying = song.id == currentSongId,
+                    dragEnabled = !shuffleEnabled,
                     onClick = { onSongClick(index) },
                     onRemove = { onRemove(index) },
                     dragHandleModifier = Modifier.draggableHandle(
+                        enabled = !shuffleEnabled,
                         onDragStarted = { dragStartIndex = index },
                         onDragStopped = {
                             val endIndex = localQueue.indexOfFirst { it.id == song.id }

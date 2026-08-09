@@ -64,8 +64,7 @@ fun QueueScreen(
     val currentSong by playbackViewModel.currentSong.collectAsState()
     val song = currentSong ?: return
 
-    val queue by playbackViewModel.queue.collectAsState()
-    val currentSongId by playbackViewModel.currentSongId.collectAsState()
+    val upcomingQueue by playbackViewModel.upcomingQueue.collectAsState()
     val isPlaying by playbackViewModel.isPlaying.collectAsState()
     val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
     val repeatMode by playbackViewModel.repeatMode.collectAsState()
@@ -90,11 +89,16 @@ fun QueueScreen(
     }
 
     LaunchedEffect(controlsHeightPx) {
+        // newTarget is explicit rather than left to updateAnchors' default: the sheet must
+        // always rest at Peek (controls visible) the moment it opens, never Full — spelling
+        // the target out here removes any dependency on AnchoredDraggableState's own
+        // (correct, but implicit) default-target resolution for this first call.
         draggableState.updateAnchors(
-            DraggableAnchors {
+            newAnchors = DraggableAnchors {
                 QueueSheetValue.ControlsVisible at 0f
                 QueueSheetValue.ListFullScreen at -controlsHeightPx
             },
+            newTarget = QueueSheetValue.ControlsVisible,
         )
     }
 
@@ -143,8 +147,8 @@ fun QueueScreen(
             }
 
             QueueList(
-                queue = queue,
-                currentSongId = currentSongId,
+                queue = upcomingQueue,
+                shuffleEnabled = shuffleEnabled,
                 onSongClick = { index -> playbackViewModel.playQueueItem(index) },
                 onMove = playbackViewModel::moveQueueItem,
                 onRemove = playbackViewModel::removeQueueItem,

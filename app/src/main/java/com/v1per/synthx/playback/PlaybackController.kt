@@ -12,6 +12,7 @@ class PlaybackController(private val engine: PlaybackEngine) {
     val errors: Flow<PlaybackError> = engine.errors
     val queue: Flow<List<Song>> = engine.queue
     val currentIndex: Flow<Int> = engine.currentIndex
+    val upcomingQueue: Flow<List<Song>> = engine.upcomingQueue
     val shuffleEnabled: Flow<Boolean> = engine.shuffleEnabled
     val repeatMode: Flow<RepeatMode> = engine.repeatMode
     val hasNext: Flow<Boolean> = engine.hasNext

@@ -54,6 +54,15 @@ class ExoPlayerEngine(
     private val _currentIndex = MutableStateFlow(-1)
     override val currentIndex: Flow<Int> = _currentIndex.asStateFlow()
 
+    private val _upcomingQueue = MutableStateFlow<List<Song>>(emptyList())
+    override val upcomingQueue: Flow<List<Song>> = _upcomingQueue.asStateFlow()
+
+    // Parallel to _upcomingQueue.value: upcomingTimelineIndices[i] is the real timeline
+    // window index of upcomingQueue[i]. Recomputed alongside it in refreshUpcomingQueue();
+    // moveQueueItem/removeQueueItem/seekToQueueItem translate the display index the UI
+    // hands them through this before touching the controller.
+    private var upcomingTimelineIndices: List<Int> = emptyList()
+
     private val _shuffleEnabled = MutableStateFlow(false)
     override val shuffleEnabled: Flow<Boolean> = _shuffleEnabled.asStateFlow()
 
@@ -121,6 +130,7 @@ class ExoPlayerEngine(
 
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             refreshQueue()
+            refreshUpcomingQueue()
             refreshNavigationState()
         }
 
@@ -129,6 +139,8 @@ class ExoPlayerEngine(
             // rebuild currentSong, so the queue must already be up to date when the id lands.
             refreshQueue()
             _currentSongId.value = mediaItem?.mediaId?.takeIf { it.isNotEmpty() }
+            // The current item moved, so "everything after it" moves with it.
+            refreshUpcomingQueue()
             refreshNavigationState()
             prefetchArtwork()
         }
@@ -138,7 +150,9 @@ class ExoPlayerEngine(
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
             _shuffleEnabled.value = shuffleModeEnabled
             persistence.shuffleEnabled = shuffleModeEnabled
-            // Shuffle changes which item comes next, so the lookahead target moves.
+            // Shuffle changes which item comes next, so the lookahead target moves, and the
+            // upcoming order itself — what QueueScreen displays — changes entirely.
+            refreshUpcomingQueue()
             prefetchArtwork()
             refreshNavigationState()
         }
@@ -199,6 +213,7 @@ class ExoPlayerEngine(
                     _shuffleEnabled.value = ctrl.shuffleModeEnabled
                     _repeatMode.value = ctrl.repeatMode.toRepeatMode()
                     refreshQueue()
+                    refreshUpcomingQueue()
                     refreshNavigationState()
                     controllerReady.complete(true)
                 } catch (_: Exception) {
@@ -264,15 +279,21 @@ class ExoPlayerEngine(
             artworkLoadedIds.clear()
             artworkLoadedIds.add(startSong.id)
 
+            // setMediaItems first: shuffleModeEnabled's listener (onShuffleModeEnabledChanged)
+            // fires synchronously and calls refreshUpcomingQueue(), which walks the
+            // controller's timeline — that timeline must already have windows in it, or
+            // Timeline.getWindow throws IndexOutOfBoundsException (see refreshUpcomingQueue's
+            // doc comment for the matching defensive guard).
+            ctrl.setMediaItems(mediaItems, restored.startIndex, restored.positionMs)
             ctrl.shuffleModeEnabled = persistence.shuffleEnabled
             ctrl.repeatMode = persistence.repeatMode
-            ctrl.setMediaItems(mediaItems, restored.startIndex, restored.positionMs)
             ctrl.prepare()
 
             // Not routed through onQueueStructureChanged: the persist below is conditional,
             // and a restored queue counts as pristine — the customisation flag is session
             // state that deliberately does not survive the restart.
             refreshQueue()
+            refreshUpcomingQueue()
             _isQueueCustomized.value = false
             // The stored rows disagree with what actually loaded — rewrite them so the
             // saved index and the queue cannot drift further apart on the next restore.
@@ -328,31 +349,48 @@ class ExoPlayerEngine(
     }
 
     /**
-     * media3 tracks the currently-playing item by identity, not index: moving it just
-     * changes where [currentIndex] reports it, playback itself is undisturbed. Moving any
-     * other item is likewise a pure timeline reorder — nothing to special-case here.
+     * [fromIndex]/[toIndex] are positions in [upcomingQueue], translated here to real
+     * timeline indices via [upcomingTimelineIndices] before touching the controller.
+     *
+     * Deliberately a no-op while shuffle is enabled: media3's `moveMediaItem` does not
+     * reindex its internal `ShuffleOrder` (confirmed open bug, androidx/media#1381 — still
+     * unfixed as of the media3 1.4.0 this project pins; a fix landed upstream in mid-2025
+     * but only as an opt-in hook that `DefaultShuffleOrder` does not implement, so it does
+     * nothing for us regardless). Moving a media item while shuffled would silently desync
+     * what [upcomingQueue] displays from what media3 actually plays next. The UI already
+     * disables the drag handle under shuffle (QueueRow); this is the backstop in case this
+     * is ever called some other way.
      */
     override fun moveQueueItem(fromIndex: Int, toIndex: Int) {
         val ctrl = controller ?: return
-        ctrl.moveMediaItem(fromIndex, toIndex)
+        if (ctrl.shuffleModeEnabled) return
+        val realFrom = upcomingTimelineIndices.getOrNull(fromIndex) ?: return
+        val realTo = upcomingTimelineIndices.getOrNull(toIndex) ?: return
+        ctrl.moveMediaItem(realFrom, realTo)
         onQueueStructureChanged(fresh = false)
     }
 
     /**
-     * Removing the currently-playing item is handled natively by media3: it auto-advances
-     * to whatever now occupies that position (same as a normal track transition, via
-     * onMediaItemTransition), or stops if the queue is left empty — both already flow
-     * through the existing listener. Nothing extra to do here.
+     * [index] is a position in [upcomingQueue], translated to the real timeline index via
+     * [upcomingTimelineIndices]. Unlike move, remove is safe under shuffle: media3's
+     * `removeMediaItem` does correctly reindex the shuffle order (it goes through
+     * `ShuffleOrder.cloneAndRemove`, the same path `addMediaItem` uses via
+     * `cloneAndInsert` — neither exhibits androidx/media#1381, which is specific to move).
+     * The currently-playing item can no longer reach this method at all: it isn't part of
+     * [upcomingQueue] any more, so there's nothing to special-case for it here.
      */
     override fun removeQueueItem(index: Int) {
         val ctrl = controller ?: return
-        ctrl.removeMediaItem(index)
+        val realIndex = upcomingTimelineIndices.getOrNull(index) ?: return
+        ctrl.removeMediaItem(realIndex)
         onQueueStructureChanged(fresh = false)
     }
 
+    /** [index] is a position in [upcomingQueue], translated to the real timeline index. */
     override fun seekToQueueItem(index: Int) {
         val ctrl = controller ?: return
-        ctrl.seekTo(index, C.TIME_UNSET)
+        val realIndex = upcomingTimelineIndices.getOrNull(index) ?: return
+        ctrl.seekTo(realIndex, C.TIME_UNSET)
         ctrl.play()
     }
 
@@ -407,6 +445,7 @@ class ExoPlayerEngine(
      */
     private fun onQueueStructureChanged(fresh: Boolean) {
         refreshQueue()
+        refreshUpcomingQueue()
         persistQueue()
         _isQueueCustomized.value = !fresh
         prefetchArtwork()
@@ -457,6 +496,58 @@ class ExoPlayerEngine(
         _currentIndex.value = ctrl.currentMediaItemIndex.takeIf {
             it != C.INDEX_UNSET && it < songs.size
         } ?: -1
+    }
+
+    /**
+     * Rebuilds [upcomingQueue] (and the parallel [upcomingTimelineIndices] display-index ->
+     * real-timeline-index map) by walking forward from the current item one window at a
+     * time via [Timeline.getNextWindowIndex] with [Player.REPEAT_MODE_OFF] forced — this is
+     * a single forward pass for display purposes, not the player's actual repeat setting,
+     * so it terminates at the real end of the queue instead of looping. `shuffleModeEnabled`
+     * is passed through for real, though: this is the exact traversal media3's own
+     * seekToNext/seekToPrevious use internally (confirmed against the session library's
+     * RemotableTimeline, which is what a MediaController's currentTimeline actually is),
+     * so what this produces is guaranteed to match what [next] actually does next rather
+     * than a display-only guess at it.
+     *
+     * Guarded against an empty/unready timeline: [MediaController.getCurrentMediaItemIndex]
+     * returns `0`, not [C.INDEX_UNSET], when the timeline has no windows yet, so that check
+     * alone doesn't catch a listener callback firing before `setMediaItems` has landed —
+     * this bit us via `onShuffleModeEnabledChanged` firing mid-`restoreSavedQueue` (see that
+     * method's comment). Bounds-checking against the timeline's actual window count closes
+     * that off regardless of which caller manages to invoke this too early next.
+     */
+    private fun refreshUpcomingQueue() {
+        val ctrl = controller
+        val startIndex = ctrl?.currentMediaItemIndex
+        val timeline = ctrl?.currentTimeline
+        if (ctrl == null || timeline == null || startIndex == null ||
+            startIndex == C.INDEX_UNSET || startIndex !in 0 until timeline.windowCount
+        ) {
+            _upcomingQueue.value = emptyList()
+            upcomingTimelineIndices = emptyList()
+            return
+        }
+
+        val window = Timeline.Window()
+        val songs = ArrayList<Song>()
+        val indices = ArrayList<Int>()
+
+        // visited guards against an unforeseen cycle; REPEAT_MODE_OFF should already
+        // terminate at C.INDEX_UNSET on its own, this is defensive insurance only.
+        val visited = HashSet<Int>()
+        var index = timeline.getNextWindowIndex(startIndex, Player.REPEAT_MODE_OFF, ctrl.shuffleModeEnabled)
+        while (index != C.INDEX_UNSET && visited.add(index)) {
+            val mediaId = timeline.getWindow(index, window).mediaItem.mediaId
+            songsById[mediaId]?.let {
+                songs.add(it)
+                indices.add(index)
+            }
+            index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF, ctrl.shuffleModeEnabled)
+        }
+
+        _upcomingQueue.value = songs
+        upcomingTimelineIndices = indices
     }
 
     // --- artwork -----------------------------------------------------------------
