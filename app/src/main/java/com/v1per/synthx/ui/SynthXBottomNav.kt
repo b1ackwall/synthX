@@ -38,6 +38,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.PlayerSheet
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
@@ -63,6 +64,11 @@ fun BottomChromeOverlay(
     onQueueClick: () -> Unit,
     playbackViewModel: PlaybackViewModel,
 ) {
+    // Both the nav and the sheet live in one Box sharing one navigationBarsPadding() call —
+    // previously the sheet had no inset applied at all, so it measured its available height
+    // against the raw window while the nav measured against the inset-adjusted one. On any
+    // device with a non-zero system nav bar, that mismatch let the sheet's growing bounds
+    // and the nav's fixed bounds genuinely overlap instead of sitting cleanly stacked.
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -82,34 +88,36 @@ fun BottomChromeOverlay(
                 playerProgress = if (currentSong != null) playerProgress else 0f,
             )
         }
-    }
 
-    // The player overlays everything as a sibling to the Scaffold so it can expand
-    // upward over the content — and, once expanded, over the nav area the sliding nav
-    // vacates. It fills the whole Box; its own progress-driven inset keeps the collapsed
-    // mini above the nav.
-    AnimatedVisibility(
-        visible = showBottomBar && currentSong != null,
-        enter = ChromeEnterTransition,
-        exit = ChromeExitTransition,
-    ) {
-        currentSong?.let { song ->
-            val hasNext by playbackViewModel.hasNext.collectAsState()
-            val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
-            PlayerSheet(
-                song = song,
-                isPlaying = isPlaying,
-                currentPosition = currentPosition,
-                duration = duration,
-                onPlayPauseClick = playbackViewModel::togglePlayPause,
-                onSeek = playbackViewModel::seekTo,
-                onPreviousClick = playbackViewModel::previous,
-                onNextClick = playbackViewModel::next,
-                hasPrevious = hasPrevious,
-                hasNext = hasNext,
-                onQueueClick = onQueueClick,
-                onProgressChanged = onPlayerProgressChanged,
-            )
+        // The player overlays everything as a sibling to the nav so it can expand upward
+        // over the content — and, once expanded, over the nav area the sliding nav vacates.
+        // It fills the whole Box; its own progress-driven inset keeps the collapsed mini
+        // above the nav. Sharing the same navigationBarsPadding()'d Box as the nav (rather
+        // than being a separate top-level sibling) is what keeps their coordinate frames —
+        // and therefore their bounds — in agreement at every progress value.
+        AnimatedVisibility(
+            visible = showBottomBar && currentSong != null,
+            enter = ChromeEnterTransition,
+            exit = ChromeExitTransition,
+        ) {
+            currentSong?.let { song ->
+                val hasNext by playbackViewModel.hasNext.collectAsState()
+                val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
+                PlayerSheet(
+                    song = song,
+                    isPlaying = isPlaying,
+                    currentPosition = currentPosition,
+                    duration = duration,
+                    onPlayPauseClick = playbackViewModel::togglePlayPause,
+                    onSeek = playbackViewModel::seekTo,
+                    onPreviousClick = playbackViewModel::previous,
+                    onNextClick = playbackViewModel::next,
+                    hasPrevious = hasPrevious,
+                    hasNext = hasNext,
+                    onQueueClick = onQueueClick,
+                    onProgressChanged = onPlayerProgressChanged,
+                )
+            }
         }
     }
 }
@@ -157,10 +165,13 @@ private fun SynthXBottomNav(
         ),
     )
 
-    // Slides the whole bar (divider + nav) down by its 70dp height as the player expands,
-    // clearing the way for the sheet to cover the full screen at progress = 1f.
+    // Slides the whole bar (divider + nav) down by its full BottomNavHeight as the player
+    // expands, clearing the way for the sheet to cover the full screen at progress = 1f.
+    // Shares BottomNavHeight with PlayerSheet's bottomInset lerp rather than a separate
+    // hardcoded constant — a mismatch here previously let the sheet's bottom edge and the
+    // nav's sliding top edge drift apart by up to 1dp across the drag.
     Column(
-        modifier = Modifier.offset(y = (playerProgress * 70).dp),
+        modifier = Modifier.offset(y = BottomNavHeight * playerProgress),
     ) {
         HorizontalDivider(
             thickness = 1.dp,

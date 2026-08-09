@@ -13,6 +13,8 @@ import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
@@ -46,8 +49,13 @@ import kotlinx.coroutines.launch
  */
 val CollapsedPlayerHeight: Dp = 64.dp
 
-/** Footprint of the bottom nav (70dp NavigationBar + 1dp divider) the collapsed sheet clears. */
-private val BottomNavHeight: Dp = 71.dp
+/**
+ * Footprint of the bottom nav (70dp NavigationBar + 1dp divider) the collapsed sheet clears.
+ * Public so BottomChromeOverlay's nav slide-offset and MainScaffold's content padding share
+ * this exact value instead of duplicating the magic number — any drift between them shows up
+ * as a visible seam or overlap between the mini player and the nav.
+ */
+val BottomNavHeight: Dp = 71.dp
 
 enum class PlayerSheetValue { Collapsed, Expanded }
 
@@ -180,6 +188,11 @@ private fun PlayerSheetContent(
     // edge to cover the nav area (the nav itself slides away in MainScaffold). This inset
     // is driven by the internal progress only, so it never feeds back into the drag anchors.
     val bottomInset = lerp(BottomNavHeight, 0.dp, progress)
+    val playbackProgress = if (duration > 0) {
+        (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
 
     Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomInset)) {
         Box(
@@ -190,14 +203,31 @@ private fun PlayerSheetContent(
                 .clip(RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius))
                 .background(Surface),
         ) {
-            // Top neon hairline — the sheet's defining edge, present in every state.
-            Box(
+            // Top hairline doubles as a playback progress indicator — elapsed portion in
+            // high-contrast accent, remaining portion at the dim structural Hairline value.
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Hairline)
                     .align(Alignment.TopCenter),
-            )
+            ) {
+                if (playbackProgress > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .weight(playbackProgress)
+                            .fillMaxHeight()
+                            .background(Accent.copy(alpha = 0.65f)),
+                    )
+                }
+                if (playbackProgress < 1f) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f - playbackProgress)
+                            .fillMaxHeight()
+                            .background(Hairline),
+                    )
+                }
+            }
 
             PlayerMiniBar(
                 song = song,

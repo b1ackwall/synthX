@@ -27,13 +27,11 @@ import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackError
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.playback.QueuePromptEvent
+import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.QueuePromptDialog
 import com.v1per.synthx.ui.components.QueueScreen
 import com.v1per.synthx.ui.components.SongActionsHost
-
-/** Footprint of the overlay bottom nav (70dp NavigationBar + 1dp divider). */
-private val BottomNavHeight = 71.dp
 
 @Composable
 fun MainScaffold(navController: NavHostController = rememberNavController()) {
