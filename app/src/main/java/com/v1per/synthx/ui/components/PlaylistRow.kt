@@ -122,6 +122,7 @@ internal fun PlaylistRow(
                 )
             }
             PlaylistThreeDotsMenu(
+                playlistName = playlist.name,
                 availableGroups = availableGroups,
                 currentGroupId = playlist.groupId,
                 onRename = {
@@ -141,6 +142,7 @@ internal fun PlaylistRow(
 
 @Composable
 private fun PlaylistThreeDotsMenu(
+    playlistName: String,
     availableGroups: List<PlaylistGroup>,
     currentGroupId: String?,
     onRename: () -> Unit,
@@ -149,6 +151,7 @@ private fun PlaylistThreeDotsMenu(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Box {
         IconButton(onClick = { showMenu = true }) {
@@ -190,7 +193,7 @@ private fun PlaylistThreeDotsMenu(
                 text = { Text(stringResource(R.string.action_delete)) },
                 onClick = {
                     showMenu = false
-                    onDelete()
+                    showDeleteConfirm = true
                 },
             )
         }
@@ -208,5 +211,16 @@ private fun PlaylistThreeDotsMenu(
                 )
             }
         }
+    }
+
+    if (showDeleteConfirm) {
+        DeletePlaylistDialog(
+            playlistName = playlistName,
+            onConfirm = {
+                showDeleteConfirm = false
+                onDelete()
+            },
+            onDismiss = { showDeleteConfirm = false },
+        )
     }
 }

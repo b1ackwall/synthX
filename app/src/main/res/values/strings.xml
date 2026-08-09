@@ -97,6 +97,10 @@
     <string name="delete_song_dialog_title">Delete this song?</string>
     <string name="delete_song_dialog_message">This permanently removes the song from your library, along with its playlist entries, listen history, and artist and album links. The file on disk is not affected. This cannot be undone.</string>
 
+    <!-- Playlists -->
+    <string name="delete_playlist_dialog_title">Delete this playlist?</string>
+    <string name="delete_playlist_dialog_message">This permanently removes \"%1$s\". The songs in it are not deleted. This cannot be undone.</string>
+
     <!-- Backup &amp; restore -->
     <string name="restore_empty">No backups found. Pick a backup folder in Library Management first.</string>
     <string name="restore_tier_with_reason">%1$s · %2$s</string>
