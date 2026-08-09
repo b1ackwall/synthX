@@ -62,6 +62,8 @@ fun SongActionsBottomSheet(
     sheetState: SheetState,
     playlists: List<Playlist>,
     currentPlaylistId: String?,
+    showDeleteRow: Boolean,
+    deleteEnabled: Boolean,
     onDeleteSong: () -> Unit,
     onGoToAlbum: (albumId: String) -> Unit,
     onGoToArtist: (artistId: String) -> Unit,
@@ -86,6 +88,8 @@ fun SongActionsBottomSheet(
             SheetPage.Actions -> ActionsPage(
                 song = song,
                 currentPlaylistId = currentPlaylistId,
+                showDeleteRow = showDeleteRow,
+                deleteEnabled = deleteEnabled,
                 onDeleteSong = { showDeleteConfirm = true },
                 onGoToAlbum = onGoToAlbum,
                 onGoToArtist = onGoToArtist,
@@ -126,6 +130,8 @@ fun SongActionsBottomSheet(
 private fun ActionsPage(
     song: Song,
     currentPlaylistId: String?,
+    showDeleteRow: Boolean,
+    deleteEnabled: Boolean,
     onDeleteSong: () -> Unit,
     onGoToAlbum: (String) -> Unit,
     onGoToArtist: (String) -> Unit,
@@ -145,12 +151,15 @@ private fun ActionsPage(
         )
         HorizontalDivider(thickness = 1.dp, color = Hairline)
 
-        ActionRow(
-            icon = Icons.Default.Delete,
-            label = stringResource(R.string.actions_delete_song),
-            tint = Error,
-            onClick = onDeleteSong,
-        )
+        if (showDeleteRow) {
+            ActionRow(
+                icon = Icons.Default.Delete,
+                label = stringResource(R.string.actions_delete_song),
+                tint = Error,
+                enabled = deleteEnabled,
+                onClick = onDeleteSong,
+            )
+        }
 
         if (currentPlaylistId != null) {
             ActionRow(

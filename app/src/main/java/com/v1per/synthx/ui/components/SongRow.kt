@@ -105,7 +105,7 @@ internal fun SongRow(
                 )
 
                 IconButton(
-                    onClick = { songActions.show(song, currentPlaylistId) },
+                    onClick = { songActions.show(song, currentPlaylistId, SongActionSource.Default) },
                     modifier = Modifier.padding(end = Spacing.sm),
                 ) {
                     Icon(

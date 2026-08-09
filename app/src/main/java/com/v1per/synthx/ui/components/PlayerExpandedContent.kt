@@ -99,7 +99,7 @@ fun PlayerExpandedContent(
                 )
             }
             IconButton(
-                onClick = { songActions.show(song, null) },
+                onClick = { songActions.show(song, null, SongActionSource.Player) },
                 enabled = enabled,
             ) {
                 Icon(

@@ -20,6 +20,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -38,6 +40,7 @@ import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -61,6 +64,7 @@ fun LibraryManagementScreen(
     val missingSongCount by viewModel.missingSongCount.collectAsState()
     val backupFolderUri by viewModel.backupFolderUri.collectAsState()
     val backupStatus by viewModel.backupStatus.collectAsState()
+    val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
 
     // Resolved here, not in the callback below: the launcher result lambda is not a
     // composable scope, so stringResource cannot be called from inside it.
@@ -125,6 +129,7 @@ fun LibraryManagementScreen(
             missingSongCount = missingSongCount,
             backupFolderPath = backupFolderUri?.toString(),
             backupStatus = backupStatus,
+            deleteSongsEnabled = deleteSongsEnabled,
             onPickFolder = { folderPicker.launch(null) },
             onRescan = viewModel::rescanLibrary,
             onCancelScan = viewModel::cancelScan,
@@ -132,6 +137,7 @@ fun LibraryManagementScreen(
             onPickBackupFolder = { backupFolderPicker.launch(null) },
             onBackupNow = viewModel::createManualBackup,
             onRestoreClick = onRestoreClick,
+            onToggleDeleteSongs = viewModel::setDeleteSongsEnabled,
         )
     }
 }
@@ -146,6 +152,7 @@ private fun LibraryManagementScreenContent(
     missingSongCount: Int,
     backupFolderPath: String?,
     backupStatus: String?,
+    deleteSongsEnabled: Boolean,
     onPickFolder: () -> Unit,
     onRescan: () -> Unit,
     onCancelScan: () -> Unit,
@@ -153,6 +160,7 @@ private fun LibraryManagementScreenContent(
     onPickBackupFolder: () -> Unit,
     onBackupNow: () -> Unit,
     onRestoreClick: () -> Unit,
+    onToggleDeleteSongs: (Boolean) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         MusicFolderRow(
@@ -182,6 +190,10 @@ private fun LibraryManagementScreenContent(
         IssuesRow(
             count = missingSongCount,
             onClick = onIssuesClick,
+        )
+        DeleteSongsRow(
+            enabled = deleteSongsEnabled,
+            onToggle = onToggleDeleteSongs,
         )
 
         HorizontalDivider(thickness = 1.dp, color = Hairline)
@@ -282,6 +294,47 @@ private fun IssuesRow(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,
             tint = TextTertiary,
+        )
+    }
+}
+
+/**
+ * Safety toggle gating the delete-song action in Issues and the song actions sheet.
+ * Off by default and never persisted — see DeleteSongsGate. The switch itself stays
+ * off the neon accent, which the design system reserves for five specific contexts
+ * this isn't one of.
+ */
+@Composable
+private fun DeleteSongsRow(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.settings_delete_songs),
+            style = MaterialTheme.typography.bodyLarge,
+            color = TextPrimary,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = Spacing.md),
+        )
+        Switch(
+            checked = enabled,
+            onCheckedChange = onToggle,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Error,
+                checkedTrackColor = Error.copy(alpha = 0.3f),
+                checkedBorderColor = Error,
+                uncheckedThumbColor = TextTertiary,
+                uncheckedTrackColor = SurfaceVariant,
+                uncheckedBorderColor = Hairline,
+            ),
         )
     }
 }
@@ -434,6 +487,7 @@ private fun LibraryManagementWithFolderPreview() {
                 missingSongCount = 3,
                 backupFolderPath = null,
                 backupStatus = null,
+                deleteSongsEnabled = false,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
@@ -441,6 +495,7 @@ private fun LibraryManagementWithFolderPreview() {
                 onPickBackupFolder = {},
                 onBackupNow = {},
                 onRestoreClick = {},
+                onToggleDeleteSongs = {},
             )
         }
     }
@@ -463,6 +518,7 @@ private fun LibraryManagementEmptyPreview() {
                 missingSongCount = 0,
                 backupFolderPath = null,
                 backupStatus = null,
+                deleteSongsEnabled = false,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
@@ -470,6 +526,7 @@ private fun LibraryManagementEmptyPreview() {
                 onPickBackupFolder = {},
                 onBackupNow = {},
                 onRestoreClick = {},
+                onToggleDeleteSongs = {},
             )
         }
     }
@@ -492,6 +549,7 @@ private fun LibraryManagementScanningPreview() {
                 missingSongCount = 0,
                 backupFolderPath = null,
                 backupStatus = null,
+                deleteSongsEnabled = false,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
@@ -499,6 +557,7 @@ private fun LibraryManagementScanningPreview() {
                 onPickBackupFolder = {},
                 onBackupNow = {},
                 onRestoreClick = {},
+                onToggleDeleteSongs = {},
             )
         }
     }

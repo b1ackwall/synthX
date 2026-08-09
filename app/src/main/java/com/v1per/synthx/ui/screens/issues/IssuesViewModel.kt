@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.MissingSongInfo
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,9 @@ class IssuesViewModel(
 
     private val _uiState = MutableStateFlow<UiState<List<MissingSongInfo>>>(UiState.Loading)
     val uiState: StateFlow<UiState<List<MissingSongInfo>>> = _uiState.asStateFlow()
+
+    /** Gates the delete row in the menu below — see [DeleteSongsGate]. */
+    val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
 
     init {
         viewModelScope.launch {

@@ -25,6 +25,7 @@ import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.preferences.DeleteSongsGate
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -35,9 +36,12 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** Where the sheet was opened from — lets the sheet tailor itself per origin. */
+enum class SongActionSource { Default, Player }
+
 /** Opens the song actions sheet from anywhere inside [SongActionsHost]. */
 fun interface SongActionsController {
-    fun show(song: Song, currentPlaylistId: String?)
+    fun show(song: Song, currentPlaylistId: String?, source: SongActionSource)
 }
 
 /** Outcomes worth telling the user about, surfaced as a Snackbar by [SongActionsHost]. */
@@ -58,7 +62,7 @@ sealed class SongActionEvent {
  * Defaults to a no-op so previews and tests can render SongRow without a host.
  */
 val LocalSongActions: ProvidableCompositionLocal<SongActionsController> =
-    compositionLocalOf { SongActionsController { _, _ -> } }
+    compositionLocalOf { SongActionsController { _, _, _ -> } }
 
 /**
  * Owns the single SongActionsBottomSheet instance and provides [LocalSongActions] to
@@ -83,6 +87,7 @@ fun SongActionsHost(
         factory = SongActionsViewModel.Factory(context),
     )
     val playlists by viewModel.playlists.collectAsState()
+    val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
 
     // context.getString rather than stringResource: the collect lambda is not a composable
     // scope, and the playlist name is only known at emit time.
@@ -113,8 +118,8 @@ fun SongActionsHost(
     }
 
     val controller = remember {
-        SongActionsController { song, playlistId ->
-            target = SongActionsTarget(song, playlistId)
+        SongActionsController { song, playlistId, source ->
+            target = SongActionsTarget(song, playlistId, source)
         }
     }
 
@@ -128,6 +133,8 @@ fun SongActionsHost(
             sheetState = sheetState,
             playlists = playlists,
             currentPlaylistId = current.playlistId,
+            showDeleteRow = current.source != SongActionSource.Player,
+            deleteEnabled = deleteSongsEnabled,
             onDeleteSong = {
                 val id = current.song.id
                 dismiss { viewModel.deleteSong(id) }
@@ -170,7 +177,11 @@ fun SongActionsHost(
     }
 }
 
-private data class SongActionsTarget(val song: Song, val playlistId: String?)
+private data class SongActionsTarget(
+    val song: Song,
+    val playlistId: String?,
+    val source: SongActionSource,
+)
 
 class SongActionsViewModel(
     private val repository: SongRepository,
@@ -179,6 +190,9 @@ class SongActionsViewModel(
     val playlists: StateFlow<List<Playlist>> = repository.getAllPlaylists()
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Gates the delete row in the sheet below — see [DeleteSongsGate]. */
+    val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
 
     // One-off UI events, matching LibraryViewModel's NavigationEvent and the playback
     // error flow: buffered by one, newest wins, never replayed to a new collector.

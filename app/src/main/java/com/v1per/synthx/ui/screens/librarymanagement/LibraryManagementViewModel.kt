@@ -14,6 +14,7 @@ import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
+import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -60,6 +61,9 @@ class LibraryManagementViewModel(
 
     private val _backupStatus = MutableStateFlow<String?>(null)
     val backupStatus: StateFlow<String?> = _backupStatus.asStateFlow()
+
+    /** Thin passthrough to the shared in-memory gate — see [DeleteSongsGate]. */
+    val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
 
     // Set only for states WorkManager can't express — currently just "no folder picked",
     // which never reaches the worker. Cleared as soon as a scan is actually enqueued.
@@ -179,6 +183,10 @@ class LibraryManagementViewModel(
 
     fun cancelScan() {
         LibraryScanWorker.cancel(context)
+    }
+
+    fun setDeleteSongsEnabled(enabled: Boolean) {
+        DeleteSongsGate.setDeleteSongsEnabled(enabled)
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {

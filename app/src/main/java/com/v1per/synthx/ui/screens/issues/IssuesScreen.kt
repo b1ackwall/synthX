@@ -60,12 +60,14 @@ fun IssuesScreen(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         topBar()
 
         IssuesContent(
             uiState = uiState,
+            deleteEnabled = deleteSongsEnabled,
             onDelete = viewModel::deleteSong,
         )
     }
@@ -74,6 +76,7 @@ fun IssuesScreen(
 @Composable
 private fun IssuesContent(
     uiState: UiState<List<MissingSongInfo>>,
+    deleteEnabled: Boolean,
     onDelete: (String) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -97,6 +100,7 @@ private fun IssuesContent(
                 items(uiState.data, key = { it.id }) { song ->
                     MissingSongRow(
                         song = song,
+                        deleteEnabled = deleteEnabled,
                         onDelete = { onDelete(song.id) },
                     )
                 }
@@ -109,6 +113,7 @@ private fun IssuesContent(
 @Composable
 private fun MissingSongRow(
     song: MissingSongInfo,
+    deleteEnabled: Boolean,
     onDelete: () -> Unit,
 ) {
     Column {
@@ -146,7 +151,7 @@ private fun MissingSongRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            MissingSongMenu(onDelete = onDelete)
+            MissingSongMenu(deleteEnabled = deleteEnabled, onDelete = onDelete)
         }
         HorizontalDivider(
             thickness = 1.dp,
@@ -156,7 +161,7 @@ private fun MissingSongRow(
 }
 
 @Composable
-private fun MissingSongMenu(onDelete: () -> Unit) {
+private fun MissingSongMenu(deleteEnabled: Boolean, onDelete: () -> Unit) {
     var showMenu by remember { mutableStateOf(false) }
     var showConfirm by remember { mutableStateOf(false) }
 
@@ -174,6 +179,7 @@ private fun MissingSongMenu(onDelete: () -> Unit) {
         ) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.issues_delete_song)) },
+                enabled = deleteEnabled,
                 onClick = {
                     showMenu = false
                     showConfirm = true
@@ -238,6 +244,7 @@ private fun IssuesPreview() {
                         ),
                     ),
                 ),
+                deleteEnabled = true,
                 onDelete = {},
             )
         }
@@ -254,6 +261,7 @@ private fun IssuesEmptyPreview() {
         ) {
             IssuesContent(
                 uiState = UiState.Empty,
+                deleteEnabled = true,
                 onDelete = {},
             )
         }
