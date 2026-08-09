@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.components
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -10,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.v1per.synthx.data.repository.Song
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -29,6 +31,11 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  * [state] is hoisted (rather than owned internally) so a host embedding this list — e.g.
  * PlayerExpandedContent's Queue mode — can observe its scroll position for its own purposes
  * (there: collapsing the seek bar/transport controls once the list scrolls).
+ *
+ * [contentPadding] exists for hosts that let this list extend underneath an overlay: the
+ * rows draw through the full viewport, but the padding extends the scroll range so the last
+ * row can still be brought clear of whatever is drawn on top. Callers should keep it
+ * constant — varying it mid-scroll moves the max-scroll offset under the user's finger.
  */
 @Composable
 fun QueueList(
@@ -38,6 +45,7 @@ fun QueueList(
     onMove: (from: Int, to: Int) -> Unit,
     onRemove: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
     state: LazyListState = rememberLazyListState(),
 ) {
     var localQueue by remember(queue) { mutableStateOf(queue) }
@@ -49,7 +57,7 @@ fun QueueList(
         }
     }
 
-    LazyColumn(state = state, modifier = modifier) {
+    LazyColumn(state = state, contentPadding = contentPadding, modifier = modifier) {
         itemsIndexed(localQueue, key = { _, song -> song.id }) { index, song ->
             ReorderableItem(reorderableState, key = song.id) {
                 QueueRow(

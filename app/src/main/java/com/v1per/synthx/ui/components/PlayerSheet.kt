@@ -281,6 +281,15 @@ private fun PlayerSheetContent(
                 onQueueSongClick = onQueueSongClick,
                 onQueueMove = onQueueMove,
                 onQueueRemove = onQueueRemove,
+                // Built once at the sheet's *full* expanded height and pinned to the bottom,
+                // rather than fillMaxSize()-ing inside this Box as it grows. The drag then
+                // reveals pre-measured content from the bottom up through the sheet's clip
+                // boundary instead of re-measuring the whole player every frame — and the
+                // fixed-height controls overlay inside never has to negotiate a container
+                // shorter than itself (which, mid-drag, it otherwise would).
+                modifier = Modifier
+                    .height(fullHeight)
+                    .align(Alignment.BottomCenter),
             )
         }
     }

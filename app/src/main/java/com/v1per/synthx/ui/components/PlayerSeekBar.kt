@@ -33,6 +33,15 @@ private val TouchTargetHeight = 24.dp
 private val TrackHeight = 4.dp
 
 /**
+ * Pinned rather than left to the text's own line height, so this composable's total height is
+ * a constant 48dp (24 touch target + 8 spacer + 16 labels) independent of the system font
+ * scale. PlayerExpandedContent's ControlsOverlayHeight budgets exactly that 48dp; if this row
+ * grew with font scale it could push the overlay's fixed children past its fixed height and
+ * collapse the flexible gap inside it to zero.
+ */
+private val TimestampRowHeight = 16.dp
+
+/**
  * Drag-only scrubbing: the thumb/labels follow the finger live via local [dragPositionMs]
  * state, but [onSeek] only fires on release — there is no live audio preview during drag.
  */
@@ -110,8 +119,11 @@ fun PlayerSeekBar(
         Spacer(modifier = Modifier.height(Spacing.sm))
         // Timestamps
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TimestampRowHeight),
             horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = formatDuration(displayedPosition),
