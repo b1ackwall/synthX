@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
@@ -78,7 +79,14 @@ fun PlayerSheet(
     onNextClick: () -> Unit,
     hasPrevious: Boolean,
     hasNext: Boolean,
-    onQueueClick: () -> Unit,
+    upcomingQueue: List<Song>,
+    shuffleEnabled: Boolean,
+    repeatMode: RepeatMode,
+    onShuffleClick: () -> Unit,
+    onRepeatClick: () -> Unit,
+    onQueueSongClick: (index: Int) -> Unit,
+    onQueueMove: (from: Int, to: Int) -> Unit,
+    onQueueRemove: (index: Int) -> Unit,
     onProgressChanged: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -153,7 +161,14 @@ fun PlayerSheet(
             onNextClick = onNextClick,
             hasPrevious = hasPrevious,
             hasNext = hasNext,
-            onQueueClick = onQueueClick,
+            upcomingQueue = upcomingQueue,
+            shuffleEnabled = shuffleEnabled,
+            repeatMode = repeatMode,
+            onShuffleClick = onShuffleClick,
+            onRepeatClick = onRepeatClick,
+            onQueueSongClick = onQueueSongClick,
+            onQueueMove = onQueueMove,
+            onQueueRemove = onQueueRemove,
             onExpand = { scope.launch { draggableState.animateTo(PlayerSheetValue.Expanded) } },
             sheetModifier = Modifier.anchoredDraggable(draggableState, Orientation.Vertical),
         )
@@ -175,7 +190,14 @@ private fun PlayerSheetContent(
     onNextClick: () -> Unit = {},
     hasPrevious: Boolean = false,
     hasNext: Boolean = false,
-    onQueueClick: () -> Unit = {},
+    upcomingQueue: List<Song> = emptyList(),
+    shuffleEnabled: Boolean = false,
+    repeatMode: RepeatMode = RepeatMode.Off,
+    onShuffleClick: () -> Unit = {},
+    onRepeatClick: () -> Unit = {},
+    onQueueSongClick: (index: Int) -> Unit = {},
+    onQueueMove: (from: Int, to: Int) -> Unit = { _, _ -> },
+    onQueueRemove: (index: Int) -> Unit = {},
     onExpand: () -> Unit,
     sheetModifier: Modifier = Modifier,
 ) {
@@ -251,7 +273,14 @@ private fun PlayerSheetContent(
                 onNextClick = onNextClick,
                 hasPrevious = hasPrevious,
                 hasNext = hasNext,
-                onQueueClick = onQueueClick,
+                upcomingQueue = upcomingQueue,
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+                onShuffleClick = onShuffleClick,
+                onRepeatClick = onRepeatClick,
+                onQueueSongClick = onQueueSongClick,
+                onQueueMove = onQueueMove,
+                onQueueRemove = onQueueRemove,
             )
         }
     }

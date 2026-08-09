@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.components
 
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -24,6 +25,10 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  * Drag-reorder is disabled whenever [shuffleEnabled] is true — moving an item while
  * shuffled is unsafe (see [com.v1per.synthx.playback.ExoPlayerEngine.moveQueueItem]'s doc
  * comment for why); swipe-to-remove has no such restriction and stays enabled either way.
+ *
+ * [state] is hoisted (rather than owned internally) so a host embedding this list — e.g.
+ * PlayerExpandedContent's Queue mode — can observe its scroll position for its own purposes
+ * (there: collapsing the seek bar/transport controls once the list scrolls).
  */
 @Composable
 fun QueueList(
@@ -33,18 +38,18 @@ fun QueueList(
     onMove: (from: Int, to: Int) -> Unit,
     onRemove: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
+    state: LazyListState = rememberLazyListState(),
 ) {
     var localQueue by remember(queue) { mutableStateOf(queue) }
     var dragStartIndex by remember { mutableStateOf(-1) }
 
-    val lazyListState = rememberLazyListState()
-    val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+    val reorderableState = rememberReorderableLazyListState(state) { from, to ->
         localQueue = localQueue.toMutableList().apply {
             add(to.index, removeAt(from.index))
         }
     }
 
-    LazyColumn(state = lazyListState, modifier = modifier) {
+    LazyColumn(state = state, modifier = modifier) {
         itemsIndexed(localQueue, key = { _, song -> song.id }) { index, song ->
             ReorderableItem(reorderableState, key = song.id) {
                 QueueRow(

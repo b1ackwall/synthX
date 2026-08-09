@@ -40,6 +40,7 @@ import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.PlayerSheet
+import com.v1per.synthx.ui.components.next
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Surface
@@ -61,7 +62,6 @@ fun BottomChromeOverlay(
     duration: Long,
     playerProgress: Float,
     onPlayerProgressChanged: (Float) -> Unit,
-    onQueueClick: () -> Unit,
     playbackViewModel: PlaybackViewModel,
 ) {
     // Both the nav and the sheet live in one Box sharing one navigationBarsPadding() call —
@@ -103,6 +103,9 @@ fun BottomChromeOverlay(
             currentSong?.let { song ->
                 val hasNext by playbackViewModel.hasNext.collectAsState()
                 val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
+                val upcomingQueue by playbackViewModel.upcomingQueue.collectAsState()
+                val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
+                val repeatMode by playbackViewModel.repeatMode.collectAsState()
                 PlayerSheet(
                     song = song,
                     isPlaying = isPlaying,
@@ -114,7 +117,14 @@ fun BottomChromeOverlay(
                     onNextClick = playbackViewModel::next,
                     hasPrevious = hasPrevious,
                     hasNext = hasNext,
-                    onQueueClick = onQueueClick,
+                    upcomingQueue = upcomingQueue,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    onShuffleClick = { playbackViewModel.setShuffleEnabled(!shuffleEnabled) },
+                    onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
+                    onQueueSongClick = playbackViewModel::playQueueItem,
+                    onQueueMove = playbackViewModel::moveQueueItem,
+                    onQueueRemove = playbackViewModel::removeQueueItem,
                     onProgressChanged = onPlayerProgressChanged,
                 )
             }

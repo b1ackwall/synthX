@@ -151,7 +151,7 @@ class ExoPlayerEngine(
             _shuffleEnabled.value = shuffleModeEnabled
             persistence.shuffleEnabled = shuffleModeEnabled
             // Shuffle changes which item comes next, so the lookahead target moves, and the
-            // upcoming order itself — what QueueScreen displays — changes entirely.
+            // upcoming order itself — what the Up Next queue UI displays — changes entirely.
             refreshUpcomingQueue()
             prefetchArtwork()
             refreshNavigationState()

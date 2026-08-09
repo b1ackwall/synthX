@@ -43,8 +43,9 @@ private const val DisabledContentAlpha = 0.38f
  * handle to reorder. The handle is the only part [dragHandleModifier] is applied to — the
  * rest of the row must never start a reorder-drag, only [onClick] or the swipe.
  *
- * The currently-playing song is never rendered as a row here (it lives in QueueHeader
- * instead), so there is no "is this the playing row" state to track any more.
+ * The currently-playing song is never rendered as a row here (it lives in
+ * PlayerExpandedContent's Queue-mode header instead), so there is no "is this the playing
+ * row" state to track any more.
  * [dragEnabled] is false while shuffle is on — reordering isn't safe there, see
  * [com.v1per.synthx.playback.ExoPlayerEngine.moveQueueItem]'s doc comment.
  */
