@@ -112,6 +112,7 @@
     <!-- Queue -->
     <string name="queue_prompt_title">Keep the songs in your Up Next queue?</string>
     <string name="queue_prompt_message">Keep plays this song now and continues with the songs you queued. Clear replaces the queue with the list you tapped from.</string>
+    <string name="queue_up_next">Up Next</string>
 
     <!-- Library scan -->
     <string name="scan_channel_name">Library scan</string>
@@ -141,4 +142,10 @@
     <string name="cd_clear">Clear</string>
     <string name="cd_enter_library">Enter library</string>
     <string name="cd_search">Search</string>
+    <string name="cd_close">Close</string>
+    <string name="cd_shuffle">Shuffle</string>
+    <string name="cd_repeat">Repeat</string>
+    <string name="cd_autoplay">Autoplay</string>
+    <string name="cd_drag_handle">Reorder</string>
+    <string name="cd_remove_from_queue">Remove from queue</string>
 </resources>

@@ -65,6 +65,7 @@ fun PlayerSheet(
     duration: Long,
     onPlayPauseClick: () -> Unit,
     onSeek: (Long) -> Unit,
+    onQueueClick: () -> Unit,
     onProgressChanged: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -127,6 +128,7 @@ fun PlayerSheet(
             fullWidth = maxWidth,
             fullHeight = maxHeight,
             onPlayPauseClick = onPlayPauseClick,
+            onQueueClick = onQueueClick,
             onExpand = { scope.launch { draggableState.animateTo(PlayerSheetValue.Expanded) } },
             sheetModifier = Modifier.anchoredDraggable(draggableState, Orientation.Vertical),
         )
@@ -143,6 +145,7 @@ private fun PlayerSheetContent(
     fullWidth: Dp,
     fullHeight: Dp,
     onPlayPauseClick: () -> Unit,
+    onQueueClick: () -> Unit = {},
     onExpand: () -> Unit,
     sheetModifier: Modifier = Modifier,
 ) {
@@ -191,6 +194,7 @@ private fun PlayerSheetContent(
                 alpha = fullPlayerAlpha,
                 artSize = artSize,
                 onPlayPauseClick = onPlayPauseClick,
+                onQueueClick = onQueueClick,
             )
         }
     }

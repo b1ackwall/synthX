@@ -61,6 +61,15 @@ interface PlaybackEngine {
     /** Appends [song] to the end of the queue. */
     fun addToQueue(song: Song)
 
+    /** Moves the item at [fromIndex] to [toIndex] within [queue], leaving playback running. */
+    fun moveQueueItem(fromIndex: Int, toIndex: Int)
+
+    /** Removes the item at [index] from [queue]. */
+    fun removeQueueItem(index: Int)
+
+    /** Jumps playback to the item at [index] in [queue] and plays it. */
+    fun seekToQueueItem(index: Int)
+
     fun pause()
     fun resume()
     fun stop()

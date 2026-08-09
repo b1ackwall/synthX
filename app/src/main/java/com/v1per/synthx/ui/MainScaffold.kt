@@ -29,6 +29,7 @@ import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.playback.QueuePromptEvent
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.QueuePromptDialog
+import com.v1per.synthx.ui.components.QueueScreen
 import com.v1per.synthx.ui.components.SongActionsHost
 
 /** Footprint of the overlay bottom nav (70dp NavigationBar + 1dp divider). */
@@ -90,6 +91,11 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     // to slide the bottom nav down in lockstep with the sheet's expansion.
     var playerProgress by remember { mutableStateOf(0f) }
 
+    // Up Next / Queue overlay — a sibling layer above PlayerSheet, opened from its queue
+    // button. Not a NavHost destination: it must stay reachable regardless of nav state,
+    // same reasoning as PlayerSheet itself.
+    var queueVisible by remember { mutableStateOf(false) }
+
     // The route we were on before the current one. The assignment runs in a LaunchedEffect,
     // i.e. after the composition that observed the route change — so during the frame where
     // showBottomBar flips, this still holds the outgoing route.
@@ -149,8 +155,19 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             duration = duration,
             playerProgress = playerProgress,
             onPlayerProgressChanged = { playerProgress = it },
+            onQueueClick = { queueVisible = true },
             playbackViewModel = playbackViewModel,
         )
+
+        // Drawn after the player so it sits above it. Only meaningful with a current song —
+        // closing the player (stop) while the queue is open would otherwise leave it
+        // stranded with nothing to show.
+        if (queueVisible && currentSong != null) {
+            QueueScreen(
+                playbackViewModel = playbackViewModel,
+                onClose = { queueVisible = false },
+            )
+        }
 
         // Declared last so it draws over the nav and player, and offset by the same
         // chrome reservation the destinations use so it never sits behind them. Both

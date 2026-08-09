@@ -42,6 +42,7 @@ fun PlayerExpandedContent(
     alpha: Float,
     artSize: Dp,
     onPlayPauseClick: () -> Unit,
+    onQueueClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Same sheet SongRow opens; the player is never playlist-scoped so the id is null.
@@ -127,7 +128,7 @@ fun PlayerExpandedContent(
             horizontalArrangement = Arrangement.Center,
         ) {
             IconButton(
-                onClick = {},
+                onClick = onQueueClick,
                 enabled = enabled,
             ) {
                 Icon(

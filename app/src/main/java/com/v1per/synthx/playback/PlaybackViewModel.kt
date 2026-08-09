@@ -186,6 +186,13 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
         if (hasActivePlayback()) controller.addToQueue(song) else playQueue(listOf(song), 0)
     }
 
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) = controller.moveQueueItem(fromIndex, toIndex)
+
+    fun removeQueueItem(index: Int) = controller.removeQueueItem(index)
+
+    /** Jumps to and plays the queue item at [index] — the Up Next screen's row tap. */
+    fun playQueueItem(index: Int) = controller.seekToQueueItem(index)
+
     /**
      * False both when nothing was ever queued and when a queue ran to its end — stop()
      * leaves the timeline populated but idle, so the item count alone would be misleading.

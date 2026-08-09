@@ -59,6 +59,7 @@ fun BottomChromeOverlay(
     duration: Long,
     playerProgress: Float,
     onPlayerProgressChanged: (Float) -> Unit,
+    onQueueClick: () -> Unit,
     playbackViewModel: PlaybackViewModel,
 ) {
     // Bottom nav as overlay — never affects layout. Arriving from Home it fades in on
@@ -143,6 +144,7 @@ fun BottomChromeOverlay(
                 duration = duration,
                 onPlayPauseClick = playbackViewModel::togglePlayPause,
                 onSeek = playbackViewModel::seekTo,
+                onQueueClick = onQueueClick,
                 onProgressChanged = onPlayerProgressChanged,
             )
         }

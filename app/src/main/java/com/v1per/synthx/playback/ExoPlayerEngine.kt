@@ -310,6 +310,35 @@ class ExoPlayerEngine(
         onQueueStructureChanged(fresh = false)
     }
 
+    /**
+     * media3 tracks the currently-playing item by identity, not index: moving it just
+     * changes where [currentIndex] reports it, playback itself is undisturbed. Moving any
+     * other item is likewise a pure timeline reorder — nothing to special-case here.
+     */
+    override fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        val ctrl = controller ?: return
+        ctrl.moveMediaItem(fromIndex, toIndex)
+        onQueueStructureChanged(fresh = false)
+    }
+
+    /**
+     * Removing the currently-playing item is handled natively by media3: it auto-advances
+     * to whatever now occupies that position (same as a normal track transition, via
+     * onMediaItemTransition), or stops if the queue is left empty — both already flow
+     * through the existing listener. Nothing extra to do here.
+     */
+    override fun removeQueueItem(index: Int) {
+        val ctrl = controller ?: return
+        ctrl.removeMediaItem(index)
+        onQueueStructureChanged(fresh = false)
+    }
+
+    override fun seekToQueueItem(index: Int) {
+        val ctrl = controller ?: return
+        ctrl.seekTo(index, C.TIME_UNSET)
+        ctrl.play()
+    }
+
     override fun pause() {
         controller?.pause()
         // Pause and app-backgrounded are the only position writes: saving on every tick
