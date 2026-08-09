@@ -42,6 +42,7 @@ fun PlayerExpandedContent(
     alpha: Float,
     artSize: Dp,
     onPlayPauseClick: () -> Unit,
+    onSeek: (Long) -> Unit,
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
     hasPrevious: Boolean,
@@ -112,7 +113,7 @@ fun PlayerExpandedContent(
 
         Spacer(modifier = Modifier.height(Spacing.md))
 
-        PlayerSeekBar(currentPosition = currentPosition, duration = duration)
+        PlayerSeekBar(currentPosition = currentPosition, duration = duration, onSeek = onSeek)
 
         // Flexible between seek and controls
         Spacer(modifier = Modifier.weight(1f))
