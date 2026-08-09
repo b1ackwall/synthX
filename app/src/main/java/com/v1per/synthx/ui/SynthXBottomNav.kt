@@ -99,6 +99,21 @@ fun BottomChromeOverlay(
     }
 }
 
+// Routes reachable by pushing further from Library's root — tapping the Library tab from
+// any of these should reset to Library's root rather than restore mid-stack.
+private val libraryTabRoutes = setOf(
+    Screen.Songs.route,
+    Screen.ArtistList.route,
+    Screen.ArtistDetail.ROUTE,
+    Screen.AlbumList.route,
+    Screen.AlbumDetail.ROUTE,
+    Screen.PlaylistList.route,
+    Screen.CreatePlaylist.route,
+    Screen.GroupDetail.ROUTE,
+    Screen.PlaylistDetail.ROUTE,
+    Screen.AddSongs.ROUTE,
+)
+
 @Composable
 private fun SynthXBottomNav(
     navController: NavController,
@@ -117,6 +132,7 @@ private fun SynthXBottomNav(
             stringResource(R.string.nav_library),
             Icons.Filled.LibraryMusic,
             Icons.Outlined.LibraryMusic,
+            hierarchyRoutes = libraryTabRoutes,
         ),
         BottomNavItem(
             Screen.Search,
@@ -145,12 +161,29 @@ private fun SynthXBottomNav(
                 NavigationBarItem(
                     selected = selected,
                     onClick = {
-                        navController.navigate(item.screen.route) {
-                            popUpTo(navController.graph.startDestinationId) {
-                                saveState = true
+                        when {
+                            // Already at this tab's own root — nothing to do.
+                            currentRoute == item.screen.route -> Unit
+                            // Deeper in this tab's own hierarchy — reset to root instead of
+                            // restoring the sub-screen just left.
+                            currentRoute in item.hierarchyRoutes -> {
+                                navController.navigate(item.screen.route) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = false
+                                    }
+                                    launchSingleTop = true
+                                }
                             }
-                            launchSingleTop = true
-                            restoreState = true
+                            // A different tab entirely — standard restore-on-switch.
+                            else -> {
+                                navController.navigate(item.screen.route) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
                         }
                     },
                     icon = {
@@ -184,4 +217,5 @@ private data class BottomNavItem(
     val label: String,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
+    val hierarchyRoutes: Set<String> = emptySet(),
 )
