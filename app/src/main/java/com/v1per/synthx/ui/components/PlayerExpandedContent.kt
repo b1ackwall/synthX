@@ -42,6 +42,10 @@ fun PlayerExpandedContent(
     alpha: Float,
     artSize: Dp,
     onPlayPauseClick: () -> Unit,
+    onPreviousClick: () -> Unit,
+    onNextClick: () -> Unit,
+    hasPrevious: Boolean,
+    hasNext: Boolean,
     onQueueClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -116,6 +120,10 @@ fun PlayerExpandedContent(
         PlayerTransportControls(
             isPlaying = isPlaying,
             onPlayPauseClick = onPlayPauseClick,
+            onPreviousClick = onPreviousClick,
+            onNextClick = onNextClick,
+            hasPrevious = hasPrevious,
+            hasNext = hasNext,
             enabled = enabled,
         )
 

@@ -28,6 +28,8 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -137,6 +139,8 @@ fun BottomChromeOverlay(
         },
     ) {
         currentSong?.let { song ->
+            val hasNext by playbackViewModel.hasNext.collectAsState()
+            val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
             PlayerSheet(
                 song = song,
                 isPlaying = isPlaying,
@@ -144,6 +148,10 @@ fun BottomChromeOverlay(
                 duration = duration,
                 onPlayPauseClick = playbackViewModel::togglePlayPause,
                 onSeek = playbackViewModel::seekTo,
+                onPreviousClick = playbackViewModel::previous,
+                onNextClick = playbackViewModel::next,
+                hasPrevious = hasPrevious,
+                hasNext = hasNext,
                 onQueueClick = onQueueClick,
                 onProgressChanged = onPlayerProgressChanged,
             )

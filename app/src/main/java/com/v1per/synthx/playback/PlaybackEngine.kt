@@ -32,6 +32,21 @@ interface PlaybackEngine {
     val repeatMode: Flow<RepeatMode>
 
     /**
+     * Whether [next] would move to a genuinely different item. False only at the end of
+     * the queue with repeat off; Repeat All wraps and Repeat One is treated as always
+     * having a next (media3's own navigation ignores repeat-one's looping, but a track a
+     * user is repeating is one they'd still expect to be able to skip off of).
+     */
+    val hasNext: Flow<Boolean>
+
+    /**
+     * Whether [previous] would do anything — true whenever a current item exists. Always
+     * true during active playback: with nothing before it to jump to, [previous] restarts
+     * the current item instead of doing nothing (see [previous]'s kdoc).
+     */
+    val hasPrevious: Flow<Boolean>
+
+    /**
      * True once the queue has been hand-modified since it was last set wholesale — today
      * by playNext/addToQueue, tomorrow by reorder/remove. In-memory only: a restart or the
      * next [playQueue] puts it back to false.
@@ -51,6 +66,14 @@ interface PlaybackEngine {
     fun persistPlaybackState()
 
     fun next()
+
+    /**
+     * Restarts the current item if more than [media3's default 3s][androidx.media3.common.C.DEFAULT_MAX_SEEK_TO_PREVIOUS_POSITION_MS]
+     * into it, otherwise jumps to the actual previous queue item — standard player
+     * convention (Apple Music, Spotify). This is media3's own built-in `Player.seekToPrevious()`
+     * behavior, not hand-rolled: it already applies this exact threshold, and already
+     * falls back to restarting the current item when there is no previous one.
+     */
     fun previous()
     fun setShuffleEnabled(enabled: Boolean)
     fun setRepeatMode(mode: RepeatMode)

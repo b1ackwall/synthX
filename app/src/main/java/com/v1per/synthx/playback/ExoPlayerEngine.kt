@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -61,6 +62,17 @@ class ExoPlayerEngine(
 
     private val _isQueueCustomized = MutableStateFlow(false)
     override val isQueueCustomized: Flow<Boolean> = _isQueueCustomized.asStateFlow()
+
+    // Recomputed imperatively (see refreshNavigationState) rather than derived from other
+    // flows: ctrl.hasNextMediaItem() is a snapshot query with no Flow of its own, and it
+    // needs the shuffle- and repeat-aware answer only the controller can give.
+    private val _hasNext = MutableStateFlow(false)
+    override val hasNext: Flow<Boolean> = _hasNext.asStateFlow()
+
+    // Pure function of currentSongId: whenever a current item exists, previous() always
+    // does something (restart, or jump — see previous()'s kdoc), so this needs no
+    // separate refresh hook.
+    override val hasPrevious: Flow<Boolean> = currentSongId.map { it != null }
 
     // replay = 0 with a 1-slot buffer: a failure that lands while nothing is collecting
     // is dropped rather than replayed later as a stale message.
@@ -109,6 +121,7 @@ class ExoPlayerEngine(
 
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             refreshQueue()
+            refreshNavigationState()
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -116,6 +129,7 @@ class ExoPlayerEngine(
             // rebuild currentSong, so the queue must already be up to date when the id lands.
             refreshQueue()
             _currentSongId.value = mediaItem?.mediaId?.takeIf { it.isNotEmpty() }
+            refreshNavigationState()
             prefetchArtwork()
         }
 
@@ -126,12 +140,14 @@ class ExoPlayerEngine(
             persistence.shuffleEnabled = shuffleModeEnabled
             // Shuffle changes which item comes next, so the lookahead target moves.
             prefetchArtwork()
+            refreshNavigationState()
         }
 
         override fun onRepeatModeChanged(repeatMode: Int) {
             _repeatMode.value = repeatMode.toRepeatMode()
             persistence.repeatMode = repeatMode
             prefetchArtwork()
+            refreshNavigationState()
         }
 
         /**
@@ -183,6 +199,7 @@ class ExoPlayerEngine(
                     _shuffleEnabled.value = ctrl.shuffleModeEnabled
                     _repeatMode.value = ctrl.repeatMode.toRepeatMode()
                     refreshQueue()
+                    refreshNavigationState()
                     controllerReady.complete(true)
                 } catch (_: Exception) {
                     // Service connection failed — playback methods will be no-ops until retry
@@ -353,6 +370,7 @@ class ExoPlayerEngine(
     override fun stop() {
         controller?.stop()
         _currentSongId.value = null
+        refreshNavigationState()
     }
 
     override fun seekTo(positionMs: Long) {
@@ -396,6 +414,19 @@ class ExoPlayerEngine(
 
     private fun persistQueue() {
         persistence.saveQueue(_queue.value)
+    }
+
+    /**
+     * media3's own next/previous navigation treats Repeat One as Repeat Off — it ignores
+     * the single-item loop and looks for a genuinely different next window — so
+     * [MediaController.hasNextMediaItem] alone would disable the next button at the last
+     * item even while repeating it. The `|| repeatMode == One` override matches the
+     * product requirement instead: a track the user is repeating is still one they expect
+     * to be able to skip off of.
+     */
+    private fun refreshNavigationState() {
+        val ctrl = controller
+        _hasNext.value = ctrl != null && (ctrl.hasNextMediaItem() || _repeatMode.value == RepeatMode.One)
     }
 
     /**

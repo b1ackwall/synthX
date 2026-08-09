@@ -57,6 +57,12 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     val repeatMode: StateFlow<RepeatMode> = controller.repeatMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RepeatMode.Off)
 
+    val hasNext: StateFlow<Boolean> = controller.hasNext
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val hasPrevious: StateFlow<Boolean> = controller.hasPrevious
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     // Eagerly for the same reason as queue above: requestPlayQueue reads .value on every
     // song tap, and under WhileSubscribed that would be a stale false whenever no UI
     // happens to be collecting it.
