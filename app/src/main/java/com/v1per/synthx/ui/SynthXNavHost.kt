@@ -107,15 +107,21 @@ private fun NavGraphBuilder.coreRoutes(
     composable(
         route = Screen.Home.route,
         // Forward is an instant cut (the shared-element wordmark carries the
-        // motion); popping back crossfades Home in over Library's fadeOut.
+        // motion); popping back from Library crossfades Home in over Library's
+        // fadeOut. Popping back from anywhere else (Search) is an instant cut,
+        // matching every other non-Home/Library boundary.
         exitTransition = { ExitTransition.None },
         popEnterTransition = {
-            fadeIn(
-                animationSpec = tween(
-                    durationMillis = Motion.DurationNormal,
-                    easing = Motion.EasingDecelerate,
-                ),
-            )
+            if (initialState.destination.route == Screen.Library.route) {
+                fadeIn(
+                    animationSpec = tween(
+                        durationMillis = Motion.DurationNormal,
+                        easing = Motion.EasingDecelerate,
+                    ),
+                )
+            } else {
+                EnterTransition.None
+            }
         },
     ) {
         HomeScreen(

@@ -205,37 +205,38 @@ private fun SynthXBottomNav(
                 NavigationBarItem(
                     selected = selected,
                     onClick = {
-                        when {
-                            item.screen.route == Screen.Home.route -> {
+                        when (item.screen.route) {
+                            Screen.Home.route -> {
                                 // Home is only ever reached as a pop from Library, so that the
                                 // Home/Library crossfade pair runs. From anywhere deeper, land
-                                // on Library first — a second tap then pops through to Home.
+                                // on Library's root first — with its saved state deliberately
+                                // discarded, not restored — and stop; a second tap then pops
+                                // through to Home.
                                 if (currentRoute == Screen.Library.route) {
                                     navController.popBackStack(Screen.Home.route, inclusive = false)
                                 } else {
                                     navController.navigate(Screen.Library.route) {
-                                        popUpTo(Screen.Home.route) { inclusive = false }
-                                        restoreState = true
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = false
+                                        }
+                                        launchSingleTop = true
                                     }
                                 }
                             }
-                            currentRoute in setOf(
-                                Screen.Songs.route,
-                                Screen.ArtistList.route,
-                                Screen.ArtistDetail.ROUTE,
-                                Screen.AlbumList.route,
-                                Screen.AlbumDetail.ROUTE,
-                                Screen.PlaylistList.route,
-                                Screen.CreatePlaylist.route,
-                                Screen.GroupDetail.ROUTE,
-                                Screen.PlaylistDetail.ROUTE,
-                                Screen.AddSongs.ROUTE,
-                            ) && item.screen.route == Screen.Library.route -> {
-                                navController.popBackStack(Screen.Library.route, inclusive = false)
+                            Screen.Library.route -> {
+                                navController.navigate(Screen.Library.route) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
-                            !selected -> {
-                                navController.navigate(item.screen.route) {
-                                    popUpTo(Screen.Home.route) { saveState = true }
+                            Screen.Search.route -> {
+                                navController.navigate(Screen.Search.route) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
