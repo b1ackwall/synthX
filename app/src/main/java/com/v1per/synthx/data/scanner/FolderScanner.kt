@@ -17,6 +17,8 @@ import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import androidx.room.withTransaction
+import com.v1per.synthx.data.deleteSongArtFile
+import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
@@ -76,7 +78,12 @@ class FolderScanner(
         val audioFiles = collectAudioFiles(root)
         val foundPaths = audioFiles.mapTo(mutableSetOf()) { it.uri.toString() }
 
-        database.withTransaction {
+        // Song ids evicted mid-transaction by the two paths below — their art files are
+        // deleted only after the transaction commits (see the loop after withTransaction),
+        // matching SongRepositoryImpl.deleteSong's commit-then-delete-file ordering.
+        val pendingArtCleanup = mutableListOf<String>()
+
+        val result = database.withTransaction {
             var added = 0
             var updated = 0
             var unchanged = 0
@@ -99,7 +106,8 @@ class FolderScanner(
                             // first to avoid UNIQUE constraint violation on file_path index
                             val occupant = songDao.getSongByPath(path)
                             if (occupant != null && occupant.id != existing.id) {
-                                songDao.deleteSongById(occupant.id)
+                                deleteSongRowWithArtRepoint(songDao, albumDao, occupant.id)
+                                pendingArtCleanup.add(occupant.id)
                             }
                             songDao.upsertSong(
                                 existing.copy(
@@ -121,7 +129,10 @@ class FolderScanner(
                 }
 
                 // Same path, different hash: the file content changed — treat as new
-                songDao.getSongByPath(path)?.let { stale -> songDao.deleteSongById(stale.id) }
+                songDao.getSongByPath(path)?.let { stale ->
+                    deleteSongRowWithArtRepoint(songDao, albumDao, stale.id)
+                    pendingArtCleanup.add(stale.id)
+                }
 
                 insertNewSong(file, id, path)
                 added++
@@ -152,6 +163,12 @@ class FolderScanner(
                 unchanged = unchanged,
             )
         }
+
+        // Only after the transaction commits — a file delete cannot be rolled back
+        // alongside the DB the way the row deletes above can.
+        pendingArtCleanup.forEach { deleteSongArtFile(context, it) }
+
+        result
     }
 
     /**
@@ -230,8 +247,18 @@ class FolderScanner(
         // Track metadata is often "5/12" (track 5 of 12) — keep only the track part
         val trackNumber = rawTrackNumber?.substringBefore("/")?.trim()?.toIntOrNull()
 
+        // Parsed once, up front: album resolution now needs the position-0 ("primary")
+        // artist to match against — see AlbumDao.getAlbumByTitleAndArtist — and that has
+        // to be known before the song row (and its song_artists rows) exist to join
+        // against. The per-artist loop below reuses this same list.
+        val rawArtistNames = splitArtists(rawArtist?.takeIf { it.isNotBlank() } ?: "Unknown Artist")
+            .distinctBy { it.lowercase() }
+        val primaryArtistNormalized = (rawArtistNames.firstOrNull() ?: "Unknown Artist")
+            .trim()
+            .lowercase()
+
         val albumId = rawAlbum?.takeIf { it.isNotBlank() }?.trim()?.let { albumTitle ->
-            resolveAlbum(albumTitle, year, albumArtUri).id
+            resolveAlbum(albumTitle, primaryArtistNormalized, year, albumArtUri).id
         }
 
         songDao.upsertSong(
@@ -249,19 +276,20 @@ class FolderScanner(
         )
 
         songArtistDao.deleteSongArtists(id)
-        val rawArtistNames = splitArtists(rawArtist?.takeIf { it.isNotBlank() } ?: "Unknown Artist")
-        rawArtistNames
-            .distinctBy { it.lowercase() }
-            .forEachIndexed { index, name ->
-                val artist = resolveArtist(name)
-                songArtistDao.insertSongArtist(
-                    SongArtistEntity(songId = id, artistId = artist.id, position = index)
-                )
-            }
+        rawArtistNames.forEachIndexed { index, name ->
+            val artist = resolveArtist(name)
+            songArtistDao.insertSongArtist(
+                SongArtistEntity(songId = id, artistId = artist.id, position = index)
+            )
+        }
     }
 
-    private suspend fun resolveAlbum(title: String, year: Int?, albumArtUri: String?): AlbumEntity =
-        albumDao.getOrInsertAlbum(title, year, albumArtUri)
+    private suspend fun resolveAlbum(
+        title: String,
+        primaryArtistNormalized: String,
+        year: Int?,
+        albumArtUri: String?,
+    ): AlbumEntity = albumDao.getOrInsertAlbum(title, primaryArtistNormalized, year, albumArtUri)
 
     private suspend fun resolveArtist(name: String): ArtistEntity {
         val normalized = name.trim().lowercase()

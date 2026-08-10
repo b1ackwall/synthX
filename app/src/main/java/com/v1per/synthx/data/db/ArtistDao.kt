@@ -33,7 +33,21 @@ interface ArtistDao {
         return artist
     }
 
-    @Query("SELECT * FROM artists ORDER BY name COLLATE NOCASE ASC")
+    // Artists where every associated song is_missing = 1 (or that have zero songs
+    // at all) are excluded via the EXISTS clause below, so they don't linger as
+    // dead entries — mirroring how missing songs already don't show up as
+    // tappable rows elsewhere.
+    @Query(
+        """
+        SELECT * FROM artists
+        WHERE EXISTS (
+            SELECT 1 FROM songs
+            INNER JOIN song_artists ON song_artists.song_id = songs.id
+            WHERE song_artists.artist_id = artists.id AND songs.is_missing = 0
+        )
+        ORDER BY name COLLATE NOCASE ASC
+        """
+    )
     fun getAllArtists(): Flow<List<ArtistEntity>>
 
     @Query("DELETE FROM artists WHERE id NOT IN (SELECT DISTINCT artist_id FROM song_artists)")

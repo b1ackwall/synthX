@@ -17,9 +17,10 @@ import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongWithDetails
 import com.v1per.synthx.data.db.SynthXDatabase
 import androidx.room.withTransaction
+import com.v1per.synthx.data.deleteSongArtFile
+import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.ScanResult
-import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -86,40 +87,24 @@ class SongRepositoryImpl(
     override suspend fun verifyLibrary(): Int = folderScanner.verify()
 
     /**
-     * Permanently removes a song. Its song_artists, listen_history and playlist_songs rows
-     * go with it via FK CASCADE — nothing here deletes them explicitly.
+     * Permanently removes a song. Its song_artists and playlist_songs rows go with it via
+     * FK CASCADE — nothing here deletes them explicitly.
      *
-     * The album's cover is re-pointed first if this song was supplying it, so the album is
-     * never left referencing a deleted song's art. That re-point and the row delete share
-     * one transaction; the art file is unlinked only after it commits, since a file delete
-     * cannot be rolled back alongside the DB.
+     * The album-art re-point + row delete (via [deleteSongRowWithArtRepoint]) share one
+     * transaction; the art file is unlinked only after it commits, since a file delete
+     * cannot be rolled back alongside the DB. Same shared cleanup FolderScanner's internal
+     * evictions use, so both deletion paths stay in sync.
      */
     override suspend fun deleteSong(id: String) = withContext(Dispatchers.IO) {
         // Backup-then-act: a failed backup (no folder configured) must not block the
         // delete the user explicitly asked for.
         backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_SONG)
 
-        val song = songDao.getSongById(id) ?: return@withContext
-        val albumId = song.albumId
-        val artUri = song.albumArtUri
-
         database.withTransaction {
-            // Only re-point when this song is the one the album borrowed its cover from;
-            // reassigning unconditionally could replace good art with a null.
-            if (albumId != null && artUri != null) {
-                val album = albumDao.getAlbumById(albumId)
-                if (album?.albumArtUri == artUri) {
-                    albumDao.updateAlbumArt(
-                        id = albumId,
-                        albumArtUri = songDao.findReplacementAlbumArt(albumId, id),
-                    )
-                }
-            }
-            songDao.deleteSongById(id)
+            deleteSongRowWithArtRepoint(songDao, albumDao, id)
         }
 
-        // Best-effort: returns false when the song never had embedded art, which is normal.
-        File(File(context.filesDir, "art"), "art_$id.png").delete()
+        deleteSongArtFile(context, id)
         Unit
     }
 

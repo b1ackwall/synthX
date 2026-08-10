@@ -93,9 +93,6 @@ interface SongDao {
     @Query("SELECT COUNT(*) FROM songs WHERE is_missing = 1")
     fun getMissingSongCount(): Flow<Int>
 
-    @Query("SELECT * FROM songs WHERE verified = 0")
-    fun getUnverifiedSongs(): Flow<List<SongEntity>>
-
     // Art URI of any other song still in the album, for re-pointing albums.album_art_uri
     // when the song that supplied it is deleted. Prefers a song that actually has art so
     // the album doesn't lose its cover to a song that never had one.

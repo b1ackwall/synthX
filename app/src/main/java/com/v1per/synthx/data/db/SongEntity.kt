@@ -34,6 +34,4 @@ data class SongEntity(
     @ColumnInfo(name = "date_added") val dateAdded: Long,
     @ColumnInfo(name = "is_missing", defaultValue = "0") val isMissing: Boolean = false,
     @ColumnInfo(name = "missing_since") val missingSince: Long? = null,
-    @ColumnInfo(defaultValue = "0") val verified: Boolean = false,
-    @ColumnInfo(name = "verified_at") val verifiedAt: Long? = null,
 )

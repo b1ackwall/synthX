@@ -13,17 +13,46 @@ interface AlbumDao {
     @Upsert
     suspend fun upsertAlbum(album: AlbumEntity)
 
-    @Query("SELECT * FROM albums WHERE title = :title COLLATE NOCASE LIMIT 1")
-    suspend fun getAlbumByTitle(title: String): AlbumEntity?
+    /**
+     * Matches on (title, primary artist) rather than title alone, so two different albums
+     * that happen to share a title (different artists) no longer collapse into one row.
+     * "Primary artist" is resolved by join against an *existing* song already in the
+     * candidate album, using the same position-0 convention [getAllAlbums] and
+     * `SongDao.getMissingSongs` already use elsewhere — not a stored column on albums, since
+     * that would need backfilling for every album merged under the old title-only match.
+     * [artistNormalized] must already be lowercase/trimmed the same way
+     * `ArtistDao.getOrInsertArtist`'s callers normalize, so it lines up with
+     * `artists.name_normalized`.
+     */
+    @Query(
+        """
+        SELECT albums.* FROM albums
+        WHERE albums.title = :title COLLATE NOCASE
+        AND EXISTS (
+            SELECT 1 FROM songs
+            INNER JOIN song_artists ON song_artists.song_id = songs.id
+                AND song_artists.position = 0
+            INNER JOIN artists ON artists.id = song_artists.artist_id
+            WHERE songs.album_id = albums.id AND artists.name_normalized = :artistNormalized
+        )
+        LIMIT 1
+        """
+    )
+    suspend fun getAlbumByTitleAndArtist(title: String, artistNormalized: String): AlbumEntity?
 
     /**
-     * Look up an album by title, inserting it if absent. Atomic so two concurrent
-     * scans cannot both miss the lookup and mint duplicate rows — `title` is
+     * Look up an album by (title, primary artist), inserting it if absent. Atomic so two
+     * concurrent scans cannot both miss the lookup and mint duplicate rows — `title` is
      * indexed but not unique, so SQLite would accept both.
      */
     @Transaction
-    suspend fun getOrInsertAlbum(title: String, year: Int?, albumArtUri: String?): AlbumEntity {
-        getAlbumByTitle(title)?.let { return it }
+    suspend fun getOrInsertAlbum(
+        title: String,
+        artistNormalized: String,
+        year: Int?,
+        albumArtUri: String?,
+    ): AlbumEntity {
+        getAlbumByTitleAndArtist(title, artistNormalized)?.let { return it }
         val album = AlbumEntity(
             id = UUID.randomUUID().toString(),
             title = title,
@@ -38,6 +67,10 @@ interface AlbumDao {
     // number, falling back to lowest rowid for untagged files). Room's SQL parser
     // rejects window functions and NULLS LAST, so this uses a correlated subquery
     // and the "expr IS NULL" ordering trick instead.
+    //
+    // Albums where every song is_missing = 1 (or that have zero songs at all) are
+    // excluded via the EXISTS clause below, so they don't linger as dead entries —
+    // mirroring how missing songs already don't show up as tappable rows elsewhere.
     @Query(
         """
         SELECT
@@ -54,6 +87,10 @@ interface AlbumDao {
             WHERE songs.album_id = albums.id AND songs.is_missing = 0
             ORDER BY songs.track_number IS NULL, songs.track_number ASC, songs.rowid ASC
             LIMIT 1
+        )
+        WHERE EXISTS (
+            SELECT 1 FROM songs
+            WHERE songs.album_id = albums.id AND songs.is_missing = 0
         )
         ORDER BY albums.title COLLATE NOCASE ASC
         """

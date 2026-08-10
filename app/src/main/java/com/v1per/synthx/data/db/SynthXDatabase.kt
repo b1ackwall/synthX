@@ -16,11 +16,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistGroupEntity::class,
         PlaylistEntity::class,
         PlaylistSongEntity::class,
-        ListenHistoryEntity::class,
         QueueItemEntity::class,
         BaselineQueueItemEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -30,12 +29,11 @@ abstract class SynthXDatabase : RoomDatabase() {
     abstract fun albumDao(): AlbumDao
     abstract fun songArtistDao(): SongArtistDao
     abstract fun playlistDao(): PlaylistDao
-    abstract fun listenHistoryDao(): ListenHistoryDao
     abstract fun queueDao(): QueueDao
 
     companion object {
         /** Must track the `version` in the @Database annotation above. */
-        const val VERSION = 6
+        const val VERSION = 7
 
         const val DB_NAME = "synthx.db"
 
@@ -126,6 +124,63 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        // Drops dead schema, confirmed via audit to have zero writers/readers anywhere in
+        // the app: listen_history (whole table — ListenHistoryDao was always an empty
+        // interface, never written to) and songs.verified/verified_at (declared,
+        // queried once via the never-called getUnverifiedSongs, never written).
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS listen_history")
+
+                // SQLite's ALTER TABLE DROP COLUMN needs 3.35+, not guaranteed at this
+                // app's minSdk — rebuild the table via the standard create/copy/drop/rename
+                // pattern instead. Room disables FK enforcement while migrations run, so
+                // the other tables' FOREIGN KEY(song_id) REFERENCES songs(id) don't block
+                // dropping/recreating this one.
+                database.execSQL(
+                    """
+                    CREATE TABLE songs_new (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        album_id TEXT,
+                        duration INTEGER NOT NULL,
+                        file_path TEXT NOT NULL,
+                        album_art_uri TEXT,
+                        year INTEGER,
+                        track_number INTEGER,
+                        date_added INTEGER NOT NULL,
+                        is_missing INTEGER NOT NULL DEFAULT 0,
+                        missing_since INTEGER,
+                        FOREIGN KEY(album_id) REFERENCES albums(id)
+                            ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    INSERT INTO songs_new (
+                        id, title, album_id, duration, file_path, album_art_uri, year,
+                        track_number, date_added, is_missing, missing_since
+                    )
+                    SELECT
+                        id, title, album_id, duration, file_path, album_art_uri, year,
+                        track_number, date_added, is_missing, missing_since
+                    FROM songs
+                    """.trimIndent()
+                )
+                database.execSQL("DROP TABLE songs")
+                database.execSQL("ALTER TABLE songs_new RENAME TO songs")
+
+                // Dropping the old table drops its indices too — recreate them.
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_songs_album_id ON songs(album_id)"
+                )
+                database.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_songs_file_path ON songs(file_path)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): SynthXDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -135,6 +190,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                 )
                     .addMigrations(
                         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                        MIGRATION_6_7,
                     )
                     .build()
                     .also { INSTANCE = it }
