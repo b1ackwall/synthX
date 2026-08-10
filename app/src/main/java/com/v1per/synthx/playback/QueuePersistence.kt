@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 
 /**
@@ -17,8 +18,15 @@ import kotlinx.coroutines.launch
  * `queue_items`, and shuffle / repeat / index / position in SharedPreferences.
  *
  * Kept out of [ExoPlayerEngine] so the engine stays a media3 adapter rather than growing a
- * second job. Writes are fire-and-forget on an IO scope: the engine mutates the timeline on
- * the main thread and must not block on a DB round trip to do it.
+ * second job. Writes are fire-and-forget from the caller's perspective: the engine mutates
+ * the timeline on the main thread and must not block on a DB round trip to do it. But
+ * fire-and-forget must still land in the order it was fired — two overlapping mutations
+ * (e.g. a reorder immediately followed by a remove) each independently launched on
+ * [Dispatchers.IO] have no guaranteed completion order, since IO is a shared thread-pool
+ * dispatcher, not one confined thread. Out-of-order completion is normally invisible (the
+ * next mutation re-persists the correct state anyway) but is wrong if the process dies in
+ * the exact window between two writes landing out of order. [writeQueue] plus the single
+ * consumer in [init] forces every write to execute strictly in call order instead.
  */
 class QueuePersistence(
     private val repository: SongRepository,
@@ -26,6 +34,16 @@ class QueuePersistence(
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val writeQueue = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+
+    init {
+        scope.launch {
+            for (write in writeQueue) {
+                write()
+            }
+        }
+    }
 
     /**
      * A queue read back from storage. [songs] can be shorter than what was saved — songs
@@ -41,7 +59,7 @@ class QueuePersistence(
 
     fun saveQueue(songs: List<Song>) {
         val ids = songs.map { it.id }
-        scope.launch {
+        writeQueue.trySend {
             try {
                 repository.setQueueSongs(ids)
             } catch (e: Exception) {
@@ -58,7 +76,7 @@ class QueuePersistence(
      */
     fun saveBaselineQueue(songs: List<Song>) {
         val ids = songs.map { it.id }
-        scope.launch {
+        writeQueue.trySend {
             try {
                 repository.setBaselineQueueSongs(ids)
             } catch (e: Exception) {
