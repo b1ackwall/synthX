@@ -17,7 +17,7 @@ import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.db.SynthXDatabase
-import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.data.scanner.VerifyLibraryWorker
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.MainScaffold
@@ -87,6 +87,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Cheap pass: flags songs whose files have gone. The full scan stays user-triggered
+    // from Library Management. Routed through WorkManager under LibraryScanWorker's unique
+    // work name (KEEP) rather than run inline, so it can never race a manually-triggered
+    // Rescan reading/writing is_missing at the same time — whichever is already running
+    // wins, the other enqueue is a no-op.
+    private fun verifyLibrary() {
+        VerifyLibraryWorker.enqueue(applicationContext)
+    }
+
     private suspend fun backupBeforeMigration(
         preferences: PreferencesManager,
         backupManager: BackupManager,
@@ -112,17 +121,6 @@ class MainActivity : ComponentActivity() {
         backupManager.createBackup(BackupTier.Daily)
             .onSuccess { preferences.lastDailyBackupTimestamp = now }
             .onFailure { e -> Log.w(TAG, "Daily backup skipped: ${e.message}") }
-    }
-
-    // Cheap pass: flags songs whose files have gone. The full scan stays user-triggered
-    // from Library Management.
-    private suspend fun verifyLibrary() {
-        try {
-            val newlyMissing = SongRepositoryImpl.create(applicationContext).verifyLibrary()
-            Log.d(TAG, "Launch verify complete: $newlyMissing newly missing")
-        } catch (e: Exception) {
-            Log.e(TAG, "Launch verify failed", e)
-        }
     }
 
     private companion object {
