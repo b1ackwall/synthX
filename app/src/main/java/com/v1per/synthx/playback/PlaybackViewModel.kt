@@ -33,8 +33,13 @@ data class QueuePromptEvent(
 
 class PlaybackViewModel(private val controller: PlaybackController) : ViewModel() {
 
-    val isPlaying: StateFlow<Boolean> = controller.isPlaying
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    // Combined optimistic/real play-pause state: a tap flips this synchronously, before the
+    // MediaController IPC round-trip confirms anything, so the icon never waits on the
+    // engine. Whatever the engine reports next — matching the tap or not, e.g. audio focus
+    // denied — overwrites it, since the engine is the only source that ever actually knows.
+    // No timeout/reconciliation logic needed: the real flow simply wins every time it emits.
+    private val _isPlaying = MutableStateFlow(false)
+    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
     val currentSongId: StateFlow<String?> = controller.currentSongId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -106,6 +111,12 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
                     else -> queue.value.firstOrNull { it.id == id } ?: _currentSong.value
                 }
             }
+        }
+
+        // The engine's own isPlaying always wins once it lands, overwriting whatever
+        // optimistic guess togglePlayPause()/pause()/resume() made on tap.
+        viewModelScope.launch {
+            controller.isPlaying.collect { real -> _isPlaying.value = real }
         }
     }
 
@@ -213,16 +224,22 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     private fun hasActivePlayback(): Boolean =
         currentSongId.value != null && queue.value.isNotEmpty()
 
-    fun pause() = controller.pause()
+    fun pause() {
+        _isPlaying.value = false
+        controller.pause()
+    }
 
-    fun resume() = controller.resume()
+    fun resume() {
+        _isPlaying.value = true
+        controller.resume()
+    }
 
     fun stop() = controller.stop()
 
     fun seekTo(positionMs: Long) = controller.seekTo(positionMs)
 
     fun togglePlayPause() {
-        if (isPlaying.value) pause() else resume()
+        if (_isPlaying.value) pause() else resume()
     }
 
     override fun onCleared() {
