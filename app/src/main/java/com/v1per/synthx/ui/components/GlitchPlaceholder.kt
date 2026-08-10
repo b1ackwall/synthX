@@ -19,6 +19,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.v1per.synthx.glitch.generateGlitchStrips
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.SurfaceVariant
@@ -31,22 +32,7 @@ fun GlitchPlaceholder(
     size: Dp = 48.dp,
     modifier: Modifier = Modifier,
 ) {
-    val strips = remember(songId) {
-        val hash = songId.hashCode()
-        val count = 4 + ((hash and Int.MAX_VALUE) % 3)
-        (0 until count).map { i ->
-            val h1 = hash xor (i * 0x9e3779b9.toInt())
-            val h2 = h1 * 0x6c62272e.toInt()
-            val h3 = h2 xor (h2 ushr 16)
-            GlitchStrip(
-                yFrac = (h1 and Int.MAX_VALUE).toFloat() / Int.MAX_VALUE.toFloat(),
-                heightFrac = 0.04f + ((h2 and Int.MAX_VALUE).toFloat() / Int.MAX_VALUE.toFloat()) * 0.22f,
-                widthFrac = 0.3f + ((h3 and Int.MAX_VALUE).toFloat() / Int.MAX_VALUE.toFloat()) * 0.7f,
-                colorIndex = (h1 and Int.MAX_VALUE) % 3,
-                offsetSign = if (i % 2 == 0) 1f else -1f,
-            )
-        }
-    }
+    val strips = remember(songId) { generateGlitchStrips(songId) }
 
     val glitchColors = listOf(
         Accent.copy(alpha = 0.6f),
@@ -73,11 +59,12 @@ fun GlitchPlaceholder(
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawRect(color = SurfaceVariant)
-            strips.forEach { strip ->
+            strips.forEachIndexed { i, strip ->
                 val y = strip.yFrac * this.size.height
                 val h = strip.heightFrac * this.size.height
                 val w = strip.widthFrac * this.size.width
-                val xOff = strip.offsetSign * pixelOffset.dp.toPx()
+                val offsetSign = if (i % 2 == 0) 1f else -1f
+                val xOff = offsetSign * pixelOffset.dp.toPx()
                 drawRect(
                     color = glitchColors[strip.colorIndex],
                     topLeft = Offset(xOff, y),
@@ -87,11 +74,3 @@ fun GlitchPlaceholder(
         }
     }
 }
-
-private data class GlitchStrip(
-    val yFrac: Float,
-    val heightFrac: Float,
-    val widthFrac: Float,
-    val colorIndex: Int,
-    val offsetSign: Float,
-)
