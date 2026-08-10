@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.components
 
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -112,6 +113,7 @@ private fun QueueModeHeader(
                 color = TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee(),
             )
             Text(
                 text = song.artist,
@@ -119,6 +121,7 @@ private fun QueueModeHeader(
                 color = TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee(),
             )
         }
 

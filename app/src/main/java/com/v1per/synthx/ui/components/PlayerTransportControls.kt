@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -29,6 +30,7 @@ private const val DisabledContentAlpha = 0.38f
 @Composable
 fun PlayerTransportControls(
     isPlaying: Boolean,
+    isBuffering: Boolean,
     onPlayPauseClick: () -> Unit,
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
@@ -65,16 +67,24 @@ fun PlayerTransportControls(
             modifier = Modifier.size(96.dp),
             enabled = enabled,
         ) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = if (isPlaying) {
-                    stringResource(R.string.cd_pause)
-                } else {
-                    stringResource(R.string.cd_play)
-                },
-                tint = if (isPlaying) Accent else TextPrimary,
-                modifier = Modifier.size(64.dp),
-            )
+            if (isBuffering) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(40.dp),
+                    color = TextPrimary,
+                    strokeWidth = 3.dp,
+                )
+            } else {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (isPlaying) {
+                        stringResource(R.string.cd_pause)
+                    } else {
+                        stringResource(R.string.cd_play)
+                    },
+                    tint = if (isPlaying) Accent else TextPrimary,
+                    modifier = Modifier.size(64.dp),
+                )
+            }
         }
         Spacer(modifier = Modifier.weight(1f))
         IconButton(

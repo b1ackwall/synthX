@@ -84,6 +84,7 @@ private val ControlsOverlayHeight: Dp = 300.dp
 fun PlayerExpandedContent(
     song: Song,
     isPlaying: Boolean,
+    isBuffering: Boolean,
     currentPosition: Long,
     duration: Long,
     alpha: Float,
@@ -179,6 +180,7 @@ fun PlayerExpandedContent(
             duration = duration,
             onSeek = onSeek,
             isPlaying = isPlaying,
+            isBuffering = isBuffering,
             onPlayPauseClick = onPlayPauseClick,
             onPreviousClick = onPreviousClick,
             onNextClick = onNextClick,

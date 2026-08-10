@@ -50,9 +50,13 @@ fun PlayerAlbumArt(
                 ImageRequest.Builder(LocalContext.current)
                     .data(song.albumArtUri)
                     .size(Size.ORIGINAL)
+                    .crossfade(true)
                     .build()
             } else {
-                song.albumArtUri
+                ImageRequest.Builder(LocalContext.current)
+                    .data(song.albumArtUri)
+                    .crossfade(true)
+                    .build()
             }
             AsyncImage(
                 model = model,

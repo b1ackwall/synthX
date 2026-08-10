@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +61,7 @@ fun CreatePlaylistScreen(
     val groups by viewModel.groups.collectAsState()
     val created by viewModel.created.collectAsState()
     val error by viewModel.error.collectAsState()
+    val isCreating by viewModel.isCreating.collectAsState()
 
     var name by remember { mutableStateOf("") }
     var selectedGroupId by remember { mutableStateOf<String?>(null) }
@@ -163,17 +166,29 @@ fun CreatePlaylistScreen(
 
             Button(
                 onClick = { viewModel.createPlaylist(name, selectedGroupId) },
+                // Disabled on a blank name rather than silently no-oping on tap (the old
+                // behavior read as a broken button) — and disabled again mid-write so a slow
+                // create or a double-tap can't fire it twice.
+                enabled = name.isNotBlank() && !isCreating,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(Spacing.xxl),
                 shape = MaterialTheme.shapes.small,
                 colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
             ) {
-                Text(
-                    text = stringResource(R.string.action_create_playlist),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = TextPrimary,
-                )
+                if (isCreating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = TextPrimary,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text(
+                        text = stringResource(R.string.action_create_playlist),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = TextPrimary,
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(Spacing.lg))

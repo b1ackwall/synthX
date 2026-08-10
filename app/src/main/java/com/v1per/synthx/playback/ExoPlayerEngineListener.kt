@@ -46,22 +46,31 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
      * hasNextMediaItem() guard is belt-and-braces: it accounts for repeat mode and
      * shuffle order, so anything still reachable keeps playback alive and only a
      * genuinely exhausted queue falls through to stop().
+     *
+     * Also the only place [_isBuffering] is driven: true exactly while STATE_BUFFERING,
+     * false in every other state (including the error path, which never reaches
+     * STATE_BUFFERING but may leave a stale true behind if a stall preceded the failure).
      */
     override fun onPlaybackStateChanged(playbackState: Int) {
+        _isBuffering.value = playbackState == Player.STATE_BUFFERING
         if (playbackState != Player.STATE_ENDED) return
         val ctrl = controller ?: return
         if (!ctrl.hasNextMediaItem()) stop()
     }
 
-    // A failed prepare lands in STATE_IDLE, which onPlaybackStateChanged above
-    // deliberately ignores — without this the mini player would sit on a song that
-    // never plays. stop() clears currentSongId, which cascades to currentSong.
+    /**
+     * Deliberately does *not* call stop(): stop() clears currentSongId, which used to make
+     * the entire mini-player/expanded-player UI vanish the instant one track failed (corrupt
+     * file, missing file) — the user would see the error Snackbar flash by and then the
+     * player chrome would be gone, with no way to skip past the failure. isPlaying already
+     * flips to false on its own (media3 emits onIsPlayingChanged alongside the error), so the
+     * player renders as "paused on the song that failed" instead — the existing skip/previous
+     * controls stay live so the user can move on without the chrome disappearing first.
+     */
     override fun onPlayerError(error: PlaybackException) {
-        // Read the failing item's title before stop(), while the controller is still
-        // positioned on it.
         val title = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
             ?: _currentSongId.value?.let { songsById[it]?.title }
-        stop()
+        _isBuffering.value = false
         if (title != null) {
             _errors.tryEmit(PlaybackError.PlaybackFailed(title))
         }

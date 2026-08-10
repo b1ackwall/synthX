@@ -53,6 +53,7 @@ internal fun PlayerControlsSection(
     duration: Long,
     onSeek: (Long) -> Unit,
     isPlaying: Boolean,
+    isBuffering: Boolean,
     onPlayPauseClick: () -> Unit,
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
@@ -90,6 +91,7 @@ internal fun PlayerControlsSection(
             Spacer(modifier = Modifier.height(Spacing.xl))
             PlayerTransportControls(
                 isPlaying = isPlaying,
+                isBuffering = isBuffering,
                 onPlayPauseClick = onPlayPauseClick,
                 onPreviousClick = onPreviousClick,
                 onNextClick = onNextClick,

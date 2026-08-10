@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.background
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -38,6 +40,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
@@ -63,10 +66,13 @@ fun RestoreScreen(
     val outcome by viewModel.outcome.collectAsState()
     var pendingRestore by remember { mutableStateOf<BackupInfo?>(null) }
 
+    val isRestoring = outcome is RestoreOutcome.InProgress
+
     Column(modifier = Modifier.fillMaxSize()) {
         topBar()
         RestoreContent(
             uiState = uiState,
+            enabled = !isRestoring,
             onSelect = { pendingRestore = it },
         )
     }
@@ -83,6 +89,22 @@ fun RestoreScreen(
     }
 
     when (val current = outcome) {
+        is RestoreOutcome.InProgress -> Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Background.copy(alpha = 0.85f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = TextSecondary, strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.height(Spacing.md))
+                Text(
+                    text = stringResource(R.string.restore_in_progress),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TextPrimary,
+                )
+            }
+        }
         is RestoreOutcome.Complete -> AlertDialog(
             // Not dismissible: the DB handle is closed and every live ViewModel is stale.
             // The only correct next step is a cold start.
@@ -118,11 +140,12 @@ fun RestoreScreen(
 @Composable
 private fun RestoreContent(
     uiState: UiState<List<BackupInfo>>,
+    enabled: Boolean = true,
     onSelect: (BackupInfo) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
-            is UiState.Loading -> Unit
+            is UiState.Loading -> LoadingIndicator()
             is UiState.Empty -> Text(
                 text = stringResource(R.string.restore_empty),
                 style = MaterialTheme.typography.bodyLarge,
@@ -141,7 +164,7 @@ private fun RestoreContent(
             )
             is UiState.Success -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(uiState.data, key = { it.databaseUri.toString() }) { backup ->
-                    BackupRow(backup = backup, onClick = { onSelect(backup) })
+                    BackupRow(backup = backup, enabled = enabled, onClick = { onSelect(backup) })
                 }
             }
         }
@@ -151,6 +174,7 @@ private fun RestoreContent(
 @Composable
 private fun BackupRow(
     backup: BackupInfo,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -163,6 +187,7 @@ private fun BackupRow(
                 .clickable(
                     interactionSource = interactionSource,
                     indication = ripple(color = Accent),
+                    enabled = enabled,
                     onClick = onClick,
                 )
                 .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),

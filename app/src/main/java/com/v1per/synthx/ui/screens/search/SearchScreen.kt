@@ -56,6 +56,7 @@ import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.GlitchPlaceholder
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.components.SongRow
+import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.screens.search.SearchViewModel.SearchFilter
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
@@ -182,7 +183,7 @@ fun SearchScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = stringResource(R.string.search_placeholder),
+                        text = stringResource(R.string.search_prompt),
                         style = MaterialTheme.typography.bodyLarge,
                         color = TextSecondary,
                     )
@@ -368,7 +369,7 @@ private fun AlbumResultRow(
         ) {
             if (album.albumArtUri != null) {
                 AsyncImage(
-                    model = album.albumArtUri,
+                    model = crossfadeModel(album.albumArtUri),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier

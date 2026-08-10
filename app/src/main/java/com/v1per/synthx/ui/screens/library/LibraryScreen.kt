@@ -7,6 +7,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +54,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.GlitchPlaceholder
+import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
@@ -73,6 +76,7 @@ fun LibraryScreen(
 ) {
     val recentSongs by viewModel.recentSongs.collectAsState()
     val error by viewModel.error.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
@@ -98,6 +102,7 @@ fun LibraryScreen(
             ),
             recentSongs = recentSongs,
             error = error,
+            isLoading = isLoading,
             onPlaylistsClick = viewModel::onPlaylistsClick,
             onArtistsClick = viewModel::onArtistsClick,
             onAlbumsClick = viewModel::onAlbumsClick,
@@ -113,6 +118,7 @@ private fun LibraryScreenContent(
     modifier: Modifier = Modifier,
     recentSongs: List<Song>,
     error: String?,
+    isLoading: Boolean,
     onPlaylistsClick: () -> Unit,
     onArtistsClick: () -> Unit,
     onAlbumsClick: () -> Unit,
@@ -122,7 +128,7 @@ private fun LibraryScreenContent(
     onSongClick: (Int) -> Unit,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
-        item {
+        item(key = "title") {
             Text(
                 text = stringResource(R.string.library_title),
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
@@ -133,32 +139,32 @@ private fun LibraryScreenContent(
             )
         }
 
-        item {
+        item(key = "title_spacer") {
             Spacer(modifier = Modifier.height(Spacing.md))
         }
 
-        item {
+        item(key = "category_playlists") {
             CategoryRow(
                 icon = Icons.AutoMirrored.Filled.QueueMusic,
                 label = stringResource(R.string.screen_playlists),
                 onClick = onPlaylistsClick,
             )
         }
-        item {
+        item(key = "category_artists") {
             CategoryRow(
                 icon = Icons.Default.Person,
                 label = stringResource(R.string.screen_artists),
                 onClick = onArtistsClick,
             )
         }
-        item {
+        item(key = "category_albums") {
             CategoryRow(
                 icon = Icons.Default.Album,
                 label = stringResource(R.string.screen_albums),
                 onClick = onAlbumsClick,
             )
         }
-        item {
+        item(key = "category_songs") {
             CategoryRow(
                 icon = Icons.Default.MusicNote,
                 label = stringResource(R.string.screen_songs),
@@ -166,7 +172,7 @@ private fun LibraryScreenContent(
             )
         }
 
-        item {
+        item(key = "error") {
             error?.let {
                 Text(
                     text = it,
@@ -182,8 +188,22 @@ private fun LibraryScreenContent(
             }
         }
 
-        item {
-            if (recentSongs.isNotEmpty()) {
+        item(key = "recently_added") {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .padding(vertical = Spacing.xl),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        color = TextSecondary,
+                        strokeWidth = 2.dp,
+                    )
+                }
+            } else if (recentSongs.isNotEmpty()) {
                 RecentlyAddedSection(
                     songs = recentSongs,
                     onSeeAllClick = onSeeAllClick,
@@ -192,7 +212,7 @@ private fun LibraryScreenContent(
             }
         }
 
-        item {
+        item(key = "bottom_spacer") {
             Spacer(modifier = Modifier.height(Spacing.lg))
         }
     }
@@ -270,7 +290,7 @@ private fun RecentSongTile(
     ) {
         if (song.albumArtUri != null) {
             AsyncImage(
-                model = song.albumArtUri,
+                model = crossfadeModel(song.albumArtUri),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -293,7 +313,7 @@ private fun RecentSongTile(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
             text = song.title,
             style = MaterialTheme.typography.labelMedium,
@@ -367,6 +387,7 @@ private fun LibraryScreenPreview() {
                     Song(id = "2", title = "Static Bloom", artist = "KNTRL", album = "Fragments", duration = 198000L, filePath = ""),
                 ),
                 error = null,
+                isLoading = false,
                 onPlaylistsClick = {},
                 onArtistsClick = {},
                 onAlbumsClick = {},

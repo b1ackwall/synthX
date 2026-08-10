@@ -2,7 +2,6 @@ package com.v1per.synthx.ui.components
 
 import android.graphics.BlurMaskFilter
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -22,6 +21,7 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Motion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -40,6 +40,9 @@ private val TargetPoints = listOf(
     Pair(Offset(0.2f, 0.8f), Offset(0.8f, 0.2f)),
 )
 
+// Deliberately its own constant, not Motion.DurationSlow (500ms): that token is sized for UI
+// transitions, and would turn this ambient background drift into a jarring snap. Only the
+// *easing* is shared with Motion.kt below — same curve shape, independent duration.
 private const val ShiftDurationMillis = 8000
 private const val BlurRadiusPx = 200f
 
@@ -61,7 +64,7 @@ fun AnimatedGradientBackground(
             val next = TargetPoints[targetIndex % TargetPoints.size]
             val animSpec = tween<Float>(
                 durationMillis = ShiftDurationMillis,
-                easing = FastOutSlowInEasing,
+                easing = Motion.EasingStandard,
             )
             launch { startX.animateTo(next.first.x, animSpec) }
             launch { startY.animateTo(next.first.y, animSpec) }

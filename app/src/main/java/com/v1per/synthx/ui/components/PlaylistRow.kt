@@ -77,7 +77,7 @@ internal fun PlaylistRow(
         ) {
             if (playlist.albumArtUri != null) {
                 AsyncImage(
-                    model = playlist.albumArtUri,
+                    model = crossfadeModel(playlist.albumArtUri),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier

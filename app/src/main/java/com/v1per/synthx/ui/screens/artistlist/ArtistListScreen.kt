@@ -31,8 +31,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -66,7 +68,7 @@ private fun ArtistListContent(
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
-            is UiState.Loading -> Unit
+            is UiState.Loading -> LoadingIndicator()
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_artists),
                 style = MaterialTheme.typography.bodyLarge,
@@ -76,7 +78,7 @@ private fun ArtistListContent(
             is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
-                color = TextSecondary,
+                color = Error,
                 modifier = Modifier.align(Alignment.Center),
             )
             is UiState.Success -> LazyColumn(

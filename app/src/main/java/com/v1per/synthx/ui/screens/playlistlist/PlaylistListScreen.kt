@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.screens.playlistlist
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -60,9 +61,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistGroup
+import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.SurfaceVariant
@@ -130,8 +133,12 @@ fun PlaylistListScreen(
 
         AnimatedVisibility(
             visible = showCreateGroup,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut(),
+            enter = expandVertically(
+                animationSpec = tween(Motion.DurationNormal, easing = Motion.EasingStandard),
+            ) + fadeIn(animationSpec = tween(Motion.DurationNormal, easing = Motion.EasingStandard)),
+            exit = shrinkVertically(
+                animationSpec = tween(Motion.DurationFast, easing = Motion.EasingAccelerate),
+            ) + fadeOut(animationSpec = tween(Motion.DurationFast, easing = Motion.EasingAccelerate)),
         ) {
             CreateGroupCard(
                 onConfirm = { name -> viewModel.createGroup(name) },
@@ -140,6 +147,19 @@ fun PlaylistListScreen(
         }
 
         LazyColumn {
+            if (uiState.isLoading) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        LoadingIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
+
             if (uiState.groups.isNotEmpty()) {
                 items(uiState.groups, key = { it.id }) { group ->
                     GroupRow(

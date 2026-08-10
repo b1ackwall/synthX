@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 class PlaybackController(private val engine: PlaybackEngine) {
 
     val isPlaying: Flow<Boolean> = engine.isPlaying
+    val isBuffering: Flow<Boolean> = engine.isBuffering
     val currentSongId: Flow<String?> = engine.currentSongId
     val currentPosition: Flow<Long> = engine.currentPosition
     val duration: Flow<Long> = engine.duration

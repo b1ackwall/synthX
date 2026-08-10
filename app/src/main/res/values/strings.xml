@@ -59,6 +59,7 @@
 
     <!-- Search -->
     <string name="search_placeholder">Search your library</string>
+    <string name="search_prompt">Search for songs, artists, albums, and playlists</string>
     <string name="filter_all">All</string>
 
     <!-- Empty states -->
@@ -111,6 +112,7 @@
     <string name="restore_done_title">Restore complete</string>
     <string name="restore_done_message">Your library has been restored. Please reopen synthX.</string>
     <string name="restore_failed_title">Restore failed</string>
+    <string name="restore_in_progress">Restoring…</string>
     <string name="action_ok">OK</string>
     <string name="action_keep">Keep</string>
     <string name="action_clear">Clear</string>
@@ -129,12 +131,25 @@
     <string name="scan_progress_preparing">Scanning…</string>
     <string name="scan_progress_counted">Scanning… %1$d of %2$d</string>
     <string name="scan_cancelled">Scan cancelled</string>
+    <string name="scan_status_done">Done — %1$d added, %2$d updated, %3$d missing</string>
+    <string name="scan_status_failed">Scan failed: %1$s</string>
+    <string name="scan_status_unknown_error">unknown error</string>
+    <string name="backup_status_backing_up">Backing up…</string>
+    <string name="backup_status_created">Backup created</string>
+    <string name="backup_status_failed">Backup failed: %1$s</string>
+    <string name="backup_status_folder_create_failed">Couldn\'t create backup folders</string>
 
     <!-- Playback -->
     <string name="playback_error_failed">Couldn\'t play %1$s</string>
+    <string name="playback_channel_name">Playback</string>
 
     <!-- Errors -->
     <string name="error_folder_permission_denied">Failed to get permission for the selected folder. Please try again.</string>
+    <string name="error_load_songs">Couldn\'t load your songs. Try again.</string>
+    <string name="error_load_playlist">Couldn\'t load this playlist. Try again.</string>
+    <string name="error_save_playlist">Couldn\'t save this playlist. Try again.</string>
+    <string name="error_rename_playlist">Couldn\'t rename this playlist. Try again.</string>
+    <string name="error_delete_playlist">Couldn\'t delete this playlist. Try again.</string>
 
     <!-- Content descriptions -->
     <string name="cd_more_options">More options</string>

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AllInclusive
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
@@ -23,11 +22,16 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
- * Shuffle / Repeat / Autoplay row. Shuffle and Repeat tint [Accent] when active — the same
- * "tint marks the active state" convention as the play/pause icon elsewhere in the player,
- * rather than swapping to an "_on" icon glyph that material-icons-extended doesn't ship.
- * Autoplay is a genuine placeholder: Apple Music's Autoplay pulls from a streaming catalog,
- * which has no equivalent against a local library, so it carries no state or behavior.
+ * Shuffle / Repeat row. Both tint [Accent] when active — the same "tint marks the active
+ * state" convention as the play/pause icon elsewhere in the player, rather than swapping to
+ * an "_on" icon glyph that material-icons-extended doesn't ship.
+ *
+ * There used to be a third "Autoplay" button here. It was removed rather than wired up or
+ * disabled-with-a-tooltip: Apple Music's Autoplay pulls replacement tracks from a streaming
+ * catalog once a queue ends, which has no equivalent against a local-only library, so there
+ * was nothing real to build behind it. A dead button sitting next to two working ones read as
+ * broken, not "coming soon" — removing it was the honest option until there's an actual local
+ * analog (e.g. "keep playing similar songs from your library") worth shipping.
  */
 @Composable
 fun QueuePlaybackModeRow(
@@ -60,14 +64,6 @@ fun QueuePlaybackModeRow(
                 },
                 contentDescription = stringResource(R.string.cd_repeat),
                 tint = if (repeatMode != RepeatMode.Off) Accent else TextSecondary,
-                modifier = Modifier.size(24.dp),
-            )
-        }
-        IconButton(onClick = {}) {
-            Icon(
-                imageVector = Icons.Filled.AllInclusive,
-                contentDescription = stringResource(R.string.cd_autoplay),
-                tint = TextSecondary,
                 modifier = Modifier.size(24.dp),
             )
         }

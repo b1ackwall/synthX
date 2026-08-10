@@ -41,6 +41,9 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    val isBuffering: StateFlow<Boolean> = controller.isBuffering
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     val currentSongId: StateFlow<String?> = controller.currentSongId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

@@ -28,6 +28,10 @@ class AddSongsViewModel(
         val isChecked: Boolean,
     )
 
+    /** Typed rather than a raw message: the screen resolves app-voice copy via stringResource,
+     *  so a stray exception message never reaches the UI verbatim. */
+    enum class AddSongsError { LoadSongsFailed, LoadPlaylistFailed, SaveFailed }
+
     // Mutable set of checked song IDs — source of truth for checkbox state.
     // Kept separate from the song list so live library emissions can refresh
     // the list without discarding the user's in-progress selection.
@@ -41,8 +45,17 @@ class AddSongsViewModel(
     private val _submitted = MutableStateFlow(false)
     val submitted: StateFlow<Boolean> = _submitted.asStateFlow()
 
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    private val _error = MutableStateFlow<AddSongsError?>(null)
+    val error: StateFlow<AddSongsError?> = _error.asStateFlow()
+
+    // True until the first song-list emission (or a load failure) lands.
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    // Guards submit() against a double-tap firing setPlaylistSongs twice while the first
+    // write is still in flight.
+    private val _isSubmitting = MutableStateFlow(false)
+    val isSubmitting: StateFlow<Boolean> = _isSubmitting.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -53,15 +66,20 @@ class AddSongsViewModel(
 
                 // Collect live song list — checkbox state is independent
                 repository.getSongs()
-                    .catch { e -> _error.value = "Failed to load songs: ${e.message}" }
+                    .catch { e ->
+                        _error.value = AddSongsError.LoadSongsFailed
+                        _isLoading.value = false
+                    }
                     .collect { allSongs ->
                         _allSongs.value = allSongs
                         _error.value = null
+                        _isLoading.value = false
                     }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _error.value = "Failed to load playlist: ${e.message}"
+                _error.value = AddSongsError.LoadPlaylistFailed
+                _isLoading.value = false
             }
         }
     }
@@ -73,7 +91,9 @@ class AddSongsViewModel(
     }
 
     fun submit() {
+        if (_isSubmitting.value) return
         viewModelScope.launch {
+            _isSubmitting.value = true
             try {
                 val checkedIds = _checkedIds.value.toList()
                 repository.setPlaylistSongs(playlistId, checkedIds)
@@ -82,7 +102,9 @@ class AddSongsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _error.value = "Failed to save playlist: ${e.message}"
+                _error.value = AddSongsError.SaveFailed
+            } finally {
+                _isSubmitting.value = false
             }
         }
     }

@@ -71,6 +71,7 @@ enum class PlayerSheetValue { Collapsed, Expanded }
 fun PlayerSheet(
     song: Song,
     isPlaying: Boolean,
+    isBuffering: Boolean,
     currentPosition: Long,
     duration: Long,
     onPlayPauseClick: () -> Unit,
@@ -150,6 +151,7 @@ fun PlayerSheet(
         PlayerSheetContent(
             song = song,
             isPlaying = isPlaying,
+            isBuffering = isBuffering,
             currentPosition = currentPosition,
             duration = duration,
             progress = progress,
@@ -179,6 +181,7 @@ fun PlayerSheet(
 private fun PlayerSheetContent(
     song: Song,
     isPlaying: Boolean,
+    isBuffering: Boolean,
     currentPosition: Long,
     duration: Long,
     progress: Float,
@@ -254,6 +257,7 @@ private fun PlayerSheetContent(
             PlayerMiniBar(
                 song = song,
                 isPlaying = isPlaying,
+                isBuffering = isBuffering,
                 alpha = miniPlayerAlpha,
                 onPlayPauseClick = onPlayPauseClick,
                 onExpand = onExpand,
@@ -263,6 +267,7 @@ private fun PlayerSheetContent(
             PlayerExpandedContent(
                 song = song,
                 isPlaying = isPlaying,
+                isBuffering = isBuffering,
                 currentPosition = currentPosition,
                 duration = duration,
                 alpha = fullPlayerAlpha,
@@ -313,6 +318,7 @@ private fun PlayerSheetCollapsedPreview() {
             PlayerSheetContent(
                 song = PreviewSong,
                 isPlaying = false,
+                isBuffering = false,
                 currentPosition = 63_000L,
                 duration = 243_000L,
                 progress = 0f,
@@ -333,6 +339,7 @@ private fun PlayerSheetExpandedPreview() {
             PlayerSheetContent(
                 song = PreviewSong,
                 isPlaying = true,
+                isBuffering = false,
                 currentPosition = 63_000L,
                 duration = 243_000L,
                 progress = 1f,

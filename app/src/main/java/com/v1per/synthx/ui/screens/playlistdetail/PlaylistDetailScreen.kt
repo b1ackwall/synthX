@@ -31,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
@@ -79,7 +80,7 @@ fun PlaylistDetailScreen(
 
         Box(modifier = Modifier.fillMaxSize()) {
             when (val state = uiState) {
-                is UiState.Loading -> Unit
+                is UiState.Loading -> LoadingIndicator()
                 is UiState.Empty -> Text(
                     text = stringResource(R.string.empty_playlist_no_songs),
                     style = MaterialTheme.typography.bodyLarge,

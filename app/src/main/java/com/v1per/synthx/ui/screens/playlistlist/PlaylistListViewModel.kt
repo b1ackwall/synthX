@@ -56,9 +56,15 @@ class PlaylistListViewModel(
 
     fun createGroup(name: String) {
         if (name.isBlank()) return
+        // Dismissed before the write completes, not after: the card and its confirm button
+        // otherwise stay open and tappable for the full round trip, which read as unresponsive
+        // and let a slow write or a double-tap re-fire this. The card reappearing on a genuine
+        // failure would be surprising, but createGroup has no realistic failure mode a user
+        // could act on differently than "try again" — same tradeoff Apple Music's own inline
+        // creation flows make.
+        _showCreateGroup.value = false
         viewModelScope.launch {
             repository.createGroup(name.trim())
-            _showCreateGroup.value = false
         }
     }
 

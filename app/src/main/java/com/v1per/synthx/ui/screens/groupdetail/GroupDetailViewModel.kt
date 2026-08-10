@@ -9,8 +9,12 @@ import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
@@ -20,8 +24,21 @@ class GroupDetailViewModel(
     private val groupId: String,
 ) : ViewModel() {
 
+    /** Resolved to app-voice strings.xml copy by the screen — see AddSongsViewModel.AddSongsError
+     *  for the same pattern. */
+    enum class ActionError { RenameFailed, DeleteFailed }
+
     private val _uiState = MutableStateFlow<UiState<List<Playlist>>>(UiState.Loading)
     val uiState: StateFlow<UiState<List<Playlist>>> = _uiState.asStateFlow()
+
+    // A failed rename/delete is a transient event, not a change to what's on screen — unlike
+    // the initial load failure above, it must not replace the still-healthy playlist list with
+    // UiState.Error (that used to blow away the whole group's view over one failed action).
+    private val _actionErrors = MutableSharedFlow<ActionError>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val actionErrors: SharedFlow<ActionError> = _actionErrors.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -44,7 +61,7 @@ class GroupDetailViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _uiState.value = UiState.Error("Failed to rename playlist: ${e.message}")
+                _actionErrors.tryEmit(ActionError.RenameFailed)
             }
         }
     }
@@ -56,7 +73,7 @@ class GroupDetailViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _uiState.value = UiState.Error("Failed to delete playlist: ${e.message}")
+                _actionErrors.tryEmit(ActionError.DeleteFailed)
             }
         }
     }

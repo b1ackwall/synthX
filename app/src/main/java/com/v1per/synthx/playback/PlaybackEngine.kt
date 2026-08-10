@@ -17,6 +17,13 @@ enum class RepeatMode {
 
 interface PlaybackEngine {
     val isPlaying: Flow<Boolean>
+
+    /**
+     * True while ExoPlayer is rebuffering (STATE_BUFFERING) — a stalled/slow-storage track,
+     * distinct from an intentional pause. UI consumers show a spinner in place of the
+     * play/pause icon rather than leaving the two states visually identical.
+     */
+    val isBuffering: Flow<Boolean>
     val currentSongId: Flow<String?>
     val currentPosition: Flow<Long>
     val duration: Flow<Long>

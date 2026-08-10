@@ -45,6 +45,12 @@ class LibraryViewModel(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // True only until the first emission (success or failure) lands, so the Recently Added
+    // section can distinguish "still loading" from "loaded and genuinely empty" — both used
+    // to render as nothing.
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.getSongs()
@@ -56,10 +62,14 @@ class LibraryViewModel(
                         .take(20)
                 }
                 .flowOn(Dispatchers.Default)
-                .catch { e -> _error.value = "Failed to load recently added: ${e.message}" }
+                .catch { e ->
+                    _error.value = "Failed to load recently added: ${e.message}"
+                    _isLoading.value = false
+                }
                 .collect {
                     _recentSongs.value = it
                     _error.value = null
+                    _isLoading.value = false
                 }
         }
     }

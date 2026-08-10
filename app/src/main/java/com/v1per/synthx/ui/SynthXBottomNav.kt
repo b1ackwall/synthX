@@ -58,6 +58,7 @@ fun BottomChromeOverlay(
     showBottomBar: Boolean,
     currentSong: Song?,
     isPlaying: Boolean,
+    isBuffering: Boolean,
     currentPosition: Long,
     duration: Long,
     playerProgress: Float,
@@ -109,6 +110,7 @@ fun BottomChromeOverlay(
                 PlayerSheet(
                     song = song,
                     isPlaying = isPlaying,
+                    isBuffering = isBuffering,
                     currentPosition = currentPosition,
                     duration = duration,
                     onPlayPauseClick = playbackViewModel::togglePlayPause,

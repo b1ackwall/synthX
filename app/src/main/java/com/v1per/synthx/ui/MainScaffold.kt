@@ -80,6 +80,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     }
 
     val isPlaying by playbackViewModel.isPlaying.collectAsState()
+    val isBuffering by playbackViewModel.isBuffering.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
     val currentPosition by playbackViewModel.currentPosition.collectAsState()
     val duration by playbackViewModel.duration.collectAsState()
@@ -126,6 +127,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             showBottomBar = showBottomBar,
             currentSong = currentSong,
             isPlaying = isPlaying,
+            isBuffering = isBuffering,
             currentPosition = currentPosition,
             duration = duration,
             playerProgress = playerProgress,

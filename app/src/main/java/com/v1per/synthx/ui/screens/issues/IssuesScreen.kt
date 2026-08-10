@@ -41,6 +41,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.MissingSongInfo
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.DeleteSongDialog
+import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
@@ -81,7 +82,7 @@ private fun IssuesContent(
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
-            is UiState.Loading -> Unit
+            is UiState.Loading -> LoadingIndicator()
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_issues),
                 style = MaterialTheme.typography.bodyLarge,

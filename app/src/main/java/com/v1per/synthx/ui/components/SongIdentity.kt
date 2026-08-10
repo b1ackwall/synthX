@@ -42,7 +42,7 @@ fun SongIdentity(
         Spacer(modifier = Modifier.width(Spacing.md))
         if (song.albumArtUri != null) {
             AsyncImage(
-                model = song.albumArtUri,
+                model = crossfadeModel(song.albumArtUri),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

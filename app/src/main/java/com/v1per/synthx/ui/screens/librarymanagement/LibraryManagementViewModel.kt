@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
@@ -110,21 +111,32 @@ class LibraryManagementViewModel(
 
     private fun statusFor(info: WorkInfo?): String? = when (info?.state) {
         null -> null
-        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> "Scanning…"
+        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED ->
+            context.getString(R.string.scan_progress_preparing)
         WorkInfo.State.RUNNING -> {
             val current = info.progress.getInt(LibraryScanWorker.KEY_CURRENT, -1)
             val total = info.progress.getInt(LibraryScanWorker.KEY_TOTAL, -1)
-            if (total > 0) "Scanning… $current of $total" else "Scanning…"
+            if (total > 0) {
+                context.getString(R.string.scan_progress_counted, current, total)
+            } else {
+                context.getString(R.string.scan_progress_preparing)
+            }
         }
         WorkInfo.State.SUCCEEDED -> {
             val data = info.outputData
-            "Done — ${data.getInt(LibraryScanWorker.KEY_ADDED, 0)} added, " +
-                "${data.getInt(LibraryScanWorker.KEY_UPDATED, 0)} updated, " +
-                "${data.getInt(LibraryScanWorker.KEY_MISSING, 0)} missing"
+            context.getString(
+                R.string.scan_status_done,
+                data.getInt(LibraryScanWorker.KEY_ADDED, 0),
+                data.getInt(LibraryScanWorker.KEY_UPDATED, 0),
+                data.getInt(LibraryScanWorker.KEY_MISSING, 0),
+            )
         }
-        WorkInfo.State.FAILED ->
-            "Scan failed: ${info.outputData.getString(LibraryScanWorker.KEY_ERROR) ?: "unknown error"}"
-        WorkInfo.State.CANCELLED -> "Scan cancelled"
+        WorkInfo.State.FAILED -> context.getString(
+            R.string.scan_status_failed,
+            info.outputData.getString(LibraryScanWorker.KEY_ERROR)
+                ?: context.getString(R.string.scan_status_unknown_error),
+        )
+        WorkInfo.State.CANCELLED -> context.getString(R.string.scan_cancelled)
     }
 
     fun setFolderError(message: String) {
@@ -156,24 +168,33 @@ class LibraryManagementViewModel(
         _backupFolderUri.value = uri
         viewModelScope.launch {
             val created = backupManager.ensureFolderStructure(uri)
-            _backupStatus.value = if (created) null else "Couldn't create backup folders"
+            _backupStatus.value = if (created) {
+                null
+            } else {
+                context.getString(R.string.backup_status_folder_create_failed)
+            }
         }
     }
 
     fun createManualBackup() {
         viewModelScope.launch {
-            _backupStatus.value = "Backing up…"
+            _backupStatus.value = context.getString(R.string.backup_status_backing_up)
             val result = backupManager.createBackup(BackupTier.Manual)
             _backupStatus.value = result.fold(
-                onSuccess = { "Backup created" },
-                onFailure = { e -> "Backup failed: ${e.message ?: "unknown error"}" },
+                onSuccess = { context.getString(R.string.backup_status_created) },
+                onFailure = { e ->
+                    context.getString(
+                        R.string.backup_status_failed,
+                        e.message ?: context.getString(R.string.scan_status_unknown_error),
+                    )
+                },
             )
         }
     }
 
     fun rescanLibrary() {
         if (_musicFolderUri.value == null) {
-            _localStatus.value = "No folder selected"
+            _localStatus.value = context.getString(R.string.settings_no_folder_selected)
             return
         }
         _localStatus.value = null

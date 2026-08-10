@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.components
 
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -108,6 +109,7 @@ private fun NowPlayingTitleRow(
                 color = TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee(),
             )
             Text(
                 text = song.artist,
@@ -115,6 +117,7 @@ private fun NowPlayingTitleRow(
                 color = TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee(),
             )
         }
         MoreOptionsButton(song = song, enabled = enabled)

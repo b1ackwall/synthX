@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.components
 
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +38,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 fun PlayerMiniBar(
     song: Song,
     isPlaying: Boolean,
+    isBuffering: Boolean,
     alpha: Float,
     onPlayPauseClick: () -> Unit,
     onExpand: () -> Unit,
@@ -59,6 +62,7 @@ fun PlayerMiniBar(
                 color = TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee(),
             )
             Text(
                 text = song.artist,
@@ -72,16 +76,24 @@ fun PlayerMiniBar(
             onClick = onPlayPauseClick,
             enabled = alpha > 0.5f,
         ) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = if (isPlaying) {
-                    stringResource(R.string.cd_pause)
-                } else {
-                    stringResource(R.string.cd_play)
-                },
-                tint = if (isPlaying) Accent else TextPrimary,
-                modifier = Modifier.size(28.dp),
-            )
+            if (isBuffering) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = TextSecondary,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (isPlaying) {
+                        stringResource(R.string.cd_pause)
+                    } else {
+                        stringResource(R.string.cd_play)
+                    },
+                    tint = if (isPlaying) Accent else TextPrimary,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
         }
     }
 }

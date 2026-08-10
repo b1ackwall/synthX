@@ -13,17 +13,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,6 +37,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.GlitchPlaceholder
+import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
@@ -48,7 +45,6 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
-import com.v1per.synthx.ui.theme.TextTertiary
 
 @Composable
 fun AddSongsScreen(
@@ -63,6 +59,8 @@ fun AddSongsScreen(
     val songs by viewModel.songs.collectAsState()
     val submitted by viewModel.submitted.collectAsState()
     val error by viewModel.error.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val isSubmitting by viewModel.isSubmitting.collectAsState()
 
     LaunchedEffect(submitted) {
         if (submitted) onSubmitted()
@@ -71,45 +69,41 @@ fun AddSongsScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         topBar()
 
-        // Frozen search bar — placeholder only, functionality deferred
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            enabled = false,
-            placeholder = {
-                Text(text = stringResource(R.string.hint_search_songs), color = TextTertiary)
-            },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                )
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
-            colors = OutlinedTextFieldDefaults.colors(
-                disabledBorderColor = TextTertiary,
-                disabledTextColor = TextTertiary,
-                disabledPlaceholderColor = TextTertiary,
-                disabledLeadingIconColor = TextTertiary,
-            ),
-            shape = MaterialTheme.shapes.small,
-        )
+        // The search bar here is deliberately deferred (no filtering built yet) — rather than
+        // showing a fully-interactive-looking OutlinedTextField that silently swallows taps,
+        // it's simply not shown until search actually works. Re-add it alongside real filtering.
 
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(songs, key = { it.song.id }) { item ->
-                AddSongRow(
-                    songItem = item,
-                    onToggle = { viewModel.toggleSong(item.song.id) },
+        Box(modifier = Modifier.weight(1f)) {
+            when {
+                isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        color = TextSecondary,
+                        strokeWidth = 2.dp,
+                    )
+                }
+                songs.isEmpty() -> Text(
+                    text = stringResource(R.string.empty_no_songs),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TextSecondary,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = Spacing.HorizontalPadding),
                 )
+                else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(songs, key = { it.song.id }) { item ->
+                        AddSongRow(
+                            songItem = item,
+                            onToggle = { viewModel.toggleSong(item.song.id) },
+                        )
+                    }
+                }
             }
         }
 
         error?.let {
             Text(
-                text = it,
+                text = stringResource(errorStringRes(it)),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Error,
                 modifier = Modifier.padding(
@@ -121,6 +115,7 @@ fun AddSongsScreen(
 
         Button(
             onClick = viewModel::submit,
+            enabled = !isSubmitting,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.HorizontalPadding)
@@ -128,13 +123,27 @@ fun AddSongsScreen(
             shape = MaterialTheme.shapes.small,
             colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
         ) {
-            Text(
-                text = stringResource(R.string.action_done),
-                style = MaterialTheme.typography.labelLarge,
-                color = TextPrimary,
-            )
+            if (isSubmitting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = TextPrimary,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.action_done),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = TextPrimary,
+                )
+            }
         }
     }
+}
+
+private fun errorStringRes(error: AddSongsViewModel.AddSongsError): Int = when (error) {
+    AddSongsViewModel.AddSongsError.LoadSongsFailed -> R.string.error_load_songs
+    AddSongsViewModel.AddSongsError.LoadPlaylistFailed -> R.string.error_load_playlist
+    AddSongsViewModel.AddSongsError.SaveFailed -> R.string.error_save_playlist
 }
 
 @Composable
@@ -163,7 +172,7 @@ private fun AddSongRow(
             Spacer(modifier = Modifier.width(Spacing.md))
             if (songItem.song.albumArtUri != null) {
                 AsyncImage(
-                    model = songItem.song.albumArtUri,
+                    model = crossfadeModel(songItem.song.albumArtUri),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
