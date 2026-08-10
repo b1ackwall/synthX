@@ -123,7 +123,12 @@ class FolderScanner(
                             songDao.markFound(id)
                             updated++
                         }
-                        else -> unchanged++
+                        // Same path, same hash — the byte ranges the id is built from
+                        // (first/last 64KB + size) didn't move, but an ID3 edit that lands
+                        // outside those ranges (or reuses the same padding) wouldn't touch
+                        // them either. A cheap tag re-read catches that case without paying
+                        // for a full metadata extraction + resolution on every untouched file.
+                        else -> if (retagIfChanged(file, existing)) updated++ else unchanged++
                     }
                     continue
                 }
@@ -282,6 +287,87 @@ class FolderScanner(
                 SongArtistEntity(songId = id, artistId = artist.id, position = index)
             )
         }
+    }
+
+    /**
+     * The "unchanged" fast path's tag-drift check — same file identity (path + hash), but
+     * ID3 tags can be edited without touching the byte ranges [HashUtils] hashes, so the id
+     * alone can't prove the tags are still what's stored. Re-reads just the text tags (no
+     * embedded-art decode, no waveform/duration re-read) and only writes back — song row,
+     * and song_artists if the artist list changed — when something actually differs from
+     * what's stored. Returns whether it wrote anything, so the caller can count this file as
+     * updated rather than unchanged.
+     *
+     * Deliberately mirrors [insertNewSong]'s field derivation (same title/year/track
+     * fallbacks, same artist splitting, same album resolution) so a retag lands on exactly
+     * the row a fresh scan of the same file would have produced — but skips
+     * [extractAlbumArt] entirely: that decodes and rewrites a bitmap file, which is the kind
+     * of per-file cost this path exists to avoid paying when nothing changed.
+     */
+    private suspend fun retagIfChanged(file: DocumentFile, existing: SongEntity): Boolean {
+        val retriever = MediaMetadataRetriever()
+        val rawTitle: String?
+        val rawArtist: String?
+        val rawAlbum: String?
+        val rawYear: String?
+        val rawTrackNumber: String?
+        try {
+            retriever.setDataSource(context, file.uri)
+            rawTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+            rawArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+            rawAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+            rawYear = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
+            rawTrackNumber = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
+        } catch (e: Exception) {
+            // Unreadable this pass — leave the stored row alone rather than falling back to
+            // filename/"Unknown Artist" and clobbering tags that were fine a moment ago.
+            return false
+        } finally {
+            retriever.release()
+        }
+
+        val title = rawTitle?.takeIf { it.isNotBlank() }
+            ?: file.name?.substringBeforeLast('.')
+            ?: "Unknown"
+        val year = rawYear?.trim()?.take(4)?.toIntOrNull()
+        val trackNumber = rawTrackNumber?.substringBefore("/")?.trim()?.toIntOrNull()
+
+        val rawArtistNames = splitArtists(rawArtist?.takeIf { it.isNotBlank() } ?: "Unknown Artist")
+            .distinctBy { it.lowercase() }
+        val primaryArtistNormalized = (rawArtistNames.firstOrNull() ?: "Unknown Artist")
+            .trim()
+            .lowercase()
+
+        // Indexed name lookups, same as a fresh scan resolves — inserts only happen if the
+        // tag edit genuinely introduced a new artist/album, not on every unchanged file.
+        val newArtistIds = rawArtistNames.map { resolveArtist(it).id }
+        val albumId = rawAlbum?.takeIf { it.isNotBlank() }?.trim()?.let { albumTitle ->
+            resolveAlbum(albumTitle, primaryArtistNormalized, year, existing.albumArtUri).id
+        }
+
+        val currentArtistIds = songDao.getSongArtistRefs(existing.id).map { it.artistId }
+        val artistsChanged = currentArtistIds != newArtistIds
+        val songChanged = existing.title != title ||
+            existing.year != year ||
+            existing.trackNumber != trackNumber ||
+            existing.albumId != albumId
+
+        if (!songChanged && !artistsChanged) return false
+
+        if (songChanged) {
+            songDao.upsertSong(
+                existing.copy(title = title, year = year, trackNumber = trackNumber, albumId = albumId)
+            )
+        }
+        if (artistsChanged) {
+            songArtistDao.deleteSongArtists(existing.id)
+            newArtistIds.forEachIndexed { index, artistId ->
+                songArtistDao.insertSongArtist(
+                    SongArtistEntity(songId = existing.id, artistId = artistId, position = index)
+                )
+            }
+        }
+        return true
     }
 
     private suspend fun resolveAlbum(
