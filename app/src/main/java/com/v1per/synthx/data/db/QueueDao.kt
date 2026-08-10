@@ -49,4 +49,36 @@ interface QueueDao {
             }
         )
     }
+
+    // --- baseline order (mirrors queue_items above; see BaselineQueueItemEntity's kdoc) ---
+
+    @Transaction
+    @Query(
+        """
+        SELECT songs.* FROM songs
+        INNER JOIN queue_baseline_items ON queue_baseline_items.song_id = songs.id
+        WHERE songs.is_missing = 0
+        ORDER BY queue_baseline_items.position ASC
+        """
+    )
+    suspend fun getBaselineQueueItems(): List<SongWithDetails>
+
+    @Query("SELECT song_id FROM queue_baseline_items ORDER BY position ASC")
+    suspend fun getBaselineQueueSongIds(): List<String>
+
+    @Query("DELETE FROM queue_baseline_items")
+    suspend fun clearBaselineQueue()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBaselineQueueItems(items: List<BaselineQueueItemEntity>)
+
+    @Transaction
+    suspend fun replaceBaselineQueue(songIds: List<String>) {
+        clearBaselineQueue()
+        insertBaselineQueueItems(
+            songIds.mapIndexed { index, songId ->
+                BaselineQueueItemEntity(position = index, songId = songId)
+            }
+        )
+    }
 }

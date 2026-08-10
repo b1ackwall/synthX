@@ -18,8 +18,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistSongEntity::class,
         ListenHistoryEntity::class,
         QueueItemEntity::class,
+        BaselineQueueItemEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -34,7 +35,7 @@ abstract class SynthXDatabase : RoomDatabase() {
 
     companion object {
         /** Must track the `version` in the @Database annotation above. */
-        const val VERSION = 5
+        const val VERSION = 6
 
         const val DB_NAME = "synthx.db"
 
@@ -103,6 +104,28 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        // Purely additive, same shape as 4_5: queue_baseline_items is new, app-managed
+        // ordering state with nothing to migrate into it.
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS queue_baseline_items (
+                        position INTEGER NOT NULL,
+                        song_id TEXT NOT NULL,
+                        PRIMARY KEY(position),
+                        FOREIGN KEY(song_id) REFERENCES songs(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_queue_baseline_items_song_id " +
+                        "ON queue_baseline_items(song_id)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): SynthXDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -110,7 +133,9 @@ abstract class SynthXDatabase : RoomDatabase() {
                     SynthXDatabase::class.java,
                     DB_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(
+                        MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                    )
                     .build()
                     .also { INSTANCE = it }
             }

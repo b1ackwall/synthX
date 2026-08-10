@@ -22,7 +22,6 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -34,10 +33,6 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextTertiary
 
-// Material standard disabled-content alpha (Material 3 ships no ContentAlpha token) — same
-// value and same reasoning as SongRow's/PlayerTransportControls' DisabledContentAlpha.
-private const val DisabledContentAlpha = 0.38f
-
 /**
  * One Up Next row: swipe left/right to remove, tap to jump to and play, drag the trailing
  * handle to reorder. The handle is the only part [dragHandleModifier] is applied to — the
@@ -46,14 +41,15 @@ private const val DisabledContentAlpha = 0.38f
  * The currently-playing song is never rendered as a row here (it lives in
  * PlayerExpandedContent's Queue-mode header instead), so there is no "is this the playing
  * row" state to track any more.
- * [dragEnabled] is false while shuffle is on — reordering isn't safe there, see
+ *
+ * The drag handle is always enabled — queue ordering is fully app-managed, so reordering
+ * is safe regardless of shuffle state, see
  * [com.v1per.synthx.playback.ExoPlayerEngine.moveQueueItem]'s doc comment.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QueueRow(
     song: Song,
-    dragEnabled: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     dragHandleModifier: Modifier,
@@ -107,14 +103,12 @@ fun QueueRow(
 
                 IconButton(
                     onClick = {},
-                    enabled = dragEnabled,
                     modifier = dragHandleModifier.padding(end = Spacing.sm),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.DragHandle,
                         contentDescription = stringResource(R.string.cd_drag_handle),
                         tint = TextTertiary,
-                        modifier = Modifier.alpha(if (dragEnabled) 1f else DisabledContentAlpha),
                     )
                 }
             }

@@ -62,4 +62,16 @@ interface SongRepository {
 
     /** Overwrites the saved queue with [songIds], in order. */
     suspend fun setQueueSongs(songIds: List<String>)
+
+    // Baseline order — the app-managed source-of-truth sequence, persisted separately
+    // from the live/active queue above so it can survive shuffle toggles.
+
+    /** The saved baseline, resolved to songs. Shorter than [getBaselineQueueSongIds] when songs went away. */
+    suspend fun getBaselineQueueSongs(): List<Song>
+
+    /** The saved baseline as raw ids, including entries that no longer resolve to a playable song. */
+    suspend fun getBaselineQueueSongIds(): List<String>
+
+    /** Overwrites the saved baseline with [songIds], in order. */
+    suspend fun setBaselineQueueSongs(songIds: List<String>)
 }

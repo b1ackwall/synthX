@@ -248,6 +248,19 @@ class SongRepositoryImpl(
         queueDao.replaceQueue(songIds)
     }
 
+    override suspend fun getBaselineQueueSongs(): List<Song> = withContext(Dispatchers.IO) {
+        val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
+        queueDao.getBaselineQueueItems().map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+    }
+
+    override suspend fun getBaselineQueueSongIds(): List<String> = withContext(Dispatchers.IO) {
+        queueDao.getBaselineQueueSongIds()
+    }
+
+    override suspend fun setBaselineQueueSongs(songIds: List<String>) = withContext(Dispatchers.IO) {
+        queueDao.replaceBaselineQueue(songIds)
+    }
+
     private fun PlaylistEntity.toDomain(): Playlist =
         Playlist(
             id = id,

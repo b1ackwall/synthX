@@ -327,7 +327,6 @@ private fun QueueModeContent(
         )
         QueueList(
             queue = upcomingQueue,
-            shuffleEnabled = shuffleEnabled,
             onSongClick = onQueueSongClick,
             onMove = onQueueMove,
             onRemove = onQueueRemove,

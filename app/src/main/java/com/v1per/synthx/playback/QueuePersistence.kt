@@ -51,6 +51,22 @@ class QueuePersistence(
         }
     }
 
+    /**
+     * Persists the baseline order — see [BaselineQueueItemEntity][com.v1per.synthx.data.db.BaselineQueueItemEntity]'s
+     * kdoc for what this represents. Same fire-and-forget shape as [saveQueue]; callers
+     * decide when a baseline mutation is worth persisting, this just writes it.
+     */
+    fun saveBaselineQueue(songs: List<Song>) {
+        val ids = songs.map { it.id }
+        scope.launch {
+            try {
+                repository.setBaselineQueueSongs(ids)
+            } catch (e: Exception) {
+                Log.w(TAG, "Baseline queue save failed: ${e.message}")
+            }
+        }
+    }
+
     fun savePlaybackState(index: Int, positionMs: Long) {
         preferences.currentQueueIndex = index
         preferences.currentPositionMs = positionMs
@@ -97,6 +113,21 @@ class QueuePersistence(
             positionMs = if (resolvedIndex >= 0) preferences.currentPositionMs else 0L,
             droppedCount = savedIds.size - songs.size,
         )
+    }
+
+    /**
+     * The saved baseline, resolved to songs and filtered the same way [loadQueue] filters
+     * the active queue — a song deleted since the last session simply drops out. No
+     * index/position bookkeeping here: the baseline is a plain ordered list, nothing reads
+     * a "current position" out of it directly.
+     */
+    suspend fun loadBaselineQueue(): List<Song> {
+        return try {
+            repository.getBaselineQueueSongs()
+        } catch (e: Exception) {
+            Log.w(TAG, "Baseline queue load failed: ${e.message}")
+            emptyList()
+        }
     }
 
     fun release() {

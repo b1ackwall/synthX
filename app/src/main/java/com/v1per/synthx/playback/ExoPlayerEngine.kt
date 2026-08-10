@@ -66,6 +66,16 @@ class ExoPlayerEngine(
     private val _shuffleEnabled = MutableStateFlow(false)
     override val shuffleEnabled: Flow<Boolean> = _shuffleEnabled.asStateFlow()
 
+    /**
+     * The app-managed source-of-truth order — starts as [playQueue]'s input list, but is
+     * mutable going forward (see [setShuffleEnabled], [moveQueueItem], [playNext],
+     * [addToQueue], [removeQueueItem] for exactly when and how). Distinct from [_queue],
+     * which is whatever order is actually live in the timeline right now (shuffled or not).
+     * Persisted separately (`queue_baseline_items`, via [QueuePersistence.saveBaselineQueue])
+     * so it survives a restart independently of the active queue.
+     */
+    private var baseline: List<Song> = emptyList()
+
     private val _repeatMode = MutableStateFlow(RepeatMode.Off)
     override val repeatMode: Flow<RepeatMode> = _repeatMode.asStateFlow()
 
@@ -145,18 +155,6 @@ class ExoPlayerEngine(
             prefetchArtwork()
         }
 
-        // Persisted here rather than in the setters below so a change made anywhere —
-        // including the notification or another controller on the same session — is saved.
-        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-            _shuffleEnabled.value = shuffleModeEnabled
-            persistence.shuffleEnabled = shuffleModeEnabled
-            // Shuffle changes which item comes next, so the lookahead target moves, and the
-            // upcoming order itself — what the Up Next queue UI displays — changes entirely.
-            refreshUpcomingQueue()
-            prefetchArtwork()
-            refreshNavigationState()
-        }
-
         override fun onRepeatModeChanged(repeatMode: Int) {
             _repeatMode.value = repeatMode.toRepeatMode()
             persistence.repeatMode = repeatMode
@@ -208,9 +206,10 @@ class ExoPlayerEngine(
                     val ctrl = controllerFuture.get()
                     controller = ctrl
                     ctrl.addListener(listener)
-                    // Adopt whatever state the session already holds (a service that
-                    // outlived the previous MediaController keeps its timeline).
-                    _shuffleEnabled.value = ctrl.shuffleModeEnabled
+                    // Adopt whatever repeat state the session already holds (a service
+                    // that outlived the previous MediaController keeps its timeline).
+                    // Shuffle has no media3-side state to adopt any more — restoreSavedQueue
+                    // (or a fresh playQueue) is what seeds _shuffleEnabled now.
                     _repeatMode.value = ctrl.repeatMode.toRepeatMode()
                     refreshQueue()
                     refreshUpcomingQueue()
@@ -250,6 +249,11 @@ class ExoPlayerEngine(
             ctrl.prepare()
             ctrl.play()
 
+            // A fresh queue always fully replaces the baseline — never merges with
+            // whatever baseline existed before (see class kdoc / [baseline]'s kdoc).
+            baseline = songs
+            persistence.saveBaselineQueue(songs)
+
             onQueueStructureChanged(fresh = true)
         }
     }
@@ -263,6 +267,10 @@ class ExoPlayerEngine(
         val restored = persistence.loadQueue() ?: return
         val startSong = restored.songs[restored.startIndex]
         val startArtwork = buildArtworkData(startSong)
+        // Loaded alongside the active queue rather than derived from it — baseline can
+        // legitimately differ from the active list (e.g. history dropped by an ON->OFF
+        // toggle last session), so it needs its own read, not a recomputation.
+        val restoredBaseline = persistence.loadBaselineQueue()
 
         val mediaItems = restored.songs.map { song ->
             buildMediaItem(song, if (song.id == startSong.id) startArtwork else null)
@@ -276,18 +284,19 @@ class ExoPlayerEngine(
 
             songsById.clear()
             restored.songs.forEach { songsById[it.id] = it }
+            restoredBaseline.forEach { songsById.putIfAbsent(it.id, it) }
             artworkLoadedIds.clear()
             artworkLoadedIds.add(startSong.id)
 
-            // setMediaItems first: shuffleModeEnabled's listener (onShuffleModeEnabledChanged)
-            // fires synchronously and calls refreshUpcomingQueue(), which walks the
-            // controller's timeline — that timeline must already have windows in it, or
-            // Timeline.getWindow throws IndexOutOfBoundsException (see refreshUpcomingQueue's
-            // doc comment for the matching defensive guard).
             ctrl.setMediaItems(mediaItems, restored.startIndex, restored.positionMs)
-            ctrl.shuffleModeEnabled = persistence.shuffleEnabled
             ctrl.repeatMode = persistence.repeatMode
             ctrl.prepare()
+
+            baseline = restoredBaseline
+            // Plain field set — no media3 involvement, no rebuild. The active queue just
+            // loaded from queue_items already reflects whatever order (shuffled or not)
+            // was live when the app last closed, so there is nothing to reconstruct.
+            _shuffleEnabled.value = persistence.shuffleEnabled
 
             // Not routed through onQueueStructureChanged: the persist below is conditional,
             // and a restored queue counts as pristine — the customisation flag is session
@@ -325,26 +334,117 @@ class ExoPlayerEngine(
         controller?.seekToPrevious()
     }
 
+    /**
+     * Rebuilds the live timeline into shuffled or unshuffled order via [applyReorderViaMoves]
+     * — never `setMediaItems` (confirmed via the media3 1.4.0 `ExoPlayerImpl` source to
+     * unconditionally tear down and recreate every `MediaSourceHolder`, including the
+     * currently-playing one, which rebuffers/interrupts it). `moveMediaItem` reorders the
+     * same holders in place instead, so the playing item is never torn down.
+     *
+     * Shuffle ON: the current song stays first, everything else in [baseline] (played or
+     * not) is reshuffled after it. Shuffle OFF: the current song stays first, followed by
+     * whatever comes after it in [baseline] — anything *before* it in baseline is dropped,
+     * permanently, from both the live timeline and baseline itself (accepted, intentional
+     * behaviour, not a bug) — plus any songs added via [playNext]/[addToQueue] during the
+     * shuffle-ON session just ending, appended at the end in their current live order
+     * (derived by set difference against [baseline], not tracked separately). Either way,
+     * the result becomes the new live order; the OFF branch also becomes the new [baseline].
+     */
     override fun setShuffleEnabled(enabled: Boolean) {
-        controller?.shuffleModeEnabled = enabled
+        if (enabled == _shuffleEnabled.value) return
+        val ctrl = controller ?: return
+        val current = currentSong() ?: return
+
+        val target = if (enabled) {
+            listOf(current) + baseline.filterNot { it.id == current.id }.shuffled()
+        } else {
+            val currentBaselineIndex = baseline.indexOfFirst { it.id == current.id }
+            val afterCurrentInBaseline = if (currentBaselineIndex >= 0) {
+                baseline.subList(currentBaselineIndex + 1, baseline.size)
+            } else {
+                emptyList()
+            }
+            val baselineIds = baseline.mapTo(HashSet()) { it.id }
+            val sessionExtras = _queue.value.filterNot { it.id == current.id || it.id in baselineIds }
+            listOf(current) + afterCurrentInBaseline + sessionExtras
+        }
+
+        applyReorderViaMoves(ctrl, target)
+
+        if (!enabled) {
+            baseline = target
+            persistence.saveBaselineQueue(target)
+        }
+
+        _shuffleEnabled.value = enabled
+        persistence.shuffleEnabled = enabled
+        onQueueStructureChanged(fresh = false)
+    }
+
+    /**
+     * Transforms the live timeline into [target] using only `removeMediaItem`/`moveMediaItem`
+     * — selection sort by position for the reorder, with a first pass dropping anything the
+     * live timeline holds that [target] does not (only relevant going shuffle-ON to OFF,
+     * where baseline history before the current song is intentionally dropped — see
+     * [setShuffleEnabled]'s kdoc). Removing items strictly before the currently-playing one
+     * does not change its period identity, so this does not interrupt playback either.
+     */
+    private fun applyReorderViaMoves(ctrl: MediaController, target: List<Song>) {
+        val targetIds = target.mapTo(HashSet()) { it.id }
+        for (i in ctrl.mediaItemCount - 1 downTo 0) {
+            if (ctrl.getMediaItemAt(i).mediaId !in targetIds) {
+                ctrl.removeMediaItem(i)
+            }
+        }
+        for (targetIndex in target.indices) {
+            val currentPos = indexOfMediaId(ctrl, target[targetIndex].id) ?: continue
+            if (currentPos != targetIndex) {
+                ctrl.moveMediaItem(currentPos, targetIndex)
+            }
+        }
     }
 
     override fun setRepeatMode(mode: RepeatMode) {
         controller?.repeatMode = mode.toPlayerRepeatMode()
     }
 
+    /**
+     * While shuffle is off, [song] is also woven into [baseline] at the matching relative
+     * slot — permanently, per the locked spec. While shuffle is on, [baseline] is left
+     * untouched; if shuffle later turns off, [song] is folded into the new baseline then
+     * (see [setShuffleEnabled]'s `sessionExtras`), not here.
+     */
     override fun playNext(song: Song) {
         val ctrl = controller ?: return
         songsById[song.id] = song
         val insertAt = (ctrl.currentMediaItemIndex + 1).coerceIn(0, ctrl.mediaItemCount)
         ctrl.addMediaItem(insertAt, buildMediaItem(song, artworkData = null))
+
+        if (!_shuffleEnabled.value) {
+            val current = currentSong()
+            val baseInsertAt = if (current != null) {
+                baseline.indexOfFirst { it.id == current.id } + 1
+            } else {
+                baseline.size
+            }
+            baseline = baseline.toMutableList().apply { add(baseInsertAt.coerceIn(0, size), song) }
+            persistence.saveBaselineQueue(baseline)
+        }
+
         onQueueStructureChanged(fresh = false)
     }
 
+    /** Same baseline-weaving rule as [playNext], appended at the end instead of next-slot. */
     override fun addToQueue(song: Song) {
         val ctrl = controller ?: return
         songsById[song.id] = song
         ctrl.addMediaItem(buildMediaItem(song, artworkData = null))
+
+        if (!_shuffleEnabled.value) {
+            baseline = baseline + song
+            persistence.saveBaselineQueue(baseline)
+        }
+
         onQueueStructureChanged(fresh = false)
     }
 
@@ -352,37 +452,49 @@ class ExoPlayerEngine(
      * [fromIndex]/[toIndex] are positions in [upcomingQueue], translated here to real
      * timeline indices via [upcomingTimelineIndices] before touching the controller.
      *
-     * Deliberately a no-op while shuffle is enabled: media3's `moveMediaItem` does not
-     * reindex its internal `ShuffleOrder` (confirmed open bug, androidx/media#1381 — still
-     * unfixed as of the media3 1.4.0 this project pins; a fix landed upstream in mid-2025
-     * but only as an opt-in hook that `DefaultShuffleOrder` does not implement, so it does
-     * nothing for us regardless). Moving a media item while shuffled would silently desync
-     * what [upcomingQueue] displays from what media3 actually plays next. The UI already
-     * disables the drag handle under shuffle (QueueRow); this is the backstop in case this
-     * is ever called some other way.
+     * While shuffle is off, the same move is mirrored into [baseline] — the active queue's
+     * upcoming order *is* baseline's tail while unshuffled, so the two indices line up via
+     * `baseline.indexOf(current) + 1 + displayIndex`. While shuffle is on, this only touches
+     * the live timeline; the reorder evaporates the moment shuffle turns off, per spec.
      */
     override fun moveQueueItem(fromIndex: Int, toIndex: Int) {
         val ctrl = controller ?: return
-        if (ctrl.shuffleModeEnabled) return
         val realFrom = upcomingTimelineIndices.getOrNull(fromIndex) ?: return
         val realTo = upcomingTimelineIndices.getOrNull(toIndex) ?: return
         ctrl.moveMediaItem(realFrom, realTo)
+
+        if (!_shuffleEnabled.value) {
+            val current = currentSong()
+            val baseIndex = current?.let { baseline.indexOfFirst { s -> s.id == it.id } } ?: -1
+            if (baseIndex >= 0) {
+                val baseFrom = baseIndex + 1 + fromIndex
+                val baseTo = baseIndex + 1 + toIndex
+                if (baseFrom in baseline.indices && baseTo in baseline.indices) {
+                    baseline = baseline.toMutableList().apply { add(baseTo, removeAt(baseFrom)) }
+                    persistence.saveBaselineQueue(baseline)
+                }
+            }
+        }
+
         onQueueStructureChanged(fresh = false)
     }
 
     /**
      * [index] is a position in [upcomingQueue], translated to the real timeline index via
-     * [upcomingTimelineIndices]. Unlike move, remove is safe under shuffle: media3's
-     * `removeMediaItem` does correctly reindex the shuffle order (it goes through
-     * `ShuffleOrder.cloneAndRemove`, the same path `addMediaItem` uses via
-     * `cloneAndInsert` — neither exhibits androidx/media#1381, which is specific to move).
-     * The currently-playing item can no longer reach this method at all: it isn't part of
-     * [upcomingQueue] any more, so there's nothing to special-case for it here.
+     * [upcomingTimelineIndices]. Always permanent, regardless of shuffle state — removing a
+     * song means "don't play this again," not "hide it while shuffled" — so [baseline] is
+     * unconditionally stripped of it too, by song id (its position there may not correspond
+     * to [index] at all while shuffled).
      */
     override fun removeQueueItem(index: Int) {
         val ctrl = controller ?: return
         val realIndex = upcomingTimelineIndices.getOrNull(index) ?: return
+        val removedId = ctrl.getMediaItemAt(realIndex).mediaId
         ctrl.removeMediaItem(realIndex)
+
+        baseline = baseline.filterNot { it.id == removedId }
+        persistence.saveBaselineQueue(baseline)
+
         onQueueStructureChanged(fresh = false)
     }
 
@@ -503,19 +615,18 @@ class ExoPlayerEngine(
      * real-timeline-index map) by walking forward from the current item one window at a
      * time via [Timeline.getNextWindowIndex] with [Player.REPEAT_MODE_OFF] forced — this is
      * a single forward pass for display purposes, not the player's actual repeat setting,
-     * so it terminates at the real end of the queue instead of looping. `shuffleModeEnabled`
-     * is passed through for real, though: this is the exact traversal media3's own
-     * seekToNext/seekToPrevious use internally (confirmed against the session library's
-     * RemotableTimeline, which is what a MediaController's currentTimeline actually is),
-     * so what this produces is guaranteed to match what [next] actually does next rather
-     * than a display-only guess at it.
+     * so it terminates at the real end of the queue instead of looping. The shuffle param
+     * is a literal `false`, not `ctrl.shuffleModeEnabled`: media3's native shuffle is no
+     * longer used at all (ordering is entirely app-managed — see [baseline]), so
+     * `shuffleModeEnabled` always reads `false` regardless, and the timeline itself is
+     * already in whatever order [setMediaItems]/[moveMediaItem] last wrote it in — a plain
+     * forward walk over it is exactly the shuffled-or-not order that is actually live.
      *
      * Guarded against an empty/unready timeline: [MediaController.getCurrentMediaItemIndex]
      * returns `0`, not [C.INDEX_UNSET], when the timeline has no windows yet, so that check
-     * alone doesn't catch a listener callback firing before `setMediaItems` has landed —
-     * this bit us via `onShuffleModeEnabledChanged` firing mid-`restoreSavedQueue` (see that
-     * method's comment). Bounds-checking against the timeline's actual window count closes
-     * that off regardless of which caller manages to invoke this too early next.
+     * alone doesn't catch a listener callback (e.g. `onTimelineChanged`) firing before
+     * `setMediaItems` has fully landed. Bounds-checking against the timeline's actual window
+     * count closes that off regardless of which caller manages to invoke this too early.
      */
     private fun refreshUpcomingQueue() {
         val ctrl = controller
@@ -536,14 +647,14 @@ class ExoPlayerEngine(
         // visited guards against an unforeseen cycle; REPEAT_MODE_OFF should already
         // terminate at C.INDEX_UNSET on its own, this is defensive insurance only.
         val visited = HashSet<Int>()
-        var index = timeline.getNextWindowIndex(startIndex, Player.REPEAT_MODE_OFF, ctrl.shuffleModeEnabled)
+        var index = timeline.getNextWindowIndex(startIndex, Player.REPEAT_MODE_OFF, /* shuffleModeEnabled= */ false)
         while (index != C.INDEX_UNSET && visited.add(index)) {
             val mediaId = timeline.getWindow(index, window).mediaItem.mediaId
             songsById[mediaId]?.let {
                 songs.add(it)
                 indices.add(index)
             }
-            index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF, ctrl.shuffleModeEnabled)
+            index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF, /* shuffleModeEnabled= */ false)
         }
 
         _upcomingQueue.value = songs
@@ -583,6 +694,8 @@ class ExoPlayerEngine(
             }
         }
     }
+
+    private fun currentSong(): Song? = _currentSongId.value?.let { songsById[it] }
 
     private fun indexOfMediaId(ctrl: MediaController, mediaId: String): Int? {
         for (i in 0 until ctrl.mediaItemCount) {

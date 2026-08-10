@@ -24,9 +24,9 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  * still the single source of truth: once the engine's move lands, the next [queue] emission
  * resets [localQueue] to match it.
  *
- * Drag-reorder is disabled whenever [shuffleEnabled] is true — moving an item while
- * shuffled is unsafe (see [com.v1per.synthx.playback.ExoPlayerEngine.moveQueueItem]'s doc
- * comment for why); swipe-to-remove has no such restriction and stays enabled either way.
+ * Drag-reorder is always available, regardless of shuffle state — queue ordering is fully
+ * app-managed (see [com.v1per.synthx.playback.ExoPlayerEngine.moveQueueItem]'s doc comment),
+ * so a reorder while shuffled is a safe, if temporary, active-timeline-only edit.
  *
  * [state] is hoisted (rather than owned internally) so a host embedding this list — e.g.
  * PlayerExpandedContent's Queue mode — can observe its scroll position for its own purposes
@@ -40,7 +40,6 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 @Composable
 fun QueueList(
     queue: List<Song>,
-    shuffleEnabled: Boolean,
     onSongClick: (index: Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
     onRemove: (index: Int) -> Unit,
@@ -62,11 +61,9 @@ fun QueueList(
             ReorderableItem(reorderableState, key = song.id) {
                 QueueRow(
                     song = song,
-                    dragEnabled = !shuffleEnabled,
                     onClick = { onSongClick(index) },
                     onRemove = { onRemove(index) },
                     dragHandleModifier = Modifier.draggableHandle(
-                        enabled = !shuffleEnabled,
                         onDragStarted = { dragStartIndex = index },
                         onDragStopped = {
                             val endIndex = localQueue.indexOfFirst { it.id == song.id }
