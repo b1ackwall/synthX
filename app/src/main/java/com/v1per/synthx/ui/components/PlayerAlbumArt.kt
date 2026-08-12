@@ -1,8 +1,6 @@
 package com.v1per.synthx.ui.components
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -19,6 +17,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Size
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.ui.theme.Motion
 
 @Composable
 fun PlayerAlbumArt(
@@ -30,10 +29,7 @@ fun PlayerAlbumArt(
     // "Breathe" — the art relaxes inward when paused and springs back on play.
     val scale by animateFloatAsState(
         targetValue = if (isPlaying) 1.0f else 0.90f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
+        animationSpec = Motion.SpringStandard,
         label = "artScale",
     )
     Box(

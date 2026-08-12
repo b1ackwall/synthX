@@ -1,5 +1,12 @@
 package com.v1per.synthx.ui.screens.librarymanagement
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -42,9 +50,22 @@ internal fun ScanSection(
         isScanning = isScanning,
         onClick = onRescan,
     )
-    if (isScanning) {
-        ScanProgressBar(progress = progress)
-        CancelScanRow(onClick = onCancelScan)
+    // expandVertically/shrinkVertically (not a plain fade) since the two rows occupy real
+    // layout space — a bare fade would leave a blank gap/jump as they appear or disappear.
+    // Same enter/exit token pairing as PlaylistListScreen's CreateGroupCard reveal.
+    AnimatedVisibility(
+        visible = isScanning,
+        enter = expandVertically(
+            animationSpec = tween(Motion.DurationNormal, easing = Motion.EasingStandard),
+        ) + fadeIn(animationSpec = tween(Motion.DurationNormal, easing = Motion.EasingStandard)),
+        exit = shrinkVertically(
+            animationSpec = tween(Motion.DurationFast, easing = Motion.EasingAccelerate),
+        ) + fadeOut(animationSpec = tween(Motion.DurationFast, easing = Motion.EasingAccelerate)),
+    ) {
+        Column {
+            ScanProgressBar(progress = progress)
+            CancelScanRow(onClick = onCancelScan)
+        }
     }
 }
 
@@ -105,20 +126,28 @@ private fun ScanProgressBar(progress: ScanProgress?) {
         .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm)
         .clip(MaterialTheme.shapes.small)
 
-    if (progress != null && progress.isDeterminate) {
-        LinearProgressIndicator(
-            progress = { progress.fraction },
-            modifier = modifier,
-            color = TextPrimary,
-            trackColor = Hairline,
-            drawStopIndicator = {},
-        )
-    } else {
-        LinearProgressIndicator(
-            modifier = modifier,
-            color = TextPrimary,
-            trackColor = Hairline,
-        )
+    // Fast: swapping determinate/indeterminate representation of the same underlying bar,
+    // not a content change — should read as a quick flicker-free handoff, not a reveal.
+    Crossfade(
+        targetState = progress != null && progress.isDeterminate,
+        animationSpec = tween(Motion.DurationFast, easing = Motion.EasingStandard),
+        label = "scanProgressMode",
+    ) { determinate ->
+        if (determinate) {
+            LinearProgressIndicator(
+                progress = { progress?.fraction ?: 0f },
+                modifier = modifier,
+                color = TextPrimary,
+                trackColor = Hairline,
+                drawStopIndicator = {},
+            )
+        } else {
+            LinearProgressIndicator(
+                modifier = modifier,
+                color = TextPrimary,
+                trackColor = Hairline,
+            )
+        }
     }
 }
 

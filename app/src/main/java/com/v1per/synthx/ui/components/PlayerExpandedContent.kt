@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.components
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 
 /** How far the queue list has to scroll before the controls overlay hides. */
@@ -144,7 +146,11 @@ fun PlayerExpandedContent(
                 .padding(top = TopMargin)
                 .padding(horizontal = Spacing.HorizontalPadding),
         ) {
-            Crossfade(targetState = showQueue, label = "playerContentMode") { queueMode ->
+            Crossfade(
+                targetState = showQueue,
+                animationSpec = tween(Motion.DurationNormal, easing = Motion.EasingStandard),
+                label = "playerContentMode",
+            ) { queueMode ->
                 if (!queueMode) {
                     PlayerModeContent(
                         song = song,

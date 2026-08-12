@@ -1,9 +1,7 @@
 package com.v1per.synthx.ui.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.exponentialDecay
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.AnchoredDraggableState
@@ -39,6 +37,7 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -105,10 +104,7 @@ fun PlayerSheet(
                 initialValue = PlayerSheetValue.Collapsed,
                 positionalThreshold = { totalDistance -> totalDistance * 0.4f },
                 velocityThreshold = { with(density) { 200.dp.toPx() } },
-                snapAnimationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
+                snapAnimationSpec = Motion.SpringStandard,
                 decayAnimationSpec = decayAnimationSpec,
             )
         }

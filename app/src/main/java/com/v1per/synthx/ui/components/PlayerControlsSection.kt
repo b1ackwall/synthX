@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -26,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -65,10 +67,12 @@ internal fun PlayerControlsSection(
     bottomInset: Dp,
     modifier: Modifier = Modifier,
 ) {
+    // Fast, not Normal: this is scroll-driven chrome show/hide, not a content reveal —
+    // it should track the queue-scroll gesture snappily rather than visibly lag behind it.
     AnimatedVisibility(
         visible = controlsVisible,
-        enter = fadeIn(),
-        exit = fadeOut(),
+        enter = fadeIn(animationSpec = tween(Motion.DurationFast, easing = Motion.EasingStandard)),
+        exit = fadeOut(animationSpec = tween(Motion.DurationFast, easing = Motion.EasingStandard)),
         modifier = modifier,
     ) {
         Column(
