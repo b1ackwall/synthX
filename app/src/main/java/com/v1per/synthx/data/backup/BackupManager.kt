@@ -130,7 +130,7 @@ class BackupManager(private val context: Context) {
                     val name = dbDoc.name.orEmpty()
                     val base = name.removeSuffix(".db")
                     val metaDoc = byName["$base.json"]
-                    val meta = metaDoc?.let { readMetadata(it) }
+                    val meta = metaDoc?.let { readMetadata(it.uri) }
                     BackupInfo(
                         databaseUri = dbDoc.uri,
                         metadataUri = metaDoc?.uri,
@@ -169,6 +169,47 @@ class BackupManager(private val context: Context) {
                 FileOutputStream(dbFile).use { out -> input.copyTo(out) }
             } ?: error("Could not read the selected backup")
             Unit
+        }
+    }
+
+    /**
+     * Schema version recorded in [backup]'s metadata sidecar at creation time (see
+     * [KEY_DB_VERSION] in [createBackup]), or `null` if the sidecar is missing/unreadable —
+     * the sidecar is written best-effort, so old or interrupted backups may not have one.
+     */
+    suspend fun readBackupDbVersion(backup: BackupInfo): Int? = withContext(Dispatchers.IO) {
+        val metadataUri = backup.metadataUri ?: return@withContext null
+        readMetadata(metadataUri)?.let { json ->
+            json.optInt(KEY_DB_VERSION, -1).takeIf { it > 0 }
+        }
+    }
+
+    /**
+     * Stages [backup]'s bytes into a private cache file and runs `PRAGMA integrity_check`
+     * against that copy, read-only — the live database is never touched by this check. The
+     * staged copy is deleted afterwards regardless of outcome.
+     */
+    suspend fun checkIntegrity(backup: BackupInfo): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val stagedFile = File.createTempFile("restore_check_", ".db", context.cacheDir)
+            try {
+                context.contentResolver.openInputStream(backup.databaseUri)?.use { input ->
+                    FileOutputStream(stagedFile).use { out -> input.copyTo(out) }
+                } ?: error("Could not read the selected backup")
+
+                val passed = SQLiteDatabase.openDatabase(
+                    stagedFile.path,
+                    null,
+                    SQLiteDatabase.OPEN_READONLY,
+                ).use { raw ->
+                    raw.rawQuery("PRAGMA integrity_check", null).use { cursor ->
+                        cursor.moveToFirst() && cursor.getString(0).equals("ok", ignoreCase = true)
+                    }
+                }
+                if (!passed) error("Backup database failed its integrity check")
+            } finally {
+                stagedFile.delete()
+            }
         }
     }
 
@@ -241,8 +282,8 @@ class BackupManager(private val context: Context) {
         }
     }
 
-    private fun readMetadata(doc: DocumentFile): JSONObject? = runCatching {
-        context.contentResolver.openInputStream(doc.uri)?.use { input ->
+    private fun readMetadata(uri: Uri): JSONObject? = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
             JSONObject(input.readBytes().decodeToString())
         }
     }.getOrNull()
