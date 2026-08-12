@@ -51,11 +51,31 @@ interface SongDao {
     )
     fun getSongsWithDetailsForAlbum(albumId: String): Flow<List<SongWithDetails>>
 
+    // Room batches the @Relation loads, same as getSongsWithDetailsForArtist/Album — joins
+    // straight to playlist_songs so the result set is the playlist, not the whole library.
+    @Transaction
+    @Query(
+        """
+        SELECT songs.* FROM songs
+        INNER JOIN playlist_songs ON playlist_songs.song_id = songs.id
+        WHERE playlist_songs.playlist_id = :playlistId
+        AND songs.is_missing = 0
+        ORDER BY playlist_songs.position ASC
+        """
+    )
+    fun getSongsWithDetailsForPlaylist(playlistId: String): Flow<List<SongWithDetails>>
+
     @Query("SELECT * FROM song_artists WHERE song_id = :songId ORDER BY position ASC")
     suspend fun getSongArtistRefs(songId: String): List<SongArtistEntity>
 
     @Query("SELECT * FROM song_artists ORDER BY position ASC")
     suspend fun getAllSongArtistRefs(): List<SongArtistEntity>
+
+    // Scoped variant of getAllSongArtistRefs for callers that already know their result
+    // set — a filtered/playlist query joining the whole song_artists table to look up
+    // refs for a handful of songs re-fetches every row in the library on each emission.
+    @Query("SELECT * FROM song_artists WHERE song_id IN (:songIds) ORDER BY position ASC")
+    suspend fun getSongArtistRefsForSongs(songIds: List<String>): List<SongArtistEntity>
 
     @Query("SELECT * FROM songs")
     suspend fun getAllSongsOnce(): List<SongEntity>

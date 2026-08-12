@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,10 +28,18 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextSecondary
 import java.util.Locale
+import kotlin.math.abs
 
 /** Height of the invisible touch-capture area around the 4dp visual line. */
 private val TouchTargetHeight = 24.dp
 private val TrackHeight = 4.dp
+
+/**
+ * How close a polled `currentPosition` must land to the optimistic seek target before
+ * control releases back to it — wide enough to absorb normal playback drift between the
+ * seek landing and the next 500ms poll tick, in either direction.
+ */
+private const val SeekCatchUpToleranceMs = 750L
 
 /**
  * Pinned rather than left to the text's own line height, so this composable's total height is
@@ -53,7 +62,18 @@ fun PlayerSeekBar(
     modifier: Modifier = Modifier,
 ) {
     var dragPositionMs by remember { mutableStateOf<Long?>(null) }
-    val displayedPosition = dragPositionMs ?: currentPosition
+    // Held from drag release until the polled currentPosition catches up to it, so the
+    // bar doesn't visibly snap back to the stale pre-seek position for up to one 500ms
+    // tick while the real position is still in flight.
+    var seekTargetMs by remember { mutableStateOf<Long?>(null) }
+    val displayedPosition = dragPositionMs ?: seekTargetMs ?: currentPosition
+
+    LaunchedEffect(currentPosition) {
+        val target = seekTargetMs ?: return@LaunchedEffect
+        if (abs(currentPosition - target) <= SeekCatchUpToleranceMs) {
+            seekTargetMs = null
+        }
+    }
 
     Column(
         modifier = modifier
@@ -77,7 +97,10 @@ fun PlayerSeekBar(
                             dragPositionMs = positionForX(change.position.x, size.width, duration)
                         },
                         onDragEnd = {
-                            dragPositionMs?.let(onSeek)
+                            dragPositionMs?.let { target ->
+                                seekTargetMs = target
+                                onSeek(target)
+                            }
                             dragPositionMs = null
                         },
                         onDragCancel = {

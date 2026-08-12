@@ -2,9 +2,18 @@ package com.v1per.synthx.playback
 
 import android.util.Log
 import androidx.media3.common.C
+import androidx.media3.session.MediaController
 import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+/**
+ * Above this queue size, [applyReorderViaMoves]'s one-`moveMediaItem`-per-swap rebuild
+ * generates enough allocation pressure in media3's internal timeline rebuild (seen OOMing
+ * the playback thread on a ~1500-song queue) that [applyReorderViaSetMediaItems] is used
+ * instead. Below it, the move-based rebuild is cheap and keeps its no-interruption behaviour.
+ */
+private const val SHUFFLE_LARGE_QUEUE_THRESHOLD = 300
 
 /**
  * Real bodies for [ExoPlayerEngine]'s [PlaybackEngine] queue-mutation overrides — the class
@@ -31,7 +40,7 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
 
     // MediaController is main-thread-only and the hops above may have moved us off it
     withContext(Dispatchers.Main.immediate) {
-        val ctrl = controller ?: return@withContext
+        val ctrl = awaitController() ?: return@withContext
         songsById.clear()
         songs.forEach { songsById[it.id] = it }
         artworkLoadedIds.clear()
@@ -131,11 +140,40 @@ internal fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean) {
         baselineManager.computeUnshuffleTarget(current, _queue.value)
     }
 
-    applyReorderViaMoves(ctrl, target)
+    if (target.size > SHUFFLE_LARGE_QUEUE_THRESHOLD) {
+        applyReorderViaSetMediaItems(ctrl, target, current)
+    } else {
+        applyReorderViaMoves(ctrl, target)
+    }
 
     _shuffleEnabled.value = enabled
     persistence.shuffleEnabled = enabled
     onQueueStructureChanged(fresh = false)
+}
+
+/**
+ * Large-queue counterpart to [applyReorderViaMoves]: replaces the whole timeline in one
+ * `setMediaItems` call instead of hundreds/thousands of individual `moveMediaItem` calls.
+ * This does briefly interrupt/rebuffer the currently-playing item — the exact cost
+ * `applyReorderViaMoves` exists to avoid — but capturing [current]'s position and re-seeking
+ * to its new index trades that brief interruption for avoiding the OOM the move-based
+ * rebuild causes at this scale. Artwork is intentionally left out of the rebuilt
+ * [MediaItem]s (unlike [ExoPlayerEngine.playQueueInternal]'s synchronous start-item fetch)
+ * since this path is not suspend; clearing [ExoPlayerEngine.artworkLoadedIds] means the
+ * caller's [onQueueStructureChanged] -> `prefetchArtwork()` picks it back up asynchronously.
+ */
+internal fun ExoPlayerEngine.applyReorderViaSetMediaItems(
+    ctrl: MediaController,
+    target: List<Song>,
+    current: Song,
+) {
+    val positionMs = ctrl.currentPosition
+    val startIndex = target.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
+    val mediaItems = target.map { song -> buildMediaItem(song, artworkData = null) }
+
+    artworkLoadedIds.clear()
+    ctrl.setMediaItems(mediaItems, startIndex, positionMs)
+    ctrl.prepare()
 }
 
 /**

@@ -144,9 +144,10 @@ fun PlayerSheet(
         }
 
         // Report progress upward so chrome (e.g. the bottom nav) can slide with expansion.
-        LaunchedEffect(progress) {
-            onProgressChanged(progress)
-        }
+        // Called directly in the composable body rather than via LaunchedEffect(progress):
+        // progress changes every drag frame, and relaunching a coroutine just to make one
+        // synchronous callback per frame is needless overhead.
+        onProgressChanged(progress)
 
         PlayerSheetContent(
             song = song,

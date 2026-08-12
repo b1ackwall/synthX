@@ -19,11 +19,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 
 /**
  * [PlaybackEngine] implementation backed by a media3 [MediaController]/[SynthXPlaybackService].
@@ -118,21 +120,26 @@ class ExoPlayerEngine(
     internal val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     internal var artworkJob: Job? = null
 
-    // Cold polling flows: collected on the caller's dispatcher (the ViewModel collects on
+    // Single 500ms ticker shared by currentPosition and duration below — previously each
+    // ran its own independent delay loop polling the same controller snapshot twice per
+    // tick for no reason. shareIn (rather than two separate cold flows) means only one
+    // timer runs regardless of how many downstream collectors currentPosition/duration
+    // pick up. Collected on the caller's dispatcher (the ViewModel collects on
     // Main.immediate via stateIn), which satisfies MediaController's main-thread requirement.
-    override val currentPosition: Flow<Long> = flow {
+    private val positionTicker: Flow<Unit> = flow {
         while (true) {
-            emit(controller?.currentPosition ?: 0L)
+            emit(Unit)
             delay(500)
         }
-    }.distinctUntilChanged()
+    }.shareIn(engineScope, SharingStarted.WhileSubscribed())
 
-    override val duration: Flow<Long> = flow {
-        while (true) {
-            emit(controller?.duration?.takeIf { it > 0 } ?: 0L)
-            delay(500)
-        }
-    }.distinctUntilChanged()
+    override val currentPosition: Flow<Long> = positionTicker
+        .map { controller?.currentPosition ?: 0L }
+        .distinctUntilChanged()
+
+    override val duration: Flow<Long> = positionTicker
+        .map { controller?.duration?.takeIf { it > 0 } ?: 0L }
+        .distinctUntilChanged()
 
     internal var controller: MediaController? = null
 
