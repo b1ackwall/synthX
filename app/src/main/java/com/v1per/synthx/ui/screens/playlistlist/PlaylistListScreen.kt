@@ -42,10 +42,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistGroup
+import com.v1per.synthx.ui.components.DeleteGroupDialog
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Accent
@@ -85,6 +89,21 @@ fun PlaylistListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val showCreateGroup by viewModel.showCreateGroup.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.actionErrors.collect { error ->
+            val messageRes = when (error) {
+                PlaylistListViewModel.ActionError.RenamePlaylistFailed -> R.string.error_rename_playlist
+                PlaylistListViewModel.ActionError.DeletePlaylistFailed -> R.string.error_delete_playlist
+                PlaylistListViewModel.ActionError.MovePlaylistFailed -> R.string.error_move_playlist
+                PlaylistListViewModel.ActionError.RenameGroupFailed -> R.string.error_rename_group
+                PlaylistListViewModel.ActionError.DeleteGroupFailed -> R.string.error_delete_group
+            }
+            snackbarHostState.showSnackbar(context.getString(messageRes))
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         topBar()
@@ -146,62 +165,69 @@ fun PlaylistListScreen(
             )
         }
 
-        LazyColumn {
-            if (uiState.isLoading) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(160.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        LoadingIndicator(modifier = Modifier.fillMaxWidth())
+        Box(modifier = Modifier.weight(1f)) {
+            LazyColumn {
+                if (uiState.isLoading) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            LoadingIndicator(modifier = Modifier.fillMaxWidth())
+                        }
                     }
                 }
-            }
 
-            if (uiState.groups.isNotEmpty()) {
-                items(uiState.groups, key = { it.id }) { group ->
-                    GroupRow(
-                        group = group,
-                        onClick = { onGroupClick(group.id, group.name) },
-                        onRename = { name -> viewModel.renameGroup(group.id, name) },
-                        onDelete = { viewModel.deleteGroup(group.id) },
-                    )
-                }
-            }
-
-            if (uiState.ungroupedPlaylists.isNotEmpty()) {
-                items(uiState.ungroupedPlaylists, key = { it.id }) { playlist ->
-                    PlaylistRow(
-                        playlist = playlist,
-                        onClick = { onPlaylistClick(playlist.id, playlist.name) },
-                        onRename = { name -> viewModel.renamePlaylist(playlist.id, name) },
-                        onDelete = { viewModel.deletePlaylist(playlist.id) },
-                        onMoveToGroup = { groupId ->
-                            viewModel.movePlaylistToGroup(playlist.id, groupId)
-                        },
-                        availableGroups = uiState.groups,
-                    )
-                }
-            }
-
-            if (uiState.groups.isEmpty() && uiState.ungroupedPlaylists.isEmpty() && !uiState.isLoading) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.xxl),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.empty_no_playlists),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = TextSecondary,
+                if (uiState.groups.isNotEmpty()) {
+                    items(uiState.groups, key = { it.id }) { group ->
+                        GroupRow(
+                            group = group,
+                            onClick = { onGroupClick(group.id, group.name) },
+                            onRename = { name -> viewModel.renameGroup(group.id, name) },
+                            onDelete = { viewModel.deleteGroup(group.id) },
                         )
                     }
                 }
+
+                if (uiState.ungroupedPlaylists.isNotEmpty()) {
+                    items(uiState.ungroupedPlaylists, key = { it.id }) { playlist ->
+                        PlaylistRow(
+                            playlist = playlist,
+                            onClick = { onPlaylistClick(playlist.id, playlist.name) },
+                            onRename = { name -> viewModel.renamePlaylist(playlist.id, name) },
+                            onDelete = { viewModel.deletePlaylist(playlist.id) },
+                            onMoveToGroup = { groupId ->
+                                viewModel.movePlaylistToGroup(playlist.id, groupId)
+                            },
+                            availableGroups = uiState.groups,
+                        )
+                    }
+                }
+
+                if (uiState.groups.isEmpty() && uiState.ungroupedPlaylists.isEmpty() && !uiState.isLoading) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.xxl),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.empty_no_playlists),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = TextSecondary,
+                            )
+                        }
+                    }
+                }
             }
+
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 }
@@ -324,6 +350,7 @@ private fun GroupRow(
                 )
             }
             GroupThreeDotsMenu(
+                groupName = group.name,
                 onRename = {
                     renameValue = group.name
                     isRenaming = true
@@ -340,10 +367,12 @@ private fun GroupRow(
 
 @Composable
 private fun GroupThreeDotsMenu(
+    groupName: String,
     onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Box {
         IconButton(onClick = { showMenu = true }) {
@@ -368,9 +397,20 @@ private fun GroupThreeDotsMenu(
                 text = { Text(stringResource(R.string.action_delete)) },
                 onClick = {
                     showMenu = false
-                    onDelete()
+                    showDeleteConfirm = true
                 },
             )
         }
+    }
+
+    if (showDeleteConfirm) {
+        DeleteGroupDialog(
+            groupName = groupName,
+            onConfirm = {
+                showDeleteConfirm = false
+                onDelete()
+            },
+            onDismiss = { showDeleteConfirm = false },
+        )
     }
 }

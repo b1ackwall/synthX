@@ -148,7 +148,7 @@ internal fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean) {
 
     _shuffleEnabled.value = enabled
     persistence.shuffleEnabled = enabled
-    onQueueStructureChanged(fresh = false)
+    onQueueReordered()
 }
 
 /**

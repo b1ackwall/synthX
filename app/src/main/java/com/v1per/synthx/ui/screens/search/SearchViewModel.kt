@@ -10,10 +10,16 @@ import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.ui.common.LoadError
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
@@ -24,9 +30,14 @@ import kotlinx.coroutines.launch
 @OptIn(FlowPreview::class)
 class SearchViewModel(
     private val repository: SongRepository,
+    private val appContext: Context,
 ) : ViewModel() {
 
     enum class SearchFilter { ALL, SONGS, PLAYLISTS, ARTISTS, ALBUMS }
+
+    /** Resolved to app-voice strings.xml copy by the screen — see
+     *  GroupDetailViewModel.ActionError for the same pattern. */
+    enum class ActionError { RenamePlaylistFailed, DeletePlaylistFailed }
 
     data class SearchResults(
         val songs: List<Song> = emptyList(),
@@ -50,6 +61,14 @@ class SearchViewModel(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    // A failed rename/delete is a transient event, not a change to the search results —
+    // see GroupDetailViewModel._actionErrors for the same reasoning.
+    private val _actionErrors = MutableSharedFlow<ActionError>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val actionErrors: SharedFlow<ActionError> = _actionErrors.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -76,7 +95,7 @@ class SearchViewModel(
                 )
             }
                 .flowOn(Dispatchers.Default)
-                .catch { e -> _error.value = "Search failed: ${e.message}" }
+                .catch { e -> _error.value = LoadError.Search.message(appContext) }
                 .collect {
                     _results.value = it
                     _error.value = null
@@ -92,13 +111,38 @@ class SearchViewModel(
         _filter.value = filter
     }
 
+    fun renamePlaylist(id: String, name: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            try {
+                repository.renamePlaylist(id, name.trim())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _actionErrors.tryEmit(ActionError.RenamePlaylistFailed)
+            }
+        }
+    }
+
+    fun deletePlaylist(id: String) {
+        viewModelScope.launch {
+            try {
+                repository.deletePlaylist(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _actionErrors.tryEmit(ActionError.DeletePlaylistFailed)
+            }
+        }
+    }
+
     companion object {
         fun factory(context: Context): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     val repository = SongRepositoryImpl.create(context)
                     @Suppress("UNCHECKED_CAST")
-                    return SearchViewModel(repository) as T
+                    return SearchViewModel(repository, context.applicationContext) as T
                 }
             }
     }

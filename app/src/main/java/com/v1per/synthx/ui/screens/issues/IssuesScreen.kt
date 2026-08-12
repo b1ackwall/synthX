@@ -92,7 +92,7 @@ private fun IssuesContent(
             is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
-                color = TextSecondary,
+                color = Error,
                 modifier = Modifier.align(Alignment.Center),
             )
             is UiState.Success -> LazyColumn(

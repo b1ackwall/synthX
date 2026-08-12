@@ -8,6 +8,7 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.ui.common.LoadError
 import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,7 @@ enum class SortOrder {
 class SongsViewModel(
     private val repository: SongRepository,
     private val playbackViewModel: PlaybackViewModel,
+    private val appContext: Context,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<List<Song>>>(UiState.Loading)
@@ -53,7 +55,7 @@ class SongsViewModel(
             }
                 .flowOn(Dispatchers.Default)
                 .catch { e ->
-                    _uiState.value = UiState.Error(e.message ?: "Failed to load songs")
+                    _uiState.value = UiState.Error(LoadError.Songs.message(appContext))
                 }
                 .collect { songs ->
                     _uiState.value =
@@ -86,7 +88,11 @@ class SongsViewModel(
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
             @Suppress("UNCHECKED_CAST")
-            return SongsViewModel(SongRepositoryImpl.create(context), playbackViewModel) as T
+            return SongsViewModel(
+                SongRepositoryImpl.create(context),
+                playbackViewModel,
+                context.applicationContext,
+            ) as T
         }
     }
 }

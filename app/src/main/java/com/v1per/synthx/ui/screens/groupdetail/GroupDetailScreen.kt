@@ -48,6 +48,7 @@ fun GroupDetailScreen(
             val messageRes = when (error) {
                 GroupDetailViewModel.ActionError.RenameFailed -> R.string.error_rename_playlist
                 GroupDetailViewModel.ActionError.DeleteFailed -> R.string.error_delete_playlist
+                GroupDetailViewModel.ActionError.RemoveFromGroupFailed -> R.string.error_remove_from_group
             }
             snackbarHostState.showSnackbar(context.getString(messageRes))
         }
@@ -74,6 +75,7 @@ fun GroupDetailScreen(
                             onClick = { onPlaylistClick(playlist.id, playlist.name) },
                             onRename = { name -> viewModel.renamePlaylist(playlist.id, name) },
                             onDelete = { viewModel.deletePlaylist(playlist.id) },
+                            onMoveToGroup = { viewModel.removeFromGroup(playlist.id) },
                         )
                     }
                 }

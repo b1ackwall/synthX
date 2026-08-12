@@ -189,6 +189,15 @@ private fun PlaylistThreeDotsMenu(
                     },
                 )
             }
+            if (currentGroupId != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.action_remove_from_group)) },
+                    onClick = {
+                        showMenu = false
+                        onMoveToGroup(null)
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.action_delete)) },
                 onClick = {

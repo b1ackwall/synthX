@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -37,9 +36,10 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.SongRow
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
 // Aliased: the Material3 `Surface` composable already owns this simple name in this file.
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
@@ -154,10 +154,7 @@ private fun SongsScreenContent(
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
-            is UiState.Loading -> CircularProgressIndicator(
-                color = Accent,
-                modifier = Modifier.align(Alignment.Center),
-            )
+            is UiState.Loading -> LoadingIndicator()
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_songs),
                 style = MaterialTheme.typography.bodyLarge,
@@ -167,7 +164,7 @@ private fun SongsScreenContent(
             is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
-                color = TextSecondary,
+                color = Error,
                 modifier = Modifier.align(Alignment.Center),
             )
             is UiState.Success -> SongList(

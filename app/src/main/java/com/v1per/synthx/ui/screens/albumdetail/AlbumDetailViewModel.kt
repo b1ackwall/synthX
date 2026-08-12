@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.ui.common.LoadError
 import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.launch
 class AlbumDetailViewModel(
     private val repository: SongRepository,
     private val albumId: String,
+    private val appContext: Context,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<List<Song>>>(UiState.Loading)
@@ -26,7 +28,7 @@ class AlbumDetailViewModel(
         viewModelScope.launch {
             repository.getSongsForAlbum(albumId)
                 .catch { e ->
-                    _uiState.value = UiState.Error(e.message ?: "Failed to load songs")
+                    _uiState.value = UiState.Error(LoadError.AlbumSongs.message(appContext))
                 }
                 .collect { songs ->
                     _uiState.value =
@@ -41,7 +43,7 @@ class AlbumDetailViewModel(
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     val repository = SongRepositoryImpl.create(context)
                     @Suppress("UNCHECKED_CAST")
-                    return AlbumDetailViewModel(repository, albumId) as T
+                    return AlbumDetailViewModel(repository, albumId, context.applicationContext) as T
                 }
             }
     }

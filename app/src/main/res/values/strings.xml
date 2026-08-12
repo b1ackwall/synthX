@@ -36,6 +36,7 @@
     <string name="action_done">Done</string>
     <string name="action_add_to_group">Add to group</string>
     <string name="action_move_to_group">Move to group</string>
+    <string name="action_remove_from_group">Remove from group</string>
 
     <!-- Song actions -->
     <string name="actions_delete_song">Delete Song</string>
@@ -102,6 +103,8 @@
     <!-- Playlists -->
     <string name="delete_playlist_dialog_title">Delete this playlist?</string>
     <string name="delete_playlist_dialog_message">This permanently removes \"%1$s\". The songs in it are not deleted. This cannot be undone.</string>
+    <string name="delete_group_dialog_title">Delete this group?</string>
+    <string name="delete_group_dialog_message">This permanently removes \"%1$s\". The playlists in it are not deleted — they move back to your ungrouped playlists. This cannot be undone.</string>
 
     <!-- Backup &amp; restore -->
     <string name="restore_empty">No backups found. Pick a backup folder in Library Management first.</string>
@@ -163,6 +166,17 @@
     <string name="error_save_playlist">Couldn\'t save this playlist. Try again.</string>
     <string name="error_rename_playlist">Couldn\'t rename this playlist. Try again.</string>
     <string name="error_delete_playlist">Couldn\'t delete this playlist. Try again.</string>
+    <string name="error_rename_group">Couldn\'t rename this group. Try again.</string>
+    <string name="error_delete_group">Couldn\'t delete this group. Try again.</string>
+    <string name="error_move_playlist">Couldn\'t move this playlist. Try again.</string>
+    <string name="error_remove_from_group">Couldn\'t remove this playlist from the group. Try again.</string>
+    <string name="error_load_albums">Couldn\'t load your albums. Try again.</string>
+    <string name="error_load_album_songs">Couldn\'t load this album\'s songs. Try again.</string>
+    <string name="error_load_artists">Couldn\'t load your artists. Try again.</string>
+    <string name="error_load_artist_songs">Couldn\'t load this artist\'s songs. Try again.</string>
+    <string name="error_load_group_playlists">Couldn\'t load this group\'s playlists. Try again.</string>
+    <string name="error_load_recently_added">Couldn\'t load recently added songs. Try again.</string>
+    <string name="error_search">Search failed. Try again.</string>
 
     <!-- Content descriptions -->
     <string name="cd_more_options">More options</string>

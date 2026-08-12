@@ -22,6 +22,21 @@ internal fun ExoPlayerEngine.onQueueStructureChanged(fresh: Boolean) {
     prefetchArtwork()
 }
 
+/**
+ * Same refresh/persist/prefetch plumbing as [onQueueStructureChanged], for structural changes
+ * that are not a user customisation — currently just a shuffle toggle. A system-driven
+ * reorder must not touch [ExoPlayerEngine._isQueueCustomized] in either direction: forcing it
+ * true wrongly triggers the Keep/Clear prompt on the next song tap for a user who never
+ * hand-reordered anything, and forcing it false would just as wrongly erase a customisation
+ * that genuinely happened earlier in the session.
+ */
+internal fun ExoPlayerEngine.onQueueReordered() {
+    refreshQueue()
+    refreshUpcomingQueue()
+    persistQueue()
+    prefetchArtwork()
+}
+
 internal fun ExoPlayerEngine.persistQueue() {
     persistence.saveQueue(_queue.value)
 }

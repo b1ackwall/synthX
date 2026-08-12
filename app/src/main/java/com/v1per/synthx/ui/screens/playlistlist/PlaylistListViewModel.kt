@@ -8,8 +8,13 @@ import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -17,6 +22,13 @@ import kotlinx.coroutines.launch
 class PlaylistListViewModel(
     private val repository: SongRepository,
 ) : ViewModel() {
+
+    /** Resolved to app-voice strings.xml copy by the screen — see
+     *  GroupDetailViewModel.ActionError for the same pattern. */
+    enum class ActionError {
+        RenamePlaylistFailed, DeletePlaylistFailed, MovePlaylistFailed,
+        RenameGroupFailed, DeleteGroupFailed,
+    }
 
     data class PlaylistListUiState(
         val groups: List<PlaylistGroup> = emptyList(),
@@ -30,6 +42,14 @@ class PlaylistListViewModel(
     // Inline group creation card state
     private val _showCreateGroup = MutableStateFlow(false)
     val showCreateGroup: StateFlow<Boolean> = _showCreateGroup.asStateFlow()
+
+    // A failed action is a transient event, not a change to what's on screen — see
+    // GroupDetailViewModel._actionErrors for the same reasoning.
+    private val _actionErrors = MutableSharedFlow<ActionError>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val actionErrors: SharedFlow<ActionError> = _actionErrors.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -70,24 +90,64 @@ class PlaylistListViewModel(
 
     fun renameGroup(id: String, name: String) {
         if (name.isBlank()) return
-        viewModelScope.launch { repository.renameGroup(id, name.trim()) }
+        viewModelScope.launch {
+            try {
+                repository.renameGroup(id, name.trim())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _actionErrors.tryEmit(ActionError.RenameGroupFailed)
+            }
+        }
     }
 
     fun deleteGroup(id: String) {
-        viewModelScope.launch { repository.deleteGroup(id) }
+        viewModelScope.launch {
+            try {
+                repository.deleteGroup(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _actionErrors.tryEmit(ActionError.DeleteGroupFailed)
+            }
+        }
     }
 
     fun movePlaylistToGroup(playlistId: String, groupId: String?) {
-        viewModelScope.launch { repository.movePlaylistToGroup(playlistId, groupId) }
+        viewModelScope.launch {
+            try {
+                repository.movePlaylistToGroup(playlistId, groupId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _actionErrors.tryEmit(ActionError.MovePlaylistFailed)
+            }
+        }
     }
 
     fun renamePlaylist(id: String, name: String) {
         if (name.isBlank()) return
-        viewModelScope.launch { repository.renamePlaylist(id, name.trim()) }
+        viewModelScope.launch {
+            try {
+                repository.renamePlaylist(id, name.trim())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _actionErrors.tryEmit(ActionError.RenamePlaylistFailed)
+            }
+        }
     }
 
     fun deletePlaylist(id: String) {
-        viewModelScope.launch { repository.deletePlaylist(id) }
+        viewModelScope.launch {
+            try {
+                repository.deletePlaylist(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _actionErrors.tryEmit(ActionError.DeletePlaylistFailed)
+            }
+        }
     }
 
     companion object {

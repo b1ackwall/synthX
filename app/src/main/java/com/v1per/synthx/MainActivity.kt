@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.work.WorkManager
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pruneFinishedWork()
         runLaunchMaintenance()
         enableEdgeToEdge()
         setContent {
@@ -60,6 +62,20 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         playbackViewModel.persistPlaybackState()
+    }
+
+    /**
+     * WorkManager keeps a unique work item's terminal WorkInfo (SUCCEEDED/FAILED/CANCELLED)
+     * around until it's explicitly pruned or the unique name is enqueued again — without this,
+     * RestoreViewModel reading RestoreWorker.UNIQUE_WORK_NAME's WorkInfo on a later, unrelated
+     * visit to the Restore screen would still see last session's SUCCEEDED state and resurface
+     * the "restore complete, reopen synthX" dialog. Called before setContent, ahead of any
+     * ViewModel that might read WorkInfo. WorkManager has no per-unique-work prune, only this
+     * database-wide one — harmless here since nothing else in the app persists across restarts
+     * by reading a finished WorkInfo the way Restore does.
+     */
+    private fun pruneFinishedWork() {
+        WorkManager.getInstance(applicationContext).pruneWork()
     }
 
     /**

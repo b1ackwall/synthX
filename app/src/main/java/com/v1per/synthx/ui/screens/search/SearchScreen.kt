@@ -30,9 +30,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -84,6 +87,18 @@ fun SearchScreen(
     val results by viewModel.results.collectAsState()
     val error by viewModel.error.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.actionErrors.collect { actionError ->
+            val messageRes = when (actionError) {
+                SearchViewModel.ActionError.RenamePlaylistFailed -> R.string.error_rename_playlist
+                SearchViewModel.ActionError.DeletePlaylistFailed -> R.string.error_delete_playlist
+            }
+            snackbarHostState.showSnackbar(context.getString(messageRes))
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         topBar()
@@ -218,11 +233,18 @@ fun SearchScreen(
                         SearchFilter.PLAYLISTS -> playlistItems(
                             playlists = results.playlists,
                             onNavigateToPlaylistDetail = onNavigateToPlaylistDetail,
+                            onRename = viewModel::renamePlaylist,
+                            onDelete = viewModel::deletePlaylist,
                         )
                         SearchFilter.ALL -> {
                             if (results.playlists.isNotEmpty()) {
                                 sectionHeader(R.string.screen_playlists)
-                                playlistItems(results.playlists, onNavigateToPlaylistDetail)
+                                playlistItems(
+                                    results.playlists,
+                                    onNavigateToPlaylistDetail,
+                                    viewModel::renamePlaylist,
+                                    viewModel::deletePlaylist,
+                                )
                             }
                             if (results.artists.isNotEmpty()) {
                                 sectionHeader(R.string.screen_artists)
@@ -240,6 +262,11 @@ fun SearchScreen(
                     }
                 }
             }
+
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 }
@@ -301,13 +328,15 @@ private fun LazyListScope.albumItems(
 private fun LazyListScope.playlistItems(
     playlists: List<Playlist>,
     onNavigateToPlaylistDetail: (String, String) -> Unit,
+    onRename: (String, String) -> Unit,
+    onDelete: (String) -> Unit,
 ) {
     items(playlists, key = { "playlist_${it.id}" }) { playlist ->
         PlaylistRow(
             playlist = playlist,
             onClick = { onNavigateToPlaylistDetail(playlist.id, playlist.name) },
-            onRename = {},
-            onDelete = {},
+            onRename = { name -> onRename(playlist.id, name) },
+            onDelete = { onDelete(playlist.id) },
         )
     }
 }

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.ui.common.LoadError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -29,6 +30,7 @@ sealed class NavigationEvent {
 
 class LibraryViewModel(
     private val repository: SongRepository,
+    private val appContext: Context,
 ) : ViewModel() {
 
     // Buffered so a click emitted while the screen is between compositions
@@ -63,7 +65,7 @@ class LibraryViewModel(
                 }
                 .flowOn(Dispatchers.Default)
                 .catch { e ->
-                    _error.value = "Failed to load recently added: ${e.message}"
+                    _error.value = LoadError.RecentlyAdded.message(appContext)
                     _isLoading.value = false
                 }
                 .collect {
@@ -104,7 +106,7 @@ class LibraryViewModel(
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     val repository = SongRepositoryImpl.create(context)
                     @Suppress("UNCHECKED_CAST")
-                    return LibraryViewModel(repository) as T
+                    return LibraryViewModel(repository, context.applicationContext) as T
                 }
             }
     }
