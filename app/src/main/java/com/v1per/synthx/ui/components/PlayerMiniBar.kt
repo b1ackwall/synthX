@@ -1,7 +1,7 @@
 package com.v1per.synthx.ui.components
 
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,10 +15,10 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -44,12 +44,18 @@ fun PlayerMiniBar(
     onExpand: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val rowInteractionSource = remember { MutableInteractionSource() }
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(CollapsedPlayerHeight)
             .alpha(alpha)
-            .clickable(enabled = alpha > 0.5f, onClick = onExpand)
+            .dragResistantClickable(
+                interactionSource = rowInteractionSource,
+                enabled = alpha > 0.5f,
+                role = null,
+                onClick = onExpand,
+            )
             .padding(horizontal = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -72,7 +78,7 @@ fun PlayerMiniBar(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(
+        DragResistantIconButton(
             onClick = onPlayPauseClick,
             enabled = alpha > 0.5f,
         ) {

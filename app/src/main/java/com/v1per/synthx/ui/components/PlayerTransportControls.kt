@@ -11,7 +11,6 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,9 +43,9 @@ fun PlayerTransportControls(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(modifier = Modifier.weight(2f))
-        IconButton(
+        DragResistantIconButton(
             onClick = onPreviousClick,
-            modifier = Modifier.size(72.dp),
+            size = 72.dp,
             enabled = previousEnabled,
         ) {
             Icon(
@@ -59,9 +58,9 @@ fun PlayerTransportControls(
             )
         }
         Spacer(modifier = Modifier.weight(1f))
-        IconButton(
+        DragResistantIconButton(
             onClick = onPlayPauseClick,
-            modifier = Modifier.size(96.dp),
+            size = 96.dp,
             enabled = enabled,
         ) {
             if (isBuffering) {
@@ -84,9 +83,9 @@ fun PlayerTransportControls(
             }
         }
         Spacer(modifier = Modifier.weight(1f))
-        IconButton(
+        DragResistantIconButton(
             onClick = onNextClick,
-            modifier = Modifier.size(72.dp),
+            size = 72.dp,
             enabled = nextEnabled,
         ) {
             Icon(
