@@ -22,10 +22,15 @@ import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.ScanResult
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 
 class SongRepositoryImpl(
@@ -40,12 +45,30 @@ class SongRepositoryImpl(
     private val backupManager: BackupManager,
 ) : SongRepository {
 
-    override fun getSongs(): Flow<List<Song>> =
+    // This class is a singleton (see companion.create), so this scope effectively lives as
+    // long as the app process does — same shape as ExoPlayerEngine.engineScope /
+    // QueuePersistence.scope at their own instance-lifetime level.
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    // Shared across every getSongs() subscriber instead of re-querying and re-mapping the
+    // full library (~1500 songs) on every SongsViewModel instance. Lazily rather than
+    // WhileSubscribed: local song data changes rarely and Songs is a frequently-revisited
+    // screen, so once the query has run once it's worth keeping warm for the rest of the
+    // process — instant navigation matters more here than releasing this one cache early.
+    // Room's Flow still auto-invalidates on real table changes, so this stays correct
+    // across scans/edits regardless of how long the cache is held.
+    private val songsFlow: StateFlow<List<Song>> =
         songDao.getAllSongsWithDetails().map { entries ->
             // One refs query per emission — 2 queries total regardless of library size
             val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
             entries.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
-        }
+        }.stateIn(
+            scope = repositoryScope,
+            started = SharingStarted.Lazily,
+            initialValue = emptyList(),
+        )
+
+    override fun getSongs(): Flow<List<Song>> = songsFlow
 
     override fun getArtists(): Flow<List<Artist>> =
         artistDao.getAllArtists().map { entities ->
@@ -275,28 +298,37 @@ class SongRepositoryImpl(
     }
 
     companion object {
-        // Manual DI entry point — everything hangs off the SynthXDatabase singleton
+        @Volatile private var INSTANCE: SongRepositoryImpl? = null
+
+        // Manual DI entry point — everything hangs off the SynthXDatabase singleton. A true
+        // singleton itself now (matching SynthXDatabase.getInstance()'s pattern) so getSongs()'s
+        // cached StateFlow above is actually shared across every caller rather than rebuilt
+        // per-caller.
         fun create(context: Context): SongRepositoryImpl {
-            val appContext = context.applicationContext
-            val db = SynthXDatabase.getInstance(appContext)
-            return SongRepositoryImpl(
-                context = appContext,
-                database = db,
-                songDao = db.songDao(),
-                artistDao = db.artistDao(),
-                albumDao = db.albumDao(),
-                playlistDao = db.playlistDao(),
-                queueDao = db.queueDao(),
-                folderScanner = FolderScanner(
-                    context = appContext,
-                    database = db,
-                    songDao = db.songDao(),
-                    artistDao = db.artistDao(),
-                    albumDao = db.albumDao(),
-                    songArtistDao = db.songArtistDao(),
-                ),
-                backupManager = BackupManager.create(appContext),
-            )
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: run {
+                    val appContext = context.applicationContext
+                    val db = SynthXDatabase.getInstance(appContext)
+                    SongRepositoryImpl(
+                        context = appContext,
+                        database = db,
+                        songDao = db.songDao(),
+                        artistDao = db.artistDao(),
+                        albumDao = db.albumDao(),
+                        playlistDao = db.playlistDao(),
+                        queueDao = db.queueDao(),
+                        folderScanner = FolderScanner(
+                            context = appContext,
+                            database = db,
+                            songDao = db.songDao(),
+                            artistDao = db.artistDao(),
+                            albumDao = db.albumDao(),
+                            songArtistDao = db.songArtistDao(),
+                        ),
+                        backupManager = BackupManager.create(appContext),
+                    ).also { INSTANCE = it }
+                }
+            }
         }
     }
 }

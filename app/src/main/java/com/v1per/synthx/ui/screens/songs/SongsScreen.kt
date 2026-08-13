@@ -187,10 +187,14 @@ private fun SongList(
         contentPadding = PaddingValues(vertical = Spacing.md),
     ) {
         items(songs, key = { it.id }) { song ->
+            // Remembered per song id so an unrelated recomposition (e.g. isCurrentlyPlaying
+            // toggling for a different row) doesn't hand this row a fresh lambda instance
+            // and defeat Compose's row-level skip.
+            val onClick = remember(song.id, onSongTap) { { onSongTap(song) } }
             SongRow(
                 song = song,
                 isCurrentlyPlaying = song.id == currentlyPlayingSongId,
-                onClick = { onSongTap(song) },
+                onClick = onClick,
             )
         }
     }
