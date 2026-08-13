@@ -21,4 +21,16 @@ object Motion {
         dampingRatio = Spring.DampingRatioNoBouncy,
         stiffness = Spring.StiffnessMediumLow,
     )
+
+    /**
+     * Snappier than [SpringStandard] — used for target-based dismissal (e.g.
+     * RefinedBottomSheet's drag-to-close). Springs always converge to the target regardless of
+     * starting velocity, so a fast flick still reads as fast (the spring inherits that initial
+     * velocity) while a slow release settles smoothly instead of stalling like a pure decay
+     * animation with little velocity to coast on.
+     */
+    val SpringSnappy: SpringSpec<Float> = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMedium,
+    )
 }

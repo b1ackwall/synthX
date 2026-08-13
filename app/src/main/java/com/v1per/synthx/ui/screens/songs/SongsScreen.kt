@@ -11,13 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,7 +33,10 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.LoadingIndicator
+import com.v1per.synthx.ui.components.RefinedBottomSheet
+import com.v1per.synthx.ui.components.RefinedBottomSheetState
 import com.v1per.synthx.ui.components.SongRow
+import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
@@ -48,7 +47,6 @@ import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongsScreen(
     topBar: @Composable (onSortClick: () -> Unit) -> Unit,
@@ -62,7 +60,7 @@ fun SongsScreen(
     val currentSortOrder by viewModel.sortOrder.collectAsState()
 
     var showSortSheet by remember { mutableStateOf(false) }
-    val sortSheetState = rememberModalBottomSheetState()
+    val sortSheetState = rememberRefinedBottomSheetState()
     val scope = rememberCoroutineScope()
 
     // Animate the sheet out before dropping it from composition — clearing the flag
@@ -94,15 +92,14 @@ fun SongsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SortBottomSheet(
     selectedOrder: SortOrder,
-    sheetState: SheetState,
+    sheetState: RefinedBottomSheetState,
     onOrderSelected: (SortOrder) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
+    RefinedBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = SurfaceColor,

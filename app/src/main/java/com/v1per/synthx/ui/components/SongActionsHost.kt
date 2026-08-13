@@ -1,9 +1,7 @@
 package com.v1per.synthx.ui.components
 
 import android.content.Context
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -69,7 +67,6 @@ val LocalSongActions: ProvidableCompositionLocal<SongActionsController> =
  * [content]. Place inside whatever composable owns the NavController, so the navigation
  * callbacks can be supplied here rather than plumbed down.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongActionsHost(
     snackbarHostState: SnackbarHostState,
@@ -106,7 +103,7 @@ fun SongActionsHost(
     }
 
     var target by remember { mutableStateOf<SongActionsTarget?>(null) }
-    val sheetState = rememberModalBottomSheetState()
+    val sheetState = rememberRefinedBottomSheetState()
     val scope = rememberCoroutineScope()
 
     // Animate out, then drop from composition — clearing the flag first would snap it shut.

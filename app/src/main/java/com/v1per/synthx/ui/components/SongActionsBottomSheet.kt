@@ -19,12 +19,9 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlaylistRemove
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,11 +54,10 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
  */
 enum class SheetPage { Actions, Artists, Playlists }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongActionsBottomSheet(
     song: Song,
-    sheetState: SheetState,
+    sheetState: RefinedBottomSheetState,
     playlists: List<Playlist>,
     currentPlaylistId: String?,
     showDeleteRow: Boolean,
@@ -80,7 +76,7 @@ fun SongActionsBottomSheet(
     var page by remember(song.id) { mutableStateOf(SheetPage.Actions) }
     var showDeleteConfirm by remember(song.id) { mutableStateOf(false) }
 
-    ModalBottomSheet(
+    RefinedBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = SurfaceColor,
