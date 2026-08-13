@@ -114,7 +114,7 @@ private fun AlbumRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                .height(Spacing.RowHeight)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = ripple(color = Accent),

@@ -17,6 +17,7 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** How long a terminal status message (e.g. "Backup created", "No folder selected") stays
+ *  visible before auto-clearing, matching typical snackbar/status-message durations. */
+private const val StatusMessageDisplayMs = 4_000L
 
 /** Determinate when [total] is positive; otherwise the scan is in an uncounted phase. */
 data class ScanProgress(val current: Int, val total: Int) {
@@ -139,6 +144,17 @@ class LibraryManagementViewModel(
         WorkInfo.State.CANCELLED -> context.getString(R.string.scan_cancelled)
     }
 
+    /** Sets a terminal (non-"in progress") status message, then clears it after
+     *  [StatusMessageDisplayMs] — guarded so a newer status set in the meantime isn't
+     *  clobbered by a stale clear from an earlier call. */
+    private fun MutableStateFlow<String?>.showTemporarily(message: String?) {
+        value = message
+        viewModelScope.launch {
+            delay(StatusMessageDisplayMs)
+            if (value == message) value = null
+        }
+    }
+
     fun setFolderError(message: String) {
         _folderError.value = message
     }
@@ -168,10 +184,10 @@ class LibraryManagementViewModel(
         _backupFolderUri.value = uri
         viewModelScope.launch {
             val created = backupManager.ensureFolderStructure(uri)
-            _backupStatus.value = if (created) {
-                null
+            if (created) {
+                _backupStatus.value = null
             } else {
-                context.getString(R.string.backup_status_folder_create_failed)
+                _backupStatus.showTemporarily(context.getString(R.string.backup_status_folder_create_failed))
             }
         }
     }
@@ -180,21 +196,23 @@ class LibraryManagementViewModel(
         viewModelScope.launch {
             _backupStatus.value = context.getString(R.string.backup_status_backing_up)
             val result = backupManager.createBackup(BackupTier.Manual)
-            _backupStatus.value = result.fold(
-                onSuccess = { context.getString(R.string.backup_status_created) },
-                onFailure = { e ->
-                    context.getString(
-                        R.string.backup_status_failed,
-                        e.message ?: context.getString(R.string.scan_status_unknown_error),
-                    )
-                },
+            _backupStatus.showTemporarily(
+                result.fold(
+                    onSuccess = { context.getString(R.string.backup_status_created) },
+                    onFailure = { e ->
+                        context.getString(
+                            R.string.backup_status_failed,
+                            e.message ?: context.getString(R.string.scan_status_unknown_error),
+                        )
+                    },
+                )
             )
         }
     }
 
     fun rescanLibrary() {
         if (_musicFolderUri.value == null) {
-            _localStatus.value = context.getString(R.string.settings_no_folder_selected)
+            _localStatus.showTemporarily(context.getString(R.string.settings_no_folder_selected))
             return
         }
         _localStatus.value = null

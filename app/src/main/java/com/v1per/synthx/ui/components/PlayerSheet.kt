@@ -35,12 +35,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.SynthXTheme
+import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 /**
@@ -238,7 +238,7 @@ private fun PlayerSheetContent(
                         modifier = Modifier
                             .weight(playbackProgress)
                             .fillMaxHeight()
-                            .background(Accent.copy(alpha = 0.65f)),
+                            .background(TextSecondary.copy(alpha = 0.65f)),
                     )
                 }
                 if (playbackProgress < 1f) {

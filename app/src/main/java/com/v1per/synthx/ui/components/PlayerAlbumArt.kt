@@ -11,11 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import coil.size.Size
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.theme.Motion
 
@@ -40,22 +37,10 @@ fun PlayerAlbumArt(
     ) {
         if (song.albumArtUri != null) {
             // The mini thumbnail loads at its 44dp display size. The expanded player
-            // opts into Size.ORIGINAL so Coil decodes the artwork at full resolution
+            // opts into original resolution so Coil decodes the artwork at full size
             // instead of upscaling the small cached thumbnail.
-            val model = if (fullResolution) {
-                ImageRequest.Builder(LocalContext.current)
-                    .data(song.albumArtUri)
-                    .size(Size.ORIGINAL)
-                    .crossfade(true)
-                    .build()
-            } else {
-                ImageRequest.Builder(LocalContext.current)
-                    .data(song.albumArtUri)
-                    .crossfade(true)
-                    .build()
-            }
             AsyncImage(
-                model = model,
+                model = crossfadeModel(song.albumArtUri, original = fullResolution),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),

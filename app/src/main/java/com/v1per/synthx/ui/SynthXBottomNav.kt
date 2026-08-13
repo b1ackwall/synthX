@@ -134,20 +134,9 @@ fun BottomChromeOverlay(
     }
 }
 
-// Routes reachable by pushing further from Library's root — tapping the Library tab from
-// any of these should reset to Library's root rather than restore mid-stack.
-private val libraryTabRoutes = setOf(
-    Screen.Songs.route,
-    Screen.ArtistList.route,
-    Screen.ArtistDetail.ROUTE,
-    Screen.AlbumList.route,
-    Screen.AlbumDetail.ROUTE,
-    Screen.PlaylistList.route,
-    Screen.CreatePlaylist.route,
-    Screen.GroupDetail.ROUTE,
-    Screen.PlaylistDetail.ROUTE,
-    Screen.AddSongs.ROUTE,
-)
+// Tapping the Library tab from any of these should reset to Library's root rather than
+// restore mid-stack. See Screen.libraryDetailRoutes.
+private val libraryTabRoutes = Screen.libraryDetailRoutes
 
 @Composable
 private fun SynthXBottomNav(
@@ -225,10 +214,15 @@ private fun SynthXBottomNav(
                         }
                     },
                     icon = {
+                        // Sized up from Material3's 24dp default to 28dp for visual weight
+                        // parity with the wordmark/accent elements elsewhere in the app. No
+                        // manual y-offset: NavigationBarItem already centers the icon above
+                        // the label itself, and a prior offset(y = 6dp) here pushed the icon
+                        // down far enough to read as unbalanced against the label on-device.
                         Icon(
                             imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
                             contentDescription = item.label,
-                            modifier = Modifier.size(28.dp).offset(y = 6.dp),
+                            modifier = Modifier.size(28.dp),
                         )
                     },
                     label = {

@@ -37,21 +37,13 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
+    // Home/Library/Search plus every route in Library's own detail hierarchy — see
+    // Screen.libraryDetailRoutes, also shared by SynthXBottomNav.
     val bottomBarRoutes = setOf(
         Screen.Home.route,
         Screen.Library.route,
         Screen.Search.route,
-        Screen.Songs.route,
-        Screen.ArtistList.route,
-        Screen.ArtistDetail.ROUTE,
-        Screen.AlbumList.route,
-        Screen.AlbumDetail.ROUTE,
-        Screen.PlaylistList.route,
-        Screen.CreatePlaylist.route,
-        Screen.GroupDetail.ROUTE,
-        Screen.PlaylistDetail.ROUTE,
-        Screen.AddSongs.ROUTE,
-    )
+    ) + Screen.libraryDetailRoutes
     val showBottomBar = currentRoute in bottomBarRoutes
 
     val context = LocalContext.current

@@ -37,14 +37,12 @@ import androidx.compose.ui.res.stringResource
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
-
-// Material standard disabled-content alpha (Material 3 ships no ContentAlpha token)
-private const val DisabledContentAlpha = 0.38f
 
 /**
  * @param currentPlaylistId set only by PlaylistDetailScreen, so the actions sheet can
@@ -95,7 +93,7 @@ internal fun SongRow(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .alpha(if (song.isMissing) DisabledContentAlpha else 1f),
+                    .alpha(if (song.isMissing) Alpha.Disabled else 1f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SongIdentity(

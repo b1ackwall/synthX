@@ -120,7 +120,7 @@ private fun SortBottomSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(Spacing.xxl)
+                    .height(Spacing.RowHeight)
                     .clickable { onOrderSelected(order) }
                     .padding(horizontal = Spacing.HorizontalPadding),
                 verticalAlignment = Alignment.CenterVertically,

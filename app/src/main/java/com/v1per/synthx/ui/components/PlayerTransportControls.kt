@@ -20,11 +20,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.TextPrimary
-
-// Material standard disabled-content alpha (Material 3 ships no ContentAlpha token) — same
-// value and same reasoning as SongRow's DisabledContentAlpha.
-private const val DisabledContentAlpha = 0.38f
 
 /** Prev / play-pause / next transport row. */
 @Composable
@@ -58,7 +55,7 @@ fun PlayerTransportControls(
                 tint = TextPrimary,
                 modifier = Modifier
                     .size(56.dp)
-                    .alpha(if (previousEnabled) 1f else DisabledContentAlpha),
+                    .alpha(if (previousEnabled) 1f else Alpha.Disabled),
             )
         }
         Spacer(modifier = Modifier.weight(1f))
@@ -98,7 +95,7 @@ fun PlayerTransportControls(
                 tint = TextPrimary,
                 modifier = Modifier
                     .size(56.dp)
-                    .alpha(if (nextEnabled) 1f else DisabledContentAlpha),
+                    .alpha(if (nextEnabled) 1f else Alpha.Disabled),
             )
         }
         Spacer(modifier = Modifier.weight(2f))

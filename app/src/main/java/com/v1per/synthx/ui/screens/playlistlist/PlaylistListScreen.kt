@@ -304,7 +304,7 @@ private fun GroupRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(Spacing.RowHeight)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = ripple(color = Accent),

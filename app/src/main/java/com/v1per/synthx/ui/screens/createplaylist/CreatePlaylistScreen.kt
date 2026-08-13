@@ -120,7 +120,7 @@ fun CreatePlaylistScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(Spacing.xxl)
+                                    .height(Spacing.RowHeight)
                                     .clickable {
                                         selectedGroupId = if (selected) null else group.id
                                     },

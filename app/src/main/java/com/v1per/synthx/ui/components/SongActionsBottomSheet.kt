@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
@@ -270,7 +272,8 @@ private fun SubPage(
 
 /**
  * The SortBottomSheet row recipe with a leading icon added. Disabled rows stay visible
- * but drop to the tertiary tint and take no clicks.
+ * but dim to [Alpha.Disabled] and take no clicks — the canonical disabled-content
+ * convention shared with SongRow and PlayerTransportControls.
  */
 @Composable
 private fun ActionRow(
@@ -280,11 +283,11 @@ private fun ActionRow(
     enabled: Boolean = true,
     tint: androidx.compose.ui.graphics.Color = TextPrimary,
 ) {
-    val contentColor = if (enabled) tint else TextTertiary
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(Spacing.xxl)
+            .alpha(if (enabled) 1f else Alpha.Disabled)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = Spacing.HorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
@@ -292,14 +295,14 @@ private fun ActionRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = contentColor,
+            tint = tint,
             modifier = Modifier.size(24.dp),
         )
         Spacer(modifier = Modifier.width(Spacing.md))
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
-            color = contentColor,
+            color = tint,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

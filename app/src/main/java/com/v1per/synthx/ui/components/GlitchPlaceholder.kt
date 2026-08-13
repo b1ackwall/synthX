@@ -20,9 +20,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.glitch.generateGlitchStrips
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.SurfaceVariant
+import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 
 @Composable
@@ -35,7 +35,7 @@ fun GlitchPlaceholder(
     val strips = remember(songId) { generateGlitchStrips(songId) }
 
     val glitchColors = listOf(
-        Accent.copy(alpha = 0.6f),
+        TextSecondary.copy(alpha = 0.6f),
         TextTertiary.copy(alpha = 0.4f),
         SurfaceVariant.copy(alpha = 0.8f),
     )

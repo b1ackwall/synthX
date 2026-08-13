@@ -23,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -131,7 +130,7 @@ fun PlayerSeekBar(
                 // Played track
                 if (fraction > 0f) {
                     drawLine(
-                        color = Accent,
+                        color = TextSecondary,
                         start = Offset(0f, size.height / 2),
                         end = Offset(size.width * fraction, size.height / 2),
                         strokeWidth = size.height,

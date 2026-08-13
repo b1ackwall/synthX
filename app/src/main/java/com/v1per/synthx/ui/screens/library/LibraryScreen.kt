@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +53,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.GlitchPlaceholder
+import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
@@ -190,19 +190,12 @@ private fun LibraryScreenContent(
 
         item(key = "recently_added") {
             if (isLoading) {
-                Box(
+                LoadingIndicator(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)
                         .padding(vertical = Spacing.xl),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        color = TextSecondary,
-                        strokeWidth = 2.dp,
-                    )
-                }
+                )
             } else if (recentSongs.isNotEmpty()) {
                 RecentlyAddedSection(
                     songs = recentSongs,

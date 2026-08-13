@@ -37,6 +37,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.GlitchPlaceholder
+import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
@@ -75,13 +76,7 @@ fun AddSongsScreen(
 
         Box(modifier = Modifier.weight(1f)) {
             when {
-                isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        color = TextSecondary,
-                        strokeWidth = 2.dp,
-                    )
-                }
+                isLoading -> LoadingIndicator()
                 songs.isEmpty() -> Text(
                     text = stringResource(R.string.empty_no_songs),
                     style = MaterialTheme.typography.bodyLarge,
@@ -155,7 +150,7 @@ private fun AddSongRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(Spacing.RowHeight)
                 .clickable(onClick = onToggle)
                 .padding(horizontal = Spacing.HorizontalPadding),
             verticalAlignment = Alignment.CenterVertically,

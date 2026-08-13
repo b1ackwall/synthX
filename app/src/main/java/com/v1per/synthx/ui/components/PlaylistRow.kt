@@ -2,7 +2,6 @@ package com.v1per.synthx.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,13 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -47,7 +42,6 @@ import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
-import com.v1per.synthx.ui.theme.TextTertiary
 
 @Composable
 internal fun PlaylistRow(
@@ -66,7 +60,7 @@ internal fun PlaylistRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(Spacing.RowHeight)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = ripple(color = Accent),
@@ -149,26 +143,14 @@ private fun PlaylistThreeDotsMenu(
     onMoveToGroup: (String?) -> Unit,
     onDelete: () -> Unit,
 ) {
-    var showMenu by remember { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    Box {
-        IconButton(onClick = { showMenu = true }) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = stringResource(R.string.cd_more_options),
-                tint = TextTertiary,
-            )
-        }
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-        ) {
+    ThreeDotMenuWithConfirm(
+        menuItems = { closeMenu, requestConfirm ->
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.action_rename)) },
                 onClick = {
-                    showMenu = false
+                    closeMenu()
                     onRename()
                 },
             )
@@ -184,7 +166,7 @@ private fun PlaylistThreeDotsMenu(
                         )
                     },
                     onClick = {
-                        showMenu = false
+                        closeMenu()
                         showGroupMenu = true
                     },
                 )
@@ -193,43 +175,43 @@ private fun PlaylistThreeDotsMenu(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.action_remove_from_group)) },
                     onClick = {
-                        showMenu = false
+                        closeMenu()
                         onMoveToGroup(null)
                     },
                 )
             }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.action_delete)) },
-                onClick = {
-                    showMenu = false
-                    showDeleteConfirm = true
-                },
+                onClick = requestConfirm,
             )
-        }
-        DropdownMenu(
-            expanded = showGroupMenu,
-            onDismissRequest = { showGroupMenu = false },
-        ) {
-            availableGroups.forEach { group ->
-                DropdownMenuItem(
-                    text = { Text(group.name) },
-                    onClick = {
-                        showGroupMenu = false
-                        onMoveToGroup(group.id)
-                    },
-                )
+        },
+        confirmDialog = { onConfirm, onDismiss ->
+            DeletePlaylistDialog(
+                playlistName = playlistName,
+                onConfirm = {
+                    onConfirm()
+                    onDelete()
+                },
+                onDismiss = onDismiss,
+            )
+        },
+        // Independent of the confirm-dialog flow — a second dropdown anchored at the same
+        // 3-dot button, not a destructive-action confirmation.
+        extraMenuContent = {
+            DropdownMenu(
+                expanded = showGroupMenu,
+                onDismissRequest = { showGroupMenu = false },
+            ) {
+                availableGroups.forEach { group ->
+                    DropdownMenuItem(
+                        text = { Text(group.name) },
+                        onClick = {
+                            showGroupMenu = false
+                            onMoveToGroup(group.id)
+                        },
+                    )
+                }
             }
-        }
-    }
-
-    if (showDeleteConfirm) {
-        DeletePlaylistDialog(
-            playlistName = playlistName,
-            onConfirm = {
-                showDeleteConfirm = false
-                onDelete()
-            },
-            onDismiss = { showDeleteConfirm = false },
-        )
-    }
+        },
+    )
 }

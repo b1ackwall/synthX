@@ -44,4 +44,24 @@ sealed class Screen(val route: String) {
         const val ROUTE = "add_songs/{playlistId}"
         fun createRoute(playlistId: String) = "add_songs/$playlistId"
     }
+
+    companion object {
+        // Routes reachable by pushing further from Library's root. Shared by MainScaffold
+        // (which unions it with Home/Library/Search for bottom-bar visibility) and
+        // SynthXBottomNav (which uses it as-is to detect "still inside Library's hierarchy"
+        // for reset-to-root-vs-restore nav behavior) — previously each file listed these
+        // 10 routes independently and could drift out of sync.
+        val libraryDetailRoutes = setOf(
+            Songs.route,
+            ArtistList.route,
+            ArtistDetail.ROUTE,
+            AlbumList.route,
+            AlbumDetail.ROUTE,
+            PlaylistList.route,
+            CreatePlaylist.route,
+            GroupDetail.ROUTE,
+            PlaylistDetail.ROUTE,
+            AddSongs.ROUTE,
+        )
+    }
 }

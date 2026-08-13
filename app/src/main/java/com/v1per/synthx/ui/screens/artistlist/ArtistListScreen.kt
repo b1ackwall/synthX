@@ -106,7 +106,7 @@ private fun ArtistRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(Spacing.xxl)
+                .height(Spacing.RowHeight)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = ripple(color = Accent),

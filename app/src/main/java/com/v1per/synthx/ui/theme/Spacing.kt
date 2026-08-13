@@ -11,4 +11,5 @@ object Spacing {
     val xxl = 48.dp
     val ItemSpacing = 12.dp
     val HorizontalPadding = 16.dp
+    val RowHeight = 56.dp
 }
