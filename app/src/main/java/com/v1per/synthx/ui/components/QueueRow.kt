@@ -24,6 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
@@ -45,6 +48,12 @@ import com.v1per.synthx.ui.theme.TextTertiary
  * The drag handle is always enabled — queue ordering is fully app-managed, so reordering
  * is safe regardless of shuffle state, see
  * [com.v1per.synthx.playback.ExoPlayerEngine.moveQueueItem]'s doc comment.
+ *
+ * [onMoveUp]/[onMoveDown] give TalkBack/switch-access users a non-gesture equivalent of the
+ * drag reorder — the handle's `onClick` is a no-op (it exists only to host
+ * [dragHandleModifier]'s gesture detection), so without these the handle would announce as an
+ * interactive button that does nothing when activated. Null when the move isn't possible
+ * (already first/last), matching how the drag itself has nowhere to go at either end.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +62,8 @@ fun QueueRow(
     onClick: () -> Unit,
     onRemove: () -> Unit,
     dragHandleModifier: Modifier,
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -101,9 +112,22 @@ fun QueueRow(
                     modifier = Modifier.weight(1f),
                 )
 
+                val moveUpLabel = stringResource(R.string.action_move_up)
+                val moveDownLabel = stringResource(R.string.action_move_down)
                 IconButton(
                     onClick = {},
-                    modifier = dragHandleModifier.padding(end = Spacing.sm),
+                    modifier = dragHandleModifier
+                        .padding(end = Spacing.sm)
+                        .semantics {
+                            customActions = listOfNotNull(
+                                onMoveUp?.let {
+                                    CustomAccessibilityAction(moveUpLabel) { it(); true }
+                                },
+                                onMoveDown?.let {
+                                    CustomAccessibilityAction(moveDownLabel) { it(); true }
+                                },
+                            )
+                        },
                 ) {
                     Icon(
                         imageVector = Icons.Filled.DragHandle,

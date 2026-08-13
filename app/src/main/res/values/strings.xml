@@ -196,4 +196,9 @@
     <string name="cd_autoplay">Autoplay</string>
     <string name="cd_drag_handle">Reorder</string>
     <string name="cd_remove_from_queue">Remove from queue</string>
+    <string name="cd_seek_bar">Playback position</string>
+
+    <!-- Accessibility actions -->
+    <string name="action_move_up">Move up</string>
+    <string name="action_move_down">Move down</string>
 </resources>

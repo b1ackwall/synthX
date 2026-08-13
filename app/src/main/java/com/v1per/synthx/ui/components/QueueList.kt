@@ -73,6 +73,19 @@ fun QueueList(
                             dragStartIndex = -1
                         },
                     ),
+                    // Same onMove the drag gesture calls on drop — accessibility-action and
+                    // drag paths land on the identical engine mutation, just with a fixed
+                    // one-position delta instead of a live drag endpoint.
+                    onMoveUp = if (index > 0) {
+                        { onMove(index, index - 1) }
+                    } else {
+                        null
+                    },
+                    onMoveDown = if (index < localQueue.lastIndex) {
+                        { onMove(index, index + 1) }
+                    } else {
+                        null
+                    },
                 )
             }
         }
