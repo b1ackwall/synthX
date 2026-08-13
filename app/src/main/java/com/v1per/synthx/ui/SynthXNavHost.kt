@@ -61,6 +61,7 @@ import com.v1per.synthx.ui.screens.search.SearchScreen
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
 import com.v1per.synthx.ui.screens.songs.SongsScreen
 import com.v1per.synthx.ui.screens.songs.SongsViewModel
+import com.v1per.synthx.ui.screens.songs.SortOrder
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextPrimary
 
@@ -69,6 +70,9 @@ fun SynthXNavHost(
     navController: NavHostController,
     playbackViewModel: PlaybackViewModel,
     chromeBottomPadding: Dp,
+    // Rendering lives at MainScaffold level (above BottomChromeOverlay) so the sheet draws
+    // above the bottom nav/player as a structural sibling, not a descendant of this NavHost.
+    onShowSortSheet: (currentOrder: SortOrder, onOrderSelected: (SortOrder) -> Unit) -> Unit,
 ) {
     Scaffold(
         containerColor = Background,
@@ -99,6 +103,7 @@ fun SynthXNavHost(
                 navController = navController,
                 playbackViewModel = playbackViewModel,
                 chromeBottomPadding = chromeBottomPadding,
+                onShowSortSheet = onShowSortSheet,
             )
         }
     }
@@ -241,6 +246,7 @@ private fun NavGraphBuilder.libraryDetailRoutes(
     navController: NavHostController,
     playbackViewModel: PlaybackViewModel,
     chromeBottomPadding: Dp,
+    onShowSortSheet: (currentOrder: SortOrder, onOrderSelected: (SortOrder) -> Unit) -> Unit,
 ) {
     composable(Screen.Songs.route) {
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
@@ -266,6 +272,7 @@ private fun NavGraphBuilder.libraryDetailRoutes(
                         )
                     },
                     playbackViewModel = playbackViewModel,
+                    onShowSortSheet = onShowSortSheet,
                     viewModel = songsViewModel,
                 )
             }

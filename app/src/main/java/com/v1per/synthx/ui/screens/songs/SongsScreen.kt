@@ -17,10 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -36,7 +33,6 @@ import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.RefinedBottomSheet
 import com.v1per.synthx.ui.components.RefinedBottomSheetState
 import com.v1per.synthx.ui.components.SongRow
-import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
@@ -45,12 +41,16 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
-import kotlinx.coroutines.launch
 
 @Composable
 fun SongsScreen(
     topBar: @Composable (onSortClick: () -> Unit) -> Unit,
     playbackViewModel: PlaybackViewModel,
+    // Rendering (and the sheet's own state) lives at MainScaffold level so the sheet draws
+    // above the bottom nav/player as a structural sibling of BottomChromeOverlay — this
+    // screen only ever needs to hand off "show it, with this order and this setter" and
+    // never mounts a RefinedBottomSheet of its own. See MainScaffold's sortSheetTarget.
+    onShowSortSheet: (currentOrder: SortOrder, onOrderSelected: (SortOrder) -> Unit) -> Unit,
     viewModel: SongsViewModel = viewModel(
         factory = SongsViewModel.Factory(LocalContext.current, playbackViewModel),
     ),
@@ -59,21 +59,8 @@ fun SongsScreen(
     val currentlyPlayingSongId by viewModel.currentlyPlayingSongId.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
 
-    var showSortSheet by remember { mutableStateOf(false) }
-    val sortSheetState = rememberRefinedBottomSheetState()
-    val scope = rememberCoroutineScope()
-
-    // Animate the sheet out before dropping it from composition — clearing the flag
-    // first would snap it shut with no exit animation.
-    fun dismissSortSheet(after: () -> Unit = {}) {
-        scope.launch { sortSheetState.hide() }.invokeOnCompletion {
-            showSortSheet = false
-            after()
-        }
-    }
-
     Column(modifier = Modifier.fillMaxSize()) {
-        topBar({ showSortSheet = true })
+        topBar({ onShowSortSheet(currentSortOrder, viewModel::setSortOrder) })
 
         SongsScreenContent(
             uiState = uiState,
@@ -81,19 +68,11 @@ fun SongsScreen(
             onSongTap = viewModel::onSongTap,
         )
     }
-
-    if (showSortSheet) {
-        SortBottomSheet(
-            selectedOrder = currentSortOrder,
-            sheetState = sortSheetState,
-            onOrderSelected = { order -> dismissSortSheet { viewModel.setSortOrder(order) } },
-            onDismiss = { dismissSortSheet() },
-        )
-    }
 }
 
+/** Rendered from MainScaffold, above the bottom chrome — see [SongsScreen]'s onShowSortSheet. */
 @Composable
-private fun SortBottomSheet(
+internal fun SortBottomSheet(
     selectedOrder: SortOrder,
     sheetState: RefinedBottomSheetState,
     onOrderSelected: (SortOrder) -> Unit,

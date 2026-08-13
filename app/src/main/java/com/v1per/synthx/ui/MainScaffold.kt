@@ -13,6 +13,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +32,10 @@ import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.QueuePromptDialog
 import com.v1per.synthx.ui.components.SongActionsHost
+import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
+import com.v1per.synthx.ui.screens.songs.SortBottomSheet
+import com.v1per.synthx.ui.screens.songs.SortOrder
+import kotlinx.coroutines.launch
 
 @Composable
 fun MainScaffold(navController: NavHostController = rememberNavController()) {
@@ -93,6 +98,23 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         }
     }
 
+    // Hosted here, not inside SongsScreen/SynthXNavHost, for the same reason SongActionsHost
+    // is hosted here: a sheet nested inside the NavHost draws *under* BottomChromeOverlay
+    // (composed after it in the Box below), so the bottom nav/player would paint over it.
+    // SongsScreen only ever hands off "show it, with this order and this setter" via
+    // onShowSortSheet — see SynthXNavHost/SongsScreen.
+    var sortSheetTarget by remember { mutableStateOf<SortSheetTarget?>(null) }
+    val sortSheetState = rememberRefinedBottomSheetState()
+    val scope = rememberCoroutineScope()
+
+    // Animate out, then drop from composition — clearing the target first would snap it shut.
+    fun dismissSortSheet(after: () -> Unit = {}) {
+        scope.launch { sortSheetState.hide() }.invokeOnCompletion {
+            sortSheetTarget = null
+            after()
+        }
+    }
+
     // Hosted here so every SongRow inside the NavHost, and the PlayerSheet below it,
     // share one sheet instance with navigation already wired.
     SongActionsHost(
@@ -111,6 +133,9 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             navController = navController,
             playbackViewModel = playbackViewModel,
             chromeBottomPadding = chromeBottomPadding,
+            onShowSortSheet = { order, onOrderSelected ->
+                sortSheetTarget = SortSheetTarget(order, onOrderSelected)
+            },
         )
 
         BottomChromeOverlay(
@@ -126,6 +151,18 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             onPlayerProgressChanged = { playerProgress = it },
             playbackViewModel = playbackViewModel,
         )
+
+        // Declared after BottomChromeOverlay (not nested inside SynthXNavHost) so it draws
+        // above the bottom nav/player structurally — the same reason SongActionsHost's sheet
+        // (an even higher-level sibling, above this whole Box) already draws correctly.
+        sortSheetTarget?.let { target ->
+            SortBottomSheet(
+                selectedOrder = target.selectedOrder,
+                sheetState = sortSheetState,
+                onOrderSelected = { order -> dismissSortSheet { target.onOrderSelected(order) } },
+                onDismiss = { dismissSortSheet() },
+            )
+        }
 
         // Declared last so it draws over the nav and player, and offset by the same
         // chrome reservation the destinations use so it never sits behind them. Both
@@ -158,3 +195,8 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     }
     }
 }
+
+private data class SortSheetTarget(
+    val selectedOrder: SortOrder,
+    val onOrderSelected: (SortOrder) -> Unit,
+)
