@@ -31,11 +31,11 @@ fun AlbumDetailScreen(
     topBar: @Composable () -> Unit,
     albumId: String,
     playbackViewModel: PlaybackViewModel,
-) {
-    val viewModel: AlbumDetailViewModel = viewModel(
+    viewModel: AlbumDetailViewModel = viewModel(
         key = albumId,
         factory = AlbumDetailViewModel.factory(LocalContext.current, albumId),
-    )
+    ),
+) {
     val uiState by viewModel.uiState.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
 

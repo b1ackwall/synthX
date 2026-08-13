@@ -53,11 +53,10 @@ import kotlinx.coroutines.launch
 fun SongsScreen(
     topBar: @Composable (onSortClick: () -> Unit) -> Unit,
     playbackViewModel: PlaybackViewModel,
+    viewModel: SongsViewModel = viewModel(
+        factory = SongsViewModel.Factory(LocalContext.current, playbackViewModel),
+    ),
 ) {
-    val context = LocalContext.current
-    val viewModel: SongsViewModel = viewModel(
-        factory = SongsViewModel.Factory(context, playbackViewModel),
-    )
     val uiState by viewModel.uiState.collectAsState()
     val currentlyPlayingSongId by viewModel.currentlyPlayingSongId.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()

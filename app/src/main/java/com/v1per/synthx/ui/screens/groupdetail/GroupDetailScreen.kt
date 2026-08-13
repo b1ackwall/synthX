@@ -34,11 +34,11 @@ fun GroupDetailScreen(
     topBar: @Composable () -> Unit,
     onPlaylistClick: (playlistId: String, playlistName: String) -> Unit,
     groupId: String,
-) {
-    val viewModel: GroupDetailViewModel = viewModel(
+    viewModel: GroupDetailViewModel = viewModel(
         key = groupId,
         factory = GroupDetailViewModel.factory(LocalContext.current, groupId),
-    )
+    ),
+) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current

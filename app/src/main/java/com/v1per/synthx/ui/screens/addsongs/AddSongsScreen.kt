@@ -52,11 +52,11 @@ fun AddSongsScreen(
     topBar: @Composable () -> Unit,
     playlistId: String,
     onSubmitted: () -> Unit,
-) {
-    val viewModel: AddSongsViewModel = viewModel(
+    viewModel: AddSongsViewModel = viewModel(
         key = playlistId,
         factory = AddSongsViewModel.factory(LocalContext.current, playlistId),
-    )
+    ),
+) {
     val songs by viewModel.songs.collectAsState()
     val submitted by viewModel.submitted.collectAsState()
     val error by viewModel.error.collectAsState()

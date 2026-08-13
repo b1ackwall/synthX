@@ -12,9 +12,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
@@ -24,25 +28,39 @@ import androidx.navigation.navArgument
 import com.v1per.synthx.R
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.ui.common.isReady
 import com.v1per.synthx.ui.components.DetailTopBar
+import com.v1per.synthx.ui.components.ReadinessCoverOverlay
 import com.v1per.synthx.ui.components.SynthXTopBar
 import com.v1per.synthx.ui.screens.addsongs.AddSongsScreen
+import com.v1per.synthx.ui.screens.addsongs.AddSongsViewModel
 import com.v1per.synthx.ui.screens.albumdetail.AlbumDetailScreen
+import com.v1per.synthx.ui.screens.albumdetail.AlbumDetailViewModel
 import com.v1per.synthx.ui.screens.albumlist.AlbumListScreen
+import com.v1per.synthx.ui.screens.albumlist.AlbumListViewModel
 import com.v1per.synthx.ui.screens.artistdetail.ArtistDetailScreen
+import com.v1per.synthx.ui.screens.artistdetail.ArtistDetailViewModel
 import com.v1per.synthx.ui.screens.artistlist.ArtistListScreen
+import com.v1per.synthx.ui.screens.artistlist.ArtistListViewModel
 import com.v1per.synthx.ui.screens.createplaylist.CreatePlaylistScreen
 import com.v1per.synthx.ui.screens.groupdetail.GroupDetailScreen
+import com.v1per.synthx.ui.screens.groupdetail.GroupDetailViewModel
 import com.v1per.synthx.ui.screens.home.HomeScreen
 import com.v1per.synthx.ui.screens.issues.IssuesScreen
+import com.v1per.synthx.ui.screens.issues.IssuesViewModel
 import com.v1per.synthx.ui.screens.playlistdetail.PlaylistDetailScreen
+import com.v1per.synthx.ui.screens.playlistdetail.PlaylistDetailViewModel
 import com.v1per.synthx.ui.screens.playlistlist.PlaylistListScreen
+import com.v1per.synthx.ui.screens.playlistlist.PlaylistListViewModel
 import com.v1per.synthx.ui.screens.restore.RestoreScreen
+import com.v1per.synthx.ui.screens.restore.RestoreViewModel
 import com.v1per.synthx.ui.screens.library.LibraryScreen
+import com.v1per.synthx.ui.screens.library.LibraryViewModel
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementScreen
 import com.v1per.synthx.ui.screens.search.SearchScreen
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
 import com.v1per.synthx.ui.screens.songs.SongsScreen
+import com.v1per.synthx.ui.screens.songs.SongsViewModel
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextPrimary
 
@@ -98,18 +116,25 @@ private fun NavGraphBuilder.coreRoutes(
     }
     composable(Screen.Library.route) {
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            LibraryScreen(
-                topBar = {
-                    SynthXTopBar(
-                        onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                    )
-                },
-                onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
-                onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
-                onNavigateToAlbumList = { navController.navigate(Screen.AlbumList.route) },
-                onNavigateToPlaylistList = { navController.navigate(Screen.PlaylistList.route) },
-                playbackViewModel = playbackViewModel,
+            val libraryViewModel = viewModel<LibraryViewModel>(
+                factory = LibraryViewModel.factory(LocalContext.current),
             )
+            val isLoading by libraryViewModel.isLoading.collectAsState()
+            ReadinessCoverOverlay(isReady = !isLoading) {
+                LibraryScreen(
+                    topBar = {
+                        SynthXTopBar(
+                            onSettingsClick = { navController.navigate(Screen.Settings.route) },
+                        )
+                    },
+                    onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
+                    onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
+                    onNavigateToAlbumList = { navController.navigate(Screen.AlbumList.route) },
+                    onNavigateToPlaylistList = { navController.navigate(Screen.PlaylistList.route) },
+                    playbackViewModel = playbackViewModel,
+                    viewModel = libraryViewModel,
+                )
+            }
         }
     }
     composable(Screen.Search.route) {
@@ -174,26 +199,40 @@ private fun NavGraphBuilder.coreRoutes(
     }
     composable(Screen.Restore.route) {
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            RestoreScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = stringResource(R.string.screen_restore),
-                        onBack = { navController.popBackStack() },
-                    )
-                },
+            val restoreViewModel = viewModel<RestoreViewModel>(
+                factory = RestoreViewModel.Factory(LocalContext.current),
             )
+            val uiState by restoreViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
+                RestoreScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = stringResource(R.string.screen_restore),
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    viewModel = restoreViewModel,
+                )
+            }
         }
     }
     composable(Screen.Issues.route) {
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            IssuesScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = stringResource(R.string.screen_issues),
-                        onBack = { navController.popBackStack() },
-                    )
-                },
+            val issuesViewModel = viewModel<IssuesViewModel>(
+                factory = IssuesViewModel.Factory(LocalContext.current),
             )
+            val uiState by issuesViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
+                IssuesScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = stringResource(R.string.screen_issues),
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    viewModel = issuesViewModel,
+                )
+            }
         }
     }
 }
@@ -205,41 +244,55 @@ private fun NavGraphBuilder.libraryDetailRoutes(
 ) {
     composable(Screen.Songs.route) {
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            SongsScreen(
-                topBar = { onSortClick ->
-                    DetailTopBar(
-                        title = stringResource(R.string.screen_songs),
-                        onBack = { navController.popBackStack() },
-                        actions = {
-                            IconButton(onClick = onSortClick) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Sort,
-                                    contentDescription = stringResource(R.string.cd_sort),
-                                    tint = TextPrimary,
-                                )
-                            }
-                        },
-                    )
-                },
-                playbackViewModel = playbackViewModel,
+            val songsViewModel = viewModel<SongsViewModel>(
+                factory = SongsViewModel.Factory(LocalContext.current, playbackViewModel),
             )
+            val uiState by songsViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
+                SongsScreen(
+                    topBar = { onSortClick ->
+                        DetailTopBar(
+                            title = stringResource(R.string.screen_songs),
+                            onBack = { navController.popBackStack() },
+                            actions = {
+                                IconButton(onClick = onSortClick) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Sort,
+                                        contentDescription = stringResource(R.string.cd_sort),
+                                        tint = TextPrimary,
+                                    )
+                                }
+                            },
+                        )
+                    },
+                    playbackViewModel = playbackViewModel,
+                    viewModel = songsViewModel,
+                )
+            }
         }
     }
     composable(Screen.ArtistList.route) {
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            ArtistListScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = stringResource(R.string.screen_artists),
-                        onBack = { navController.popBackStack() },
-                    )
-                },
-                onArtistClick = { artistId, artistName ->
-                    navController.navigate(
-                        Screen.ArtistDetail.createRoute(artistId, artistName),
-                    )
-                },
+            val artistListViewModel = viewModel<ArtistListViewModel>(
+                factory = ArtistListViewModel.factory(LocalContext.current),
             )
+            val uiState by artistListViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
+                ArtistListScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = stringResource(R.string.screen_artists),
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    onArtistClick = { artistId, artistName ->
+                        navController.navigate(
+                            Screen.ArtistDetail.createRoute(artistId, artistName),
+                        )
+                    },
+                    viewModel = artistListViewModel,
+                )
+            }
         }
     }
     composable(
@@ -252,33 +305,48 @@ private fun NavGraphBuilder.libraryDetailRoutes(
         val artistId = entry.arguments?.getString("artistId") ?: ""
         val artistName = entry.arguments?.getString("artistName") ?: ""
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            ArtistDetailScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = artistName,
-                        onBack = { navController.popBackStack() },
-                    )
-                },
-                artistId = artistId,
-                playbackViewModel = playbackViewModel,
+            val artistDetailViewModel = viewModel<ArtistDetailViewModel>(
+                key = artistId,
+                factory = ArtistDetailViewModel.factory(LocalContext.current, artistId),
             )
+            val uiState by artistDetailViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
+                ArtistDetailScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = artistName,
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    artistId = artistId,
+                    playbackViewModel = playbackViewModel,
+                    viewModel = artistDetailViewModel,
+                )
+            }
         }
     }
     composable(Screen.AlbumList.route) {
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            AlbumListScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = stringResource(R.string.screen_albums),
-                        onBack = { navController.popBackStack() },
-                    )
-                },
-                onAlbumClick = { albumId, albumTitle ->
-                    navController.navigate(
-                        Screen.AlbumDetail.createRoute(albumId, albumTitle),
-                    )
-                },
+            val albumListViewModel = viewModel<AlbumListViewModel>(
+                factory = AlbumListViewModel.factory(LocalContext.current),
             )
+            val uiState by albumListViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
+                AlbumListScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = stringResource(R.string.screen_albums),
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    onAlbumClick = { albumId, albumTitle ->
+                        navController.navigate(
+                            Screen.AlbumDetail.createRoute(albumId, albumTitle),
+                        )
+                    },
+                    viewModel = albumListViewModel,
+                )
+            }
         }
     }
     composable(
@@ -291,41 +359,56 @@ private fun NavGraphBuilder.libraryDetailRoutes(
         val albumId = entry.arguments?.getString("albumId") ?: ""
         val albumTitle = entry.arguments?.getString("albumTitle") ?: ""
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            AlbumDetailScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = albumTitle,
-                        onBack = { navController.popBackStack() },
-                    )
-                },
-                albumId = albumId,
-                playbackViewModel = playbackViewModel,
+            val albumDetailViewModel = viewModel<AlbumDetailViewModel>(
+                key = albumId,
+                factory = AlbumDetailViewModel.factory(LocalContext.current, albumId),
             )
+            val uiState by albumDetailViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
+                AlbumDetailScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = albumTitle,
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    albumId = albumId,
+                    playbackViewModel = playbackViewModel,
+                    viewModel = albumDetailViewModel,
+                )
+            }
         }
     }
     composable(Screen.PlaylistList.route) {
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            PlaylistListScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = stringResource(R.string.screen_playlists),
-                        onBack = { navController.popBackStack() },
-                    )
-                },
-                onGroupClick = { groupId, groupName ->
-                    navController.navigate(
-                        Screen.GroupDetail.createRoute(groupId, groupName),
-                    )
-                },
-                onPlaylistClick = { playlistId, playlistName ->
-                    navController.navigate(
-                        Screen.PlaylistDetail.createRoute(playlistId, playlistName),
-                    )
-                },
-                onCreatePlaylistClick = {
-                    navController.navigate(Screen.CreatePlaylist.route)
-                },
+            val playlistListViewModel = viewModel<PlaylistListViewModel>(
+                factory = PlaylistListViewModel.factory(LocalContext.current),
             )
+            val uiState by playlistListViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = !uiState.isLoading) {
+                PlaylistListScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = stringResource(R.string.screen_playlists),
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    onGroupClick = { groupId, groupName ->
+                        navController.navigate(
+                            Screen.GroupDetail.createRoute(groupId, groupName),
+                        )
+                    },
+                    onPlaylistClick = { playlistId, playlistName ->
+                        navController.navigate(
+                            Screen.PlaylistDetail.createRoute(playlistId, playlistName),
+                        )
+                    },
+                    onCreatePlaylistClick = {
+                        navController.navigate(Screen.CreatePlaylist.route)
+                    },
+                    viewModel = playlistListViewModel,
+                )
+            }
         }
     }
     composable(Screen.CreatePlaylist.route) {
@@ -351,20 +434,28 @@ private fun NavGraphBuilder.libraryDetailRoutes(
         val groupId = entry.arguments?.getString("groupId") ?: ""
         val groupName = entry.arguments?.getString("groupName") ?: ""
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            GroupDetailScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = groupName,
-                        onBack = { navController.popBackStack() },
-                    )
-                },
-                onPlaylistClick = { playlistId, playlistName ->
-                    navController.navigate(
-                        Screen.PlaylistDetail.createRoute(playlistId, playlistName),
-                    )
-                },
-                groupId = groupId,
+            val groupDetailViewModel = viewModel<GroupDetailViewModel>(
+                key = groupId,
+                factory = GroupDetailViewModel.factory(LocalContext.current, groupId),
             )
+            val uiState by groupDetailViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
+                GroupDetailScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = groupName,
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    onPlaylistClick = { playlistId, playlistName ->
+                        navController.navigate(
+                            Screen.PlaylistDetail.createRoute(playlistId, playlistName),
+                        )
+                    },
+                    groupId = groupId,
+                    viewModel = groupDetailViewModel,
+                )
+            }
         }
     }
     composable(
@@ -377,19 +468,27 @@ private fun NavGraphBuilder.libraryDetailRoutes(
         val playlistId = entry.arguments?.getString("playlistId") ?: ""
         val playlistName = entry.arguments?.getString("playlistName") ?: ""
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            PlaylistDetailScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = playlistName,
-                        onBack = { navController.popBackStack() },
-                    )
-                },
-                playlistId = playlistId,
-                playbackViewModel = playbackViewModel,
-                onAddSongsClick = {
-                    navController.navigate(Screen.AddSongs.createRoute(playlistId))
-                },
+            val playlistDetailViewModel = viewModel<PlaylistDetailViewModel>(
+                key = playlistId,
+                factory = PlaylistDetailViewModel.factory(LocalContext.current, playlistId),
             )
+            val uiState by playlistDetailViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
+                PlaylistDetailScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = playlistName,
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    playlistId = playlistId,
+                    playbackViewModel = playbackViewModel,
+                    onAddSongsClick = {
+                        navController.navigate(Screen.AddSongs.createRoute(playlistId))
+                    },
+                    viewModel = playlistDetailViewModel,
+                )
+            }
         }
     }
     composable(
@@ -400,16 +499,24 @@ private fun NavGraphBuilder.libraryDetailRoutes(
     ) { entry ->
         val playlistId = entry.arguments?.getString("playlistId") ?: ""
         Box(Modifier.fillMaxSize().padding(bottom = chromeBottomPadding)) {
-            AddSongsScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = stringResource(R.string.screen_add_songs),
-                        onBack = { navController.popBackStack() },
-                    )
-                },
-                playlistId = playlistId,
-                onSubmitted = { navController.popBackStack() },
+            val addSongsViewModel = viewModel<AddSongsViewModel>(
+                key = playlistId,
+                factory = AddSongsViewModel.factory(LocalContext.current, playlistId),
             )
+            val isLoading by addSongsViewModel.isLoading.collectAsState()
+            ReadinessCoverOverlay(isReady = !isLoading) {
+                AddSongsScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = stringResource(R.string.screen_add_songs),
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    playlistId = playlistId,
+                    onSubmitted = { navController.popBackStack() },
+                    viewModel = addSongsViewModel,
+                )
+            }
         }
     }
 }

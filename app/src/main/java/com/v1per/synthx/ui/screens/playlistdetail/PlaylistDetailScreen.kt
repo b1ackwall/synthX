@@ -43,11 +43,11 @@ fun PlaylistDetailScreen(
     playlistId: String,
     playbackViewModel: PlaybackViewModel,
     onAddSongsClick: () -> Unit,
-) {
-    val viewModel: PlaylistDetailViewModel = viewModel(
+    viewModel: PlaylistDetailViewModel = viewModel(
         key = playlistId,
         factory = PlaylistDetailViewModel.factory(LocalContext.current, playlistId),
-    )
+    ),
+) {
     val uiState by viewModel.uiState.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
 
