@@ -205,7 +205,7 @@ fun PlayerSheetSkeleton(
         // expanded player's full-width art — capped the same way PlayerModeContent.kt:63-64
         // capped it, against available height minus the (not yet ported) title row's space.
         val artSize = lerpDp(44.dp, maxWidth - Spacing.HorizontalPadding * 4, progress)
-        val artMaxHeight = (maxHeight - TitleRowReservedHeight).coerceAtLeast(0.dp)
+        val artMaxHeight = (maxHeight - TitleRowReservedHeight - ControlsOverlayHeight).coerceAtLeast(0.dp)
         val constrainedArtSize = min(artSize, artMaxHeight)
 
         // Art position, lerped between its two known-correct endpoints so the morph is
@@ -221,7 +221,8 @@ fun PlayerSheetSkeleton(
 
         val artOffsetYMini = (sheetHeight - constrainedArtSize) / 2
         val expandedRegionHeight =
-            (sheetHeight - ExpandedTopMargin - TitleRowReservedHeight).coerceAtLeast(0.dp)
+            (sheetHeight - ExpandedTopMargin - TitleRowReservedHeight - ControlsOverlayHeight)
+                .coerceAtLeast(0.dp)
         val expandedFlexSpace = (expandedRegionHeight - constrainedArtSize).coerceAtLeast(0.dp)
         val artOffsetYExpanded = ExpandedTopMargin +
             expandedFlexSpace * (ArtWeightAbove / (ArtWeightAbove + ArtWeightBelow))
