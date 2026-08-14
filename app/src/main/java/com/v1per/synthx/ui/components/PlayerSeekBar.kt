@@ -75,6 +75,7 @@ fun PlayerSeekBar(
     duration: Long,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     var dragPositionMs by remember { mutableStateOf<Long?>(null) }
     // Held from drag release until the polled currentPosition catches up to it, so the
@@ -103,8 +104,8 @@ fun PlayerSeekBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(TouchTargetHeight)
-                .pointerInput(duration) {
-                    if (duration <= 0) return@pointerInput
+                .pointerInput(duration, enabled) {
+                    if (duration <= 0 || !enabled) return@pointerInput
                     detectDragGestures(
                         onDragStart = { offset ->
                             dragPositionMs = positionForX(offset.x, size.width, duration)

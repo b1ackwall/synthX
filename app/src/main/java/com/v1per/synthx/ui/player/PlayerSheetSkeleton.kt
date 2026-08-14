@@ -454,12 +454,17 @@ fun PlayerSheetSkeleton(
                         .fillMaxWidth()
                         .height(ControlsOverlayHeight)
                         .alpha(expandedContentAlpha)
-                        .background(Surface)
+                        .background(surfaceColor)
                         .padding(horizontal = Spacing.HorizontalPadding),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Spacer(modifier = Modifier.height(Spacing.md))
-                    PlayerSeekBar(currentPosition = currentPosition, duration = duration, onSeek = onSeek)
+                    PlayerSeekBar(
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        onSeek = onSeek,
+                        enabled = expandedContentEnabled,
+                    )
                     Spacer(modifier = Modifier.height(Spacing.xl))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
