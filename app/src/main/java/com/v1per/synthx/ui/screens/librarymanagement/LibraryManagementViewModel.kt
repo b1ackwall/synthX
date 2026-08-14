@@ -27,6 +27,22 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.UUID
+
+/**
+ * WorkManager exposes no public API to prune a single unique work item's terminal
+ * WorkInfo — only the database-wide [androidx.work.WorkManager.pruneWork] used at cold
+ * start in MainActivity, which is too broad to call on every screen exit (it would also
+ * clear other screens' finished work, e.g. a still-undismissed Restore failure). This
+ * in-memory, process-lifetime flag substitutes for that: it's set to the id of the most
+ * recent *finished* [LibraryScanWorker] run when [LibraryManagementViewModel] is cleared,
+ * and consulted by the next instance to suppress re-showing that same run's terminal
+ * status text. An in-progress run is never recorded here, so it always survives navigating
+ * away and back. Cleared implicitly by process death, same as the cold-start prune.
+ */
+private object ScanStatusAcknowledgement {
+    var acknowledgedWorkId: UUID? = null
+}
 
 /** How long a terminal status message (e.g. "Backup created", "No folder selected") stays
  *  visible before auto-clearing, matching typical snackbar/status-message durations. */
@@ -99,7 +115,10 @@ class LibraryManagementViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val rescanStatus: StateFlow<String?> = combine(workInfo, _localStatus) { info, local ->
-        local ?: statusFor(info)
+        val alreadyAcknowledged = info != null &&
+            info.state.isFinished &&
+            info.id == ScanStatusAcknowledgement.acknowledgedWorkId
+        local ?: if (alreadyAcknowledged) null else statusFor(info)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
@@ -226,6 +245,17 @@ class LibraryManagementViewModel(
 
     fun setDeleteSongsEnabled(enabled: Boolean) {
         DeleteSongsGate.setDeleteSongsEnabled(enabled)
+    }
+
+    // Only acknowledges a *finished* run — an in-progress scan's WorkInfo is never
+    // finished, so leaving mid-scan and coming back always shows its real, live state.
+    override fun onCleared() {
+        super.onCleared()
+        workInfo.value?.let { info ->
+            if (info.state.isFinished) {
+                ScanStatusAcknowledgement.acknowledgedWorkId = info.id
+            }
+        }
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {

@@ -16,6 +16,7 @@ internal fun BackupSection(
     onRestoreClick: () -> Unit,
 ) {
     HorizontalDivider(thickness = 1.dp, color = Hairline)
+    SectionHeader(title = stringResource(R.string.section_backups_and_restore))
 
     ManagementRow(
         title = stringResource(R.string.settings_backup_folder),

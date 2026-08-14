@@ -93,6 +93,8 @@
     <string name="settings_no_folder_selected">No folder selected</string>
     <string name="settings_rescan_library">Rescan library</string>
     <string name="settings_delete_songs">Delete Songs</string>
+    <string name="section_music_library">Music Library</string>
+    <string name="section_backups_and_restore">Backups and Restore</string>
 
     <!-- Issues -->
     <string name="issues_missing_since">Missing since %1$s</string>

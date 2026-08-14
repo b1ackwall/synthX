@@ -91,13 +91,13 @@ fun LibraryManagementScreen(
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
         LibraryManagementScreenContent(
-            folderPath = folderUri?.toString(),
+            folderPath = folderUri?.let { FolderPathFormatter.format(context, it) },
             folderError = folderError,
             rescanStatus = rescanStatus,
             isScanning = isScanning,
             scanProgress = scanProgress,
             missingSongCount = missingSongCount,
-            backupFolderPath = backupFolderUri?.toString(),
+            backupFolderPath = backupFolderUri?.let { FolderPathFormatter.format(context, it) },
             backupStatus = backupStatus,
             deleteSongsEnabled = deleteSongsEnabled,
             onPickFolder = { folderPicker.launch(null) },
@@ -133,6 +133,7 @@ internal fun LibraryManagementScreenContent(
     onToggleDeleteSongs: (Boolean) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+        SectionHeader(title = stringResource(R.string.section_music_library))
         MusicFolderSection(
             folderPath = folderPath,
             folderError = folderError,
