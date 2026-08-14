@@ -215,6 +215,31 @@ fun PlayerSheetSkeleton(
         var isQueueMode by remember { mutableStateOf(false) }
         val queueProgress = remember { Animatable(0f) }
 
+        // Stable-identity click handler, `remember`-ed once (no keys) rather than declared
+        // inline at the button's call site. `dragResistantClickable`'s pointerInput is keyed
+        // on (interactionSource, enabled, onClick) — an inline lambda there would get a new
+        // identity every recomposition, and this composable recomposes every animation frame
+        // while `progress` is mid-spring (see `progress`'s derivedStateOf above), which was
+        // restarting the gesture coroutine repeatedly during a tap-triggered expand and
+        // eating same-frame taps on the queue button (confirmed root cause). `remember`-ing
+        // the lambda once is sufficient — it still reads `isQueueMode`/`queueProgress`/`scope`
+        // through their stable, remembered delegate/object references at invocation time, not
+        // via captured-by-value snapshots, so it always acts on current state despite being
+        // constructed only once. Play/pause doesn't need this: `onPlayPauseClick` is already a
+        // stable forwarded parameter reference, not a closure built inside this composable.
+        val onQueueClick: () -> Unit = remember {
+            {
+                isQueueMode = !isQueueMode
+                scope.launch {
+                    queueProgress.animateTo(
+                        if (isQueueMode) 1f else 0f,
+                        animationSpec = tween(Motion.DurationNormal, easing = Motion.EasingStandard),
+                    )
+                }
+                Unit
+            }
+        }
+
         val sheetHeight = lerpDp(CollapsedPlayerHeight, maxHeight, progress)
         val cornerRadius = lerpDp(0.dp, 24.dp, progress)
         val bottomInset = lerpDp(BottomNavHeight, 0.dp, progress)
@@ -646,20 +671,10 @@ fun PlayerSheetSkeleton(
                         // timing/easing tokens the old PlayerExpandedContent.kt used for its
                         // Player-mode/Queue-mode Crossfade. Same enabled gate already used by
                         // the transport buttons and PlayerSeekBar (expandedContentEnabled) —
-                        // no new threshold.
+                        // no new threshold. onClick is the remember-ed stable reference above,
+                        // not an inline closure — see its doc comment for why.
                         DragResistantIconButton(
-                            onClick = {
-                                isQueueMode = !isQueueMode
-                                scope.launch {
-                                    queueProgress.animateTo(
-                                        if (isQueueMode) 1f else 0f,
-                                        animationSpec = tween(
-                                            Motion.DurationNormal,
-                                            easing = Motion.EasingStandard,
-                                        ),
-                                    )
-                                }
-                            },
+                            onClick = onQueueClick,
                             enabled = expandedContentEnabled,
                         ) {
                             Icon(
