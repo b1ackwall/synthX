@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -39,8 +41,8 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.BottomNavHeight
-import com.v1per.synthx.ui.components.PlayerSheet
 import com.v1per.synthx.ui.components.next
+import com.v1per.synthx.ui.player.PlayerSheetSkeleton
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Surface
@@ -102,31 +104,17 @@ fun BottomChromeOverlay(
             exit = ChromeExitTransition,
         ) {
             currentSong?.let { song ->
-                val hasNext by playbackViewModel.hasNext.collectAsState()
-                val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
-                val upcomingQueue by playbackViewModel.upcomingQueue.collectAsState()
-                val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
-                val repeatMode by playbackViewModel.repeatMode.collectAsState()
-                PlayerSheet(
+                // Skeleton renders nothing beyond blank surfaces — only the data trivially
+                // available at this host level (song + transport state) is piped through, to
+                // prove the wiring without touching PlaybackController/ExoPlayerEngine. Queue/
+                // shuffle/repeat state stays uncollected here since the skeleton has no queue
+                // or transport controls to feed.
+                PlayerSheetSkeleton(
                     song = song,
                     isPlaying = isPlaying,
                     isBuffering = isBuffering,
                     currentPosition = currentPosition,
                     duration = duration,
-                    onPlayPauseClick = playbackViewModel::togglePlayPause,
-                    onSeek = playbackViewModel::seekTo,
-                    onPreviousClick = playbackViewModel::previous,
-                    onNextClick = playbackViewModel::next,
-                    hasPrevious = hasPrevious,
-                    hasNext = hasNext,
-                    upcomingQueue = upcomingQueue,
-                    shuffleEnabled = shuffleEnabled,
-                    repeatMode = repeatMode,
-                    onShuffleClick = { playbackViewModel.setShuffleEnabled(!shuffleEnabled) },
-                    onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
-                    onQueueSongClick = playbackViewModel::playQueueItem,
-                    onQueueMove = playbackViewModel::moveQueueItem,
-                    onQueueRemove = playbackViewModel::removeQueueItem,
                     onProgressChanged = onPlayerProgressChanged,
                 )
             }
@@ -171,8 +159,22 @@ private fun SynthXBottomNav(
     // Shares BottomNavHeight with PlayerSheet's bottomInset lerp rather than a separate
     // hardcoded constant — a mismatch here previously let the sheet's bottom edge and the
     // nav's sliding top edge drift apart by up to 1dp across the drag.
+    //
+    // The offset alone isn't enough: this whole overlay sits inside enableEdgeToEdge()'s
+    // transparent system bars (MainActivity), so at progress = 1f the offset pushes the bar
+    // into the reserved system-nav-bar inset rather than behind opaque system chrome — and
+    // Compose doesn't clip a Box/Column's children to its bounds by default, so that offset
+    // content stays visible as a sliver instead of being hidden. Shrinking height to 0 and
+    // clipToBounds() (so the fixed-height NavigationBar/divider inside can't paint past a
+    // zero-height container) plus a matching alpha fade are the actual fix; the offset alone
+    // was the previous, insufficient attempt.
+    val collapseFraction = playerProgress.coerceIn(0f, 1f)
     Column(
-        modifier = Modifier.offset(y = BottomNavHeight * playerProgress),
+        modifier = Modifier
+            .offset(y = BottomNavHeight * collapseFraction)
+            .height(BottomNavHeight * (1f - collapseFraction))
+            .clipToBounds()
+            .graphicsLayer { alpha = 1f - collapseFraction },
     ) {
         HorizontalDivider(
             thickness = 1.dp,
