@@ -104,17 +104,24 @@ fun BottomChromeOverlay(
             exit = ChromeExitTransition,
         ) {
             currentSong?.let { song ->
-                // Skeleton renders nothing beyond blank surfaces — only the data trivially
-                // available at this host level (song + transport state) is piped through, to
-                // prove the wiring without touching PlaybackController/ExoPlayerEngine. Queue/
-                // shuffle/repeat state stays uncollected here since the skeleton has no queue
-                // or transport controls to feed.
+                val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
+                val hasNext by playbackViewModel.hasNext.collectAsState()
+                // Skeleton now renders mini content + expanded transport controls, so
+                // play/pause/seek/prev/next and their enabled-state flows are wired for
+                // real. Queue/shuffle/repeat state stays uncollected — the queue button is
+                // still a placeholder, queue mode itself is a later feature.
                 PlayerSheetSkeleton(
                     song = song,
                     isPlaying = isPlaying,
                     isBuffering = isBuffering,
                     currentPosition = currentPosition,
                     duration = duration,
+                    onPlayPauseClick = playbackViewModel::togglePlayPause,
+                    onSeek = playbackViewModel::seekTo,
+                    onPreviousClick = playbackViewModel::previous,
+                    onNextClick = playbackViewModel::next,
+                    hasPrevious = hasPrevious,
+                    hasNext = hasNext,
                     onProgressChanged = onPlayerProgressChanged,
                 )
             }
