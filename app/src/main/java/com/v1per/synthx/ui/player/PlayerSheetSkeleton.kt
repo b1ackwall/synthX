@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -32,16 +33,44 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
+import com.v1per.synthx.ui.components.PlayerAlbumArt
 import com.v1per.synthx.ui.components.PlayerSheetValue
 import com.v1per.synthx.ui.theme.Motion
+import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import kotlinx.coroutines.launch
+
+/**
+ * Height reserved below the art for the title/artist row, mirrored from
+ * PlayerModeContent.kt's private TitleRowReservedHeight (68dp) — that constant isn't shared
+ * across the package boundary, and the real title row hasn't been ported into the skeleton
+ * yet. Duplicated literal, flagged for consolidation once PlayerModeContent's layout is
+ * actually ported here.
+ */
+private val TitleRowReservedHeight: Dp = 68.dp
+
+/**
+ * Gap between the expanded sheet's top edge and the art region, mirrored from
+ * PlayerExpandedContent.kt's private TopMargin (32dp) — same cross-package-boundary
+ * duplication as [TitleRowReservedHeight] above, for the same reason.
+ */
+private val ExpandedTopMargin: Dp = 32.dp
+
+/**
+ * Weight ratio (above : below) the art is split by within its region in expanded state,
+ * mirrored from PlayerModeContent.kt's Spacer(weight(1.5f)) / Spacer(weight(1f)) pair —
+ * the art sits slightly off-centre in that region, not dead-centered.
+ */
+private const val ArtWeightAbove = 1.5f
+private const val ArtWeightBelow = 1f
 
 /**
  * Empty skeleton stand-in for [com.v1per.synthx.ui.components.PlayerSheet]: same single
@@ -116,6 +145,32 @@ fun PlayerSheetSkeleton(
         // state at a glance without touching the accent color or any real UI.
         val surfaceColor = lerp(Surface, SurfaceVariant, progress)
 
+        // Same lerp as the old PlayerSheet.kt:205 — 44dp mini thumbnail growing to the
+        // expanded player's full-width art — capped the same way PlayerModeContent.kt:63-64
+        // capped it, against available height minus the (not yet ported) title row's space.
+        val artSize = lerpDp(44.dp, maxWidth - Spacing.HorizontalPadding * 4, progress)
+        val artMaxHeight = (maxHeight - TitleRowReservedHeight).coerceAtLeast(0.dp)
+        val constrainedArtSize = min(artSize, artMaxHeight)
+
+        // Art position, lerped between its two known-correct endpoints so the morph is
+        // continuous while matching each source layout exactly at progress 0 / 1:
+        //  - Mini (progress 0): PlayerMiniBar.kt — leading element of a Spacing.md-padded
+        //    Row, vertically centered against the row's own height.
+        //  - Expanded (progress 1): PlayerModeContent.kt — horizontally centered; vertically
+        //    split 1.5:1 (above:below) within the region below ExpandedTopMargin and above
+        //    the reserved title-row space.
+        val artOffsetXMini = Spacing.md
+        val artOffsetXExpanded = (maxWidth - constrainedArtSize) / 2
+        val artOffsetX = lerpDp(artOffsetXMini, artOffsetXExpanded, progress)
+
+        val artOffsetYMini = (sheetHeight - constrainedArtSize) / 2
+        val expandedRegionHeight =
+            (sheetHeight - ExpandedTopMargin - TitleRowReservedHeight).coerceAtLeast(0.dp)
+        val expandedFlexSpace = (expandedRegionHeight - constrainedArtSize).coerceAtLeast(0.dp)
+        val artOffsetYExpanded = ExpandedTopMargin +
+            expandedFlexSpace * (ArtWeightAbove / (ArtWeightAbove + ArtWeightBelow))
+        val artOffsetY = lerpDp(artOffsetYMini, artOffsetYExpanded, progress)
+
         Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomInset)) {
             Box(
                 modifier = Modifier
@@ -148,14 +203,13 @@ fun PlayerSheetSkeleton(
                             }
 
                             if (drag == null) {
-                                // Pointer lifted before crossing touch slop — a tap. Toggle
-                                // the same AnchoredDraggableState the drag path drives.
-                                val target = if (draggableState.currentValue == PlayerSheetValue.Collapsed) {
-                                    PlayerSheetValue.Expanded
-                                } else {
-                                    PlayerSheetValue.Collapsed
+                                // Pointer lifted before crossing touch slop — a tap. Only
+                                // expands from Collapsed; tapping while Expanded is a no-op —
+                                // drag and system back (BackHandler, above) are the only ways
+                                // to collapse.
+                                if (draggableState.currentValue == PlayerSheetValue.Collapsed) {
+                                    scope.launch { draggableState.animateTo(PlayerSheetValue.Expanded) }
                                 }
-                                scope.launch { draggableState.animateTo(target) }
                             } else {
                                 // Slop crossed — this is a drag. Feed the post-slop offset (the
                                 // same value detectVerticalDragGestures applies as its first
@@ -177,7 +231,21 @@ fun PlayerSheetSkeleton(
                             }
                         }
                     },
-            )
+            ) {
+                // Positioned per the lerped artOffsetX/Y above — not final layout (no title
+                // row, transport, or seek bar yet, those are later features). PlayerAlbumArt
+                // itself needs no adaptation: it already takes exactly
+                // (song, isPlaying, size, fullResolution) and owns its own
+                // real-art-vs-glitch-placeholder branch.
+                Box(modifier = Modifier.offset(x = artOffsetX, y = artOffsetY)) {
+                    PlayerAlbumArt(
+                        song = song,
+                        isPlaying = isPlaying,
+                        size = constrainedArtSize,
+                        fullResolution = true,
+                    )
+                }
+            }
         }
     }
 }
