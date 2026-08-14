@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.groupdetail
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +26,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.PlaylistRow
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -54,7 +56,7 @@ fun GroupDetailScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
 
         Box(modifier = Modifier.fillMaxSize()) {

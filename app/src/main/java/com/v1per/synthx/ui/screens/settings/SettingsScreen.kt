@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +43,7 @@ fun SettingsScreen(
     // one-ViewModel-per-screen wiring in place for the next setting that lands here.
     viewModel<SettingsViewModel>(factory = SettingsViewModel.Factory())
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
         SettingsScreenContent(
             onLibraryManagementClick = onLibraryManagementClick,

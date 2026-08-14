@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.screens.issues
 
 import android.text.format.DateUtils
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,7 +55,7 @@ fun IssuesScreen(
     val uiState by viewModel.uiState.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
 
         IssuesContent(

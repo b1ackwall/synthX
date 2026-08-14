@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.albumdetail
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +23,7 @@ import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.SongRow
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -39,7 +41,7 @@ fun AlbumDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
 
         AlbumDetailContent(

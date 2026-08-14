@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.ui.unit.LayoutDirection
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -127,7 +128,7 @@ private fun LibraryScreenContent(
     // Takes the tapped song's index in [recentSongs]: the whole row becomes the queue.
     onSongClick: (Int) -> Unit,
 ) {
-    LazyColumn(modifier = modifier.fillMaxSize()) {
+    LazyColumn(modifier = modifier.fillMaxSize().background(Background)) {
         item(key = "title") {
             Text(
                 text = stringResource(R.string.library_title),

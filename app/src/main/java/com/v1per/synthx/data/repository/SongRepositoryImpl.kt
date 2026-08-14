@@ -70,10 +70,18 @@ class SongRepositoryImpl(
 
     override fun getSongs(): Flow<List<Song>> = songsFlow
 
-    override fun getArtists(): Flow<List<Artist>> =
+    // Same caching rationale as songsFlow above — shared across every getArtists()
+    // subscriber (Artists list, Search) instead of re-querying per collector.
+    private val artistsFlow: StateFlow<List<Artist>> =
         artistDao.getAllArtists().map { entities ->
             entities.map { Artist(id = it.id, name = it.name) }
-        }
+        }.stateIn(
+            scope = repositoryScope,
+            started = SharingStarted.Lazily,
+            initialValue = emptyList(),
+        )
+
+    override fun getArtists(): Flow<List<Artist>> = artistsFlow
 
     // Sort order (title) stays in the DAO query; the Flow conversion preserves it.
     override fun getSongsForArtist(artistId: String): Flow<List<Song>> =
@@ -83,7 +91,9 @@ class SongRepositoryImpl(
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
 
-    override fun getAlbums(): Flow<List<Album>> =
+    // Same caching rationale as songsFlow above — shared across every getAlbums()
+    // subscriber (Albums list, Search) instead of re-querying per collector.
+    private val albumsFlow: StateFlow<List<Album>> =
         albumDao.getAllAlbums().map { entries ->
             entries.map {
                 Album(
@@ -93,7 +103,13 @@ class SongRepositoryImpl(
                     albumArtUri = it.albumArtUri,
                 )
             }
-        }
+        }.stateIn(
+            scope = repositoryScope,
+            started = SharingStarted.Lazily,
+            initialValue = emptyList(),
+        )
+
+    override fun getAlbums(): Flow<List<Album>> = albumsFlow
 
     // Sort order (track number, then title) stays in the DAO query.
     override fun getSongsForAlbum(albumId: String): Flow<List<Song>> =
@@ -158,10 +174,18 @@ class SongRepositoryImpl(
     override suspend fun deleteGroup(id: String) =
         playlistDao.deleteGroup(id)
 
-    override fun getAllPlaylists(): Flow<List<Playlist>> =
+    // Same caching rationale as songsFlow above — shared across every getAllPlaylists()
+    // subscriber (SongActionsHost, Search) instead of re-querying per collector.
+    private val allPlaylistsFlow: StateFlow<List<Playlist>> =
         playlistDao.getAllPlaylists().map { entities ->
             entities.map { it.toDomain() }
-        }
+        }.stateIn(
+            scope = repositoryScope,
+            started = SharingStarted.Lazily,
+            initialValue = emptyList(),
+        )
+
+    override fun getAllPlaylists(): Flow<List<Playlist>> = allPlaylistsFlow
 
     override fun getUngroupedPlaylists(): Flow<List<Playlist>> =
         playlistDao.getUngroupedPlaylists().map { entities ->

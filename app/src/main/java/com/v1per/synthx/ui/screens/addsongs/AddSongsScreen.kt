@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.addsongs
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,7 +68,7 @@ fun AddSongsScreen(
         if (submitted) onSubmitted()
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
 
         // The search bar here is deliberately deferred (no filtering built yet) — rather than

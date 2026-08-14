@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +69,7 @@ import com.v1per.synthx.ui.components.DeleteGroupDialog
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
@@ -105,7 +107,7 @@ fun PlaylistListScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
 
         Row(

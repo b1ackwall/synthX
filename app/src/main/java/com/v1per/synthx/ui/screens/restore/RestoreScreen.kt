@@ -68,7 +68,7 @@ fun RestoreScreen(
 
     val isRestoring = outcome is RestoreOutcome.InProgress
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
         RestoreContent(
             uiState = uiState,

@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.songs
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,7 +60,7 @@ fun SongsScreen(
     val currentlyPlayingSongId by viewModel.currentlyPlayingSongId.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar({ onShowSortSheet(currentSortOrder, viewModel::setSortOrder) })
 
         SongsScreenContent(
