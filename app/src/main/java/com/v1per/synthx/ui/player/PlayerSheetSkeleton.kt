@@ -1,7 +1,9 @@
 package com.v1per.synthx.ui.player
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,8 +43,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -112,6 +117,23 @@ private const val ArtWeightBelow = 1f
  * deliberate deviation, not an oversight.
  */
 private val ControlsOverlayHeight: Dp = 300.dp
+
+/**
+ * Queue-mode header art size, mirrored from PlayerQueueModeContent.kt's private
+ * QueueModeArtSize (44dp) — same cross-package-boundary duplication as the other mirrored
+ * constants above.
+ */
+private val QueueModeArtSize: Dp = 44.dp
+
+/**
+ * Approximate height of the (not yet ported) queue-mode header row, used only to vertically
+ * center the 44dp queue art within it. The old QueueModeHeader's height was content-driven
+ * (sized by its tallest child — effectively the two-line title/artist column), not a fixed
+ * constant, so there is no exact source value to mirror here. [TitleRowReservedHeight] (68dp)
+ * is reused as the closest existing approximation already in this file for a two-line
+ * title/artist block, rather than inventing a new number.
+ */
+private val QueueHeaderRowHeight: Dp = TitleRowReservedHeight
 
 /**
  * Empty skeleton stand-in for [com.v1per.synthx.ui.components.PlayerSheet]: same single
@@ -185,6 +207,14 @@ fun PlayerSheetSkeleton(
 
         onProgressChanged(progress)
 
+        // Queue-mode toggle, orthogonal to the collapse/expand `progress` axis above — driven
+        // by the queue button tap, not the drag gesture. `isQueueMode` is the source of truth
+        // for the animation's target; `queueProgress` is what the art/header math below
+        // actually reads, so the two never disagree mid-animation the way inferring one from
+        // the other's targetValue would.
+        var isQueueMode by remember { mutableStateOf(false) }
+        val queueProgress = remember { Animatable(0f) }
+
         val sheetHeight = lerpDp(CollapsedPlayerHeight, maxHeight, progress)
         val cornerRadius = lerpDp(0.dp, 24.dp, progress)
         val bottomInset = lerpDp(BottomNavHeight, 0.dp, progress)
@@ -217,7 +247,13 @@ fun PlayerSheetSkeleton(
         //    the reserved title-row space.
         val artOffsetXMini = Spacing.md
         val artOffsetXExpanded = (maxWidth - constrainedArtSize) / 2
-        val artOffsetX = lerpDp(artOffsetXMini, artOffsetXExpanded, progress)
+        // Old QueueModeHeader's Row carries no horizontal padding of its own — its inset is
+        // entirely the ancestor Layer 1 Box's `.padding(horizontal = Spacing.HorizontalPadding)`
+        // in PlayerExpandedContent.kt, the same 16dp token this file already reuses as
+        // ExpandedTopMargin's horizontal sibling below.
+        val artOffsetXQueue = Spacing.HorizontalPadding
+        val expandedTargetX = lerpDp(artOffsetXExpanded, artOffsetXQueue, queueProgress.value)
+        val artOffsetX = lerpDp(artOffsetXMini, expandedTargetX, progress)
 
         val artOffsetYMini = (sheetHeight - constrainedArtSize) / 2
         val expandedRegionHeight =
@@ -226,7 +262,17 @@ fun PlayerSheetSkeleton(
         val expandedFlexSpace = (expandedRegionHeight - constrainedArtSize).coerceAtLeast(0.dp)
         val artOffsetYExpanded = ExpandedTopMargin +
             expandedFlexSpace * (ArtWeightAbove / (ArtWeightAbove + ArtWeightBelow))
-        val artOffsetY = lerpDp(artOffsetYMini, artOffsetYExpanded, progress)
+        // Old PlayerExpandedContent.kt's Layer 1 Box uses `.padding(top = TopMargin)` where
+        // TopMargin = 32dp — the exact same value already mirrored into this file as
+        // ExpandedTopMargin, so the queue header's top anchor reuses that existing constant
+        // rather than a new one. QueueModeArtSize is then centered within the
+        // QueueHeaderRowHeight approximation declared above.
+        val artOffsetYQueue = ExpandedTopMargin + (QueueHeaderRowHeight - QueueModeArtSize) / 2
+        val expandedTargetY = lerpDp(artOffsetYExpanded, artOffsetYQueue, queueProgress.value)
+        val artOffsetY = lerpDp(artOffsetYMini, expandedTargetY, progress)
+
+        val expandedTargetSize = lerpDp(constrainedArtSize, QueueModeArtSize, queueProgress.value)
+        val finalArtSize = lerpDp(44.dp, expandedTargetSize, progress)
 
         // Title row sits right below the art, in the "below" share (weight 1 of the 1.5:1
         // split) of the same expandedFlexSpace the art's own Y offset above already
@@ -395,7 +441,7 @@ fun PlayerSheetSkeleton(
                     PlayerAlbumArt(
                         song = song,
                         isPlaying = isPlaying,
-                        size = constrainedArtSize,
+                        size = finalArtSize,
                         fullResolution = true,
                     )
                 }
@@ -404,12 +450,15 @@ fun PlayerSheetSkeleton(
                 // NowPlayingTitleRow, reproduced here since it's private to that file) plus
                 // the real MoreOptionsButton (internal — same Gradle module, reused as-is
                 // rather than duplicated since it already wires LocalSongActions correctly).
+                // Fades against queueHeaderAlpha below rather than just expandedContentAlpha
+                // alone, so the two crossfade against each other on a queue-button tap, not
+                // only across the collapse/expand drag.
                 Box(
                     modifier = Modifier
                         .offset(y = titleRowY)
                         .fillMaxWidth()
                         .padding(horizontal = Spacing.HorizontalPadding)
-                        .alpha(expandedContentAlpha),
+                        .alpha(expandedContentAlpha * (1f - queueProgress.value)),
                 ) {
                     Row(
                         modifier = Modifier
@@ -437,6 +486,62 @@ fun PlayerSheetSkeleton(
                             )
                         }
                         MoreOptionsButton(song = song, enabled = expandedContentEnabled)
+                    }
+                }
+
+                // ─── Queue-mode header: minimal text-only stand-in for
+                // PlayerQueueModeContent.kt's QueueModeHeader — title/artist bound to real,
+                // live song data; the trailing button is a visual placeholder only (a true
+                // no-op, not the real LocalSongActions-wired MoreOptionsButton — that
+                // composable has no onClick override hook, so reusing it here would also
+                // wire the real action, which is out of scope). Positioned at the same
+                // artOffsetYQueue anchor the art animates toward; a leading spacer reserves
+                // the art's own footprint (same technique the mini content Row above already
+                // uses), since the art itself is the separately positioned shared element.
+                // Queue list / shuffle-repeat row are deliberately not built here — future
+                // feature.
+                Box(
+                    modifier = Modifier
+                        .offset(y = artOffsetYQueue)
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.HorizontalPadding)
+                        .alpha(expandedContentAlpha * queueProgress.value),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Spacer(modifier = Modifier.width(QueueModeArtSize))
+                        Spacer(modifier = Modifier.width(Spacing.md))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = song.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.basicMarquee(),
+                            )
+                            Text(
+                                text = song.artist,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        DragResistantIconButton(
+                            onClick = {},
+                            enabled = expandedContentEnabled,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MoreVert,
+                                contentDescription = stringResource(R.string.cd_more_options),
+                                tint = TextSecondary,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
                     }
                 }
 
@@ -537,18 +642,30 @@ fun PlayerSheetSkeleton(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
                     ) {
-                        // Placeholder only — queue mode doesn't exist yet, so this never
-                        // toggles anything. Rendered in its permanent "off" tint (TextSecondary,
-                        // matching PlayerControlsSection.kt's showQueue = false color) since
-                        // there's no queue state to reflect.
+                        // Toggles the queueProgress animation, reusing the exact Crossfade
+                        // timing/easing tokens the old PlayerExpandedContent.kt used for its
+                        // Player-mode/Queue-mode Crossfade. Same enabled gate already used by
+                        // the transport buttons and PlayerSeekBar (expandedContentEnabled) —
+                        // no new threshold.
                         DragResistantIconButton(
-                            onClick = {},
+                            onClick = {
+                                isQueueMode = !isQueueMode
+                                scope.launch {
+                                    queueProgress.animateTo(
+                                        if (isQueueMode) 1f else 0f,
+                                        animationSpec = tween(
+                                            Motion.DurationNormal,
+                                            easing = Motion.EasingStandard,
+                                        ),
+                                    )
+                                }
+                            },
                             enabled = expandedContentEnabled,
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                                 contentDescription = stringResource(R.string.cd_queue),
-                                tint = TextSecondary,
+                                tint = if (isQueueMode) TextPrimary else TextSecondary,
                                 modifier = Modifier.size(28.dp),
                             )
                         }
