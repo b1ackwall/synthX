@@ -107,6 +107,65 @@ private val QueueModeArtSize: Dp = 44.dp
 private val QueueHeaderRowHeight: Dp = TitleRowReservedHeight
 
 /**
+ * Height of the queue-mode header-to-playback-row region — a real Column (header Row +
+ * a single leading weight(1f) spacer + [com.v1per.synthx.ui.components.QueuePlaybackModeRow],
+ * built in PlayerSkeletonQueueContent) is given exactly this much bounded height so that
+ * spacer has real slack to distribute. Composed from existing [Spacing] tokens rather than a
+ * bespoke literal: [Spacing.xxl] for the header row's own footprint, [Spacing.RowHeight] for
+ * the playback row's, and [Spacing.xl] as the slack absorbed entirely by the one leading
+ * spacer. Still an approximation of the two children's real intrinsic heights — same as
+ * [QueueHeaderRowHeight] above — just sourced from named tokens instead of an untethered dp
+ * literal, and tunable the same way.
+ */
+private val QueueHeaderRegionHeight: Dp = Spacing.xxl + Spacing.RowHeight + Spacing.xl
+
+/**
+ * Queue-mode header Row's real intrinsic height, as rendered in PlayerSkeletonQueueContent —
+ * driven by its tallest child, the title/artist text column (bodyLarge + bodyMedium line
+ * heights, 24sp + 20sp = 44sp ≈ 44dp), taller than the 40dp MoreOptionsButton beside it. Not
+ * measured at runtime (see [QueueColumnLeadingSlack]'s doc comment for why) — this is the
+ * same ~44dp figure confirmed by the earlier text-metrics audit, duplicated here as a named
+ * constant instead of a bare literal so [QueueColumnLeadingSlack] below can be read without
+ * re-deriving it.
+ *
+ * MUST be kept in sync with PlayerSkeletonQueueContent's actual header Row: if its content
+ * changes (e.g. a third text line, a taller trailing element), update this to match, or
+ * [QueueColumnLeadingSlack] — and therefore the art's queue-mode position — silently drifts
+ * out of alignment with where the header Row actually renders.
+ */
+private val QueueHeaderRowIntrinsicHeight: Dp = 44.dp
+
+/**
+ * [com.v1per.synthx.ui.components.QueuePlaybackModeRow]'s real intrinsic height, as rendered
+ * in PlayerSkeletonQueueContent — its own `Spacing.sm` (8dp) vertical padding on both sides of
+ * its default-sized (48dp) `IconButton`s: 8 + 48 + 8 = 64dp. Not measured at runtime, same
+ * reasoning as [QueueHeaderRowIntrinsicHeight] above.
+ *
+ * MUST be kept in sync with QueuePlaybackModeRow.kt's actual layout: if its padding or icon
+ * size changes, update this to match, for the same reason as [QueueHeaderRowIntrinsicHeight].
+ */
+private val QueuePlaybackModeRowIntrinsicHeight: Dp = 64.dp
+
+/**
+ * The queue-mode Column's single leading weight(1f) spacer's real height — [QueueHeaderRegionHeight]
+ * minus the two fixed-height children it contains, [QueueHeaderRowIntrinsicHeight] and
+ * [QueuePlaybackModeRowIntrinsicHeight]. This is parallel math, not a measurement: it exists
+ * so the art (positioned independently, see [artOffsetYQueue]/`artOffsetYQueueTarget` below)
+ * can compute where the header Row actually renders inside the Column, without the Column
+ * itself reporting its real layout back via onGloballyPositioned/onSizeChanged (which would
+ * reintroduce a one-frame measurement-lag dependency — see the earlier discovery audit on
+ * why that approach was rejected for this exact region).
+ *
+ * MUST be kept in sync with the Column's actual structure in PlayerSkeletonQueueContent.kt:
+ * if the spacer arrangement changes (e.g. a spacer is reintroduced between the header Row and
+ * QueuePlaybackModeRow), this formula needs to change to match — otherwise the art's computed
+ * target Y silently stops matching where the header Row visually renders, exactly the bug this
+ * value now fixes.
+ */
+private val QueueColumnLeadingSlack: Dp =
+    QueueHeaderRegionHeight - QueueHeaderRowIntrinsicHeight - QueuePlaybackModeRowIntrinsicHeight
+
+/**
  * Empty skeleton stand-in for [com.v1per.synthx.ui.components.PlayerSheet]: same single
  * AnchoredDraggableState morph between mini/full player, wired to real [PlaybackViewModel]
  * state, but rendering blank surfaces only. The old PlayerSheet and its child composables
@@ -271,11 +330,21 @@ fun PlayerSheetSkeleton(
         // rather than a new one. QueueModeArtSize is then centered within the
         // QueueHeaderRowHeight approximation declared above.
         val artOffsetYQueue = ExpandedTopMargin + (QueueHeaderRowHeight - QueueModeArtSize) / 2
-        // Fixed resting position for the shuffle/repeat row + Up Next list, directly below
-        // the queue header — see PlayerSkeletonQueueContent's doc comment for why this isn't
-        // lerped like the art/header positions above it.
-        val queueListOffsetY = artOffsetYQueue + QueueHeaderRowHeight
-        val expandedTargetY = lerpDp(artOffsetYExpanded, artOffsetYQueue, queueProgress.value)
+        // Where QueueList starts: right after the fixed-height header-region Column (header
+        // Row + playback row, see QueueHeaderRegionHeight's doc comment) ends. Uses the
+        // Column's own start offset (artOffsetYQueue) unchanged — not artOffsetYQueueTarget
+        // below, which serves a different purpose (see its own doc comment).
+        val queueListOffsetY = artOffsetYQueue + QueueHeaderRegionHeight
+        // The art is a separate element from the header Row (see PlayerSkeletonQueueContent's
+        // doc comment), so it can't just anchor at artOffsetYQueue any more: that's the
+        // Column's start offset, but the header Row itself renders QueueColumnLeadingSlack
+        // lower than that, pushed down by the Column's single leading weight(1f) spacer.
+        // artCenterYQueue reconstructs the header Row's actual vertical center from the same
+        // slack math the Column uses, so the art centers on where the title/artist text
+        // actually renders rather than on the Column's top edge.
+        val artCenterYQueue = artOffsetYQueue + QueueColumnLeadingSlack + QueueHeaderRowIntrinsicHeight / 2
+        val artOffsetYQueueTarget = artCenterYQueue - QueueModeArtSize / 2
+        val expandedTargetY = lerpDp(artOffsetYExpanded, artOffsetYQueueTarget, queueProgress.value)
         val artOffsetY = lerpDp(artOffsetYMini, expandedTargetY, progress)
 
         val expandedTargetSize = lerpDp(constrainedArtSize, QueueModeArtSize, queueProgress.value)
@@ -411,6 +480,7 @@ fun PlayerSheetSkeleton(
                     song = song,
                     artOffsetYQueue = artOffsetYQueue,
                     queueListOffsetY = queueListOffsetY,
+                    headerRegionHeight = QueueHeaderRegionHeight,
                     surfaceColor = surfaceColor,
                     expandedContentAlpha = expandedContentAlpha,
                     queueProgressValue = queueProgress.value,

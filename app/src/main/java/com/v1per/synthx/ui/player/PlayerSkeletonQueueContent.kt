@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -35,26 +36,33 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * Queue-mode header + Up Next list: header is PlayerQueueModeContent.kt's QueueModeHeader
  * reproduced here — title/artist bound to real, live song data, trailing button now the real
  * MoreOptionsButton (same internal composable PlayerSkeletonExpandedContent's title row
- * already uses, no new provider needed). Positioned at the same artOffsetYQueue anchor the
- * art animates toward; a leading spacer reserves the art's own footprint (same technique the
- * mini content Row uses), since the art itself is the separately positioned shared element.
+ * already uses, no new provider needed). A leading spacer reserves the art's own footprint
+ * (same technique the mini content Row uses), since the art itself is the separately
+ * positioned shared element.
  *
- * [queueListOffsetY] anchors the shuffle/repeat row + Up Next list below the header, at a
- * fixed resting position (not lerped) — same convention as the header's own offset: both only
- * become visible once faded in via [expandedContentAlpha] * [queueProgressValue], by which
- * point any lerp animation has already settled, so there is nothing to interpolate.
+ * The header Row and [QueuePlaybackModeRow] now share one real Column, bounded to
+ * [headerRegionHeight] (see that constant's doc comment in PlayerSheetSkeleton.kt), anchored
+ * at the same artOffsetYQueue anchor the art animates toward. A single `weight(1f)` [Spacer]
+ * sits above the header Row, absorbing all of this Column's slack — both the header Row and
+ * [QueuePlaybackModeRow] below it are flush against each other and against the Column's
+ * bottom edge, with no spacer between them. The only breathing room between them is
+ * [QueuePlaybackModeRow]'s own internal `Spacing.sm` vertical padding, nothing added here.
+ * [queueListOffsetY] is where [QueueList] starts, right after this Column's fixed-height
+ * region ends.
  *
  * Removal is out of scope entirely — [QueueRow] has no swipe gesture at all, and neither
  * [QueueList] nor this composable carries an onRemove hook. A separate, later task.
  *
- * The shuffle/repeat row + Up Next list are conditionally composed (`queueProgressValue >
- * 0f`), not just alpha-faded: an always-present [QueueList] would stay hit-testable even at
- * alpha 0, silently intercepting taps/drags meant for the sheet's own gesture detector while
- * in player mode (queue mode never entered). Since [queueProgressValue] animates continuously
- * from 0f on the first frame of the queue-button tap (see [Motion.DurationNormal]'s
- * `Animatable.animateTo` in PlayerSheetSkeleton.kt), entering composition at `> 0f` puts it in
- * the tree on that very first frame — indistinguishable from the previous always-composed,
- * alpha-only behavior visually, just no longer hit-testable at exactly 0f.
+ * Only [QueueList] is conditionally composed (`queueProgressValue > 0f`), not just
+ * alpha-faded: an always-present [QueueList] would stay hit-testable even at alpha 0, silently
+ * intercepting taps/drags meant for the sheet's own gesture detector while in player mode
+ * (queue mode never entered) — the header Row and [QueuePlaybackModeRow] carry no such
+ * scroll/drag surface, so they stay always-composed and alpha-only, same as the header always
+ * has. Since [queueProgressValue] animates continuously from 0f on the first frame of the
+ * queue-button tap (see [Motion.DurationNormal]'s `Animatable.animateTo` in
+ * PlayerSheetSkeleton.kt), entering composition at `> 0f` puts [QueueList] in the tree on that
+ * very first frame — indistinguishable from an always-composed, alpha-only list visually, just
+ * no longer hit-testable at exactly 0f.
  *
  * [queueContentEnabled] mirrors [expandedContentEnabled]'s own `> 0.5f` convention, but on
  * [queueProgressValue] instead of the collapse/expand `progress` axis — [expandedContentEnabled]
@@ -67,6 +75,7 @@ fun PlayerSkeletonQueueContent(
     song: Song,
     artOffsetYQueue: Dp,
     queueListOffsetY: Dp,
+    headerRegionHeight: Dp,
     surfaceColor: Color,
     expandedContentAlpha: Float,
     queueProgressValue: Float,
@@ -86,13 +95,16 @@ fun PlayerSkeletonQueueContent(
     val queueContentEnabled = expandedContentEnabled && queueProgressValue > 0.5f
 
     Box(modifier = modifier.fillMaxSize()) {
-        Box(
+        Column(
             modifier = Modifier
                 .offset(y = artOffsetYQueue)
                 .fillMaxWidth()
+                .height(headerRegionHeight)
                 .padding(horizontal = Spacing.HorizontalPadding)
                 .alpha(queueContentAlpha),
         ) {
+            Spacer(modifier = Modifier.weight(1f))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -119,36 +131,30 @@ fun PlayerSkeletonQueueContent(
                 }
                 MoreOptionsButton(song = song, enabled = queueContentEnabled)
             }
+
+            QueuePlaybackModeRow(
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+                onShuffleClick = onShuffleClick,
+                onRepeatClick = onRepeatClick,
+                enabled = queueContentEnabled,
+            )
         }
 
         if (queueProgressValue > 0f) {
-            Column(
+            QueueList(
+                queue = upcomingQueue,
+                onSongClick = onQueueSongClick,
+                onMove = onQueueMove,
+                surfaceColor = surfaceColor,
+                enabled = queueContentEnabled,
+                contentPadding = PaddingValues(bottom = controlsOverlayHeight),
                 modifier = Modifier
                     .offset(y = queueListOffsetY)
                     .fillMaxWidth()
                     .fillMaxHeight()
                     .alpha(queueContentAlpha),
-            ) {
-                QueuePlaybackModeRow(
-                    shuffleEnabled = shuffleEnabled,
-                    repeatMode = repeatMode,
-                    onShuffleClick = onShuffleClick,
-                    onRepeatClick = onRepeatClick,
-                    enabled = queueContentEnabled,
-                    modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
-                )
-                QueueList(
-                    queue = upcomingQueue,
-                    onSongClick = onQueueSongClick,
-                    onMove = onQueueMove,
-                    surfaceColor = surfaceColor,
-                    enabled = queueContentEnabled,
-                    contentPadding = PaddingValues(bottom = controlsOverlayHeight),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                )
-            }
+            )
         }
     }
 }
