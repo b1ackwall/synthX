@@ -107,6 +107,17 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
         label = "controlsOverlayScrollVisibility",
     )
 
+    // Gates every real control in this overlay (seek bar, transport, queue button) — not
+    // just the background shield above. expandedContentEnabled alone only tracks the
+    // collapse/expand axis; without overlayVisibleAlpha too, these controls' own gesture
+    // detectors stayed fully live even while scrolled away and faded/gone in queue mode
+    // (alpha is draw-only in Compose, it doesn't disable hit-testing), letting touches in
+    // that region register as real seeks/clicks on invisible controls — the same class of
+    // bug the shield fix addressed, but on real controls the shield's own gating can't
+    // reach (they consume their own touches first, child-before-parent). Same 0.5f
+    // threshold convention as the shield fix, for the same reason.
+    val overlayControlsEnabled = expandedContentEnabled && overlayVisibleAlpha > 0.5f
+
     Column(
         modifier = modifier
             .align(Alignment.BottomCenter)
@@ -158,15 +169,15 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
             currentPosition = currentPosition,
             duration = duration,
             onSeek = onSeek,
-            enabled = expandedContentEnabled,
+            enabled = overlayControlsEnabled,
         )
         Spacer(modifier = Modifier.height(Spacing.xl))
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val previousEnabled = expandedContentEnabled && hasPrevious
-            val nextEnabled = expandedContentEnabled && hasNext
+            val previousEnabled = overlayControlsEnabled && hasPrevious
+            val nextEnabled = overlayControlsEnabled && hasNext
             Spacer(modifier = Modifier.weight(2f))
             DragResistantIconButton(
                 onClick = onPreviousClick,
@@ -186,7 +197,7 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
             DragResistantIconButton(
                 onClick = onPlayPauseClick,
                 size = 96.dp,
-                enabled = expandedContentEnabled,
+                enabled = overlayControlsEnabled,
             ) {
                 if (isBuffering) {
                     CircularProgressIndicator(
@@ -234,13 +245,13 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
         ) {
             // Toggles the queueProgress animation, reusing the exact Crossfade
             // timing/easing tokens the old PlayerExpandedContent.kt used for its
-            // Player-mode/Queue-mode Crossfade. Same enabled gate already used by
-            // the transport buttons and PlayerSeekBar (expandedContentEnabled) —
-            // no new threshold. onClick is the remember-ed stable reference from
-            // PlayerSheetSkeleton, not an inline closure — see its doc comment for why.
+            // Player-mode/Queue-mode Crossfade. Same enabled gate now used by the
+            // transport buttons and PlayerSeekBar (overlayControlsEnabled). onClick is the
+            // remember-ed stable reference from PlayerSheetSkeleton, not an inline closure —
+            // see its doc comment for why.
             DragResistantIconButton(
                 onClick = onQueueClick,
-                enabled = expandedContentEnabled,
+                enabled = overlayControlsEnabled,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.QueueMusic,
