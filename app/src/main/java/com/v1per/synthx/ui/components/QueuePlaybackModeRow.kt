@@ -43,6 +43,7 @@ fun QueuePlaybackModeRow(
     onShuffleClick: () -> Unit,
     onRepeatClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = modifier
@@ -50,7 +51,7 @@ fun QueuePlaybackModeRow(
             .padding(vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        IconButton(onClick = onShuffleClick) {
+        IconButton(onClick = onShuffleClick, enabled = enabled) {
             Icon(
                 imageVector = Icons.Filled.Shuffle,
                 contentDescription = stringResource(R.string.cd_shuffle),
@@ -58,7 +59,7 @@ fun QueuePlaybackModeRow(
                 modifier = Modifier.size(24.dp),
             )
         }
-        IconButton(onClick = onRepeatClick) {
+        IconButton(onClick = onRepeatClick, enabled = enabled) {
             Icon(
                 imageVector = if (repeatMode == RepeatMode.One) {
                     Icons.Filled.RepeatOne

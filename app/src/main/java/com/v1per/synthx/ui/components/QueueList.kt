@@ -42,10 +42,10 @@ fun QueueList(
     queue: List<Song>,
     onSongClick: (index: Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
-    onRemove: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     state: LazyListState = rememberLazyListState(),
+    enabled: Boolean = true,
 ) {
     var localQueue by remember(queue) { mutableStateOf(queue) }
     var dragStartIndex by remember { mutableStateOf(-1) }
@@ -61,13 +61,12 @@ fun QueueList(
             ReorderableItem(reorderableState, key = song.id) {
                 QueueRow(
                     song = song,
-                    onClick = { onSongClick(index) },
-                    onRemove = { onRemove(index) },
+                    onClick = { if (enabled) onSongClick(index) },
                     dragHandleModifier = Modifier.draggableHandle(
                         onDragStarted = { dragStartIndex = index },
                         onDragStopped = {
                             val endIndex = localQueue.indexOfFirst { it.id == song.id }
-                            if (dragStartIndex != -1 && dragStartIndex != endIndex) {
+                            if (enabled && dragStartIndex != -1 && dragStartIndex != endIndex) {
                                 onMove(dragStartIndex, endIndex)
                             }
                             dragStartIndex = -1
@@ -76,12 +75,12 @@ fun QueueList(
                     // Same onMove the drag gesture calls on drop — accessibility-action and
                     // drag paths land on the identical engine mutation, just with a fixed
                     // one-position delta instead of a live drag endpoint.
-                    onMoveUp = if (index > 0) {
+                    onMoveUp = if (enabled && index > 0) {
                         { onMove(index, index - 1) }
                     } else {
                         null
                     },
-                    onMoveDown = if (index < localQueue.lastIndex) {
+                    onMoveDown = if (enabled && index < localQueue.lastIndex) {
                         { onMove(index, index + 1) }
                     } else {
                         null

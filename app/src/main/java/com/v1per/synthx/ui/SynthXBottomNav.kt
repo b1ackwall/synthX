@@ -106,10 +106,13 @@ fun BottomChromeOverlay(
             currentSong?.let { song ->
                 val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
                 val hasNext by playbackViewModel.hasNext.collectAsState()
-                // Skeleton now renders mini content + expanded transport controls, so
-                // play/pause/seek/prev/next and their enabled-state flows are wired for
-                // real. Queue/shuffle/repeat state stays uncollected — the queue button is
-                // still a placeholder, queue mode itself is a later feature.
+                val upcomingQueue by playbackViewModel.upcomingQueue.collectAsState()
+                val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
+                val repeatMode by playbackViewModel.repeatMode.collectAsState()
+                // Skeleton now renders mini content + expanded transport controls + full
+                // queue-mode list (reorder, tap-to-play, shuffle/repeat, real
+                // MoreOptionsButton). Swipe-to-remove is still out of scope — see
+                // PlayerSkeletonQueueContent's doc comment.
                 PlayerSheetSkeleton(
                     song = song,
                     isPlaying = isPlaying,
@@ -122,6 +125,13 @@ fun BottomChromeOverlay(
                     onNextClick = playbackViewModel::next,
                     hasPrevious = hasPrevious,
                     hasNext = hasNext,
+                    upcomingQueue = upcomingQueue,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    onShuffleClick = { playbackViewModel.setShuffleEnabled(!shuffleEnabled) },
+                    onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
+                    onQueueSongClick = playbackViewModel::playQueueItem,
+                    onQueueMove = playbackViewModel::moveQueueItem,
                     onProgressChanged = onPlayerProgressChanged,
                 )
             }

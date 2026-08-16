@@ -72,7 +72,6 @@ internal fun QueueModeContent(
             queue = upcomingQueue,
             onSongClick = onQueueSongClick,
             onMove = onQueueMove,
-            onRemove = onQueueRemove,
             state = queueListState,
             contentPadding = PaddingValues(bottom = bottomContentPadding),
             modifier = Modifier.fillMaxWidth().weight(1f),

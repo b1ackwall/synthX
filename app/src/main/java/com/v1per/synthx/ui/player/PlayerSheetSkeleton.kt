@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.PlayerAlbumArt
@@ -125,6 +126,13 @@ fun PlayerSheetSkeleton(
     onNextClick: () -> Unit,
     hasPrevious: Boolean,
     hasNext: Boolean,
+    upcomingQueue: List<Song>,
+    shuffleEnabled: Boolean,
+    repeatMode: RepeatMode,
+    onShuffleClick: () -> Unit,
+    onRepeatClick: () -> Unit,
+    onQueueSongClick: (Int) -> Unit,
+    onQueueMove: (Int, Int) -> Unit,
     onProgressChanged: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -263,6 +271,10 @@ fun PlayerSheetSkeleton(
         // rather than a new one. QueueModeArtSize is then centered within the
         // QueueHeaderRowHeight approximation declared above.
         val artOffsetYQueue = ExpandedTopMargin + (QueueHeaderRowHeight - QueueModeArtSize) / 2
+        // Fixed resting position for the shuffle/repeat row + Up Next list, directly below
+        // the queue header — see PlayerSkeletonQueueContent's doc comment for why this isn't
+        // lerped like the art/header positions above it.
+        val queueListOffsetY = artOffsetYQueue + QueueHeaderRowHeight
         val expandedTargetY = lerpDp(artOffsetYExpanded, artOffsetYQueue, queueProgress.value)
         val artOffsetY = lerpDp(artOffsetYMini, expandedTargetY, progress)
 
@@ -398,10 +410,19 @@ fun PlayerSheetSkeleton(
                 PlayerSkeletonQueueContent(
                     song = song,
                     artOffsetYQueue = artOffsetYQueue,
+                    queueListOffsetY = queueListOffsetY,
                     expandedContentAlpha = expandedContentAlpha,
                     queueProgressValue = queueProgress.value,
                     expandedContentEnabled = expandedContentEnabled,
                     queueModeArtSize = QueueModeArtSize,
+                    upcomingQueue = upcomingQueue,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    onShuffleClick = onShuffleClick,
+                    onRepeatClick = onRepeatClick,
+                    onQueueSongClick = onQueueSongClick,
+                    onQueueMove = onQueueMove,
+                    controlsOverlayHeight = ControlsOverlayHeight,
                 )
 
                 PlayerSkeletonControlsOverlay(
