@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.data.repository.Song
 import sh.calvin.reorderable.ReorderableItem
@@ -42,6 +43,7 @@ fun QueueList(
     queue: List<Song>,
     onSongClick: (index: Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
+    surfaceColor: Color,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     state: LazyListState = rememberLazyListState(),
@@ -62,6 +64,7 @@ fun QueueList(
                 QueueRow(
                     song = song,
                     onClick = { if (enabled) onSongClick(index) },
+                    surfaceColor = surfaceColor,
                     dragHandleModifier = Modifier.draggableHandle(
                         onDragStarted = { dragStartIndex = index },
                         onDragStopped = {

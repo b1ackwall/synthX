@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -45,12 +46,28 @@ import com.v1per.synthx.ui.theme.TextSecondary
  *
  * Removal is out of scope entirely — [QueueRow] has no swipe gesture at all, and neither
  * [QueueList] nor this composable carries an onRemove hook. A separate, later task.
+ *
+ * The shuffle/repeat row + Up Next list are conditionally composed (`queueProgressValue >
+ * 0f`), not just alpha-faded: an always-present [QueueList] would stay hit-testable even at
+ * alpha 0, silently intercepting taps/drags meant for the sheet's own gesture detector while
+ * in player mode (queue mode never entered). Since [queueProgressValue] animates continuously
+ * from 0f on the first frame of the queue-button tap (see [Motion.DurationNormal]'s
+ * `Animatable.animateTo` in PlayerSheetSkeleton.kt), entering composition at `> 0f` puts it in
+ * the tree on that very first frame — indistinguishable from the previous always-composed,
+ * alpha-only behavior visually, just no longer hit-testable at exactly 0f.
+ *
+ * [queueContentEnabled] mirrors [expandedContentEnabled]'s own `> 0.5f` convention, but on
+ * [queueProgressValue] instead of the collapse/expand `progress` axis — [expandedContentEnabled]
+ * alone is insensitive to whether queue mode is actually active, so a tap during the
+ * queue-mode-entry animation (still visually mid-fade) could otherwise fire a real queue
+ * action before the content is meaningfully visible.
  */
 @Composable
 fun PlayerSkeletonQueueContent(
     song: Song,
     artOffsetYQueue: Dp,
     queueListOffsetY: Dp,
+    surfaceColor: Color,
     expandedContentAlpha: Float,
     queueProgressValue: Float,
     expandedContentEnabled: Boolean,
@@ -66,6 +83,7 @@ fun PlayerSkeletonQueueContent(
     modifier: Modifier = Modifier,
 ) {
     val queueContentAlpha = expandedContentAlpha * queueProgressValue
+    val queueContentEnabled = expandedContentEnabled && queueProgressValue > 0.5f
 
     Box(modifier = modifier.fillMaxSize()) {
         Box(
@@ -99,35 +117,38 @@ fun PlayerSkeletonQueueContent(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                MoreOptionsButton(song = song, enabled = expandedContentEnabled)
+                MoreOptionsButton(song = song, enabled = queueContentEnabled)
             }
         }
 
-        Column(
-            modifier = Modifier
-                .offset(y = queueListOffsetY)
-                .fillMaxWidth()
-                .fillMaxHeight()
-                .alpha(queueContentAlpha),
-        ) {
-            QueuePlaybackModeRow(
-                shuffleEnabled = shuffleEnabled,
-                repeatMode = repeatMode,
-                onShuffleClick = onShuffleClick,
-                onRepeatClick = onRepeatClick,
-                enabled = expandedContentEnabled,
-                modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
-            )
-            QueueList(
-                queue = upcomingQueue,
-                onSongClick = onQueueSongClick,
-                onMove = onQueueMove,
-                enabled = expandedContentEnabled,
-                contentPadding = PaddingValues(bottom = controlsOverlayHeight),
+        if (queueProgressValue > 0f) {
+            Column(
                 modifier = Modifier
+                    .offset(y = queueListOffsetY)
                     .fillMaxWidth()
-                    .weight(1f),
-            )
+                    .fillMaxHeight()
+                    .alpha(queueContentAlpha),
+            ) {
+                QueuePlaybackModeRow(
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    onShuffleClick = onShuffleClick,
+                    onRepeatClick = onRepeatClick,
+                    enabled = queueContentEnabled,
+                    modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
+                )
+                QueueList(
+                    queue = upcomingQueue,
+                    onSongClick = onQueueSongClick,
+                    onMove = onQueueMove,
+                    surfaceColor = surfaceColor,
+                    enabled = queueContentEnabled,
+                    contentPadding = PaddingValues(bottom = controlsOverlayHeight),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                )
+            }
         }
     }
 }

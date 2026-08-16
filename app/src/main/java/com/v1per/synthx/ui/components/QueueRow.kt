@@ -16,6 +16,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -25,7 +26,6 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextTertiary
 
 /**
@@ -51,11 +51,12 @@ import com.v1per.synthx.ui.theme.TextTertiary
 fun QueueRow(
     song: Song,
     onClick: () -> Unit,
+    surfaceColor: Color,
     dragHandleModifier: Modifier,
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
 ) {
-    Box(modifier = Modifier.background(Surface)) {
+    Box(modifier = Modifier.background(surfaceColor)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

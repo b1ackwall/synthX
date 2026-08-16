@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 
@@ -72,6 +73,7 @@ internal fun QueueModeContent(
             queue = upcomingQueue,
             onSongClick = onQueueSongClick,
             onMove = onQueueMove,
+            surfaceColor = Surface,
             state = queueListState,
             contentPadding = PaddingValues(bottom = bottomContentPadding),
             modifier = Modifier.fillMaxWidth().weight(1f),

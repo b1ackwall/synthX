@@ -411,6 +411,7 @@ fun PlayerSheetSkeleton(
                     song = song,
                     artOffsetYQueue = artOffsetYQueue,
                     queueListOffsetY = queueListOffsetY,
+                    surfaceColor = surfaceColor,
                     expandedContentAlpha = expandedContentAlpha,
                     queueProgressValue = queueProgress.value,
                     expandedContentEnabled = expandedContentEnabled,
