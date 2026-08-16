@@ -1,6 +1,8 @@
 package com.v1per.synthx.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -39,10 +42,15 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * Controls overlay: seek bar, transport controls, queue placeholder —
  * PlayerControlsSection.kt's Column, reproduced here (that composable is `internal` but
  * tightly coupled to PlayerExpandedContent's showQueue/controlsVisible state this skeleton
- * doesn't have yet). No queue mode content sits below it yet, so the source file's no-op
- * `.clickable(indication = null, onClick = {})` touch-blocker is deliberately omitted — there
- * is nothing beneath this overlay for it to shield. Re-add it when queue mode content is
- * ported in.
+ * doesn't have yet). Queue-mode content (PlayerSkeletonQueueContent's QueueList) now sits
+ * beneath this overlay in the same screen region, so the source file's no-op
+ * `.clickable(indication = null, onClick = {})` touch-blocker is restored on the outer
+ * Column, in the same position PlayerControlsSection.kt used it: opaque background alone
+ * doesn't stop touches reaching the queue rows underneath — Compose hit-tests every
+ * overlapping pointer input handler at a position, not just the topmost drawn one. Real
+ * controls (seek bar, transport, queue button) still consume their own touches first —
+ * child-before-parent dispatch — so this only ever swallows taps on the overlay's empty
+ * background.
  */
 @Composable
 fun BoxScope.PlayerSkeletonControlsOverlay(
@@ -71,6 +79,24 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
             .height(height)
             .alpha(expandedContentAlpha)
             .background(surfaceColor)
+            // Only attached once the overlay is meaningfully visible/interactive — at low
+            // progress this Column's fixed height overflows past the collapsed sheet's small
+            // bounds and overlaps the mini bar's own screen region (Compose doesn't clip a
+            // Box's children to its bounds by default), so an unconditional shield here would
+            // consume mini-bar taps before they ever reach the sheet's own tap-to-expand
+            // gesture detector — see that detector's down.isConsumed check in
+            // PlayerSheetSkeleton.kt.
+            .then(
+                if (expandedContentEnabled) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    )
+                } else {
+                    Modifier
+                },
+            )
             .padding(horizontal = Spacing.HorizontalPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
