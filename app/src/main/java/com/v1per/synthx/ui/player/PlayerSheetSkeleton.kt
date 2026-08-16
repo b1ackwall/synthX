@@ -6,8 +6,6 @@ import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.animateTo
@@ -17,28 +15,12 @@ import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -49,37 +31,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.lerp as lerpDp
-import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
-import com.v1per.synthx.ui.components.DragResistantIconButton
-import com.v1per.synthx.ui.components.MoreOptionsButton
 import com.v1per.synthx.ui.components.PlayerAlbumArt
-import com.v1per.synthx.ui.components.PlayerSeekBar
 import com.v1per.synthx.ui.components.PlayerSheetValue
-import com.v1per.synthx.ui.theme.Accent
-import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.SurfaceVariant
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 /**
@@ -395,69 +365,15 @@ fun PlayerSheetSkeleton(
                         }
                     },
             ) {
-                // ─── Mini content: title/artist + play/pause, PlayerMiniBar.kt's Row minus
-                // the art (art is the single shared element below, already at the right spot
-                // at progress 0). Pinned to the sheet's own top edge at a fixed
-                // CollapsedPlayerHeight, exactly like the old PlayerMiniBar's
-                // Modifier.align(Alignment.TopCenter) — as sheetHeight grows the sheet's top
-                // edge rises with it, carrying this row along while it fades out.
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(CollapsedPlayerHeight)
-                        .alpha(miniContentAlpha)
-                        .padding(horizontal = Spacing.md),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Reserves exactly the footprint the 44dp mini art occupies at progress
-                    // 0 — the real art is a separately positioned overlay (artOffsetX/Y
-                    // above), not a child of this Row, so this Spacer exists purely to push
-                    // the text/button to the same X the old Row's art-then-content
-                    // arrangement produced.
-                    Spacer(modifier = Modifier.width(44.dp))
-                    Spacer(modifier = Modifier.width(Spacing.sm))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = song.title,
-                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                            color = TextPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.basicMarquee(),
-                        )
-                        Text(
-                            text = song.artist,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    DragResistantIconButton(
-                        onClick = onPlayPauseClick,
-                        enabled = miniContentEnabled,
-                    ) {
-                        if (isBuffering) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = TextSecondary,
-                                strokeWidth = 2.dp,
-                            )
-                        } else {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = if (isPlaying) {
-                                    stringResource(R.string.cd_pause)
-                                } else {
-                                    stringResource(R.string.cd_play)
-                                },
-                                tint = if (isPlaying) Accent else TextPrimary,
-                                modifier = Modifier.size(28.dp),
-                            )
-                        }
-                    }
-                }
+                PlayerSkeletonMiniContent(
+                    song = song,
+                    isPlaying = isPlaying,
+                    isBuffering = isBuffering,
+                    onPlayPauseClick = onPlayPauseClick,
+                    miniContentAlpha = miniContentAlpha,
+                    miniContentEnabled = miniContentEnabled,
+                    height = CollapsedPlayerHeight,
+                )
 
                 // Positioned per the lerped artOffsetX/Y above. PlayerAlbumArt itself needs
                 // no adaptation: it already takes exactly (song, isPlaying, size,
@@ -471,225 +387,41 @@ fun PlayerSheetSkeleton(
                     )
                 }
 
-                // ─── Expanded content: title/artist row (PlayerModeContent.kt's
-                // NowPlayingTitleRow, reproduced here since it's private to that file) plus
-                // the real MoreOptionsButton (internal — same Gradle module, reused as-is
-                // rather than duplicated since it already wires LocalSongActions correctly).
-                // Fades against queueHeaderAlpha below rather than just expandedContentAlpha
-                // alone, so the two crossfade against each other on a queue-button tap, not
-                // only across the collapse/expand drag.
-                Box(
-                    modifier = Modifier
-                        .offset(y = titleRowY)
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.HorizontalPadding)
-                        .alpha(expandedContentAlpha * (1f - queueProgress.value)),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = Spacing.lg, end = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = song.title,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.basicMarquee(),
-                            )
-                            Text(
-                                text = song.artist,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = TextSecondary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.basicMarquee(),
-                            )
-                        }
-                        MoreOptionsButton(song = song, enabled = expandedContentEnabled)
-                    }
-                }
+                PlayerSkeletonExpandedContent(
+                    song = song,
+                    titleRowY = titleRowY,
+                    expandedContentAlpha = expandedContentAlpha,
+                    queueProgressValue = queueProgress.value,
+                    expandedContentEnabled = expandedContentEnabled,
+                )
 
-                // ─── Queue-mode header: minimal text-only stand-in for
-                // PlayerQueueModeContent.kt's QueueModeHeader — title/artist bound to real,
-                // live song data; the trailing button is a visual placeholder only (a true
-                // no-op, not the real LocalSongActions-wired MoreOptionsButton — that
-                // composable has no onClick override hook, so reusing it here would also
-                // wire the real action, which is out of scope). Positioned at the same
-                // artOffsetYQueue anchor the art animates toward; a leading spacer reserves
-                // the art's own footprint (same technique the mini content Row above already
-                // uses), since the art itself is the separately positioned shared element.
-                // Queue list / shuffle-repeat row are deliberately not built here — future
-                // feature.
-                Box(
-                    modifier = Modifier
-                        .offset(y = artOffsetYQueue)
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.HorizontalPadding)
-                        .alpha(expandedContentAlpha * queueProgress.value),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Spacer(modifier = Modifier.width(QueueModeArtSize))
-                        Spacer(modifier = Modifier.width(Spacing.md))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = song.title,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.basicMarquee(),
-                            )
-                            Text(
-                                text = song.artist,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        DragResistantIconButton(
-                            onClick = {},
-                            enabled = expandedContentEnabled,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.MoreVert,
-                                contentDescription = stringResource(R.string.cd_more_options),
-                                tint = TextSecondary,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
-                    }
-                }
+                PlayerSkeletonQueueContent(
+                    song = song,
+                    artOffsetYQueue = artOffsetYQueue,
+                    expandedContentAlpha = expandedContentAlpha,
+                    queueProgressValue = queueProgress.value,
+                    expandedContentEnabled = expandedContentEnabled,
+                    queueModeArtSize = QueueModeArtSize,
+                )
 
-                // ─── Controls overlay: seek bar, transport controls, queue placeholder —
-                // PlayerControlsSection.kt's Column, reproduced here (that composable is
-                // `internal` but tightly coupled to PlayerExpandedContent's showQueue/
-                // controlsVisible state this skeleton doesn't have yet). No queue mode
-                // exists below it yet, so the source file's no-op
-                // `.clickable(indication = null, onClick = {})` touch-blocker is
-                // deliberately omitted — there is nothing beneath this overlay for it to
-                // shield. Re-add it when queue mode content is ported in.
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(ControlsOverlayHeight)
-                        .alpha(expandedContentAlpha)
-                        .background(surfaceColor)
-                        .padding(horizontal = Spacing.HorizontalPadding),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    PlayerSeekBar(
-                        currentPosition = currentPosition,
-                        duration = duration,
-                        onSeek = onSeek,
-                        enabled = expandedContentEnabled,
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.xl))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        val previousEnabled = expandedContentEnabled && hasPrevious
-                        val nextEnabled = expandedContentEnabled && hasNext
-                        Spacer(modifier = Modifier.weight(2f))
-                        DragResistantIconButton(
-                            onClick = onPreviousClick,
-                            size = 72.dp,
-                            enabled = previousEnabled,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.FastRewind,
-                                contentDescription = stringResource(R.string.cd_previous_track),
-                                tint = TextPrimary,
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .alpha(if (previousEnabled) 1f else Alpha.Disabled),
-                            )
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        DragResistantIconButton(
-                            onClick = onPlayPauseClick,
-                            size = 96.dp,
-                            enabled = expandedContentEnabled,
-                        ) {
-                            if (isBuffering) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(40.dp),
-                                    color = TextPrimary,
-                                    strokeWidth = 3.dp,
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                    contentDescription = if (isPlaying) {
-                                        stringResource(R.string.cd_pause)
-                                    } else {
-                                        stringResource(R.string.cd_play)
-                                    },
-                                    tint = if (isPlaying) Accent else TextPrimary,
-                                    modifier = Modifier.size(64.dp),
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        DragResistantIconButton(
-                            onClick = onNextClick,
-                            size = 72.dp,
-                            enabled = nextEnabled,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.FastForward,
-                                contentDescription = stringResource(R.string.cd_next_track),
-                                tint = TextPrimary,
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .alpha(if (nextEnabled) 1f else Alpha.Disabled),
-                            )
-                        }
-                        Spacer(modifier = Modifier.weight(2f))
-                    }
-
-                    // The overlay's only flexible gap — the remainder of ControlsOverlayHeight.
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        // Toggles the queueProgress animation, reusing the exact Crossfade
-                        // timing/easing tokens the old PlayerExpandedContent.kt used for its
-                        // Player-mode/Queue-mode Crossfade. Same enabled gate already used by
-                        // the transport buttons and PlayerSeekBar (expandedContentEnabled) —
-                        // no new threshold. onClick is the remember-ed stable reference above,
-                        // not an inline closure — see its doc comment for why.
-                        DragResistantIconButton(
-                            onClick = onQueueClick,
-                            enabled = expandedContentEnabled,
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                                contentDescription = stringResource(R.string.cd_queue),
-                                tint = if (isQueueMode) TextPrimary else TextSecondary,
-                                modifier = Modifier.size(28.dp),
-                            )
-                        }
-                    }
-
-                    // Fixed bottom edge only — no navBarInset term, see ControlsOverlayHeight's
-                    // doc comment above for why.
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                }
+                PlayerSkeletonControlsOverlay(
+                    height = ControlsOverlayHeight,
+                    surfaceColor = surfaceColor,
+                    expandedContentAlpha = expandedContentAlpha,
+                    expandedContentEnabled = expandedContentEnabled,
+                    currentPosition = currentPosition,
+                    duration = duration,
+                    onSeek = onSeek,
+                    hasPrevious = hasPrevious,
+                    hasNext = hasNext,
+                    onPreviousClick = onPreviousClick,
+                    onNextClick = onNextClick,
+                    isPlaying = isPlaying,
+                    isBuffering = isBuffering,
+                    onPlayPauseClick = onPlayPauseClick,
+                    isQueueMode = isQueueMode,
+                    onQueueClick = onQueueClick,
+                )
             }
         }
     }
