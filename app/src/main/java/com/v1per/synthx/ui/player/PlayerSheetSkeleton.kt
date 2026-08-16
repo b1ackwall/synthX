@@ -2,6 +2,7 @@ package com.v1per.synthx.ui.player
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -95,6 +98,14 @@ private val ControlsOverlayHeight: Dp = 300.dp
  * constants above.
  */
 private val QueueModeArtSize: Dp = 44.dp
+
+/**
+ * How far the queue list has to scroll before the controls overlay hides — mirrored from the
+ * old (dead) PlayerExpandedContent.kt's private ControlsCollapseThreshold (32dp), same value,
+ * same purpose: [queueListState] below is read against this threshold to derive
+ * `controlsVisible`.
+ */
+private val ControlsCollapseThreshold: Dp = 32.dp
 
 /**
  * Approximate height of the (not yet ported) queue-mode header row, used only to vertically
@@ -252,6 +263,82 @@ fun PlayerSheetSkeleton(
         var isQueueMode by remember { mutableStateOf(false) }
         val queueProgress = remember { Animatable(0f) }
 
+        // Hoisted so both QueueList's own scrolling and this composable's derived
+        // controlsVisible below observe the same LazyListState — mirrors the old (dead)
+        // PlayerExpandedContent.kt's hoisting of queueListState for the identical purpose.
+        val queueListState = rememberLazyListState()
+        val collapseThresholdPx = with(density) { ControlsCollapseThreshold.toPx() }
+
+        // Only meaningful in queue mode: player mode always shows the overlay (the
+        // `!isQueueMode ||` in PlayerSkeletonControlsOverlay's call below).
+        //
+        // Deliberately NOT a derivedStateOf reading queueListState directly (the old
+        // approach): Compose's LazyListState does key-based scroll-position correction — when
+        // the *content* of a keyed list reorders under a stationary viewport (e.g. a shuffle
+        // toggle reshuffling upcomingQueue), it relabels firstVisibleItemIndex to wherever the
+        // previously-topmost song's key ended up, to keep that song visually anchored. That's
+        // correct LazyListState behavior, but it reads exactly like "the user scrolled away
+        // from the top" to a naive index == 0 check, even though nothing was touched. Gating
+        // writes on isScrollInProgress restricts this state to only ever update in response to
+        // a real user-driven gesture (drag and the fling it releases into both hold
+        // isScrollInProgress true the whole time) — a reorder-triggered remeasure happens
+        // outside any gesture, so it can no longer flip this. Starts true (top, unscrolled)
+        // before any scroll has ever occurred; holds its last live-gesture value once a
+        // gesture ends, rather than reacting to whatever queueListState reports afterward.
+        var controlsVisible by remember { mutableStateOf(true) }
+        LaunchedEffect(queueListState) {
+            snapshotFlow {
+                Triple(
+                    queueListState.isScrollInProgress,
+                    queueListState.firstVisibleItemIndex,
+                    queueListState.firstVisibleItemScrollOffset,
+                )
+            }.collect { (inProgress, index, offset) ->
+                if (inProgress) {
+                    controlsVisible = index == 0 && offset < collapseThresholdPx
+                }
+            }
+        }
+
+        // Set by the shuffle click handler below, consumed by the LaunchedEffect(upcomingQueue)
+        // beneath it once the reordered queue has actually landed in this composable's
+        // `upcomingQueue` parameter — see that effect's doc comment for why the scroll-to-top
+        // can't just fire inline in the click handler.
+        var pendingShuffleScrollReset by remember { mutableStateOf(false) }
+
+        // Defers queueListState.scrollToItem(0) until upcomingQueue has actually changed
+        // following a shuffle click, instead of firing it inline in the click handler.
+        // onShuffleClick() synchronously writes the engine's upcomingQueue StateFlow, but that
+        // write only reaches this composable's `upcomingQueue` parameter once
+        // collectAsState's collector coroutine (in SynthXBottomNav.kt) resumes and a
+        // recomposition applies the new value — neither happens within the click handler's own
+        // call stack. A scrollToItem(0) fired inline there races that propagation and, in
+        // practice, usually wins: it scrolls the *old* (pre-shuffle) list, and once the real
+        // reordered list lands moments later, Compose's key-based scroll-position correction
+        // (the mechanism controlsVisible's own doc comment above describes) relocates the
+        // viewport to wherever the old top song ended up in the new order — an arbitrary
+        // position, not the top (confirmed root cause of the reported "lands somewhere odd").
+        // Keying this effect on `upcomingQueue` itself, rather than a manual counter/signal,
+        // guarantees it only runs once the queue this composable actually observes has
+        // changed; LaunchedEffect cancels and restarts on every key change, so it can't
+        // double-fire for the same change. `pendingShuffleScrollReset` scopes it to shuffle
+        // specifically — any other queue change (drag-reorder, add/remove) leaves the flag
+        // false and this effect no-ops.
+        //
+        // Known edge case: if a shuffle happens to produce byte-identical ordering (only
+        // realistically possible on very small queues), upcomingQueue's StateFlow won't
+        // re-emit a structurally-different value, this effect never reruns, and the flag stays
+        // pending until the next unrelated queue change consumes it — a rare, low-severity
+        // false-positive scroll-to-top, not a crash or data issue. Not guarded against here;
+        // flagged for awareness rather than added complexity, since it requires an already
+        // rare shuffle outcome on an already-small queue.
+        LaunchedEffect(upcomingQueue) {
+            if (pendingShuffleScrollReset) {
+                pendingShuffleScrollReset = false
+                queueListState.scrollToItem(0)
+            }
+        }
+
         // Stable-identity click handler, `remember`-ed once (no keys) rather than declared
         // inline at the button's call site. `dragResistantClickable`'s pointerInput is keyed
         // on (interactionSource, enabled, onClick) — an inline lambda there would get a new
@@ -275,6 +362,23 @@ fun PlayerSheetSkeleton(
                 }
                 Unit
             }
+        }
+
+        // Shuffle reorders upcomingQueue (see controlsVisible's doc comment above), which
+        // leaves queueListState visually anchored to wherever the previously-topmost song
+        // ended up in the new order, instead of back at the top. The actual scrollToItem(0)
+        // call is deferred to the LaunchedEffect(upcomingQueue) above (see its doc comment for
+        // why firing it inline here races the async queue-reorder propagation) — this handler
+        // only arms that effect via pendingShuffleScrollReset. controlsVisible is still set
+        // directly here rather than deferred: it's a plain local write with nothing to race —
+        // no dependency on the queue's new content having landed. Not remember{}-ed:
+        // IconButton's onClick has no pointerInput-restart hazard the way the queue button's
+        // dragResistantClickable does, so a fresh lambda per recomposition is fine, and it
+        // needs to close over the current onShuffleClick every time.
+        val onShuffleClickWithScrollReset: () -> Unit = {
+            onShuffleClick()
+            controlsVisible = true
+            pendingShuffleScrollReset = true
         }
 
         val sheetHeight = lerpDp(CollapsedPlayerHeight, maxHeight, progress)
@@ -481,6 +585,7 @@ fun PlayerSheetSkeleton(
                     artOffsetYQueue = artOffsetYQueue,
                     queueListOffsetY = queueListOffsetY,
                     headerRegionHeight = QueueHeaderRegionHeight,
+                    queueListState = queueListState,
                     surfaceColor = surfaceColor,
                     expandedContentAlpha = expandedContentAlpha,
                     queueProgressValue = queueProgress.value,
@@ -489,7 +594,7 @@ fun PlayerSheetSkeleton(
                     upcomingQueue = upcomingQueue,
                     shuffleEnabled = shuffleEnabled,
                     repeatMode = repeatMode,
-                    onShuffleClick = onShuffleClick,
+                    onShuffleClick = onShuffleClickWithScrollReset,
                     onRepeatClick = onRepeatClick,
                     onQueueSongClick = onQueueSongClick,
                     onQueueMove = onQueueMove,
@@ -512,6 +617,7 @@ fun PlayerSheetSkeleton(
                     isBuffering = isBuffering,
                     onPlayPauseClick = onPlayPauseClick,
                     isQueueMode = isQueueMode,
+                    controlsVisible = controlsVisible,
                     onQueueClick = onQueueClick,
                 )
             }

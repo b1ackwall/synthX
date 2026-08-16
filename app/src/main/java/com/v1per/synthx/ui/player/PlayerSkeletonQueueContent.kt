@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +51,12 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * [queueListOffsetY] is where [QueueList] starts, right after this Column's fixed-height
  * region ends.
  *
+ * [queueListState] is hoisted up in PlayerSheetSkeleton.kt (not owned here) and passed
+ * straight into [QueueList]'s own `state` param — that same instance is what
+ * PlayerSheetSkeleton.kt reads to derive `controlsVisible` for
+ * `PlayerSkeletonControlsOverlay`, so the overlay's scroll-driven hide/show tracks this exact
+ * list's scroll position.
+ *
  * Removal is out of scope entirely — [QueueRow] has no swipe gesture at all, and neither
  * [QueueList] nor this composable carries an onRemove hook. A separate, later task.
  *
@@ -76,6 +83,7 @@ fun PlayerSkeletonQueueContent(
     artOffsetYQueue: Dp,
     queueListOffsetY: Dp,
     headerRegionHeight: Dp,
+    queueListState: LazyListState,
     surfaceColor: Color,
     expandedContentAlpha: Float,
     queueProgressValue: Float,
@@ -147,6 +155,7 @@ fun PlayerSkeletonQueueContent(
                 onSongClick = onQueueSongClick,
                 onMove = onQueueMove,
                 surfaceColor = surfaceColor,
+                state = queueListState,
                 enabled = queueContentEnabled,
                 contentPadding = PaddingValues(bottom = controlsOverlayHeight),
                 modifier = Modifier
