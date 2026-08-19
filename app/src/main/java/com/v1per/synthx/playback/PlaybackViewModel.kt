@@ -214,8 +214,17 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     /** [fromIndex]/[toIndex] are positions in [upcomingQueue] — the Up Next screen's rows. */
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = controller.moveQueueItem(fromIndex, toIndex)
 
-    /** [index] is a position in [upcomingQueue] — the Up Next screen's rows. */
-    fun removeQueueItem(index: Int) = controller.removeQueueItem(index)
+    /**
+     * Removes the [upcomingQueue] entry for [songId] — the Up Next screen's rows.
+     *
+     * Takes the song id rather than the row index on purpose. A row index captured when the
+     * user starts a gesture can be stale by the time the call lands: any queue mutation in
+     * between (the track advancing, a play-next insert, a second removal in quick succession)
+     * shifts every row after it, and the stale index then names a different song. The engine
+     * resolves the real position fresh from its own live queue instead, so nothing
+     * index-shaped ever crosses that gap.
+     */
+    fun removeQueueItem(songId: String) = controller.removeQueueItem(songId)
 
     /** Jumps to and plays the item at [index] in [upcomingQueue] — the Up Next screen's row tap. */
     fun playQueueItem(index: Int) = controller.seekToQueueItem(index)

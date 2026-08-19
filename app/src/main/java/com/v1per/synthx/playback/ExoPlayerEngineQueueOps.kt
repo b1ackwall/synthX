@@ -230,17 +230,26 @@ internal fun ExoPlayerEngine.moveQueueItemInternal(fromIndex: Int, toIndex: Int)
 }
 
 /**
- * [index] is a position in `upcomingQueue`, translated to the real timeline index via
- * `upcomingTimelineIndices`. Always permanent, regardless of shuffle state — see
- * [QueueBaselineManager.remove].
+ * Removes the item identified by [songId] — no position is accepted from the caller. The
+ * display index is resolved here, at call time, from the engine's own live `_upcomingQueue`,
+ * then translated to a real timeline index via `upcomingTimelineIndices` as usual. A position
+ * captured further up (in the UI, at gesture time) can be invalidated by any queue mutation
+ * that lands first — every row after the mutation shifts — and would then name whichever song
+ * slid into that slot, removing it permanently. Resolving against live state closes that gap.
+ *
+ * Always permanent, regardless of shuffle state — see [QueueBaselineManager.remove].
  */
-internal fun ExoPlayerEngine.removeQueueItemInternal(index: Int) {
+internal fun ExoPlayerEngine.removeQueueItemInternal(songId: String) {
     val ctrl = controller ?: return
-    val realIndex = upcomingTimelineIndices.getOrNull(index) ?: return
-    val removedId = ctrl.getMediaItemAt(realIndex).mediaId
+    val displayIndex = _upcomingQueue.value.indexOfFirst { it.id == songId }
+    if (displayIndex < 0) return
+    val realIndex = upcomingTimelineIndices.getOrNull(displayIndex) ?: return
+    // Last identity check before the destructive call: if engine state has drifted from the
+    // timeline, drop the removal rather than delete whatever else now sits at realIndex.
+    if (realIndex >= ctrl.mediaItemCount || ctrl.getMediaItemAt(realIndex).mediaId != songId) return
     ctrl.removeMediaItem(realIndex)
 
-    baselineManager.remove(removedId)
+    baselineManager.remove(songId)
 
     onQueueStructureChanged(fresh = false)
 }

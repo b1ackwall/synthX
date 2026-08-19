@@ -67,8 +67,9 @@ class ExoPlayerEngine(
 
     // Parallel to _upcomingQueue.value: upcomingTimelineIndices[i] is the real timeline
     // window index of upcomingQueue[i]. Recomputed alongside it in refreshUpcomingQueue();
-    // moveQueueItem/removeQueueItem/seekToQueueItem translate the display index the UI
-    // hands them through this before touching the controller.
+    // moveQueueItem/seekToQueueItem translate the display index the UI hands them through
+    // this before touching the controller. removeQueueItem takes a song id instead and
+    // derives its own display index from _upcomingQueue first, then translates it here.
     internal var upcomingTimelineIndices: List<Int> = emptyList()
 
     internal val _shuffleEnabled = MutableStateFlow(false)
@@ -210,7 +211,7 @@ class ExoPlayerEngine(
 
     override fun moveQueueItem(fromIndex: Int, toIndex: Int) = moveQueueItemInternal(fromIndex, toIndex)
 
-    override fun removeQueueItem(index: Int) = removeQueueItemInternal(index)
+    override fun removeQueueItem(songId: String) = removeQueueItemInternal(songId)
 
     override fun seekToQueueItem(index: Int) = seekToQueueItemInternal(index)
 

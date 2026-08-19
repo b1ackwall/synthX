@@ -110,8 +110,16 @@ interface PlaybackEngine {
      */
     fun moveQueueItem(fromIndex: Int, toIndex: Int)
 
-    /** Removes the item at [index] in [upcomingQueue]. Safe under shuffle. */
-    fun removeQueueItem(index: Int)
+    /**
+     * Removes the item with [songId] from [upcomingQueue]. Safe under shuffle.
+     *
+     * Identified by song id rather than by position — unlike [moveQueueItem] and
+     * [seekToQueueItem], which still take display indices. Removal is the destructive one:
+     * a position captured by the UI can be invalidated by any queue mutation that lands
+     * first, and acting on a stale one removes the wrong song permanently. Implementations
+     * must resolve the position fresh, at call time, from their own live queue state.
+     */
+    fun removeQueueItem(songId: String)
 
     /** Jumps playback to the item at [index] in [upcomingQueue] and plays it. */
     fun seekToQueueItem(index: Int)

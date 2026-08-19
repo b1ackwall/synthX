@@ -30,7 +30,8 @@ class PlaybackController(private val engine: PlaybackEngine) {
     fun playNext(song: Song) = engine.playNext(song)
     fun addToQueue(song: Song) = engine.addToQueue(song)
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = engine.moveQueueItem(fromIndex, toIndex)
-    fun removeQueueItem(index: Int) = engine.removeQueueItem(index)
+    /** Identity-based, not index-based — see [PlaybackEngine.removeQueueItem] for why. */
+    fun removeQueueItem(songId: String) = engine.removeQueueItem(songId)
     fun seekToQueueItem(index: Int) = engine.seekToQueueItem(index)
     fun pause() = engine.pause()
     fun resume() = engine.resume()
