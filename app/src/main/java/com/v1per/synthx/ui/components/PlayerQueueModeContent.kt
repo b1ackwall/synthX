@@ -73,6 +73,7 @@ internal fun QueueModeContent(
             queue = upcomingQueue,
             onSongClick = onQueueSongClick,
             onMove = onQueueMove,
+            onRemove = onQueueRemove,
             surfaceColor = Surface,
             state = queueListState,
             contentPadding = PaddingValues(bottom = bottomContentPadding),

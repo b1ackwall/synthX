@@ -110,9 +110,8 @@ fun BottomChromeOverlay(
                 val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
                 val repeatMode by playbackViewModel.repeatMode.collectAsState()
                 // Skeleton now renders mini content + expanded transport controls + full
-                // queue-mode list (reorder, tap-to-play, shuffle/repeat, real
-                // MoreOptionsButton). Swipe-to-remove is still out of scope — see
-                // PlayerSkeletonQueueContent's doc comment.
+                // queue-mode list (reorder, tap-to-play, swipe-to-remove, shuffle/repeat,
+                // real MoreOptionsButton).
                 PlayerSheetSkeleton(
                     song = song,
                     isPlaying = isPlaying,
@@ -132,6 +131,7 @@ fun BottomChromeOverlay(
                     onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
                     onQueueSongClick = playbackViewModel::playQueueItem,
                     onQueueMove = playbackViewModel::moveQueueItem,
+                    onQueueRemove = playbackViewModel::removeQueueItem,
                     onProgressChanged = onPlayerProgressChanged,
                 )
             }

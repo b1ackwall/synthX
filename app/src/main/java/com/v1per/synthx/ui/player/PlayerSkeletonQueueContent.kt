@@ -57,8 +57,10 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * `PlayerSkeletonControlsOverlay`, so the overlay's scroll-driven hide/show tracks this exact
  * list's scroll position.
  *
- * Removal is out of scope entirely — [QueueRow] has no swipe gesture at all, and neither
- * [QueueList] nor this composable carries an onRemove hook. A separate, later task.
+ * [QueueList] reports a swipe-to-remove as an index into [upcomingQueue]; this composable
+ * resolves it to a song id here, while the list is still in hand, and hands [onQueueRemove]
+ * that id instead. Everything below the UI layer is identity-based for the same reason — see
+ * [com.v1per.synthx.playback.PlaybackEngine.removeQueueItem]'s doc comment.
  *
  * Only [QueueList] is conditionally composed (`queueProgressValue > 0f`), not just
  * alpha-faded: an always-present [QueueList] would stay hit-testable even at alpha 0, silently
@@ -96,6 +98,7 @@ fun PlayerSkeletonQueueContent(
     onRepeatClick: () -> Unit,
     onQueueSongClick: (Int) -> Unit,
     onQueueMove: (Int, Int) -> Unit,
+    onQueueRemove: (songId: String) -> Unit,
     controlsOverlayHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -154,6 +157,7 @@ fun PlayerSkeletonQueueContent(
                 queue = upcomingQueue,
                 onSongClick = onQueueSongClick,
                 onMove = onQueueMove,
+                onRemove = { index -> upcomingQueue.getOrNull(index)?.let { onQueueRemove(it.id) } },
                 surfaceColor = surfaceColor,
                 state = queueListState,
                 enabled = queueContentEnabled,

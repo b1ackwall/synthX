@@ -203,6 +203,7 @@ fun PlayerSheetSkeleton(
     onRepeatClick: () -> Unit,
     onQueueSongClick: (Int) -> Unit,
     onQueueMove: (Int, Int) -> Unit,
+    onQueueRemove: (songId: String) -> Unit,
     onProgressChanged: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -598,6 +599,7 @@ fun PlayerSheetSkeleton(
                     onRepeatClick = onRepeatClick,
                     onQueueSongClick = onQueueSongClick,
                     onQueueMove = onQueueMove,
+                    onQueueRemove = onQueueRemove,
                     controlsOverlayHeight = ControlsOverlayHeight,
                 )
 

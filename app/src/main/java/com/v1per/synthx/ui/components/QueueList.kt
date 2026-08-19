@@ -37,12 +37,15 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  * rows draw through the full viewport, but the padding extends the scroll range so the last
  * row can still be brought clear of whatever is drawn on top. Callers should keep it
  * constant — varying it mid-scroll moves the max-scroll offset under the user's finger.
+ *
+ * [onRemove]'s index is into [queue], not [localQueue] — see its wiring below.
  */
 @Composable
 fun QueueList(
     queue: List<Song>,
     onSongClick: (index: Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
+    onRemove: (index: Int) -> Unit,
     surfaceColor: Color,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -63,7 +66,16 @@ fun QueueList(
             ReorderableItem(reorderableState, key = song.id) {
                 QueueRow(
                     song = song,
+                    queue = queue,
                     onClick = { if (enabled) onSongClick(index) },
+                    // Resolved against [queue] by identity rather than reported as `index`:
+                    // `index` is a position in [localQueue], whose optimistic order can differ
+                    // from [queue]'s between a drop and the engine's echo, and the host
+                    // resolves this index back to a song against [queue].
+                    onRemove = {
+                        val queueIndex = queue.indexOfFirst { it.id == song.id }
+                        if (enabled && queueIndex != -1) onRemove(queueIndex)
+                    },
                     surfaceColor = surfaceColor,
                     dragHandleModifier = Modifier.draggableHandle(
                         onDragStarted = { dragStartIndex = index },
