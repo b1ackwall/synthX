@@ -48,15 +48,13 @@ import com.v1per.synthx.ui.theme.SurfaceVariant
 import kotlinx.coroutines.launch
 
 /**
- * Height reserved below the art for the title/artist row, mirrored from
- * PlayerModeContent.kt's private TitleRowReservedHeight (68dp) — that constant isn't shared
- * across the package boundary, and the real title row hasn't been ported into the skeleton
- * yet. Duplicated literal, flagged for consolidation once PlayerModeContent's layout is
- * actually ported here.
+ * Height reserved below the art for the title/artist row. Canonical declaration — also used
+ * by [com.v1per.synthx.ui.components.PlayerModeContent] (the real title row's current home)
+ * and, in this package, by PlayerSkeletonQueueMetrics.kt's QueueHeaderRowHeight and
+ * QueueArtPositioning.kt's computeArtPosition.
  *
- * Internal rather than private: PlayerSkeletonQueueMetrics.kt's QueueHeaderRowHeight mirrors
- * this same approximation for the queue-mode header, and QueueArtPositioning.kt's
- * computeArtPosition also needs it — both live in other files of this package.
+ * Internal rather than private: `internal` in Kotlin is module-wide, not package-scoped, so
+ * this is importable from ui/components/ despite the different package.
  */
 internal val TitleRowReservedHeight: Dp = 68.dp
 

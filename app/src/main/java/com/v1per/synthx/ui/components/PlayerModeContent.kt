@@ -26,17 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.ui.player.TitleRowReservedHeight
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
-
-/**
- * Height Player mode holds back from the album art for the title/artist row and its trailing
- * gap (≈52dp row + 16dp spacer). Only used to cap the art on short screens — the art's real
- * size is width-derived, so without this cap a landscape or small-height device would size it
- * taller than the region containing it and push the title row out.
- */
-private val TitleRowReservedHeight: Dp = 68.dp
 
 /**
  * Player mode's content, constrained to the region above the controls overlay by
