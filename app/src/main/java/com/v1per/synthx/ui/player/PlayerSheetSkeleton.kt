@@ -35,6 +35,7 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
@@ -193,6 +194,15 @@ fun PlayerSheetSkeleton(
         val miniContentEnabled = miniContentAlpha > 0.5f
         val expandedContentEnabled = expandedContentAlpha > 0.5f
 
+        // Caps ControlsOverlayHeight against maxHeight (the sheet's fixed ceiling, not the
+        // live sheetHeight) so the cap only activates for genuinely short screens — on any
+        // realistically-sized phone this stays flat at ControlsOverlayHeight, unaffected by
+        // collapse/expand dragging.
+        val actualOverlayHeight = min(
+            ControlsOverlayHeight,
+            (maxHeight - ExpandedTopMargin - TitleRowReservedHeight).coerceAtLeast(0.dp),
+        )
+
         // Album art offset/size, the title row's Y, and the two queue-mode anchors
         // (artOffsetYQueue, queueListOffsetY) PlayerSkeletonQueueContent needs — see
         // QueueArtPositioning.kt for the full mini↔expanded↔queue derivation.
@@ -206,7 +216,7 @@ fun PlayerSheetSkeleton(
             expandedTopMargin = ExpandedTopMargin,
             artWeightAbove = ArtWeightAbove,
             artWeightBelow = ArtWeightBelow,
-            controlsOverlayHeight = ControlsOverlayHeight,
+            controlsOverlayHeight = actualOverlayHeight,
         )
 
         Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomInset)) {
@@ -343,11 +353,11 @@ fun PlayerSheetSkeleton(
                     onQueueSongClick = onQueueSongClick,
                     onQueueMove = onQueueMove,
                     onQueueRemove = onQueueRemove,
-                    controlsOverlayHeight = ControlsOverlayHeight,
+                    controlsOverlayHeight = actualOverlayHeight,
                 )
 
                 PlayerSkeletonControlsOverlay(
-                    height = ControlsOverlayHeight,
+                    height = actualOverlayHeight,
                     surfaceColor = surfaceColor,
                     expandedContentAlpha = expandedContentAlpha,
                     expandedContentEnabled = expandedContentEnabled,
