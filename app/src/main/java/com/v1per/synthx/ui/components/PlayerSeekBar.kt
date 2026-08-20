@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -42,7 +43,7 @@ import kotlin.math.abs
  * itself stays drawn at [TrackHeight], centered inside this box.
  */
 private val TouchTargetHeight = 16.dp
-private val TrackHeight = 4.dp
+private val TrackHeight = 6.dp
 
 /**
  * How close a polled `currentPosition` must land to the optimistic seek target before
@@ -159,6 +160,7 @@ fun PlayerSeekBar(
                     start = Offset(0f, size.height / 2),
                     end = Offset(size.width, size.height / 2),
                     strokeWidth = size.height,
+                    cap = StrokeCap.Round,
                 )
                 // Played track
                 if (fraction > 0f) {
@@ -167,6 +169,7 @@ fun PlayerSeekBar(
                         start = Offset(0f, size.height / 2),
                         end = Offset(size.width * fraction, size.height / 2),
                         strokeWidth = size.height,
+                        cap = StrokeCap.Round,
                     )
                 }
             }
