@@ -32,8 +32,9 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.SurfaceVariant
+import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
+import com.v1per.synthx.ui.theme.TextTertiary
 import java.util.Locale
 import kotlin.math.abs
 
@@ -162,7 +163,7 @@ fun PlayerSeekBar(
                 }
                 // Unplayed track
                 drawLine(
-                    color = SurfaceVariant,
+                    color = TextTertiary,
                     start = Offset(0f, size.height / 2),
                     end = Offset(size.width, size.height / 2),
                     strokeWidth = size.height,
@@ -170,7 +171,7 @@ fun PlayerSeekBar(
                 // Played track
                 if (fraction > 0f) {
                     drawLine(
-                        color = TextSecondary,
+                        color = TextPrimary,
                         start = Offset(0f, size.height / 2),
                         end = Offset(size.width * fraction, size.height / 2),
                         strokeWidth = size.height,

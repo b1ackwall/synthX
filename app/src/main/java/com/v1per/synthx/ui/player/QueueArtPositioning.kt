@@ -68,11 +68,11 @@ fun computeArtPosition(
     //    reserved title-row space.
     val artOffsetXMini = Spacing.md
     val artOffsetXExpanded = (maxWidth - constrainedArtSize) / 2
-    // Old QueueModeHeader's Row carries no horizontal padding of its own — its inset is
-    // entirely the ancestor Layer 1 Box's `.padding(horizontal = Spacing.HorizontalPadding)`
-    // in PlayerExpandedContent.kt, the same 16dp token reused here as expandedTopMargin's
-    // horizontal sibling.
-    val artOffsetXQueue = Spacing.HorizontalPadding
+    // Queue mode's left margin is 32dp (Spacing.xl), a deliberate deviation from
+    // Spacing.HorizontalPadding (16dp) used elsewhere — matches
+    // PlayerSkeletonQueueContent's header Column's `padding(start = Spacing.xl, ...)`, which
+    // this offset must stay in sync with (see that padding's own doc comment).
+    val artOffsetXQueue = Spacing.xl
     val expandedTargetX = lerpDp(artOffsetXExpanded, artOffsetXQueue, queueProgressValue)
     val artOffsetX = lerpDp(artOffsetXMini, expandedTargetX, progress)
 

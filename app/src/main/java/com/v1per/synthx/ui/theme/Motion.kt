@@ -8,6 +8,8 @@ import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
 
 object Motion {
+    /** For fast, scroll-driven chrome transitions where snappy responsiveness matters more than a graceful fade. */
+    const val DurationInstant = 100
     const val DurationFast = 150
     const val DurationNormal = 300
     const val DurationSlow = 500

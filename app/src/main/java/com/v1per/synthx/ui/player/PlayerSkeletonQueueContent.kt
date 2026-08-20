@@ -111,7 +111,10 @@ fun PlayerSkeletonQueueContent(
                 .offset(y = artOffsetYQueue)
                 .fillMaxWidth()
                 .height(headerRegionHeight)
-                .padding(horizontal = Spacing.HorizontalPadding)
+                // Left margin is 32dp (Spacing.xl), a deliberate deviation from the 16dp
+                // Spacing.HorizontalPadding kept on the right — must stay in sync with
+                // QueueArtPositioning.kt's artOffsetXQueue, which the art itself uses.
+                .padding(start = Spacing.xl, end = Spacing.HorizontalPadding)
                 .alpha(queueContentAlpha),
         ) {
             Spacer(modifier = Modifier.weight(1f))

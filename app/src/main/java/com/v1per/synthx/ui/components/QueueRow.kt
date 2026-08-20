@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -43,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.theme.Error
-import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -203,7 +201,17 @@ fun QueueRow(
                 .height(IntrinsicSize.Min)
                 .background(surfaceColor)
                 .clickable(onClick = onClick)
-                .padding(vertical = Spacing.sm),
+                // start = Spacing.md, not Spacing.HorizontalPadding: combines with
+                // SongIdentity's own internal Spacer(Spacing.md) to reach the 32dp
+                // (Spacing.xl) queue-mode left margin — must stay in sync with
+                // PlayerSkeletonQueueContent's header padding and QueueArtPositioning.kt's
+                // artOffsetXQueue.
+                .padding(
+                    start = Spacing.md,
+                    top = Spacing.sm,
+                    end = Spacing.HorizontalPadding,
+                    bottom = Spacing.sm,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SongIdentity(
@@ -242,6 +250,4 @@ fun QueueRow(
             }
         }
     }
-
-    HorizontalDivider(thickness = 1.dp, color = Hairline)
 }

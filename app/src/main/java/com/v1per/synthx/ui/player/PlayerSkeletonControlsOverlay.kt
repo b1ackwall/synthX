@@ -103,7 +103,7 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
     // fadeOut.
     val overlayVisibleAlpha by animateFloatAsState(
         targetValue = if (overlayVisible) 1f else 0f,
-        animationSpec = tween(Motion.DurationFast, easing = Motion.EasingStandard),
+        animationSpec = tween(Motion.DurationInstant, easing = Motion.EasingStandard),
         label = "controlsOverlayScrollVisibility",
     )
 
