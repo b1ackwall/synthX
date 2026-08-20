@@ -38,12 +38,10 @@ import java.util.Locale
 import kotlin.math.abs
 
 /**
- * Height of the invisible touch-capture area around the 4dp visual line — 48dp to clear the
- * Android accessibility minimum touch-target guideline (was 24dp; bumped for Phase F). The
- * visual line itself stays drawn at [TrackHeight], centered inside this larger invisible box,
- * so the size increase is purely a hit-target change, not a visual one.
+ * Height of the invisible touch-capture area around the 4dp visual line. The visual line
+ * itself stays drawn at [TrackHeight], centered inside this box.
  */
-private val TouchTargetHeight = 48.dp
+private val TouchTargetHeight = 16.dp
 private val TrackHeight = 4.dp
 
 /**
@@ -54,14 +52,9 @@ private val TrackHeight = 4.dp
 private const val SeekCatchUpToleranceMs = 750L
 
 /**
- * Pinned rather than left to the text's own line height, so this composable's total height is
- * a constant 72dp (48 touch target + 8 spacer + 16 labels) independent of the system font
- * scale. PlayerExpandedContent's ControlsOverlayHeight budgets around that fixed total via its
- * `weight(1f)` remainder (see PlayerControlsSection); if this row grew with font scale on top
- * of that it could collapse the flexible gap inside it to zero. Growing TouchTargetHeight from
- * 24dp to 48dp for the Phase F touch-target fix ate 24dp out of that remainder (was ~44dp,
- * now ~20dp) — still positive, but tighter; flagged in the Phase F decision log as worth a
- * follow-up visual check on-device.
+ * Pinned rather than left to the text's own line height, so this composable's total height
+ * stays independent of the system font scale. PlayerExpandedContent's ControlsOverlayHeight
+ * budgets around that fixed total via its `weight(1f)` remainder (see PlayerControlsSection).
  */
 private val TimestampRowHeight = 16.dp
 
@@ -101,6 +94,7 @@ fun PlayerSeekBar(
         // Invisible touch-capture area, taller than the visual line for a reliable hit
         // target; the 4dp line stays drawn at its normal size, centered within it.
         Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(TouchTargetHeight)
@@ -148,13 +142,9 @@ fun PlayerSeekBar(
                     }
                 },
         ) {
-            // Thin progress line — pinned 8dp above the touch target's bottom edge (~18% of
-            // the box's 44dp slack) rather than centered, so the line reads closer to the
-            // touch target's bottom than its top.
+            // Thin progress line, centered within the touch target box.
             Canvas(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp)
                     .fillMaxWidth()
                     .height(TrackHeight),
             ) {

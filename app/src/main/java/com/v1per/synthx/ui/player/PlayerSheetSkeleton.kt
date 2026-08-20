@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
  * Internal rather than private: `internal` in Kotlin is module-wide, not package-scoped, so
  * this is importable from ui/components/ despite the different package.
  */
-internal val TitleRowReservedHeight: Dp = 68.dp
+internal val TitleRowReservedHeight: Dp = 52.dp
 
 /**
  * Gap between the expanded sheet's top edge and the art region, mirrored from

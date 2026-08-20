@@ -170,7 +170,7 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
             onSeek = onSeek,
             enabled = overlayControlsEnabled,
         )
-        Spacer(modifier = Modifier.height(Spacing.xl))
+        Spacer(modifier = Modifier.weight(1f))
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
