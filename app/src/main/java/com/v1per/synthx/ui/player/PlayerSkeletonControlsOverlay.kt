@@ -164,6 +164,7 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
             .padding(horizontal = Spacing.HorizontalPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Spacer(modifier = Modifier.height(Spacing.sm))
         PlayerSeekBar(
             currentPosition = currentPosition,
             duration = duration,
