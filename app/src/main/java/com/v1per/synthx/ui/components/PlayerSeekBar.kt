@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -148,11 +147,14 @@ fun PlayerSeekBar(
                         }
                     }
                 },
-            contentAlignment = Alignment.Center,
         ) {
-            // Thin progress line
+            // Thin progress line — pinned 8dp above the touch target's bottom edge (~18% of
+            // the box's 44dp slack) rather than centered, so the line reads closer to the
+            // touch target's bottom than its top.
             Canvas(
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp)
                     .fillMaxWidth()
                     .height(TrackHeight),
             ) {
@@ -179,7 +181,6 @@ fun PlayerSeekBar(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(Spacing.sm))
         // Timestamps
         Row(
             modifier = Modifier
