@@ -25,6 +25,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -219,6 +220,23 @@ fun PlayerSheetSkeleton(
             controlsOverlayHeight = actualOverlayHeight,
         )
 
+        // The queue-mode header region's bottom edge — where QueueList begins — in the sheet
+        // Box's own coordinate space, which is also the space the gesture detector below reads
+        // `down.position` in (PlayerSkeletonQueueContent's root Box is a fillMaxSize child of
+        // that same Box, and everything inside it is placed by Modifier.offset from its top
+        // edge, so the two origins coincide).
+        //
+        // Read live through rememberUpdatedState rather than captured by value: the detector's
+        // pointerInput is keyed on Unit, so its lambda never restarts and would otherwise hold
+        // whatever this was on the very first composition forever. That would be numerically
+        // harmless today — computeArtPosition derives queueListOffsetY from constants alone
+        // (ExpandedTopMargin, QueueHeaderRowHeight, QueueModeArtSize, QueueHeaderRegionHeight),
+        // with no `progress` or `queueProgressValue` term, so the boundary genuinely doesn't
+        // move — but reading it live keeps computeArtPosition the single source of truth for
+        // the boundary instead of re-deriving the same formula here, and keeps this correct if
+        // that anchor ever gains a dynamic term.
+        val queueListTopY by rememberUpdatedState(artPosition.queueListOffsetY)
+
         Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomInset)) {
             Box(
                 modifier = Modifier
@@ -241,6 +259,43 @@ fun PlayerSheetSkeleton(
                     .pointerInput(Unit) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
+
+                            // Queue mode only: this detector answers for the header region
+                            // alone — the sheet's top edge down to where QueueList begins.
+                            // Below that boundary sit the queue list and the controls overlay.
+                            // The list already keeps its own drags (Foundation's scrollable
+                            // claims the pointer the moment slop is crossed, whether or not it
+                            // can still scroll, and nothing here bridges the two via
+                            // nestedScroll), but the overlay's background shield consumes only
+                            // the *down*, never the moves — the slop wait below ignores a
+                            // consumed down and only bails on consumed moves — so a drag
+                            // anywhere on that ~300dp band used to fall straight through to
+                            // here and close the sheet out from under the queue. Returning
+                            // leaves the gesture un-claimed rather than fighting for it:
+                            // nothing is consumed, and awaitEachGesture parks its own loop on
+                            // awaitAllPointersUp() until the finger lifts, so this detector
+                            // can't re-enter partway through and pick the gesture back up.
+                            //
+                            // Upper-bound-only, deliberately not a band that would also exclude
+                            // the strip above the header: queue mode survives a collapse
+                            // (nothing resets it but the queue button itself), so this branch
+                            // is live while the sheet is a CollapsedPlayerHeight mini bar,
+                            // where every touch lands far above this boundary and tap/
+                            // drag-to-expand therefore keeps working untouched. A banded test
+                            // would carve a dead strip out of the mini bar's own top edge.
+                            //
+                            // Gated on queueProgress rather than the isQueueMode flag to match
+                            // this file's miniContentEnabled/expandedContentEnabled (and
+                            // PlayerSkeletonQueueContent's queueContentEnabled, and the
+                            // overlay shield's own) `> 0.5f` convention: the restriction
+                            // engages and releases in step with what is actually on screen
+                            // through the queue crossfade, not on a frame-zero boolean flip.
+                            if (queueModeState.queueProgress.value > 0.5f &&
+                                down.position.y >= queueListTopY.toPx()
+                            ) {
+                                return@awaitEachGesture
+                            }
+
                             // Main pass propagates child-before-parent, so if a nested
                             // dragResistantClickable (e.g. the mini play/pause button) sits
                             // under this down, its own pointerInput has already run and

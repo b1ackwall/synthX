@@ -23,7 +23,7 @@ val ControlsCollapseThreshold: Dp = 32.dp
  * Approximate height of the (not yet ported) queue-mode header row, used only to vertically
  * center the 44dp queue art within it. The old QueueModeHeader's height was content-driven
  * (sized by its tallest child — effectively the two-line title/artist column), not a fixed
- * constant, so there is no exact source value to mirror here. [TitleRowReservedHeight] (68dp)
+ * constant, so there is no exact source value to mirror here. [TitleRowReservedHeight] (52dp)
  * is reused as the closest existing approximation already declared in PlayerSheetSkeleton.kt
  * for a two-line title/artist block, rather than inventing a new number.
  */
