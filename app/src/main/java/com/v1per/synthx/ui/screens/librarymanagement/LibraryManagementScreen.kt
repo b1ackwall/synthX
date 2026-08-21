@@ -35,6 +35,8 @@ fun LibraryManagementScreen(
     val backupFolderUri by viewModel.backupFolderUri.collectAsState()
     val backupStatus by viewModel.backupStatus.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
+    val seedPlaylistsStatus by viewModel.seedPlaylistsStatus.collectAsState()
+    val isSeeding by viewModel.isSeeding.collectAsState()
 
     // Resolved here, not in the callback below: the launcher result lambda is not a
     // composable scope, so stringResource cannot be called from inside it.
@@ -100,6 +102,8 @@ fun LibraryManagementScreen(
             backupFolderPath = backupFolderUri?.let { FolderPathFormatter.format(context, it) },
             backupStatus = backupStatus,
             deleteSongsEnabled = deleteSongsEnabled,
+            seedPlaylistsStatus = seedPlaylistsStatus,
+            isSeeding = isSeeding,
             onPickFolder = { folderPicker.launch(null) },
             onRescan = viewModel::rescanLibrary,
             onCancelScan = viewModel::cancelScan,
@@ -108,6 +112,7 @@ fun LibraryManagementScreen(
             onBackupNow = viewModel::createManualBackup,
             onRestoreClick = onRestoreClick,
             onToggleDeleteSongs = viewModel::setDeleteSongsEnabled,
+            onSeedPlaylists = viewModel::seedPlaylists,
         )
     }
 }
@@ -123,6 +128,8 @@ internal fun LibraryManagementScreenContent(
     backupFolderPath: String?,
     backupStatus: String?,
     deleteSongsEnabled: Boolean,
+    seedPlaylistsStatus: String?,
+    isSeeding: Boolean,
     onPickFolder: () -> Unit,
     onRescan: () -> Unit,
     onCancelScan: () -> Unit,
@@ -131,6 +138,7 @@ internal fun LibraryManagementScreenContent(
     onBackupNow: () -> Unit,
     onRestoreClick: () -> Unit,
     onToggleDeleteSongs: (Boolean) -> Unit,
+    onSeedPlaylists: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         SectionHeader(title = stringResource(R.string.section_music_library))
@@ -153,6 +161,14 @@ internal fun LibraryManagementScreenContent(
         DeleteSongsRow(
             enabled = deleteSongsEnabled,
             onToggle = onToggleDeleteSongs,
+        )
+
+        // Temporary feature — see SeedPlaylistsSection.kt's doc comment for the full
+        // removal checklist.
+        SeedPlaylistsSection(
+            seedStatus = seedPlaylistsStatus,
+            isSeeding = isSeeding,
+            onSeedPlaylists = onSeedPlaylists,
         )
 
         BackupSection(

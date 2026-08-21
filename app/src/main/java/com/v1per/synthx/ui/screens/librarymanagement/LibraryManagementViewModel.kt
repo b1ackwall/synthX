@@ -15,6 +15,7 @@ import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
+import com.v1per.synthx.data.seedPlaylistsFromFolders
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.delay
@@ -86,6 +87,18 @@ class LibraryManagementViewModel(
 
     /** Thin passthrough to the shared in-memory gate — see [DeleteSongsGate]. */
     val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
+
+    // Temporary feature — see PlaylistSeeder.kt's doc comment for the full removal
+    // checklist. This state plus seedPlaylists() below are the only ViewModel touch
+    // points.
+    private val _seedPlaylistsStatus = MutableStateFlow<String?>(null)
+    val seedPlaylistsStatus: StateFlow<String?> = _seedPlaylistsStatus.asStateFlow()
+
+    // Guards against a double-tap enqueuing a second concurrent run — there's no
+    // WorkManager-style unique-work dedupe here, so this is the only thing preventing
+    // two seedPlaylistsFromFolders calls from racing on the same playlists.
+    private val _isSeeding = MutableStateFlow(false)
+    val isSeeding: StateFlow<Boolean> = _isSeeding.asStateFlow()
 
     // Set only for states WorkManager can't express — currently just "no folder picked",
     // which never reaches the worker. Cleared as soon as a scan is actually enqueued.
@@ -245,6 +258,46 @@ class LibraryManagementViewModel(
 
     fun setDeleteSongsEnabled(enabled: Boolean) {
         DeleteSongsGate.setDeleteSongsEnabled(enabled)
+    }
+
+    /**
+     * Temporary feature — safe to delete. Removing this function (plus the
+     * [_seedPlaylistsStatus]/[seedPlaylistsStatus] and [_isSeeding]/[isSeeding] state
+     * above it) and its four other touch points fully removes "Seed Playlists
+     * (Temporary)" with no other cleanup needed:
+     *   1. data/PlaylistSeeder.kt
+     *   2. ui/screens/librarymanagement/SeedPlaylistsSection.kt
+     *   3. This function, plus the state fields noted above (LibraryManagementViewModel.kt)
+     *   4. The `SeedPlaylistsSection(...)` call in LibraryManagementScreenContent, and its
+     *      `seedPlaylistsStatus`/`isSeeding` params (LibraryManagementScreen.kt)
+     *   5. The `seedPlaylistsStatus`/`isSeeding`/`onSeedPlaylists` args added to the three
+     *      `LibraryManagementScreenContent(...)` preview call sites
+     *      (LibraryManagementScreenPreviews.kt)
+     */
+    fun seedPlaylists() {
+        if (_isSeeding.value) return // already running — ignore a double-tap
+
+        val folderUri = _musicFolderUri.value
+        if (folderUri == null) {
+            _seedPlaylistsStatus.showTemporarily(context.getString(R.string.settings_no_folder_selected))
+            return
+        }
+        viewModelScope.launch {
+            _isSeeding.value = true
+            _seedPlaylistsStatus.value = "Seeding…"
+            try {
+                val result = seedPlaylistsFromFolders(context, folderUri, repository) { progress ->
+                    _seedPlaylistsStatus.value = "Seeding… folder ${progress.foldersProcessed}/" +
+                        "${progress.totalFolders} (${progress.songsMatchedSoFar} songs matched)"
+                }
+                _seedPlaylistsStatus.showTemporarily(
+                    "Created ${result.playlistsCreated}, updated ${result.playlistsUpdated} — " +
+                        "${result.songsMatched} songs matched, ${result.filesUnmatched} unmatched"
+                )
+            } finally {
+                _isSeeding.value = false
+            }
+        }
     }
 
     // Only acknowledges a *finished* run — an in-progress scan's WorkInfo is never

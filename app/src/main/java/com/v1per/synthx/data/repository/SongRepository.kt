@@ -35,7 +35,8 @@ interface SongRepository {
     fun getAllPlaylists(): Flow<List<Playlist>>
     fun getUngroupedPlaylists(): Flow<List<Playlist>>
     fun getPlaylistsForGroup(groupId: String): Flow<List<Playlist>>
-    suspend fun createPlaylist(name: String, groupId: String?)
+    /** @return the id of the newly created playlist. */
+    suspend fun createPlaylist(name: String, groupId: String?): String
     suspend fun renamePlaylist(id: String, name: String)
     suspend fun movePlaylistToGroup(id: String, groupId: String?)
     suspend fun deletePlaylist(id: String)

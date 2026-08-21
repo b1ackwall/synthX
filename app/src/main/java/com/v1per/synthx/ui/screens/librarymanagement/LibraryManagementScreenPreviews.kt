@@ -26,6 +26,8 @@ private fun LibraryManagementWithFolderPreview() {
                 backupFolderPath = null,
                 backupStatus = null,
                 deleteSongsEnabled = false,
+                seedPlaylistsStatus = null,
+                isSeeding = false,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
@@ -34,6 +36,7 @@ private fun LibraryManagementWithFolderPreview() {
                 onBackupNow = {},
                 onRestoreClick = {},
                 onToggleDeleteSongs = {},
+                onSeedPlaylists = {},
             )
         }
     }
@@ -57,6 +60,8 @@ private fun LibraryManagementEmptyPreview() {
                 backupFolderPath = null,
                 backupStatus = null,
                 deleteSongsEnabled = false,
+                seedPlaylistsStatus = null,
+                isSeeding = false,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
@@ -65,6 +70,7 @@ private fun LibraryManagementEmptyPreview() {
                 onBackupNow = {},
                 onRestoreClick = {},
                 onToggleDeleteSongs = {},
+                onSeedPlaylists = {},
             )
         }
     }
@@ -88,6 +94,8 @@ private fun LibraryManagementScanningPreview() {
                 backupFolderPath = null,
                 backupStatus = null,
                 deleteSongsEnabled = false,
+                seedPlaylistsStatus = null,
+                isSeeding = false,
                 onPickFolder = {},
                 onRescan = {},
                 onCancelScan = {},
@@ -96,6 +104,7 @@ private fun LibraryManagementScanningPreview() {
                 onBackupNow = {},
                 onRestoreClick = {},
                 onToggleDeleteSongs = {},
+                onSeedPlaylists = {},
             )
         }
     }

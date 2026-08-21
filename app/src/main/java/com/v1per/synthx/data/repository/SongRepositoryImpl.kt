@@ -197,11 +197,12 @@ class SongRepositoryImpl(
             entities.map { it.toDomain() }
         }
 
-    override suspend fun createPlaylist(name: String, groupId: String?) {
+    override suspend fun createPlaylist(name: String, groupId: String?): String {
         val now = System.currentTimeMillis()
+        val id = UUID.randomUUID().toString()
         playlistDao.insertPlaylist(
             PlaylistEntity(
-                id = UUID.randomUUID().toString(),
+                id = id,
                 name = name,
                 description = null,
                 groupId = groupId,
@@ -211,6 +212,7 @@ class SongRepositoryImpl(
                 coverArtUri = null,
             )
         )
+        return id
     }
 
     override suspend fun renamePlaylist(id: String, name: String) =
