@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.MoreOptionsButton
@@ -66,9 +68,9 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * alpha-faded: an always-present [QueueList] would stay hit-testable even at alpha 0, silently
  * intercepting taps/drags meant for the sheet's own gesture detector while in player mode
  * (queue mode never entered) — the header Row and [QueuePlaybackModeRow] carry no such
- * scroll/drag surface, so they stay always-composed and alpha-only, same as the header always
- * has. Since [queueProgressValue] animates continuously from 0f on the first frame of the
- * queue-button tap (see [Motion.DurationNormal]'s `Animatable.animateTo` in
+ * scroll/drag surface, so they stay always-composed and driven by alpha/offset alone, same as
+ * the header always has. Since [queueProgressValue] animates continuously from 0f on the
+ * first frame of the queue-button tap (see [Motion.DurationNormal]'s `Animatable.animateTo` in
  * PlayerSheetSkeleton.kt), entering composition at `> 0f` puts [QueueList] in the tree on that
  * very first frame — indistinguishable from an always-composed, alpha-only list visually, just
  * no longer hit-testable at exactly 0f.
@@ -105,10 +107,29 @@ fun PlayerSkeletonQueueContent(
     val queueContentAlpha = expandedContentAlpha * queueProgressValue
     val queueContentEnabled = expandedContentEnabled && queueProgressValue > 0.5f
 
+    // Slide-up, matching PlayerSkeletonControlsOverlay's: this block rises
+    // [ContentSlideDistance] into place as it fades in. Driven by [queueContentAlpha] — the
+    // same product the .alpha() calls below use — so it responds to both axes that make this
+    // content visible at all: the sheet's collapse/expand drag (via expandedContentAlpha) and
+    // the queue-mode toggle (via queueProgressValue). Being a product, it only reaches 0dp
+    // once both terms are 1, which is the same point the content is fully opaque.
+    //
+    // Bidirectional for the same reason the overlay's is — a pure function of live values
+    // with no animation state of its own, so every direction reverses on its own: dragging
+    // the sheet open/closed while in queue mode moves expandedContentAlpha, tapping the queue
+    // button in/out animates queueProgressValue, and the offset simply tracks whichever
+    // changed. Both children take the identical offset, so the header-to-list gap is constant
+    // throughout the slide rather than the two drifting apart.
+    val queueContentSlideOffset = lerpDp(ContentSlideDistance, 0.dp, queueContentAlpha)
+
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                .offset(y = artOffsetYQueue)
+                // Resting anchor plus the slide, summed into the single offset() call rather
+                // than chained as two: Modifier.offset composes additively either way, so one
+                // layout modifier node expresses it exactly and reads as "where it lives,
+                // plus how far it still has to travel".
+                .offset(y = artOffsetYQueue + queueContentSlideOffset)
                 .fillMaxWidth()
                 .height(headerRegionHeight)
                 // Left margin is 32dp (Spacing.xl), a deliberate deviation from the 16dp
@@ -166,7 +187,8 @@ fun PlayerSkeletonQueueContent(
                 enabled = queueContentEnabled,
                 contentPadding = PaddingValues(bottom = controlsOverlayHeight),
                 modifier = Modifier
-                    .offset(y = queueListOffsetY)
+                    // Same summed anchor-plus-slide as the header Column above.
+                    .offset(y = queueListOffsetY + queueContentSlideOffset)
                     .fillMaxWidth()
                     .fillMaxHeight()
                     .alpha(queueContentAlpha),

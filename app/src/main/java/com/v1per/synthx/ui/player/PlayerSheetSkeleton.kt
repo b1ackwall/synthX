@@ -88,6 +88,23 @@ private const val ArtWeightBelow = 1f
 private val ControlsOverlayHeight: Dp = 300.dp
 
 /**
+ * How far below its resting position an alpha-faded block starts before sliding up into
+ * place. Both the controls overlay (PlayerSkeletonControlsOverlay) and queue mode's
+ * header/list block (PlayerSkeletonQueueContent) travel this distance as their own alpha
+ * term runs 0→1, so the two read as one motion rather than two independently-tuned ones.
+ *
+ * Internal rather than private for the same reason [TitleRowReservedHeight] above is —
+ * top-level `private` in Kotlin is file-private, and both consumers live in other files.
+ * Declared here, alongside the sheet's other layout constants, rather than duplicated as a
+ * bare `40.dp` literal in each consumer.
+ *
+ * Deliberately not applied to the album art (its own mini↔expanded↔queue morph already owns
+ * its position and size) or to the player-mode title row (whose slide is emergent from the
+ * art/sheet geometry — see QueueArtPositioning.kt's titleRowY derivation).
+ */
+internal val ContentSlideDistance: Dp = 40.dp
+
+/**
  * Empty skeleton stand-in for [com.v1per.synthx.ui.components.PlayerSheet]: same single
  * AnchoredDraggableState morph between mini/full player, wired to real [PlaybackViewModel]
  * state, but rendering blank surfaces only. The old PlayerSheet and its child composables
@@ -413,6 +430,9 @@ fun PlayerSheetSkeleton(
 
                 PlayerSkeletonControlsOverlay(
                     height = actualOverlayHeight,
+                    // Passed so the overlay can cancel this padding back out of its own
+                    // placement — it is bottom-anchored to the very edge this inset moves.
+                    bottomInset = bottomInset,
                     surfaceColor = surfaceColor,
                     expandedContentAlpha = expandedContentAlpha,
                     expandedContentEnabled = expandedContentEnabled,
