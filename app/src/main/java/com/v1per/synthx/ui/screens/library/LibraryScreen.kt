@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -72,12 +73,14 @@ fun LibraryScreen(
     onNavigateToArtistList: () -> Unit,
     onNavigateToAlbumList: () -> Unit,
     onNavigateToPlaylistList: () -> Unit,
+    onNavigateToStarred: () -> Unit,
     playbackViewModel: PlaybackViewModel,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(LocalContext.current)),
 ) {
     val recentSongs by viewModel.recentSongs.collectAsState()
     val error by viewModel.error.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val starredCount by viewModel.starredCount.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
@@ -86,6 +89,7 @@ fun LibraryScreen(
                 NavigationEvent.GoToArtistList -> onNavigateToArtistList()
                 NavigationEvent.GoToAlbumList -> onNavigateToAlbumList()
                 NavigationEvent.GoToPlaylistList -> onNavigateToPlaylistList()
+                NavigationEvent.GoToStarred -> onNavigateToStarred()
             }
         }
     }
@@ -104,10 +108,12 @@ fun LibraryScreen(
             recentSongs = recentSongs,
             error = error,
             isLoading = isLoading,
+            starredCount = starredCount,
             onPlaylistsClick = viewModel::onPlaylistsClick,
             onArtistsClick = viewModel::onArtistsClick,
             onAlbumsClick = viewModel::onAlbumsClick,
             onSongsClick = viewModel::onSongsClick,
+            onStarredClick = viewModel::onStarredClick,
             onSeeAllClick = onNavigateToSongs,
             onSongClick = { index -> playbackViewModel.requestPlayQueue(recentSongs, index) },
         )
@@ -120,10 +126,12 @@ private fun LibraryScreenContent(
     recentSongs: List<Song>,
     error: String?,
     isLoading: Boolean,
+    starredCount: Int,
     onPlaylistsClick: () -> Unit,
     onArtistsClick: () -> Unit,
     onAlbumsClick: () -> Unit,
     onSongsClick: () -> Unit,
+    onStarredClick: () -> Unit,
     onSeeAllClick: () -> Unit,
     // Takes the tapped song's index in [recentSongs]: the whole row becomes the queue.
     onSongClick: (Int) -> Unit,
@@ -170,6 +178,18 @@ private fun LibraryScreenContent(
                 icon = Icons.Default.MusicNote,
                 label = stringResource(R.string.screen_songs),
                 onClick = onSongsClick,
+            )
+        }
+
+        // Last of the five: the most specialized category, and the only one that is a
+        // working queue rather than a way of browsing the whole library.
+        item(key = "category_starred") {
+            CategoryRow(
+                icon = Icons.Default.StarBorder,
+                label = stringResource(R.string.screen_starred),
+                // Badge only when there is something to file — same convention as IssuesRow.
+                trailingText = if (starredCount > 0) starredCount.toString() else null,
+                onClick = onStarredClick,
             )
         }
 
@@ -325,11 +345,13 @@ private fun RecentSongTile(
     }
 }
 
+/** @param trailingText optional count badge, rendered right-aligned; null hides it. */
 @Composable
 private fun CategoryRow(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
+    trailingText: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -359,6 +381,13 @@ private fun CategoryRow(
                     .weight(1f)
                     .padding(horizontal = Spacing.md),
             )
+            trailingText?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                )
+            }
         }
         HorizontalDivider(
             thickness = 1.dp,
@@ -382,10 +411,12 @@ private fun LibraryScreenPreview() {
                 ),
                 error = null,
                 isLoading = false,
+                starredCount = 12,
                 onPlaylistsClick = {},
                 onArtistsClick = {},
                 onAlbumsClick = {},
                 onSongsClick = {},
+                onStarredClick = {},
                 onSeeAllClick = {},
                 onSongClick = {},
             )

@@ -150,6 +150,25 @@ class SongRepositoryImpl(
         Unit
     }
 
+    // Sort order (date_added DESC) and the starred/missing filters stay in the DAO query;
+    // this only resolves artist order, same as the playlist/album/artist song lists above.
+    override fun getStarredSongs(): Flow<List<Song>> =
+        songDao.getStarredSongs().map { details ->
+            val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+                .groupBy { it.songId }
+            details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+        }.flowOn(Dispatchers.Default)
+
+    override fun getStarredSongCount(): Flow<Int> = songDao.getStarredSongCount()
+
+    // No backupManager.createBackup here, unlike deleteSong/deletePlaylist: this clears one
+    // boolean and destroys nothing, so there is nothing to restore from.
+    override suspend fun dismissFromStarred(songId: String) =
+        songDao.dismissFromStarred(songId)
+
+    override suspend fun isInAnyPlaylist(songId: String): Boolean =
+        songDao.isInAnyPlaylist(songId)
+
     override fun getMissingSongs(): Flow<List<MissingSongInfo>> = songDao.getMissingSongs()
 
     override fun getMissingSongCount(): Flow<Int> = songDao.getMissingSongCount()

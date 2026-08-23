@@ -11,6 +11,7 @@ sealed class Screen(val route: String) {
     object Issues : Screen("issues")
     object Restore : Screen("restore")
     object Songs : Screen("songs")
+    object Starred : Screen("starred")
     object ArtistList : Screen("artist_list")
     object ArtistDetail : Screen("artist_detail/{artistId}/{artistName}") {
         // Must mirror the constructor arg — a member isn't referencable in the supertype call
@@ -50,9 +51,10 @@ sealed class Screen(val route: String) {
         // (which unions it with Home/Library/Search for bottom-bar visibility) and
         // SynthXBottomNav (which uses it as-is to detect "still inside Library's hierarchy"
         // for reset-to-root-vs-restore nav behavior) — previously each file listed these
-        // 10 routes independently and could drift out of sync.
+        // routes independently and could drift out of sync.
         val libraryDetailRoutes = setOf(
             Songs.route,
+            Starred.route,
             ArtistList.route,
             ArtistDetail.ROUTE,
             AlbumList.route,

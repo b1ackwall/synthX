@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlaylistRemove
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -62,11 +63,14 @@ fun SongActionsBottomSheet(
     currentPlaylistId: String?,
     showDeleteRow: Boolean,
     deleteEnabled: Boolean,
+    showRemoveFromStarredRow: Boolean,
+    removeFromStarredEnabled: Boolean,
     onDeleteSong: () -> Unit,
     onGoToAlbum: (albumId: String) -> Unit,
     onGoToArtist: (artistId: String) -> Unit,
     onAddToPlaylist: (playlistId: String) -> Unit,
     onRemoveFromPlaylist: () -> Unit,
+    onRemoveFromStarred: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
     onDismiss: () -> Unit,
@@ -88,10 +92,13 @@ fun SongActionsBottomSheet(
                 currentPlaylistId = currentPlaylistId,
                 showDeleteRow = showDeleteRow,
                 deleteEnabled = deleteEnabled,
+                showRemoveFromStarredRow = showRemoveFromStarredRow,
+                removeFromStarredEnabled = removeFromStarredEnabled,
                 onDeleteSong = { showDeleteConfirm = true },
                 onGoToAlbum = onGoToAlbum,
                 onGoToArtist = onGoToArtist,
                 onRemoveFromPlaylist = onRemoveFromPlaylist,
+                onRemoveFromStarred = onRemoveFromStarred,
                 onPlayNext = onPlayNext,
                 onAddToQueue = onAddToQueue,
                 onShowPlaylists = { page = SheetPage.Playlists },
@@ -130,10 +137,13 @@ private fun ActionsPage(
     currentPlaylistId: String?,
     showDeleteRow: Boolean,
     deleteEnabled: Boolean,
+    showRemoveFromStarredRow: Boolean,
+    removeFromStarredEnabled: Boolean,
     onDeleteSong: () -> Unit,
     onGoToAlbum: (String) -> Unit,
     onGoToArtist: (String) -> Unit,
     onRemoveFromPlaylist: () -> Unit,
+    onRemoveFromStarred: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
     onShowPlaylists: () -> Unit,
@@ -170,6 +180,18 @@ private fun ActionsPage(
                 icon = Icons.AutoMirrored.Filled.PlaylistAdd,
                 label = stringResource(R.string.actions_add_to_playlist),
                 onClick = onShowPlaylists,
+            )
+        }
+
+        // Starred screen only. Stays visible but disabled until the song is in at least one
+        // playlist: the action exists to file away something already organized, and showing
+        // it greyed out explains *why* it isn't available better than hiding it would.
+        if (showRemoveFromStarredRow) {
+            ActionRow(
+                icon = Icons.Default.StarBorder,
+                label = stringResource(R.string.actions_remove_from_starred),
+                enabled = removeFromStarredEnabled,
+                onClick = onRemoveFromStarred,
             )
         }
 

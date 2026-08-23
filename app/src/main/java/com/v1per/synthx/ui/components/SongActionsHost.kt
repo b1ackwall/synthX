@@ -26,16 +26,18 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.preferences.DeleteSongsGate
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** Where the sheet was opened from — lets the sheet tailor itself per origin. */
-enum class SongActionSource { Default, Player }
+enum class SongActionSource { Default, Player, Starred }
 
 /** Opens the song actions sheet from anywhere inside [SongActionsHost]. */
 fun interface SongActionsController {
@@ -48,6 +50,7 @@ sealed class SongActionEvent {
     data class AddedToPlaylist(val playlistName: String) : SongActionEvent()
     data object PlayingNext : SongActionEvent()
     data object AddedToQueue : SongActionEvent()
+    data object RemovedFromStarred : SongActionEvent()
 }
 
 /**
@@ -85,6 +88,7 @@ fun SongActionsHost(
     )
     val playlists by viewModel.playlists.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
+    val removeFromStarredEnabled by viewModel.removeFromStarredEnabled.collectAsState()
 
     // context.getString rather than stringResource: the collect lambda is not a composable
     // scope, and the playlist name is only known at emit time.
@@ -97,6 +101,8 @@ fun SongActionsHost(
                     context.getString(R.string.actions_added_to_playlist, event.playlistName)
                 SongActionEvent.PlayingNext -> context.getString(R.string.actions_playing_next)
                 SongActionEvent.AddedToQueue -> context.getString(R.string.actions_added_to_queue)
+                SongActionEvent.RemovedFromStarred ->
+                    context.getString(R.string.actions_removed_from_starred)
             }
             snackbarHostState.showSnackbar(message)
         }
@@ -120,6 +126,15 @@ fun SongActionsHost(
         }
     }
 
+    // The ≥1-playlist-membership gate is resolved once per sheet opening, keyed on the
+    // target — not per row and not per scroll frame. Rows never run this query; only the
+    // single sheet instance does, and only when it actually opens on a Starred row.
+    LaunchedEffect(target?.song?.id, target?.source) {
+        viewModel.resolveRemoveFromStarredGate(
+            songId = target?.song?.id?.takeIf { target?.source == SongActionSource.Starred },
+        )
+    }
+
     CompositionLocalProvider(LocalSongActions provides controller) {
         content()
     }
@@ -132,6 +147,8 @@ fun SongActionsHost(
             currentPlaylistId = current.playlistId,
             showDeleteRow = current.source != SongActionSource.Player,
             deleteEnabled = deleteSongsEnabled,
+            showRemoveFromStarredRow = current.source == SongActionSource.Starred,
+            removeFromStarredEnabled = removeFromStarredEnabled,
             onDeleteSong = {
                 val id = current.song.id
                 dismiss { viewModel.deleteSong(id) }
@@ -169,6 +186,10 @@ fun SongActionsHost(
                 val songId = current.song.id
                 dismiss { if (playlistId != null) viewModel.removeFromPlaylist(playlistId, songId) }
             },
+            onRemoveFromStarred = {
+                val songId = current.song.id
+                dismiss { viewModel.removeFromStarred(songId) }
+            },
             onDismiss = { dismiss() },
         )
     }
@@ -190,6 +211,30 @@ class SongActionsViewModel(
 
     /** Gates the delete row in the sheet below — see [DeleteSongsGate]. */
     val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
+
+    private val _removeFromStarredEnabled = MutableStateFlow(false)
+
+    /**
+     * Gates the "Remove from Starred" row: enabled only once the song belongs to at least
+     * one playlist. Unlike [deleteSongsEnabled] this is per-song, so it is recomputed each
+     * time the sheet opens — see [resolveRemoveFromStarredGate].
+     */
+    val removeFromStarredEnabled: StateFlow<Boolean> = _removeFromStarredEnabled.asStateFlow()
+
+    /**
+     * Resolves the gate above for the sheet's current target. [songId] is null whenever the
+     * sheet is closed or was opened from anywhere but the Starred screen, which closes the
+     * gate — so a stale `true` from a previous song can never leak into the next sheet.
+     */
+    fun resolveRemoveFromStarredGate(songId: String?) {
+        // Closed first, then re-opened by the query result: the suspend call below lands a
+        // frame or more later, and the row must not be tappable in the meantime.
+        _removeFromStarredEnabled.value = false
+        if (songId == null) return
+        viewModelScope.launch {
+            _removeFromStarredEnabled.value = repository.isInAnyPlaylist(songId)
+        }
+    }
 
     // One-off UI events, matching LibraryViewModel's NavigationEvent and the playback
     // error flow: buffered by one, newest wins, never replayed to a new collector.
@@ -216,6 +261,17 @@ class SongActionsViewModel(
 
     fun removeFromPlaylist(playlistId: String, songId: String) {
         viewModelScope.launch { repository.removeSongFromPlaylist(playlistId, songId) }
+    }
+
+    /**
+     * Clears the song's starred flag — it leaves the Starred list and nothing else changes.
+     * Playlist membership is untouched, and there is no undo: the flag is never set back.
+     */
+    fun removeFromStarred(songId: String) {
+        viewModelScope.launch {
+            repository.dismissFromStarred(songId)
+            _events.tryEmit(SongActionEvent.RemovedFromStarred)
+        }
     }
 
     /**

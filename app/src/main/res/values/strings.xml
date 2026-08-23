@@ -9,6 +9,7 @@
 
     <!-- Screen titles -->
     <string name="screen_songs">Songs</string>
+    <string name="screen_starred">Starred</string>
     <string name="screen_artists">Artists</string>
     <string name="screen_albums">Albums</string>
     <string name="screen_playlists">Playlists</string>
@@ -50,6 +51,8 @@
     <string name="actions_added_to_playlist">Added to %1$s</string>
     <string name="actions_playing_next">Playing next</string>
     <string name="actions_added_to_queue">Added to queue</string>
+    <string name="actions_remove_from_starred">Remove from Starred</string>
+    <string name="actions_removed_from_starred">Removed from Starred</string>
 
     <!-- Sort -->
     <string name="sort_by">Sort by</string>
@@ -65,6 +68,7 @@
 
     <!-- Empty states -->
     <string name="empty_no_songs">No songs found</string>
+    <string name="empty_no_starred">Nothing starred right now. New songs land here until you add them to a playlist.</string>
     <string name="empty_no_artists">No artists found</string>
     <string name="empty_no_albums">No albums found</string>
     <string name="empty_no_playlists">No playlists yet</string>
@@ -166,6 +170,7 @@
     <string name="error_folder_permission_denied">Failed to get permission for the selected folder. Please try again.</string>
     <string name="error_folders_nested">The music folder and the new arrivals folder can\'t be the same folder, or one inside the other. Pick a separate folder.</string>
     <string name="error_load_songs">Couldn\'t load your songs. Try again.</string>
+    <string name="error_load_starred">Couldn\'t load your starred songs. Try again.</string>
     <string name="error_load_playlist">Couldn\'t load this playlist. Try again.</string>
     <string name="error_save_playlist">Couldn\'t save this playlist. Try again.</string>
     <string name="error_rename_playlist">Couldn\'t rename this playlist. Try again.</string>

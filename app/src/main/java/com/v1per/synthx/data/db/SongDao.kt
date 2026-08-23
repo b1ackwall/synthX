@@ -65,6 +65,44 @@ interface SongDao {
     )
     fun getSongsWithDetailsForPlaylist(playlistId: String): Flow<List<SongWithDetails>>
 
+    // Starred = not yet organized into a playlist. Filtered in SQL (not in Kotlin off
+    // getAllSongsWithDetails) for the same reason getSongsWithDetailsForPlaylist joins
+    // straight to playlist_songs: the result set should be the starred songs, not the whole
+    // library narrowed down afterwards. Newest first — the useful order for a "what still
+    // needs filing" list.
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM songs
+        WHERE in_inbox = 1
+        AND is_missing = 0
+        ORDER BY date_added DESC
+        """
+    )
+    fun getStarredSongs(): Flow<List<SongWithDetails>>
+
+    // Badge on the Library screen's Starred row. A dedicated COUNT rather than
+    // getStarredSongs().map { it.size }: that would materialize and artist-join the whole
+    // starred list just to measure it. Same shape as getMissingSongCount above, and the
+    // predicate is kept identical to getStarredSongs' so the badge can never disagree with
+    // the list it describes.
+    @Query("SELECT COUNT(*) FROM songs WHERE in_inbox = 1 AND is_missing = 0")
+    fun getStarredSongCount(): Flow<Int>
+
+    /**
+     * Whether the song belongs to at least one playlist — gates the "Remove from Starred"
+     * action, which exists to file away a song the user has already organized.
+     *
+     * Same EXISTS shape as PlaylistDao.containsSong, minus the playlist_id predicate.
+     */
+    @Query("SELECT EXISTS(SELECT 1 FROM playlist_songs WHERE song_id = :songId)")
+    suspend fun isInAnyPlaylist(songId: String): Boolean
+
+    // Deliberately one-way: nothing sets in_inbox back to 1 for an existing song, so a
+    // dismissal sticks even if the song later leaves every playlist it was in.
+    @Query("UPDATE songs SET in_inbox = 0 WHERE id = :id")
+    suspend fun dismissFromStarred(id: String)
+
     @Query("SELECT * FROM song_artists WHERE song_id = :songId ORDER BY position ASC")
     suspend fun getSongArtistRefs(songId: String): List<SongArtistEntity>
 

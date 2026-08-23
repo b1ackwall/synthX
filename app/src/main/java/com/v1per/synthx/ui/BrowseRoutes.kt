@@ -31,6 +31,7 @@ import com.v1per.synthx.ui.screens.artistlist.ArtistListViewModel
 import com.v1per.synthx.ui.screens.songs.SongsScreen
 import com.v1per.synthx.ui.screens.songs.SongsViewModel
 import com.v1per.synthx.ui.screens.songs.SortOrder
+import com.v1per.synthx.ui.screens.starred.StarredScreen
 import com.v1per.synthx.ui.theme.TextPrimary
 
 fun NavGraphBuilder.browseRoutes(
@@ -69,6 +70,19 @@ fun NavGraphBuilder.browseRoutes(
                     viewModel = songsViewModel,
                 )
             // }
+        }
+    }
+    composable(Screen.Starred.route) {
+        RouteContent(chromeBottomPadding) {
+            StarredScreen(
+                topBar = {
+                    DetailTopBar(
+                        title = stringResource(R.string.screen_starred),
+                        onBack = { navController.popBackStack() },
+                    )
+                },
+                playbackViewModel = playbackViewModel,
+            )
         }
     }
     composable(Screen.ArtistList.route) {

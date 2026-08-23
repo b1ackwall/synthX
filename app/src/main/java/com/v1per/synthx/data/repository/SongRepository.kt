@@ -35,6 +35,23 @@ interface SongRepository {
     /** Permanently deletes a song, its art file, and (via CASCADE) all rows referencing it. */
     suspend fun deleteSong(id: String)
 
+    // Starred — songs not yet organized into a playlist
+
+    /** Starred, non-missing songs, newest first. */
+    fun getStarredSongs(): Flow<List<Song>>
+
+    /** How many songs [getStarredSongs] would return — for the Library row's badge. */
+    fun getStarredSongCount(): Flow<Int>
+
+    /**
+     * Drops the song off the Starred list. One-way and non-destructive: it clears only the
+     * flag, never playlist membership or the song itself, and nothing sets the flag back.
+     */
+    suspend fun dismissFromStarred(songId: String)
+
+    /** Whether the song belongs to at least one playlist — gates the dismissal above. */
+    suspend fun isInAnyPlaylist(songId: String): Boolean
+
     // Groups
     fun getAllGroups(): Flow<List<PlaylistGroup>>
     suspend fun createGroup(name: String)

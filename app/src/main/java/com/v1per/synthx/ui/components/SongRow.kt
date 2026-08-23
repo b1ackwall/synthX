@@ -47,6 +47,9 @@ import com.v1per.synthx.ui.theme.TextTertiary
 /**
  * @param currentPlaylistId set only by PlaylistDetailScreen, so the actions sheet can
  *   offer "Remove from Playlist" in place of "Add to Playlist".
+ * @param source set only by StarredScreen, for the same reason [currentPlaylistId] is set
+ *   only by PlaylistDetailScreen: it lets the shared sheet add that screen's own action
+ *   ("Remove from Starred") without this row — or any of the other five — knowing about it.
  */
 @Composable
 internal fun SongRow(
@@ -54,6 +57,7 @@ internal fun SongRow(
     isCurrentlyPlaying: Boolean,
     onClick: () -> Unit,
     currentPlaylistId: String? = null,
+    source: SongActionSource = SongActionSource.Default,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     // Pulled from composition rather than passed down: five screens use SongRow and none
@@ -103,7 +107,7 @@ internal fun SongRow(
                 )
 
                 IconButton(
-                    onClick = { songActions.show(song, currentPlaylistId, SongActionSource.Default) },
+                    onClick = { songActions.show(song, currentPlaylistId, source) },
                     // Matches the alpha dimming above and the omitted row-tap clickable below:
                     // previously this stayed fully clickable/focusable despite being visually
                     // dimmed to Alpha.Disabled — a real TalkBack mismatch (announced as enabled,

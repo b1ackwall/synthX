@@ -13,12 +13,14 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed class NavigationEvent {
@@ -26,6 +28,7 @@ sealed class NavigationEvent {
     object GoToArtistList : NavigationEvent()
     object GoToAlbumList : NavigationEvent()
     object GoToPlaylistList : NavigationEvent()
+    object GoToStarred : NavigationEvent()
 }
 
 class LibraryViewModel(
@@ -52,6 +55,14 @@ class LibraryViewModel(
     // to render as nothing.
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    // Badge on the Starred category row. WhileSubscribed rather than Lazily: unlike the
+    // repository's library-wide caches this is only meaningful while the Library screen is
+    // actually on screen. 0 as the initial value renders no badge, so the row never flashes
+    // a wrong count before the first emission lands.
+    val starredCount: StateFlow<Int> = repository.getStarredSongCount()
+        .catch { emit(0) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     init {
         viewModelScope.launch {
@@ -97,6 +108,12 @@ class LibraryViewModel(
     fun onSongsClick() {
         viewModelScope.launch {
             _navigationEvents.emit(NavigationEvent.GoToSongs)
+        }
+    }
+
+    fun onStarredClick() {
+        viewModelScope.launch {
+            _navigationEvents.emit(NavigationEvent.GoToStarred)
         }
     }
 

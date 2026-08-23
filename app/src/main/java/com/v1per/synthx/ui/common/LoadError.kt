@@ -14,6 +14,7 @@ import com.v1per.synthx.R
  */
 enum class LoadError(@StringRes private val messageRes: Int) {
     Songs(R.string.error_load_songs),
+    Starred(R.string.error_load_starred),
     Albums(R.string.error_load_albums),
     AlbumSongs(R.string.error_load_album_songs),
     Artists(R.string.error_load_artists),

@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         QueueItemEntity::class,
         BaselineQueueItemEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -33,7 +33,7 @@ abstract class SynthXDatabase : RoomDatabase() {
 
     companion object {
         /** Must track the `version` in the @Database annotation above. */
-        const val VERSION = 7
+        const val VERSION = 8
 
         const val DB_NAME = "synthx.db"
 
@@ -181,6 +181,36 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        // Adds songs.in_inbox, backing the Starred screen ("songs not yet organized into a
+        // playlist"). Additive, so none of 2_3/3_4's wipe-and-rescan is warranted — and
+        // unlike 6_7, no table rebuild either: it was DROP COLUMN that needed SQLite 3.35+,
+        // while ADD COLUMN with a NOT NULL DEFAULT works at this app's minSdk.
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Default 1 (starred) is the right answer for a *new* song, and must match
+                // SongEntity's @ColumnInfo(defaultValue = "1") exactly or Room's open-time
+                // schema validation throws.
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN in_inbox INTEGER NOT NULL DEFAULT 1"
+                )
+
+                // ...but an *existing* library has already been organized, so backfill the
+                // songs that are in at least one playlist to 0. This is the first migration
+                // here to compute a column from another table; it stays a single set-based
+                // UPDATE rather than a per-row loop, and playlist_songs already carries
+                // Index("song_id") (see PlaylistSongEntity), so the correlated EXISTS is
+                // index-backed and costs milliseconds even on a multi-thousand-song library.
+                database.execSQL(
+                    """
+                    UPDATE songs SET in_inbox = 0
+                    WHERE EXISTS (
+                        SELECT 1 FROM playlist_songs WHERE playlist_songs.song_id = songs.id
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): SynthXDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -190,7 +220,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                 )
                     .addMigrations(
                         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                        MIGRATION_6_7,
+                        MIGRATION_6_7, MIGRATION_7_8,
                     )
                     .build()
                     .also { INSTANCE = it }

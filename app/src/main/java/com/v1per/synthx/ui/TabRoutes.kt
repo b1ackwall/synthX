@@ -50,6 +50,7 @@ fun NavGraphBuilder.tabRoutes(
                     onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
                     onNavigateToAlbumList = { navController.navigate(Screen.AlbumList.route) },
                     onNavigateToPlaylistList = { navController.navigate(Screen.PlaylistList.route) },
+                    onNavigateToStarred = { navController.navigate(Screen.Starred.route) },
                     playbackViewModel = playbackViewModel,
                     viewModel = libraryViewModel,
                 )
