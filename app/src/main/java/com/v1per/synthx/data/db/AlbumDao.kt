@@ -100,6 +100,11 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE id = :id")
     suspend fun getAlbumById(id: String): AlbumEntity?
 
+    // Unfiltered counterpart to getAllAlbums (which excludes albums whose songs are all
+    // missing) — the playlist export needs a missing song's album title too.
+    @Query("SELECT * FROM albums")
+    suspend fun getAllAlbumsOnce(): List<AlbumEntity>
+
     @Query("UPDATE albums SET album_art_uri = :albumArtUri WHERE id = :id")
     suspend fun updateAlbumArt(id: String, albumArtUri: String?)
 

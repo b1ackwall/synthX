@@ -151,6 +151,12 @@ interface SongDao {
     @Query("SELECT * FROM songs")
     suspend fun getAllSongsOnce(): List<SongEntity>
 
+    // Deliberately unfiltered by is_missing, unlike getSongsWithDetailsForPlaylist — the
+    // playlist export needs a missing song's last-known title/artist/filePath too, not just
+    // the songs still playable.
+    @Query("SELECT * FROM songs WHERE id IN (:ids)")
+    suspend fun getSongsByIds(ids: List<String>): List<SongEntity>
+
     @Query("UPDATE songs SET is_missing = 1, missing_since = :missingSince WHERE id = :id")
     suspend fun markMissing(id: String, missingSince: Long)
 

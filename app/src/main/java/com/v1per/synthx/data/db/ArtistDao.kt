@@ -50,6 +50,11 @@ interface ArtistDao {
     )
     fun getAllArtists(): Flow<List<ArtistEntity>>
 
+    // Unfiltered counterpart to getAllArtists, same shape as SongDao.getAllSongsOnce — the
+    // playlist export needs every artist name, including ones whose only songs are missing.
+    @Query("SELECT * FROM artists")
+    suspend fun getAllArtistsOnce(): List<ArtistEntity>
+
     @Query("DELETE FROM artists WHERE id NOT IN (SELECT DISTINCT artist_id FROM song_artists)")
     suspend fun deleteOrphanArtists()
 }

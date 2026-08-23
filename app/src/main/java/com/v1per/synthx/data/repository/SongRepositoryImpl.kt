@@ -5,6 +5,7 @@ import android.net.Uri
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
+import com.v1per.synthx.data.backup.PlaylistExportManager
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.ArtistDao
 import com.v1per.synthx.data.db.PlaylistDao
@@ -43,6 +44,7 @@ class SongRepositoryImpl(
     private val queueDao: QueueDao,
     private val folderScanner: FolderScanner,
     private val backupManager: BackupManager,
+    private val playlistExportManager: PlaylistExportManager,
 ) : SongRepository {
 
     // This class is a singleton (see companion.create), so this scope effectively lives as
@@ -194,13 +196,18 @@ class SongRepositoryImpl(
                 createdAt = System.currentTimeMillis(),
             )
         )
+        playlistExportManager.scheduleExport()
     }
 
-    override suspend fun renameGroup(id: String, name: String) =
+    override suspend fun renameGroup(id: String, name: String) {
         playlistDao.renameGroup(id, name)
+        playlistExportManager.scheduleExport()
+    }
 
-    override suspend fun deleteGroup(id: String) =
+    override suspend fun deleteGroup(id: String) {
         playlistDao.deleteGroup(id)
+        playlistExportManager.scheduleExport()
+    }
 
     // Same caching rationale as songsFlow above — shared across every getAllPlaylists()
     // subscriber (SongActionsHost, Search) instead of re-querying per collector.
@@ -240,20 +247,26 @@ class SongRepositoryImpl(
                 coverArtUri = null,
             )
         )
+        playlistExportManager.scheduleExport()
         return id
     }
 
-    override suspend fun renamePlaylist(id: String, name: String) =
+    override suspend fun renamePlaylist(id: String, name: String) {
         playlistDao.renamePlaylist(id, name, System.currentTimeMillis())
+        playlistExportManager.scheduleExport()
+    }
 
-    override suspend fun movePlaylistToGroup(id: String, groupId: String?) =
+    override suspend fun movePlaylistToGroup(id: String, groupId: String?) {
         playlistDao.movePlaylistToGroup(id, groupId, System.currentTimeMillis())
+        playlistExportManager.scheduleExport()
+    }
 
     // Hooked here rather than in the ViewModels because both PlaylistListViewModel and
     // GroupDetailViewModel delete playlists through this one call.
     override suspend fun deletePlaylist(id: String) {
         backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_PLAYLIST)
         playlistDao.deletePlaylist(id)
+        playlistExportManager.scheduleExport()
     }
 
     // Joins straight to playlist_songs (position order, is_missing filter) rather than
@@ -270,6 +283,7 @@ class SongRepositoryImpl(
 
     override suspend fun setPlaylistSongs(playlistId: String, songIds: List<String>) {
         playlistDao.replacePlaylistSongs(playlistId, songIds)
+        playlistExportManager.scheduleExport()
     }
 
     override suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean {
@@ -286,11 +300,14 @@ class SongRepositoryImpl(
                 addedAt = System.currentTimeMillis(),
             )
         )
+        playlistExportManager.scheduleExport()
         return true
     }
 
-    override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) =
+    override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) {
         playlistDao.removePlaylistSong(playlistId, songId)
+        playlistExportManager.scheduleExport()
+    }
 
     override suspend fun getQueueSongs(): List<Song> = withContext(Dispatchers.IO) {
         val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
@@ -380,6 +397,7 @@ class SongRepositoryImpl(
                             songArtistDao = db.songArtistDao(),
                         ),
                         backupManager = BackupManager.create(appContext),
+                        playlistExportManager = PlaylistExportManager.create(appContext),
                     ).also { INSTANCE = it }
                 }
             }
