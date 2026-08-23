@@ -3,6 +3,7 @@ package com.v1per.synthx.data.scanner
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.net.Uri
+import android.util.Log
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -68,14 +69,26 @@ class LibraryScanWorker(
         // issue 10,000 IPC round-trips it gains nothing from.
         var lastPercent = Int.MIN_VALUE
 
+        // Every *other* configured audio root. Their files have to count as found or this
+        // scan flags every song that lives only under one of them as missing. The primary
+        // root is excluded because the walk below already covers it.
+        val otherRoots = preferences.configuredAudioRootUris().filter { it != uri }
+
         return try {
-            val result = repository.scanLibrary(uri) { current, total ->
+            val result = repository.scanLibrary(uri, otherRootUris = otherRoots) { current, total ->
                 val percent = if (total > 0) current * 100 / total else PROGRESS_INDETERMINATE
                 if (percent != lastPercent) {
                     lastPercent = percent
                     setProgress(workDataOf(KEY_CURRENT to current, KEY_TOTAL to total))
                     setForeground(buildForegroundInfo(current, total))
                 }
+            }
+            if (!result.missingReconciled) {
+                // Not a scan failure — added/updated rows are all committed. Only the
+                // is_missing sweep was skipped, because a configured root couldn't be
+                // enumerated and reconciling against a short path set would have wrongly
+                // flagged every song under it. FolderScanner logs which root and why.
+                Log.w(TAG, "Scan completed without missing-detection — a configured root was unreachable")
             }
             Result.success(
                 workDataOf(
@@ -136,6 +149,8 @@ class LibraryScanWorker(
     }
 
     companion object {
+        private const val TAG = "SynthXScan"
+
         const val UNIQUE_WORK_NAME = "library_scan"
 
         const val KEY_CURRENT = "current"

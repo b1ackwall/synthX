@@ -1,6 +1,7 @@
 package com.v1per.synthx.preferences
 
 import android.content.Context
+import android.net.Uri
 
 class PreferencesManager(context: Context) {
 
@@ -14,6 +15,29 @@ class PreferencesManager(context: Context) {
     var backupFolderUri: String?
         get() = prefs.getString(KEY_BACKUP_FOLDER_URI, null)
         set(value) = prefs.edit().putString(KEY_BACKUP_FOLDER_URI, value).apply()
+
+    /**
+     * Second read-only tree, scanned in full on every launch — where the  companion
+     * app drops downloads. Separate from [musicFolderUri]: songs found here become ordinary
+     * library songs, but the tree is never used to reconcile `is_missing`.
+     */
+    var newArrivalsFolderUri: String?
+        get() = prefs.getString(KEY_NEW_ARRIVALS_FOLDER_URI, null)
+        set(value) = prefs.edit().putString(KEY_NEW_ARRIVALS_FOLDER_URI, value).apply()
+
+    /**
+     * Every tree that can hold library audio, in no particular order — currently
+     * [musicFolderUri] and [newArrivalsFolderUri], skipping whichever aren't set.
+     *
+     * [backupFolderUri] is deliberately excluded and must stay excluded: it's a write-access
+     * tree holding database snapshots, never scanned for audio. Including it would make the
+     * scanner walk `.db` files and, worse, imply that songs could legitimately live there.
+     *
+     * Exists so missing-detection can reconcile against *all* configured roots rather than
+     * only the one being walked — see FolderScanner.scan's `otherRootUris`.
+     */
+    fun configuredAudioRootUris(): List<Uri> =
+        listOfNotNull(musicFolderUri, newArrivalsFolderUri).map(Uri::parse)
 
     /** Schema version seen on the previous launch. 0 means "never recorded" (fresh install). */
     var lastKnownDbVersion: Int
@@ -49,6 +73,7 @@ class PreferencesManager(context: Context) {
         private const val PREFS_NAME = "synthx_prefs"
         const val KEY_MUSIC_FOLDER_URI = "music_folder_uri"
         private const val KEY_BACKUP_FOLDER_URI = "backup_folder_uri"
+        private const val KEY_NEW_ARRIVALS_FOLDER_URI = "new_arrivals_folder_uri"
         private const val KEY_LAST_KNOWN_DB_VERSION = "last_known_db_version"
         private const val KEY_LAST_DAILY_BACKUP = "last_daily_backup"
         private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -41,11 +42,14 @@ class VerifyLibraryWorker(
     companion object {
         private const val TAG = "SynthXScan"
 
+        fun request(): OneTimeWorkRequest =
+            OneTimeWorkRequestBuilder<VerifyLibraryWorker>().build()
+
         fun enqueue(context: Context) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 LibraryScanWorker.UNIQUE_WORK_NAME,
                 ExistingWorkPolicy.KEEP,
-                OneTimeWorkRequestBuilder<VerifyLibraryWorker>().build(),
+                request(),
             )
         }
     }

@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.screens.librarymanagement
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -15,6 +16,8 @@ import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
+import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
+import com.v1per.synthx.data.scanner.RootNesting
 import com.v1per.synthx.data.seedPlaylistsFromFolders
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
@@ -49,6 +52,9 @@ private object ScanStatusAcknowledgement {
  *  visible before auto-clearing, matching typical snackbar/status-message durations. */
 private const val StatusMessageDisplayMs = 4_000L
 
+/** WorkManager tags every request with its worker's fully-qualified class name. */
+private val NEW_ARRIVALS_TAG: String = NewArrivalsScanWorker::class.java.name
+
 /** Determinate when [total] is positive; otherwise the scan is in an uncounted phase. */
 data class ScanProgress(val current: Int, val total: Int) {
     val isDeterminate: Boolean get() = total > 0
@@ -74,8 +80,18 @@ class LibraryManagementViewModel(
     )
     val musicFolderUri: StateFlow<Uri?> = _musicFolderUri.asStateFlow()
 
+    private val _newArrivalsFolderUri = MutableStateFlow(
+        preferencesManager.newArrivalsFolderUri?.let { Uri.parse(it) }
+    )
+    val newArrivalsFolderUri: StateFlow<Uri?> = _newArrivalsFolderUri.asStateFlow()
+
     private val _folderError = MutableStateFlow<String?>(null)
     val folderError: StateFlow<String?> = _folderError.asStateFlow()
+
+    /** Separate from [folderError] so a rejected pick's message renders under the row the
+     *  user actually tapped rather than under the music folder row above it. */
+    private val _newArrivalsFolderError = MutableStateFlow<String?>(null)
+    val newArrivalsFolderError: StateFlow<String?> = _newArrivalsFolderError.asStateFlow()
 
     private val _backupFolderUri = MutableStateFlow(
         preferencesManager.backupFolderUri?.let { Uri.parse(it) }
@@ -108,9 +124,14 @@ class LibraryManagementViewModel(
     // from local flows is what makes progress survive navigation and app restart: a
     // freshly constructed ViewModel observing a scan already in flight sees its real
     // state, not a default.
+    //
+    // The unique name now carries a two-stage launch chain (verify → new arrivals), so it can
+    // hold more than one WorkInfo. New-arrivals infos are filtered out: that stage fails
+    // routinely and harmlessly ("No folder selected" until the folder is ever picked), and
+    // this row reports on the main-library passes only. Everything else is unchanged.
     private val workInfo: StateFlow<WorkInfo?> = workManager
         .getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
-        .map { infos -> infos.firstOrNull() }
+        .map { infos -> infos.firstOrNull { NEW_ARRIVALS_TAG !in it.tags } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val isScanning: StateFlow<Boolean> = workInfo
@@ -135,14 +156,27 @@ class LibraryManagementViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
-        // The worker clears the stored URI when it finds the grant revoked. Mirror that
-        // back into the UI so the folder row stops showing a path the app can't read.
+        // Either scan worker clears its own stored URI when it finds the grant revoked.
+        // Mirror that back into the UI so the folder row stops showing a path the app can't
+        // read. Watched per-stage, since the two workers share one unique work name.
         viewModelScope.launch {
             workInfo.collect { info ->
                 if (info?.state == WorkInfo.State.FAILED) {
                     _musicFolderUri.value = preferencesManager.musicFolderUri?.let { Uri.parse(it) }
                 }
             }
+        }
+        viewModelScope.launch {
+            workManager.getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
+                .collect { infos ->
+                    val failed = infos.any {
+                        NEW_ARRIVALS_TAG in it.tags && it.state == WorkInfo.State.FAILED
+                    }
+                    if (failed) {
+                        _newArrivalsFolderUri.value =
+                            preferencesManager.newArrivalsFolderUri?.let { Uri.parse(it) }
+                    }
+                }
         }
     }
 
@@ -195,12 +229,25 @@ class LibraryManagementViewModel(
         _folderError.value = null
     }
 
+    fun setNewArrivalsFolderError(message: String) {
+        _newArrivalsFolderError.value = message
+    }
+
     fun saveMusicFolder(uri: Uri) {
         // Backup first, then persist: the snapshot must capture the library as it was
-        // under the old folder, before the change invalidates it.
+        // under the old folder, before the change invalidates it. Validation precedes even
+        // that — a rejected pick must leave no trace, backup included.
         viewModelScope.launch {
+            val rejected = rejectIfNested(
+                candidate = uri,
+                other = _newArrivalsFolderUri.value,
+                onError = { _folderError.value = it },
+            )
+            if (rejected) return@launch
+
             backupManager.createBackup(BackupTier.Auto, BackupReason.FOLDER_CHANGE)
 
+            releaseGrantIfSuperseded(old = _musicFolderUri.value, new = uri)
             preferencesManager.musicFolderUri = uri.toString()
             _musicFolderUri.value = uri
             clearFolderError()
@@ -208,6 +255,72 @@ class LibraryManagementViewModel(
             // REPLACE, not KEEP: any scan still running is walking the folder the user just
             // replaced, so its results are already stale.
             LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE)
+        }
+    }
+
+    /**
+     * Deliberately diverges from [saveMusicFolder]: no [BackupReason.FOLDER_CHANGE] snapshot
+     * (nothing about the existing library is invalidated by pointing at a different arrivals
+     * tree) and, critically, no [ExistingWorkPolicy.REPLACE] — the shared unique work name may
+     * be carrying an in-flight main-root scan, which must not be cancelled by this. The KEEP
+     * enqueue just gets the freshly-picked folder ingested now rather than at next launch; if
+     * something is already running it's a no-op and the launch chain picks it up next time.
+     */
+    fun saveNewArrivalsFolder(uri: Uri) {
+        viewModelScope.launch {
+            val rejected = rejectIfNested(
+                candidate = uri,
+                other = _musicFolderUri.value,
+                onError = { _newArrivalsFolderError.value = it },
+            )
+            if (rejected) return@launch
+
+            releaseGrantIfSuperseded(old = _newArrivalsFolderUri.value, new = uri)
+            preferencesManager.newArrivalsFolderUri = uri.toString()
+            _newArrivalsFolderUri.value = uri
+            _newArrivalsFolderError.value = null
+            NewArrivalsScanWorker.enqueue(context)
+        }
+    }
+
+    /**
+     * Guards both audio-root pickers against overlapping trees — see [RootNesting] for why
+     * nesting is unrecoverable rather than merely untidy. Returns `true` when the pick was
+     * rejected, in which case nothing is persisted and the previously configured URI stands
+     * unchanged; the caller must return without saving.
+     *
+     * The grant the picker just took for the rejected URI is released here, since nothing
+     * will ever use it. The *old* root's grant is untouched — this runs before
+     * [releaseGrantIfSuperseded], which is exactly why grant release had to move out of the
+     * picker callbacks and behind validation.
+     */
+    private suspend fun rejectIfNested(
+        candidate: Uri,
+        other: Uri?,
+        onError: (String) -> Unit,
+    ): Boolean {
+        if (other == null) return false
+        if (!RootNesting.detect(context, candidate, other).isConflict) return false
+
+        onError(context.getString(R.string.error_folders_nested))
+        releaseGrant(candidate)
+        return true
+    }
+
+    /** No-op when the user re-picked the folder already configured — releasing then would
+     *  drop the grant the new pick depends on, since both are the same URI. */
+    private fun releaseGrantIfSuperseded(old: Uri?, new: Uri) {
+        if (old != null && old != new) releaseGrant(old)
+    }
+
+    private fun releaseGrant(uri: Uri) {
+        try {
+            context.contentResolver.releasePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        } catch (e: SecurityException) {
+            // Already gone — nothing to release
         }
     }
 

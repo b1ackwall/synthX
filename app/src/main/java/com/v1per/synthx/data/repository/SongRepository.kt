@@ -10,8 +10,18 @@ interface SongRepository {
     fun getSongsForArtist(artistId: String): Flow<List<Song>>
     fun getAlbums(): Flow<List<Album>>
     fun getSongsForAlbum(albumId: String): Flow<List<Song>>
+    /**
+     * @param reconcileMissing `false` skips the library-wide missing-detection pass — see
+     *   [com.v1per.synthx.data.scanner.FolderScanner.scan]. Only a caller that can account
+     *   for the whole library may reconcile; a secondary-tree scan must not.
+     * @param otherRootUris the configured audio roots *other than* [folderUri], enumerated
+     *   so their files count as found. Required whenever [reconcileMissing] is `true` and
+     *   more than one root is configured, or songs under the others are flagged missing.
+     */
     suspend fun scanLibrary(
         folderUri: Uri,
+        reconcileMissing: Boolean = true,
+        otherRootUris: List<Uri> = emptyList(),
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
     ): ScanResult
 

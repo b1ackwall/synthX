@@ -121,8 +121,10 @@ class SongRepositoryImpl(
 
     override suspend fun scanLibrary(
         folderUri: Uri,
+        reconcileMissing: Boolean,
+        otherRootUris: List<Uri>,
         onProgress: suspend (current: Int, total: Int) -> Unit,
-    ): ScanResult = folderScanner.scan(folderUri, onProgress)
+    ): ScanResult = folderScanner.scan(folderUri, reconcileMissing, otherRootUris, onProgress)
 
     override suspend fun verifyLibrary(): Int = folderScanner.verify()
 

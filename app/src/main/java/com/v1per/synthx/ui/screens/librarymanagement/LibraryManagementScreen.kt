@@ -30,7 +30,9 @@ fun LibraryManagementScreen(
     val rescanStatus by viewModel.rescanStatus.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val scanProgress by viewModel.scanProgress.collectAsState()
+    val newArrivalsFolderUri by viewModel.newArrivalsFolderUri.collectAsState()
     val folderError by viewModel.folderError.collectAsState()
+    val newArrivalsFolderError by viewModel.newArrivalsFolderError.collectAsState()
     val missingSongCount by viewModel.missingSongCount.collectAsState()
     val backupFolderUri by viewModel.backupFolderUri.collectAsState()
     val backupStatus by viewModel.backupStatus.collectAsState()
@@ -46,20 +48,10 @@ fun LibraryManagementScreen(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
         uri?.let { newUri ->
-            // Release the old grant before taking the new one — grants are capped
-            // per app, and nothing else ever releases them.
-            val oldUri = viewModel.musicFolderUri.value
-            if (oldUri != null) {
-                try {
-                    context.contentResolver.releasePersistableUriPermission(
-                        oldUri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                    )
-                } catch (e: SecurityException) {
-                    // Old grant already gone — nothing to release
-                }
-            }
-            // Take the new grant
+            // Take the new grant first. Releasing the old one is the ViewModel's job now,
+            // and happens only once the pick survives nesting validation — released here it
+            // would be unrecoverable on rejection, since a persistable grant can only be
+            // taken from a fresh activity result.
             try {
                 context.contentResolver.takePersistableUriPermission(
                     newUri,
@@ -68,6 +60,23 @@ fun LibraryManagementScreen(
                 viewModel.saveMusicFolder(newUri)
             } catch (e: SecurityException) {
                 viewModel.setFolderError(permissionDeniedMessage)
+            }
+        }
+    }
+
+    // Second read-only tree — same grant handling as the music folder picker above.
+    val newArrivalsFolderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        uri?.let { newUri ->
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    newUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+                viewModel.saveNewArrivalsFolder(newUri)
+            } catch (e: SecurityException) {
+                viewModel.setNewArrivalsFolderError(permissionDeniedMessage)
             }
         }
     }
@@ -95,6 +104,10 @@ fun LibraryManagementScreen(
         LibraryManagementScreenContent(
             folderPath = folderUri?.let { FolderPathFormatter.format(context, it) },
             folderError = folderError,
+            newArrivalsFolderPath = newArrivalsFolderUri?.let {
+                FolderPathFormatter.format(context, it)
+            },
+            newArrivalsFolderError = newArrivalsFolderError,
             rescanStatus = rescanStatus,
             isScanning = isScanning,
             scanProgress = scanProgress,
@@ -105,6 +118,7 @@ fun LibraryManagementScreen(
             seedPlaylistsStatus = seedPlaylistsStatus,
             isSeeding = isSeeding,
             onPickFolder = { folderPicker.launch(null) },
+            onPickNewArrivalsFolder = { newArrivalsFolderPicker.launch(null) },
             onRescan = viewModel::rescanLibrary,
             onCancelScan = viewModel::cancelScan,
             onIssuesClick = onIssuesClick,
@@ -121,6 +135,8 @@ fun LibraryManagementScreen(
 internal fun LibraryManagementScreenContent(
     folderPath: String?,
     folderError: String?,
+    newArrivalsFolderPath: String?,
+    newArrivalsFolderError: String?,
     rescanStatus: String?,
     isScanning: Boolean,
     scanProgress: ScanProgress?,
@@ -131,6 +147,7 @@ internal fun LibraryManagementScreenContent(
     seedPlaylistsStatus: String?,
     isSeeding: Boolean,
     onPickFolder: () -> Unit,
+    onPickNewArrivalsFolder: () -> Unit,
     onRescan: () -> Unit,
     onCancelScan: () -> Unit,
     onIssuesClick: () -> Unit,
@@ -146,6 +163,11 @@ internal fun LibraryManagementScreenContent(
             folderPath = folderPath,
             folderError = folderError,
             onClick = onPickFolder,
+        )
+        NewArrivalsFolderSection(
+            folderPath = newArrivalsFolderPath,
+            folderError = newArrivalsFolderError,
+            onClick = onPickNewArrivalsFolder,
         )
         ScanSection(
             status = rescanStatus,

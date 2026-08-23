@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.data.db.AlbumDao
@@ -21,6 +22,7 @@ import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import java.io.File
 import java.io.FileOutputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -31,6 +33,13 @@ data class ScanResult(
     val updated: Int,
     val missing: Int,
     val unchanged: Int,
+    /**
+     * Whether the missing-detection pass actually ran. `false` means `is_missing` was left
+     * entirely untouched this scan — either it was not requested, or a configured root could
+     * not be enumerated and reconciling against a partial path set would have wrongly flagged
+     * songs. Distinguishes that from a pass that ran and legitimately found [missing] == 0.
+     */
+    val missingReconciled: Boolean = true,
 )
 
 class FolderScanner(
@@ -57,9 +66,29 @@ class FolderScanner(
      * The whole mutation phase runs in one Room transaction, so a cancelled or failed
      * scan rolls back rather than leaving the library half-reconciled. Cancellation is
      * checked once per file, so it takes effect within one file's work.
+     *
+     * [reconcileMissing] controls the post-loop missing-detection pass, which compares
+     * *every* song in the library against the set of files found on disk. Pass `false` when
+     * the caller can't account for the whole library — scanning the new-arrivals tree, say —
+     * so `is_missing` is left completely untouched and [ScanResult.missing] reports 0.
+     *
+     * [otherRootUris] are the *other* configured audio roots, i.e. every root except
+     * [folderUri] itself. They are enumerated (paths only — no hashing, no metadata, no
+     * ingestion) purely so their files join the found-path set that missing-detection
+     * reconciles against. Without them a song living only under another root would be flagged
+     * missing by every scan of this one. Ignored entirely when [reconcileMissing] is `false`.
+     * This parameter is plain data: the scanner deliberately knows nothing about preferences,
+     * so the caller decides what the roots are.
+     *
+     * If any root in [otherRootUris] can't be enumerated — grant revoked, provider error,
+     * unresolvable URI — missing-detection is skipped for the whole scan rather than run
+     * against a short path set that would wrongly flag every song under that root. The scan
+     * still succeeds; [ScanResult.missingReconciled] reports `false`.
      */
     suspend fun scan(
         folderUri: Uri,
+        reconcileMissing: Boolean = true,
+        otherRootUris: List<Uri> = emptyList(),
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
     ): ScanResult = withContext(Dispatchers.IO) {
         onProgress(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE)
@@ -71,12 +100,27 @@ class FolderScanner(
             ?.forEach { it.delete() }
 
         val root = DocumentFile.fromTreeUri(context, folderUri)
-            ?: return@withContext ScanResult(added = 0, updated = 0, missing = 0, unchanged = 0)
+            ?: return@withContext ScanResult(
+                added = 0,
+                updated = 0,
+                missing = 0,
+                unchanged = 0,
+                missingReconciled = false,
+            )
 
         // File-system walk stays outside the transaction — it is the slowest phase and
         // touches no DB state.
         val audioFiles = collectAudioFiles(root)
         val foundPaths = audioFiles.mapTo(mutableSetOf()) { it.uri.toString() }
+
+        // Secondary roots, also before the transaction opens: each is hundreds of binder
+        // round-trips, and holding a Room transaction across them would block every other
+        // writer for the duration. Enumeration only — these files are not ingested here.
+        val reconcile = if (reconcileMissing) {
+            collectOtherRootPaths(otherRootUris, into = foundPaths)
+        } else {
+            false
+        }
 
         // Song ids evicted mid-transaction by the two paths below — their art files are
         // deleted only after the transaction commits (see the loop after withTransaction),
@@ -147,13 +191,15 @@ class FolderScanner(
             onProgress(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE)
 
             var missing = 0
-            val now = System.currentTimeMillis()
-            for (song in songDao.getAllSongsOnce()) {
-                if (song.filePath !in foundPaths) {
-                    if (!song.isMissing) {
-                        songDao.markMissing(song.id, now)
+            if (reconcile) {
+                val now = System.currentTimeMillis()
+                for (song in songDao.getAllSongsOnce()) {
+                    if (song.filePath !in foundPaths) {
+                        if (!song.isMissing) {
+                            songDao.markMissing(song.id, now)
+                        }
+                        missing++
                     }
-                    missing++
                 }
             }
 
@@ -166,6 +212,7 @@ class FolderScanner(
                 updated = updated,
                 missing = missing,
                 unchanged = unchanged,
+                missingReconciled = reconcile,
             )
         }
 
@@ -209,7 +256,62 @@ class FolderScanner(
         newlyMissing
     }
 
-    private fun collectAudioFiles(dir: DocumentFile): List<DocumentFile> {
+    /**
+     * Enumerates every [otherRootUri][otherRootUris] into [into], and returns whether
+     * missing-detection may proceed.
+     *
+     * Returns `false` — abort reconciliation — the moment any root can't be enumerated,
+     * without partially populating a decision the caller would then act on. Reachability is
+     * probed explicitly rather than inferred from the walk, because DocumentFile swallows
+     * every provider error: `listFiles()` catches its query exception and returns an empty
+     * array, and the metadata accessors return their default on failure. A revoked grant is
+     * therefore indistinguishable from an empty folder at the walk level, and reconciling
+     * against that silence is exactly how every song under the root gets flagged missing.
+     */
+    private suspend fun collectOtherRootPaths(
+        otherRootUris: List<Uri>,
+        into: MutableSet<String>,
+    ): Boolean {
+        for (uri in otherRootUris) {
+            currentCoroutineContext().ensureActive()
+
+            // The definitive revocation signal — a stored URI outlives its grant.
+            val hasReadGrant = context.contentResolver.persistedUriPermissions.any {
+                it.uri == uri && it.isReadPermission
+            }
+            if (!hasReadGrant) {
+                Log.w(TAG, "Skipping missing-detection: no read grant for configured root $uri")
+                return false
+            }
+
+            val otherRoot = runCatching { DocumentFile.fromTreeUri(context, uri) }.getOrNull()
+            // isDirectory is a real query, so it also catches a grant that exists but no
+            // longer resolves (deleted folder, ejected volume, provider error).
+            if (otherRoot == null || !otherRoot.isDirectory) {
+                Log.w(TAG, "Skipping missing-detection: configured root is unreachable — $uri")
+                return false
+            }
+
+            try {
+                collectAudioFiles(otherRoot).mapTo(into) { it.uri.toString() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Skipping missing-detection: failed to walk configured root $uri", e)
+                return false
+            }
+        }
+        return true
+    }
+
+    /**
+     * Pure enumeration — no hashing, no metadata, no DB access. Suspending only for the
+     * cancellation check: this now also runs against secondary roots before the transaction
+     * opens, where the per-file `ensureActive` in the ingest loop offers no cover, and a
+     * deep tree is thousands of binder round-trips with nothing else to interrupt it.
+     */
+    private suspend fun collectAudioFiles(dir: DocumentFile): List<DocumentFile> {
+        currentCoroutineContext().ensureActive()
         val result = mutableListOf<DocumentFile>()
         for (child in dir.listFiles()) {
             when {
@@ -416,6 +518,8 @@ class FolderScanner(
     }
 
     companion object {
+        private const val TAG = "SynthXScan"
+
         /** Sentinel for both `onProgress` arguments while no file count is known yet. */
         const val PROGRESS_INDETERMINATE = -1
 

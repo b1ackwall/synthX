@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -18,6 +19,8 @@ import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.data.scanner.LibraryScanWorker
+import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.data.scanner.VerifyLibraryWorker
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.preferences.PreferencesManager
@@ -99,17 +102,33 @@ class MainActivity : ComponentActivity() {
             // existence sweep — a song that vanished since last session fails on play with
             // the normal error snackbar.
             playback.restoreSavedQueue()
-            verifyLibrary()
+            runLaunchScans()
         }
     }
 
-    // Cheap pass: flags songs whose files have gone. The full scan stays user-triggered
-    // from Library Management. Routed through WorkManager under LibraryScanWorker's unique
-    // work name (KEEP) rather than run inline, so it can never race a manually-triggered
-    // Rescan reading/writing is_missing at the same time — whichever is already running
-    // wins, the other enqueue is a no-op.
-    private fun verifyLibrary() {
-        VerifyLibraryWorker.enqueue(applicationContext)
+    /**
+     * Two launch-time passes, chained so they run in order under LibraryScanWorker's unique
+     * work name:
+     *
+     *  1. [VerifyLibraryWorker] — cheap existence sweep flagging songs whose files have gone.
+     *     The full main-root scan stays user-triggered from Library Management.
+     *  2. [NewArrivalsScanWorker] — full walk of the (small) new-arrivals tree, ingesting
+     *     whatever the  companion app dropped there since last launch.
+     *
+     * Sharing the unique name is what keeps either of them from racing a manually-triggered
+     * Rescan over `is_missing`. [ExistingWorkPolicy.KEEP] on the chain head preserves the
+     * previous behaviour: a re-trigger (including the one that comes with every Activity
+     * recreation) is a no-op while the chain is still running or queued.
+     */
+    private fun runLaunchScans() {
+        WorkManager.getInstance(applicationContext)
+            .beginUniqueWork(
+                LibraryScanWorker.UNIQUE_WORK_NAME,
+                ExistingWorkPolicy.KEEP,
+                VerifyLibraryWorker.request(),
+            )
+            .then(NewArrivalsScanWorker.request())
+            .enqueue()
     }
 
     private suspend fun backupBeforeMigration(
