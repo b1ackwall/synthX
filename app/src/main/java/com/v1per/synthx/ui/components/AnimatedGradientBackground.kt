@@ -75,10 +75,20 @@ fun AnimatedGradientBackground(
         }
     }
 
+    // Built once for the composable's lifetime: neither the blur radius nor anti-aliasing
+    // depend on the animated points, so there's nothing here that should rebuild per frame.
+    val paint = remember {
+        Paint().apply {
+            asFrameworkPaint().apply {
+                isAntiAlias = true
+                maskFilter = BlurMaskFilter(BlurRadiusPx, BlurMaskFilter.Blur.NORMAL)
+            }
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize().background(Background)) {
-        // Blurred gradient layer. The Animatable reads inside drawWithCache re-run the cache
-        // block (and rebuild the Paint) only while the points are actually moving; content
-        // stays on top, unblurred.
+        // Blurred gradient layer; content stays on top, unblurred. The cache block below
+        // reads no animated state, so it only reruns on size change, not every frame.
         Spacer(
             modifier = Modifier
                 .fillMaxSize()
@@ -86,18 +96,15 @@ fun AnimatedGradientBackground(
                 // can't bleed into the system bar areas outside these bounds.
                 .clipToBounds()
                 .drawWithCache {
-                    val paint = Paint().apply {
-                        asFrameworkPaint().apply {
-                            isAntiAlias = true
-                            shader = LinearGradientShader(
-                                from = Offset(startX.value * size.width, startY.value * size.height),
-                                to = Offset(endX.value * size.width, endY.value * size.height),
-                                colors = GradientColors,
-                            )
-                            maskFilter = BlurMaskFilter(BlurRadiusPx, BlurMaskFilter.Blur.NORMAL)
-                        }
-                    }
                     onDrawBehind {
+                        // LinearGradientShader is immutable once built, so a fresh one is
+                        // unavoidable each frame the endpoints move; everything else on
+                        // `paint` (blur, anti-aliasing) is reused as-is.
+                        paint.asFrameworkPaint().shader = LinearGradientShader(
+                            from = Offset(startX.value * size.width, startY.value * size.height),
+                            to = Offset(endX.value * size.width, endY.value * size.height),
+                            colors = GradientColors,
+                        )
                         // Fades only this gradient layer; the black base coat and the
                         // content slot stay fully opaque.
                         paint.asFrameworkPaint().alpha = (gradientAlpha * 255).toInt().coerceIn(0, 255)
