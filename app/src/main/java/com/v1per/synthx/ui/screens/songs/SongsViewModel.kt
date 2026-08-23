@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toPersistentList
 
 enum class SortOrder {
     RECENTLY_ADDED,
@@ -32,8 +34,8 @@ class SongsViewModel(
     private val appContext: Context,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<UiState<List<Song>>>(UiState.Loading)
-    val uiState: StateFlow<UiState<List<Song>>> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow<UiState<ImmutableList<Song>>>(UiState.Loading)
+    val uiState: StateFlow<UiState<ImmutableList<Song>>> = _uiState.asStateFlow()
 
     private val _sortOrder = MutableStateFlow(SortOrder.RECENTLY_ADDED)
     val sortOrder: StateFlow<SortOrder> = _sortOrder.asStateFlow()
@@ -51,7 +53,7 @@ class SongsViewModel(
     private fun observeSongs() {
         viewModelScope.launch {
             combine(_sortOrder, repository.getSongs()) { order, songs ->
-                songs.sorted(order)
+                songs.sorted(order).toPersistentList()
             }
                 .flowOn(Dispatchers.Default)
                 .catch { e ->

@@ -33,6 +33,8 @@ import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import com.v1per.synthx.ui.theme.TextSecondary
 
 @Composable
@@ -59,7 +61,7 @@ fun StarredScreen(
 
 @Composable
 private fun StarredScreenContent(
-    uiState: UiState<List<Song>>,
+    uiState: UiState<ImmutableList<Song>>,
     currentlyPlayingSongId: String?,
     onSongTap: (Song) -> Unit,
 ) {
@@ -95,7 +97,7 @@ private fun StarredScreenContent(
 
 @Composable
 private fun StarredList(
-    songs: List<Song>,
+    songs: ImmutableList<Song>,
     currentlyPlayingSongId: String?,
     onSongTap: (Song) -> Unit,
 ) {
@@ -122,7 +124,7 @@ private fun StarredList(
 @Preview(name = "Starred Screen — Success", showBackground = true)
 @Composable
 private fun StarredScreenPreview() {
-    val sampleSongs = listOf(
+    val sampleSongs = persistentListOf(
         Song(id = "1", title = "Neon Pulse", artist = "v1per", album = "Ultraviolet", duration = 243000L, filePath = ""),
         Song(id = "2", title = "Static Bloom", artist = "KNTRL", album = "Fragments", duration = 198000L, filePath = ""),
         Song(id = "3", title = "Low Orbit", artist = "Null Signal", album = "Deep Cut", duration = 272000L, filePath = ""),

@@ -37,6 +37,8 @@ import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 // Aliased: the Material3 `Surface` composable already owns this simple name in this file.
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -124,7 +126,7 @@ private val SortOrder.label: String
 
 @Composable
 private fun SongsScreenContent(
-    uiState: UiState<List<Song>>,
+    uiState: UiState<ImmutableList<Song>>,
     currentlyPlayingSongId: String?,
     onSongTap: (Song) -> Unit,
 ) {
@@ -154,7 +156,7 @@ private fun SongsScreenContent(
 
 @Composable
 private fun SongList(
-    songs: List<Song>,
+    songs: ImmutableList<Song>,
     currentlyPlayingSongId: String?,
     onSongTap: (Song) -> Unit,
 ) {
@@ -179,7 +181,7 @@ private fun SongList(
 @Preview(name = "Songs Screen — Success", showBackground = true)
 @Composable
 private fun SongsScreenPreview() {
-    val sampleSongs = listOf(
+    val sampleSongs = persistentListOf(
         Song(id = "1", title = "Neon Pulse", artist = "v1per", album = "Ultraviolet", duration = 243000L, filePath = ""),
         Song(id = "2", title = "Static Bloom", artist = "KNTRL", album = "Fragments", duration = 198000L, filePath = ""),
         Song(id = "3", title = "Glitch Cascade", artist = "v1per", album = "Ultraviolet", duration = 317000L, filePath = ""),

@@ -16,7 +16,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toPersistentList
 
 /**
  * Songs not yet organized into a playlist. Deliberately the same shape as SongsViewModel,
@@ -29,8 +32,8 @@ class StarredViewModel(
     private val appContext: Context,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<UiState<List<Song>>>(UiState.Loading)
-    val uiState: StateFlow<UiState<List<Song>>> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow<UiState<ImmutableList<Song>>>(UiState.Loading)
+    val uiState: StateFlow<UiState<ImmutableList<Song>>> = _uiState.asStateFlow()
 
     val currentlyPlayingSongId: StateFlow<String?> = playbackViewModel.currentSongId
 
@@ -41,6 +44,7 @@ class StarredViewModel(
     private fun observeStarredSongs() {
         viewModelScope.launch {
             repository.getStarredSongs()
+                .map { it.toPersistentList() }
                 .flowOn(Dispatchers.Default)
                 .catch { e ->
                     _uiState.value = UiState.Error(LoadError.Starred.message(appContext))

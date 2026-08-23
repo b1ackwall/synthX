@@ -22,6 +22,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 
 sealed class NavigationEvent {
     object GoToSongs : NavigationEvent()
@@ -44,8 +47,8 @@ class LibraryViewModel(
     )
     val navigationEvents: SharedFlow<NavigationEvent> = _navigationEvents.asSharedFlow()
 
-    private val _recentSongs = MutableStateFlow<List<Song>>(emptyList())
-    val recentSongs: StateFlow<List<Song>> = _recentSongs.asStateFlow()
+    private val _recentSongs = MutableStateFlow<ImmutableList<Song>>(persistentListOf())
+    val recentSongs: StateFlow<ImmutableList<Song>> = _recentSongs.asStateFlow()
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -73,6 +76,7 @@ class LibraryViewModel(
                     songs.filter { !it.isMissing }
                         .sortedByDescending { it.dateAdded }
                         .take(20)
+                        .toPersistentList()
                 }
                 .flowOn(Dispatchers.Default)
                 .catch { e ->

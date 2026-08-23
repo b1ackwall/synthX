@@ -1,5 +1,8 @@
 package com.v1per.synthx.data.repository
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class Song(
     val id: String,
     val title: String,

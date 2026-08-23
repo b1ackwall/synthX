@@ -48,6 +48,11 @@ android {
     }
 }
 
+composeCompiler {
+    metricsDestination = layout.buildDirectory.dir("compose_metrics")
+    reportsDestination = layout.buildDirectory.dir("compose_reports")
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
@@ -83,6 +88,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.reorderable)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.collections.immutable)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

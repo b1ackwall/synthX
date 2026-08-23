@@ -65,6 +65,8 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
 @Composable
 fun LibraryScreen(
@@ -123,7 +125,7 @@ fun LibraryScreen(
 @Composable
 private fun LibraryScreenContent(
     modifier: Modifier = Modifier,
-    recentSongs: List<Song>,
+    recentSongs: ImmutableList<Song>,
     error: String?,
     isLoading: Boolean,
     starredCount: Int,
@@ -234,7 +236,7 @@ private fun LibraryScreenContent(
 
 @Composable
 private fun RecentlyAddedSection(
-    songs: List<Song>,
+    songs: ImmutableList<Song>,
     onSeeAllClick: () -> Unit,
     onSongClick: (Int) -> Unit,
 ) {
@@ -405,7 +407,7 @@ private fun LibraryScreenPreview() {
             color = Background,
         ) {
             LibraryScreenContent(
-                recentSongs = listOf(
+                recentSongs = persistentListOf(
                     Song(id = "1", title = "Neon Pulse", artist = "v1per", album = "Ultraviolet", duration = 243000L, filePath = ""),
                     Song(id = "2", title = "Static Bloom", artist = "KNTRL", album = "Fragments", duration = 198000L, filePath = ""),
                 ),
