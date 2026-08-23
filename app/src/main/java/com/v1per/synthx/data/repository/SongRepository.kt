@@ -52,6 +52,16 @@ interface SongRepository {
     /** Whether the song belongs to at least one playlist — gates the dismissal above. */
     suspend fun isInAnyPlaylist(songId: String): Boolean
 
+    /**
+     * Temporary debug tooling — safe to delete independently of PlaylistSeeder. Bulk version
+     * of [dismissFromStarred] for restoring test state after a fresh install/empty DB, not a
+     * production feature. See [com.v1per.synthx.data.db.SongDao.removeOrganizedFromStarred]
+     * for the full removal checklist.
+     *
+     * @return the number of songs actually cleared.
+     */
+    suspend fun removeOrganizedFromStarred(): Int
+
     // Groups
     fun getAllGroups(): Flow<List<PlaylistGroup>>
     suspend fun createGroup(name: String)

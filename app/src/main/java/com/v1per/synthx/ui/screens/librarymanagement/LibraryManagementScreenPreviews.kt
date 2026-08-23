@@ -30,6 +30,8 @@ private fun LibraryManagementWithFolderPreview() {
                 deleteSongsEnabled = false,
                 seedPlaylistsStatus = null,
                 isSeeding = false,
+                removeOrganizedStatus = null,
+                isRemovingOrganized = false,
                 onPickFolder = {},
                 onPickNewArrivalsFolder = {},
                 onRescan = {},
@@ -40,6 +42,7 @@ private fun LibraryManagementWithFolderPreview() {
                 onRestoreClick = {},
                 onToggleDeleteSongs = {},
                 onSeedPlaylists = {},
+                onRemoveOrganizedFromStarred = {},
             )
         }
     }
@@ -67,6 +70,8 @@ private fun LibraryManagementEmptyPreview() {
                 deleteSongsEnabled = false,
                 seedPlaylistsStatus = null,
                 isSeeding = false,
+                removeOrganizedStatus = null,
+                isRemovingOrganized = false,
                 onPickFolder = {},
                 onPickNewArrivalsFolder = {},
                 onRescan = {},
@@ -77,6 +82,7 @@ private fun LibraryManagementEmptyPreview() {
                 onRestoreClick = {},
                 onToggleDeleteSongs = {},
                 onSeedPlaylists = {},
+                onRemoveOrganizedFromStarred = {},
             )
         }
     }
@@ -104,6 +110,8 @@ private fun LibraryManagementScanningPreview() {
                 deleteSongsEnabled = false,
                 seedPlaylistsStatus = null,
                 isSeeding = false,
+                removeOrganizedStatus = null,
+                isRemovingOrganized = false,
                 onPickFolder = {},
                 onPickNewArrivalsFolder = {},
                 onRescan = {},
@@ -114,6 +122,7 @@ private fun LibraryManagementScanningPreview() {
                 onRestoreClick = {},
                 onToggleDeleteSongs = {},
                 onSeedPlaylists = {},
+                onRemoveOrganizedFromStarred = {},
             )
         }
     }

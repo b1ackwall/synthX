@@ -116,6 +116,19 @@ class LibraryManagementViewModel(
     private val _isSeeding = MutableStateFlow(false)
     val isSeeding: StateFlow<Boolean> = _isSeeding.asStateFlow()
 
+    // Temporary debug tooling — safe to delete independently of the Seed Playlists feature
+    // above. See SongDao.removeOrganizedFromStarred's doc comment for the full removal
+    // checklist. This state plus removeOrganizedFromStarred() below are the only ViewModel
+    // touch points.
+    private val _removeOrganizedFromStarredStatus = MutableStateFlow<String?>(null)
+    val removeOrganizedFromStarredStatus: StateFlow<String?> =
+        _removeOrganizedFromStarredStatus.asStateFlow()
+
+    // Same double-tap guard as _isSeeding above.
+    private val _isRemovingOrganizedFromStarred = MutableStateFlow(false)
+    val isRemovingOrganizedFromStarred: StateFlow<Boolean> =
+        _isRemovingOrganizedFromStarred.asStateFlow()
+
     // Set only for states WorkManager can't express — currently just "no folder picked",
     // which never reaches the worker. Cleared as soon as a scan is actually enqueued.
     private val _localStatus = MutableStateFlow<String?>(null)
@@ -409,6 +422,34 @@ class LibraryManagementViewModel(
                 )
             } finally {
                 _isSeeding.value = false
+            }
+        }
+    }
+
+    /**
+     * Temporary debug tooling — safe to delete independently of [seedPlaylists]. Restores
+     * test state after a fresh install/empty DB by bulk-clearing the Starred flag for every
+     * song already filed into a playlist. Not a production feature.
+     *
+     * Called only after the confirmation dialog in SeedPlaylistsSection.kt is accepted — this
+     * function itself does not confirm, it just guards against a double-tap the same way
+     * [seedPlaylists] guards against re-enqueuing.
+     *
+     * See [com.v1per.synthx.data.db.SongDao.removeOrganizedFromStarred] for the full removal
+     * checklist.
+     */
+    fun removeOrganizedFromStarred() {
+        if (_isRemovingOrganizedFromStarred.value) return // already running — ignore a double-tap
+
+        viewModelScope.launch {
+            _isRemovingOrganizedFromStarred.value = true
+            try {
+                val count = repository.removeOrganizedFromStarred()
+                _removeOrganizedFromStarredStatus.showTemporarily(
+                    if (count > 0) "Removed $count songs from Starred" else "No organized songs to remove"
+                )
+            } finally {
+                _isRemovingOrganizedFromStarred.value = false
             }
         }
     }

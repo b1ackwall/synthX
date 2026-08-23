@@ -39,6 +39,8 @@ fun LibraryManagementScreen(
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
     val seedPlaylistsStatus by viewModel.seedPlaylistsStatus.collectAsState()
     val isSeeding by viewModel.isSeeding.collectAsState()
+    val removeOrganizedStatus by viewModel.removeOrganizedFromStarredStatus.collectAsState()
+    val isRemovingOrganized by viewModel.isRemovingOrganizedFromStarred.collectAsState()
 
     // Resolved here, not in the callback below: the launcher result lambda is not a
     // composable scope, so stringResource cannot be called from inside it.
@@ -117,6 +119,8 @@ fun LibraryManagementScreen(
             deleteSongsEnabled = deleteSongsEnabled,
             seedPlaylistsStatus = seedPlaylistsStatus,
             isSeeding = isSeeding,
+            removeOrganizedStatus = removeOrganizedStatus,
+            isRemovingOrganized = isRemovingOrganized,
             onPickFolder = { folderPicker.launch(null) },
             onPickNewArrivalsFolder = { newArrivalsFolderPicker.launch(null) },
             onRescan = viewModel::rescanLibrary,
@@ -127,6 +131,7 @@ fun LibraryManagementScreen(
             onRestoreClick = onRestoreClick,
             onToggleDeleteSongs = viewModel::setDeleteSongsEnabled,
             onSeedPlaylists = viewModel::seedPlaylists,
+            onRemoveOrganizedFromStarred = viewModel::removeOrganizedFromStarred,
         )
     }
 }
@@ -146,6 +151,8 @@ internal fun LibraryManagementScreenContent(
     deleteSongsEnabled: Boolean,
     seedPlaylistsStatus: String?,
     isSeeding: Boolean,
+    removeOrganizedStatus: String?,
+    isRemovingOrganized: Boolean,
     onPickFolder: () -> Unit,
     onPickNewArrivalsFolder: () -> Unit,
     onRescan: () -> Unit,
@@ -156,6 +163,7 @@ internal fun LibraryManagementScreenContent(
     onRestoreClick: () -> Unit,
     onToggleDeleteSongs: (Boolean) -> Unit,
     onSeedPlaylists: () -> Unit,
+    onRemoveOrganizedFromStarred: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         SectionHeader(title = stringResource(R.string.section_music_library))
@@ -191,6 +199,9 @@ internal fun LibraryManagementScreenContent(
             seedStatus = seedPlaylistsStatus,
             isSeeding = isSeeding,
             onSeedPlaylists = onSeedPlaylists,
+            removeOrganizedStatus = removeOrganizedStatus,
+            isRemovingOrganized = isRemovingOrganized,
+            onRemoveOrganizedFromStarred = onRemoveOrganizedFromStarred,
         )
 
         BackupSection(

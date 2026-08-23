@@ -169,6 +169,13 @@ class SongRepositoryImpl(
     override suspend fun isInAnyPlaylist(songId: String): Boolean =
         songDao.isInAnyPlaylist(songId)
 
+    // Temporary debug tooling — safe to delete independently of PlaylistSeeder. See
+    // SongDao.removeOrganizedFromStarred's doc comment for the full removal checklist. No
+    // backupManager.createBackup here, same reasoning as dismissFromStarred above: this only
+    // clears a triage flag, nothing destructive to playlist data.
+    override suspend fun removeOrganizedFromStarred(): Int =
+        songDao.removeOrganizedFromStarred()
+
     override fun getMissingSongs(): Flow<List<MissingSongInfo>> = songDao.getMissingSongs()
 
     override fun getMissingSongCount(): Flow<Int> = songDao.getMissingSongCount()

@@ -103,6 +103,39 @@ interface SongDao {
     @Query("UPDATE songs SET in_inbox = 0 WHERE id = :id")
     suspend fun dismissFromStarred(id: String)
 
+    /**
+     * Temporary debug tooling — safe to delete independently of [PlaylistSeeder]. Restores
+     * test state after a fresh install/empty DB by bulk-clearing `in_inbox` for every song
+     * that already has a playlist membership, in one set-based statement rather than looping
+     * [dismissFromStarred] per song. This is NOT a production feature.
+     *
+     * The WHERE clause is deliberately kept identical in shape to [isInAnyPlaylist] (same
+     * EXISTS over playlist_songs) so the bulk path and the per-song dismiss gate can never
+     * disagree about which songs qualify.
+     *
+     * @return the number of rows actually changed (Room reports the UPDATE's affected-row
+     *   count for an @Query returning Int), not the number of rows matched by the WHERE
+     *   clause before the `in_inbox = 1` filter.
+     *
+     * Full removal checklist — see [com.v1per.synthx.data.PlaylistSeeder] for the sibling
+     * checklist this mirrors:
+     *   1. This method (data/db/SongDao.kt)
+     *   2. `SongRepository.removeOrganizedFromStarred` / `SongRepositoryImpl` override
+     *   3. `removeOrganizedFromStarred()` (plus its status/in-flight state) in
+     *      LibraryManagementViewModel.kt
+     *   4. The "Remove organized from Starred (temporary)" row + confirm dialog in
+     *      SeedPlaylistsSection.kt
+     *   5. The callback/state wiring through LibraryManagementScreen.kt
+     *   6. The extra preview params in LibraryManagementScreenPreviews.kt
+     */
+    @Query(
+        """
+        UPDATE songs SET in_inbox = 0
+        WHERE in_inbox = 1 AND EXISTS (SELECT 1 FROM playlist_songs WHERE playlist_songs.song_id = songs.id)
+        """
+    )
+    suspend fun removeOrganizedFromStarred(): Int
+
     @Query("SELECT * FROM song_artists WHERE song_id = :songId ORDER BY position ASC")
     suspend fun getSongArtistRefs(songId: String): List<SongArtistEntity>
 
