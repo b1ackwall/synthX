@@ -76,11 +76,12 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         playbackViewModel.queuePrompts.collect { queuePrompt = it }
     }
 
-    val isPlaying by playbackViewModel.isPlaying.collectAsState()
-    val isBuffering by playbackViewModel.isBuffering.collectAsState()
+    // isPlaying/isBuffering/currentPosition/duration are collected inside BottomChromeOverlay
+    // instead — currentPosition ticks every second while a song plays, and this composable
+    // also hosts navigation/dialog state that has no reason to re-evaluate on that tick.
+    // currentSong stays here: chromeBottomPadding below and the SnackbarHost Box's padding
+    // both derive from it, and unlike position it only changes when the song itself changes.
     val currentSong by playbackViewModel.currentSong.collectAsState()
-    val currentPosition by playbackViewModel.currentPosition.collectAsState()
-    val duration by playbackViewModel.duration.collectAsState()
 
     // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerSheet and used
     // to slide the bottom nav down in lockstep with the sheet's expansion.
@@ -143,10 +144,6 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             currentRoute = currentRoute,
             showBottomBar = showBottomBar,
             currentSong = currentSong,
-            isPlaying = isPlaying,
-            isBuffering = isBuffering,
-            currentPosition = currentPosition,
-            duration = duration,
             playerProgress = playerProgress,
             onPlayerProgressChanged = { playerProgress = it },
             playbackViewModel = playbackViewModel,

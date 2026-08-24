@@ -59,14 +59,19 @@ fun BottomChromeOverlay(
     currentRoute: String?,
     showBottomBar: Boolean,
     currentSong: Song?,
-    isPlaying: Boolean,
-    isBuffering: Boolean,
-    currentPosition: Long,
-    duration: Long,
     playerProgress: Float,
     onPlayerProgressChanged: (Float) -> Unit,
     playbackViewModel: PlaybackViewModel,
 ) {
+    // Collected here rather than hoisted up into MainScaffold: currentPosition ticks every
+    // second while a song plays, and MainScaffold's body also hosts navigation/dialog state
+    // that has no reason to re-evaluate on that tick. Scoping the read to this composable
+    // keeps the per-second recomposition contained to this subtree.
+    val isPlaying by playbackViewModel.isPlaying.collectAsState()
+    val isBuffering by playbackViewModel.isBuffering.collectAsState()
+    val currentPosition by playbackViewModel.currentPosition.collectAsState()
+    val duration by playbackViewModel.duration.collectAsState()
+
     // Both the nav and the sheet live in one Box sharing one navigationBarsPadding() call —
     // previously the sheet had no inset applied at all, so it measured its available height
     // against the raw window while the nav measured against the inset-adjusted one. On any
