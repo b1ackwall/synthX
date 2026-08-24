@@ -140,6 +140,15 @@ internal fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean) {
         baselineManager.computeUnshuffleTarget(current, _queue.value)
     }
 
+    // Shuffle OFF only: computeUnshuffleTarget permanently drops baseline history
+    // before the current song, and applyReorderViaMoves/applyReorderViaSetMediaItems
+    // below remove those items from the live timeline too — target is exactly what
+    // survives, so anything else in songsById is now stale. Shuffle ON's target is a
+    // superset of what's already tracked, so nothing needs pruning there.
+    if (!enabled) {
+        songsById.keys.retainAll(target.mapTo(HashSet()) { it.id })
+    }
+
     if (target.size > SHUFFLE_LARGE_QUEUE_THRESHOLD) {
         applyReorderViaSetMediaItems(ctrl, target, current)
     } else {
@@ -250,6 +259,7 @@ internal fun ExoPlayerEngine.removeQueueItemInternal(songId: String) {
     ctrl.removeMediaItem(realIndex)
 
     baselineManager.remove(songId)
+    songsById.remove(songId)
 
     onQueueStructureChanged(fresh = false)
 }
