@@ -495,14 +495,33 @@ class FolderScanner(
     private fun extractAlbumArt(retriever: MediaMetadataRetriever, songId: String): String? {
         return try {
             val artBytes = retriever.embeddedPicture ?: return null
-            val bitmap = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size) ?: return null
+            val decoded = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size) ?: return null
 
-            // Store in filesDir/art/ — permanent, survives cache clears
+            // Downscale only — never upscale art that's already smaller than the cap.
+            val longestSide = maxOf(decoded.width, decoded.height)
+            val bitmap = if (longestSide > MAX_ART_DIMENSION_PX) {
+                val scale = MAX_ART_DIMENSION_PX.toFloat() / longestSide
+                val scaled = Bitmap.createScaledBitmap(
+                    decoded,
+                    (decoded.width * scale).toInt().coerceAtLeast(1),
+                    (decoded.height * scale).toInt().coerceAtLeast(1),
+                    true,
+                )
+                decoded.recycle()
+                scaled
+            } else {
+                decoded
+            }
+
+            // Store in filesDir/art/ — permanent, survives cache clears. JPEG at quality 90 —
+            // lossless PNG at 100 was often larger than the embedded source for photographic
+            // covers; 90 is visually indistinguishable at the sizes this art is ever displayed
+            // at (up to full player-sheet width) while still compressing meaningfully smaller.
             val artDir = File(context.filesDir, "art").also { it.mkdirs() }
-            val artFile = File(artDir, "art_$songId.png")
+            val artFile = File(artDir, "art_$songId.jpg")
 
             FileOutputStream(artFile).use { fos ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos)
             }
             bitmap.recycle()
 
@@ -519,6 +538,9 @@ class FolderScanner(
 
     companion object {
         private const val TAG = "SynthXScan"
+
+        /** Longest edge cap for stored album art — well above any on-screen display size. */
+        private const val MAX_ART_DIMENSION_PX = 1000
 
         /** Sentinel for both `onProgress` arguments while no file count is known yet. */
         const val PROGRESS_INDETERMINATE = -1
