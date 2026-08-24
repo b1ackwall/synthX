@@ -3,6 +3,7 @@ package com.v1per.synthx.data.scanner
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
@@ -87,7 +88,11 @@ class NewArrivalsScanWorker(
             "Access to your new arrivals folder has been revoked. Please select it again."
 
         fun request(): OneTimeWorkRequest =
-            OneTimeWorkRequestBuilder<NewArrivalsScanWorker>().build()
+            // No Constraints: pure local SAF file I/O, no network dependency — nothing
+            // here to gate on connectivity, battery, or storage state.
+            OneTimeWorkRequestBuilder<NewArrivalsScanWorker>()
+                .setConstraints(Constraints.NONE)
+                .build()
 
         /**
          * Standalone enqueue, used when the folder is first picked so it gets scanned without

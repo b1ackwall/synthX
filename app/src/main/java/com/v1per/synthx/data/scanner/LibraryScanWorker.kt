@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
@@ -180,7 +181,11 @@ class LibraryScanWorker(
             WorkManager.getInstance(context).enqueueUniqueWork(
                 UNIQUE_WORK_NAME,
                 policy,
-                OneTimeWorkRequestBuilder<LibraryScanWorker>().build(),
+                // No Constraints: pure local SAF file I/O, no network dependency — nothing
+                // here to gate on connectivity, battery, or storage state.
+                OneTimeWorkRequestBuilder<LibraryScanWorker>()
+                    .setConstraints(Constraints.NONE)
+                    .build(),
             )
         }
 

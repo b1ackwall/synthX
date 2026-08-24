@@ -45,6 +45,7 @@ import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextTertiary
+import kotlinx.collections.immutable.ImmutableList
 import kotlin.math.roundToInt
 
 /**
@@ -92,7 +93,7 @@ private val SwipeVelocityThreshold = 1200.dp
 @Composable
 fun QueueRow(
     song: Song,
-    queue: List<Song>,
+    queue: ImmutableList<Song>,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     surfaceColor: Color,

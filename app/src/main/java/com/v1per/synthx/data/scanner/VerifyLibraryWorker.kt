@@ -2,6 +2,7 @@ package com.v1per.synthx.data.scanner
 
 import android.content.Context
 import android.util.Log
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
@@ -43,7 +44,11 @@ class VerifyLibraryWorker(
         private const val TAG = "SynthXScan"
 
         fun request(): OneTimeWorkRequest =
-            OneTimeWorkRequestBuilder<VerifyLibraryWorker>().build()
+            // No Constraints: pure local file I/O against the DB, no network dependency —
+            // nothing here to gate on connectivity, battery, or storage state.
+            OneTimeWorkRequestBuilder<VerifyLibraryWorker>()
+                .setConstraints(Constraints.NONE)
+                .build()
 
         fun enqueue(context: Context) {
             WorkManager.getInstance(context).enqueueUniqueWork(

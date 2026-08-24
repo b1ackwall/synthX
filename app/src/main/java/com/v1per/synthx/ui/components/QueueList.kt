@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.data.repository.Song
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toPersistentList
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -42,7 +44,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  */
 @Composable
 fun QueueList(
-    queue: List<Song>,
+    queue: ImmutableList<Song>,
     onSongClick: (index: Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
     onRemove: (index: Int) -> Unit,
@@ -58,7 +60,7 @@ fun QueueList(
     val reorderableState = rememberReorderableLazyListState(state) { from, to ->
         localQueue = localQueue.toMutableList().apply {
             add(to.index, removeAt(from.index))
-        }
+        }.toPersistentList()
     }
 
     LazyColumn(state = state, contentPadding = contentPadding, modifier = modifier) {

@@ -34,6 +34,7 @@ import com.v1per.synthx.ui.components.QueuePlaybackModeRow
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
+import kotlinx.collections.immutable.toPersistentList
 
 /**
  * Queue-mode header + Up Next list: header is PlayerQueueModeContent.kt's QueueModeHeader
@@ -178,7 +179,7 @@ fun PlayerSkeletonQueueContent(
 
         if (queueProgressValue > 0f) {
             QueueList(
-                queue = upcomingQueue,
+                queue = upcomingQueue.toPersistentList(),
                 onSongClick = onQueueSongClick,
                 onMove = onQueueMove,
                 onRemove = { index -> upcomingQueue.getOrNull(index)?.let { onQueueRemove(it.id) } },

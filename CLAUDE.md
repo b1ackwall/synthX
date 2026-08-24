@@ -32,7 +32,7 @@ Single-module Android project. Root: app/
 app/src/main/java/com/v1per/synthx/
 ├── MainActivity.kt
 ├── data/
-│   ├── db/          — Room entities, DAOs, SynthXDatabase (v4, 8 tables)
+│   ├── db/          — Room entities, DAOs, SynthXDatabase (v8, 9 entities)
 │   ├── repository/  — domain models + SongRepository/SongRepositoryImpl
 │   └── scanner/     — FolderScanner, HashUtils (SHA-256 fingerprinting)
 ├── navigation/       — Screen.kt (nav routes)
@@ -45,7 +45,8 @@ app/src/main/java/com/v1per/synthx/
     ├── components/   — shared composables (PlayerSheet, SongRow, TopBars, Wordmark, etc.)
     ├── screens/      — one dir per screen, each with <Name>Screen.kt + <Name>ViewModel.kt
     │   (addsongs, albumdetail, albumlist, artistdetail, artistlist, createplaylist,
-    │    groupdetail, home, library, playlistdetail, playlistlist, search, settings, songs)
+    │    groupdetail, home, issues, librarymanagement, library, playlistdetail, playlistlist,
+    │    restore, search, settings, songs, starred)
     └── theme/        — Color, Motion, Shape, Spacing, Theme, Type (design tokens)
 
 res/: drawable/, font/, mipmap-anydpi-v26/, values/, xml/ — fully Compose, no layout/ XML.
@@ -62,9 +63,13 @@ Versions centralized in gradle/libs.versions.toml.
   dependency graph, typically via SynthXDatabase.getDatabase(context).
   There is intentionally no Application subclass and no di/ package — do not add one
   unless explicitly instructed.
-- Room DB, version 4, 8 tables: songs, artists, albums, song_artists, playlist_groups,
-  playlists, playlist_songs, listen_history.
+- Room DB, version 8, 9 entities: songs, artists, albums, song_artists, playlist_groups,
+  playlists, playlist_songs, queue_items, queue_baseline_items. (listen_history was dropped
+  in an earlier version, replaced by queue_items/queue_baseline_items.)
 - SHA-256 song fingerprinting: first 64KB + last 64KB + file size (via HashUtils.kt).
+- Compose compiler reports are enabled (`composeCompiler { reportsDestination }` in
+  app/build.gradle.kts) — regenerate via a fresh `compileDebugKotlin`; reports land in
+  app/build/compose_reports/ (composables list, classes list, stability summary).
 
 ## Design System (locked — no scope creep)
 - Dark-only theme.

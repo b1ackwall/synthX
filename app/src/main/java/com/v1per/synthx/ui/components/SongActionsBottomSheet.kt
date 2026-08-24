@@ -45,6 +45,7 @@ import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextTertiary
+import kotlinx.collections.immutable.ImmutableList
 // Aliased: the Material3 `Surface` composable owns the simple name in Compose files.
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
@@ -59,7 +60,7 @@ enum class SheetPage { Actions, Artists, Playlists }
 fun SongActionsBottomSheet(
     song: Song,
     sheetState: RefinedBottomSheetState,
-    playlists: List<Playlist>,
+    playlists: ImmutableList<Playlist>,
     currentPlaylistId: String?,
     showDeleteRow: Boolean,
     deleteEnabled: Boolean,
