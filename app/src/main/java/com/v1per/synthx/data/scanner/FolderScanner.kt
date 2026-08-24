@@ -18,6 +18,7 @@ import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import androidx.room.withTransaction
+import com.v1per.synthx.data.backup.PlaylistExportManager
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import java.io.File
@@ -49,6 +50,7 @@ class FolderScanner(
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
     private val songArtistDao: SongArtistDao,
+    private val playlistExportManager: PlaylistExportManager,
 ) {
 
     /**
@@ -91,6 +93,7 @@ class FolderScanner(
         otherRootUris: List<Uri> = emptyList(),
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
     ): ScanResult = withContext(Dispatchers.IO) {
+        val scanStartMs = System.currentTimeMillis()
         onProgress(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE)
 
         // Cleanup: delete old file:// art files from cacheDir. Art now lives in
@@ -110,6 +113,7 @@ class FolderScanner(
 
         // File-system walk stays outside the transaction — it is the slowest phase and
         // touches no DB state.
+        val walkStartMs = System.currentTimeMillis()
         val audioFiles = collectAudioFiles(root)
         val foundPaths = audioFiles.mapTo(mutableSetOf()) { it.uri.toString() }
 
@@ -121,12 +125,19 @@ class FolderScanner(
         } else {
             false
         }
+        Log.d(
+            TAG,
+            "Scan walk complete in ${System.currentTimeMillis() - walkStartMs}ms — " +
+                "${audioFiles.size} files found under $folderUri",
+        )
 
         // Song ids evicted mid-transaction by the two paths below — their art files are
         // deleted only after the transaction commits (see the loop after withTransaction),
         // matching SongRepositoryImpl.deleteSong's commit-then-delete-file ordering.
         val pendingArtCleanup = mutableListOf<String>()
 
+        var retagged = 0
+        val txnStartMs = System.currentTimeMillis()
         val result = database.withTransaction {
             var added = 0
             var updated = 0
@@ -172,15 +183,25 @@ class FolderScanner(
                         // outside those ranges (or reuses the same padding) wouldn't touch
                         // them either. A cheap tag re-read catches that case without paying
                         // for a full metadata extraction + resolution on every untouched file.
-                        else -> if (retagIfChanged(file, existing)) updated++ else unchanged++
+                        else -> if (retagIfChanged(file, existing)) {
+                            retagged++
+                            updated++
+                        } else {
+                            unchanged++
+                        }
                     }
                     continue
                 }
 
-                // Same path, different hash: the file content changed — treat as new
+                // Same path, different hash: the file content changed — treat as new.
+                // The replaced song's id is gone, so any playlist_songs rows referencing
+                // it cascade-delete silently (no SongRepositoryImpl mutation method runs
+                // here to trigger the usual scheduleExport() call) — request one explicitly
+                // so the exported JSON doesn't keep citing a deleted song id.
                 songDao.getSongByPath(path)?.let { stale ->
                     deleteSongRowWithArtRepoint(songDao, albumDao, stale.id)
                     pendingArtCleanup.add(stale.id)
+                    playlistExportManager.scheduleExport()
                 }
 
                 insertNewSong(file, id, path)
@@ -215,11 +236,18 @@ class FolderScanner(
                 missingReconciled = reconcile,
             )
         }
+        Log.d(
+            TAG,
+            "Scan transaction complete in ${System.currentTimeMillis() - txnStartMs}ms — " +
+                "added=${result.added} updated=${result.updated} (retagged=$retagged) " +
+                "unchanged=${result.unchanged} missing=${result.missing}",
+        )
 
         // Only after the transaction commits — a file delete cannot be rolled back
         // alongside the DB the way the row deletes above can.
         pendingArtCleanup.forEach { deleteSongArtFile(context, it) }
 
+        Log.d(TAG, "Scan complete in ${System.currentTimeMillis() - scanStartMs}ms for $folderUri")
         result
     }
 

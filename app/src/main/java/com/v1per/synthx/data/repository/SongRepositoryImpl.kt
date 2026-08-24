@@ -380,6 +380,7 @@ class SongRepositoryImpl(
                 INSTANCE ?: run {
                     val appContext = context.applicationContext
                     val db = SynthXDatabase.getInstance(appContext)
+                    val playlistExportManager = PlaylistExportManager.create(appContext)
                     SongRepositoryImpl(
                         context = appContext,
                         database = db,
@@ -395,9 +396,10 @@ class SongRepositoryImpl(
                             artistDao = db.artistDao(),
                             albumDao = db.albumDao(),
                             songArtistDao = db.songArtistDao(),
+                            playlistExportManager = playlistExportManager,
                         ),
                         backupManager = BackupManager.create(appContext),
-                        playlistExportManager = PlaylistExportManager.create(appContext),
+                        playlistExportManager = playlistExportManager,
                     ).also { INSTANCE = it }
                 }
             }
