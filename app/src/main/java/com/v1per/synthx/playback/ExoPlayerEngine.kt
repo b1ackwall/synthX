@@ -7,6 +7,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.launch
 
 /**
  * [PlaybackEngine] implementation backed by a media3 [MediaController]/[SynthXPlaybackService].
@@ -154,6 +156,24 @@ class ExoPlayerEngine(
     // restore path waits on it: it runs at launch, i.e. the one moment the controller is
     // reliably not connected yet.
     private val controllerReady = CompletableDeferred<Boolean>()
+
+    init {
+        // A rescan can replace a song's row (and id) while that exact song is the one
+        // cached here — see SongRemapEvents' kdoc. songsById is keyed by MediaItem.mediaId,
+        // which never changes for an item already in the timeline, so the entry is
+        // refreshed in place under [SongRemap.oldId] rather than re-keyed.
+        engineScope.launch {
+            SongRemapEvents.events.collect { remap ->
+                if (songsById.containsKey(remap.oldId)) {
+                    songsById[remap.oldId] = remap.newSong.copy(id = remap.oldId)
+                    artworkLoadedIds.remove(remap.oldId)
+                    refreshQueue()
+                    refreshUpcomingQueue()
+                    prefetchArtwork()
+                }
+            }
+        }
+    }
 
     init {
         controllerFuture.addListener(

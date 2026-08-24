@@ -19,8 +19,11 @@ import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import androidx.room.withTransaction
 import com.v1per.synthx.data.backup.PlaylistExportManager
+import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
+import com.v1per.synthx.data.repository.Artist
+import com.v1per.synthx.data.repository.Song
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.CancellationException
@@ -198,13 +201,19 @@ class FolderScanner(
                 // it cascade-delete silently (no SongRepositoryImpl mutation method runs
                 // here to trigger the usual scheduleExport() call) — request one explicitly
                 // so the exported JSON doesn't keep citing a deleted song id.
-                songDao.getSongByPath(path)?.let { stale ->
+                val staleId = songDao.getSongByPath(path)?.let { stale ->
                     deleteSongRowWithArtRepoint(songDao, albumDao, stale.id)
                     pendingArtCleanup.add(stale.id)
                     playlistExportManager.scheduleExport()
+                    stale.id
                 }
 
-                insertNewSong(file, id, path)
+                val newSong = insertNewSong(file, id, path)
+                // If the replaced song is the one currently loaded in the player, its
+                // in-memory Song (title/art) would otherwise go stale — see SongRemapEvents.
+                if (staleId != null) {
+                    SongRemapEvents.notifyRemap(staleId, newSong)
+                }
                 added++
             }
 
@@ -351,7 +360,7 @@ class FolderScanner(
         return result
     }
 
-    private suspend fun insertNewSong(file: DocumentFile, id: String, path: String) {
+    private suspend fun insertNewSong(file: DocumentFile, id: String, path: String): Song {
         val retriever = MediaMetadataRetriever()
         var rawTitle: String? = null
         var rawArtist: String? = null
@@ -392,9 +401,11 @@ class FolderScanner(
             .trim()
             .lowercase()
 
-        val albumId = rawAlbum?.takeIf { it.isNotBlank() }?.trim()?.let { albumTitle ->
-            resolveAlbum(albumTitle, primaryArtistNormalized, year, albumArtUri).id
+        val album = rawAlbum?.takeIf { it.isNotBlank() }?.trim()?.let { albumTitle ->
+            resolveAlbum(albumTitle, primaryArtistNormalized, year, albumArtUri)
         }
+        val albumId = album?.id
+        val dateAdded = System.currentTimeMillis()
 
         songDao.upsertSong(
             SongEntity(
@@ -406,17 +417,32 @@ class FolderScanner(
                 albumArtUri = albumArtUri,
                 year = year,
                 trackNumber = trackNumber,
-                dateAdded = System.currentTimeMillis(),
+                dateAdded = dateAdded,
             )
         )
 
         songArtistDao.deleteSongArtists(id)
-        rawArtistNames.forEachIndexed { index, name ->
+        val artists = rawArtistNames.mapIndexed { index, name ->
             val artist = resolveArtist(name)
             songArtistDao.insertSongArtist(
                 SongArtistEntity(songId = id, artistId = artist.id, position = index)
             )
+            Artist(id = artist.id, name = artist.name)
         }
+
+        return Song(
+            id = id,
+            title = title,
+            artist = artists.joinToString(", ") { it.name }.ifEmpty { "Unknown Artist" },
+            album = album?.title ?: "Unknown Album",
+            duration = rawDuration?.toLongOrNull() ?: 0L,
+            filePath = path,
+            albumArtUri = albumArtUri,
+            isMissing = false,
+            dateAdded = dateAdded,
+            albumId = albumId,
+            artists = artists,
+        )
     }
 
     /**
