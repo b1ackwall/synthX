@@ -68,10 +68,22 @@ class SongsViewModel(
 
     private fun List<Song>.sorted(order: SortOrder): List<Song> = when (order) {
         SortOrder.RECENTLY_ADDED -> sortedByDescending { it.dateAdded }
-        SortOrder.TITLE -> sortedBy { it.title.lowercase() }
-        SortOrder.ARTIST -> sortedBy { it.artist.lowercase() }
-        SortOrder.ALBUM -> sortedBy { it.album.lowercase() }
+        SortOrder.TITLE -> sortedByLowercase { it.title }
+        SortOrder.ARTIST -> sortedByLowercase { it.artist }
+        SortOrder.ALBUM -> sortedByLowercase { it.album }
     }
+
+    // sortedBy { selector(it).lowercase() } re-invokes the selector on both operands of
+    // every comparison (compareBy semantics) — O(n log n) String.lowercase() allocations.
+    // Precomputing the key once per element and sorting by that cached value instead keeps
+    // the exact same ordering (still a natural-order sort over the same lowercase strings)
+    // for O(n) allocations.
+    private inline fun List<Song>.sortedByLowercase(
+        crossinline selector: (Song) -> String,
+    ): List<Song> =
+        map { it to selector(it).lowercase() }
+            .sortedBy { it.second }
+            .map { it.first }
 
     fun onSongTap(song: Song) {
         // The queue is the list as currently sorted and shown, so the tapped song's

@@ -183,7 +183,11 @@ fun PlaylistListScreen(
                 }
 
                 if (uiState.groups.isNotEmpty()) {
-                    items(uiState.groups, key = { it.id }) { group ->
+                    items(
+                        uiState.groups,
+                        key = { it.id },
+                        contentType = { "group" },
+                    ) { group ->
                         GroupRow(
                             group = group,
                             onClick = { onGroupClick(group.id, group.name) },
@@ -194,7 +198,11 @@ fun PlaylistListScreen(
                 }
 
                 if (uiState.ungroupedPlaylists.isNotEmpty()) {
-                    items(uiState.ungroupedPlaylists, key = { it.id }) { playlist ->
+                    items(
+                        uiState.ungroupedPlaylists,
+                        key = { it.id },
+                        contentType = { "playlist" },
+                    ) { playlist ->
                         PlaylistRow(
                             playlist = playlist,
                             onClick = { onPlaylistClick(playlist.id, playlist.name) },

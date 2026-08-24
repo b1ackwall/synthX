@@ -46,11 +46,7 @@ fun PlayerAlbumArt(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            GlitchPlaceholder(
-                songId = song.id,
-                isPlaying = isPlaying,
-                size = size,
-            )
+            ArtPlaceholder(size = size)
         }
     }
 }

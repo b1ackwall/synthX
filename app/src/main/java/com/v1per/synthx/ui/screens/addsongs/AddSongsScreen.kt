@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.v1per.synthx.R
-import com.v1per.synthx.ui.components.GlitchPlaceholder
+import com.v1per.synthx.ui.components.ArtPlaceholder
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Background
@@ -176,11 +176,7 @@ private fun AddSongRow(
                         .clip(MaterialTheme.shapes.small),
                 )
             } else {
-                GlitchPlaceholder(
-                    songId = songItem.song.id,
-                    isPlaying = false,
-                    size = 44.dp,
-                )
+                ArtPlaceholder(size = 44.dp)
             }
             Spacer(modifier = Modifier.width(Spacing.md))
             Column(modifier = Modifier.weight(1f)) {

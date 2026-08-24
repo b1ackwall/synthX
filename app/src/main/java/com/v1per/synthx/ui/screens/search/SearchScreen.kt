@@ -57,7 +57,7 @@ import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
-import com.v1per.synthx.ui.components.GlitchPlaceholder
+import com.v1per.synthx.ui.components.ArtPlaceholder
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.components.crossfadeModel
@@ -275,7 +275,7 @@ fun SearchScreen(
 // Takes a resource id, not a String: LazyListScope is not a composable scope, so the
 // lookup has to happen inside item {} where a composition is available.
 private fun LazyListScope.sectionHeader(@StringRes titleRes: Int) {
-    item(key = "header_$titleRes") {
+    item(key = "header_$titleRes", contentType = "header") {
         Text(
             text = stringResource(titleRes),
             style = MaterialTheme.typography.labelLarge,
@@ -292,7 +292,11 @@ private fun LazyListScope.songItems(
     currentSong: Song?,
     playbackViewModel: PlaybackViewModel,
 ) {
-    itemsIndexed(songs, key = { _, song -> "song_${song.id}" }) { index, song ->
+    itemsIndexed(
+        songs,
+        key = { _, song -> "song_${song.id}" },
+        contentType = { _, _ -> "song" },
+    ) { index, song ->
         SongRow(
             song = song,
             isCurrentlyPlaying = song.id == currentSong?.id,
@@ -306,7 +310,7 @@ private fun LazyListScope.artistItems(
     artists: List<Artist>,
     onNavigateToArtistDetail: (String, String) -> Unit,
 ) {
-    items(artists, key = { "artist_${it.id}" }) { artist ->
+    items(artists, key = { "artist_${it.id}" }, contentType = { "artist" }) { artist ->
         ArtistResultRow(
             artist = artist,
             onClick = { onNavigateToArtistDetail(artist.id, artist.name) },
@@ -318,7 +322,7 @@ private fun LazyListScope.albumItems(
     albums: List<Album>,
     onNavigateToAlbumDetail: (String, String) -> Unit,
 ) {
-    items(albums, key = { "album_${it.id}" }) { album ->
+    items(albums, key = { "album_${it.id}" }, contentType = { "album" }) { album ->
         AlbumResultRow(
             album = album,
             onClick = { onNavigateToAlbumDetail(album.id, album.title) },
@@ -332,7 +336,7 @@ private fun LazyListScope.playlistItems(
     onRename: (String, String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
-    items(playlists, key = { "playlist_${it.id}" }) { playlist ->
+    items(playlists, key = { "playlist_${it.id}" }, contentType = { "playlist" }) { playlist ->
         PlaylistRow(
             playlist = playlist,
             onClick = { onNavigateToPlaylistDetail(playlist.id, playlist.name) },
@@ -407,11 +411,7 @@ private fun AlbumResultRow(
                         .clip(MaterialTheme.shapes.small),
                 )
             } else {
-                GlitchPlaceholder(
-                    songId = album.id,
-                    isPlaying = false,
-                    size = 44.dp,
-                )
+                ArtPlaceholder(size = 44.dp)
             }
             Spacer(modifier = Modifier.width(Spacing.md))
             Column(modifier = Modifier.weight(1f)) {

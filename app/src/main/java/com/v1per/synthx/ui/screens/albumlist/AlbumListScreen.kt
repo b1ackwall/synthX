@@ -38,7 +38,7 @@ import coil.compose.AsyncImage
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Album
 import com.v1per.synthx.ui.common.UiState
-import com.v1per.synthx.ui.components.GlitchPlaceholder
+import com.v1per.synthx.ui.components.ArtPlaceholder
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Accent
@@ -134,11 +134,7 @@ private fun AlbumRow(
                         .clip(MaterialTheme.shapes.small),
                 )
             } else {
-                GlitchPlaceholder(
-                    songId = album.id,
-                    isPlaying = false,
-                    size = 44.dp,
-                )
+                ArtPlaceholder(size = 44.dp)
             }
             Spacer(modifier = Modifier.width(Spacing.md))
             Column {

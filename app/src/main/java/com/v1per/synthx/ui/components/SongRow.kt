@@ -102,7 +102,6 @@ internal fun SongRow(
             ) {
                 SongIdentity(
                     song = song,
-                    isCurrentlyPlaying = isCurrentlyPlaying,
                     modifier = Modifier.weight(1f),
                 )
 

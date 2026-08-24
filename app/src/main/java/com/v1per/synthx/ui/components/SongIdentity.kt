@@ -32,7 +32,6 @@ import com.v1per.synthx.ui.theme.TextSecondary
 @Composable
 fun SongIdentity(
     song: Song,
-    isCurrentlyPlaying: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -50,10 +49,7 @@ fun SongIdentity(
                     .clip(MaterialTheme.shapes.small),
             )
         } else {
-            GlitchPlaceholder(
-                songId = song.id,
-                isPlaying = isCurrentlyPlaying,
-            )
+            ArtPlaceholder()
         }
 
         Column(

@@ -54,7 +54,7 @@ import coil.compose.AsyncImage
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
-import com.v1per.synthx.ui.components.GlitchPlaceholder
+import com.v1per.synthx.ui.components.ArtPlaceholder
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Accent
@@ -315,18 +315,14 @@ private fun RecentSongTile(
                     .clip(MaterialTheme.shapes.small),
             )
         } else {
-            // GlitchPlaceholder applies .size() internally, so resolve the
+            // ArtPlaceholder applies .size() internally, so resolve the
             // square edge from the tile width before handing it down.
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f),
             ) {
-                GlitchPlaceholder(
-                    songId = song.id,
-                    isPlaying = false,
-                    size = maxWidth,
-                )
+                ArtPlaceholder(size = maxWidth)
             }
         }
         Spacer(modifier = Modifier.height(Spacing.xs))

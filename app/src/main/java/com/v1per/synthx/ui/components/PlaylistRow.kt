@@ -79,11 +79,7 @@ internal fun PlaylistRow(
                         .clip(MaterialTheme.shapes.small),
                 )
             } else {
-                GlitchPlaceholder(
-                    songId = playlist.id,
-                    isPlaying = false,
-                    size = 40.dp,
-                )
+                ArtPlaceholder(size = 40.dp)
             }
             Spacer(modifier = Modifier.width(Spacing.md))
             if (isRenaming) {

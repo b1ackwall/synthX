@@ -216,7 +216,6 @@ fun QueueRow(
         ) {
             SongIdentity(
                 song = song,
-                isCurrentlyPlaying = false,
                 modifier = Modifier.weight(1f),
             )
 

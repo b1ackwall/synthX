@@ -152,7 +152,6 @@ private fun ActionsPage(
     Column {
         SongIdentity(
             song = song,
-            isCurrentlyPlaying = false,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = Spacing.sm),
