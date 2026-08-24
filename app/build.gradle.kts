@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.v1per.synthx"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.v1per.synthx"
         minSdk = 32
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 4
         versionName = "2.0.2"
     }
@@ -39,12 +39,19 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+            // Pinned: Gradle's default module name ("synthX:app") contains a ':',
+            // which Windows silently truncates in compose_reports output filenames,
+            // producing empty report files.
+            moduleName.set("synthX-app")
+        }
     }
 
     buildFeatures {
         compose = true
+        resValues = true
     }
 }
 
