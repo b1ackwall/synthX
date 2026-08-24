@@ -1,7 +1,5 @@
 package com.v1per.synthx.ui
 
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -36,25 +34,20 @@ fun NavGraphBuilder.tabRoutes(
             val libraryViewModel = viewModel<LibraryViewModel>(
                 factory = LibraryViewModel.factory(LocalContext.current),
             )
-            val isLoading by libraryViewModel.isLoading.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = !isLoading) {
-                LibraryScreen(
-                    topBar = {
-                        SynthXTopBar(
-                            onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                        )
-                    },
-                    onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
-                    onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
-                    onNavigateToAlbumList = { navController.navigate(Screen.AlbumList.route) },
-                    onNavigateToPlaylistList = { navController.navigate(Screen.PlaylistList.route) },
-                    onNavigateToStarred = { navController.navigate(Screen.Starred.route) },
-                    playbackViewModel = playbackViewModel,
-                    viewModel = libraryViewModel,
-                )
-            // }
+            LibraryScreen(
+                topBar = {
+                    SynthXTopBar(
+                        onSettingsClick = { navController.navigate(Screen.Settings.route) },
+                    )
+                },
+                onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
+                onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
+                onNavigateToAlbumList = { navController.navigate(Screen.AlbumList.route) },
+                onNavigateToPlaylistList = { navController.navigate(Screen.PlaylistList.route) },
+                onNavigateToStarred = { navController.navigate(Screen.Starred.route) },
+                playbackViewModel = playbackViewModel,
+                viewModel = libraryViewModel,
+            )
         }
     }
     composable(Screen.Search.route) {
@@ -62,35 +55,30 @@ fun NavGraphBuilder.tabRoutes(
             val searchViewModel = viewModel<SearchViewModel>(
                 factory = SearchViewModel.factory(LocalContext.current),
             )
-            val hasLoadedInitialData by searchViewModel.hasLoadedInitialData.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = hasLoadedInitialData) {
-                SearchScreen(
-                    topBar = {
-                        SynthXTopBar(
-                            onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                        )
-                    },
-                    onNavigateToArtistDetail = { artistId, artistName ->
-                        navController.navigate(
-                            Screen.ArtistDetail.createRoute(artistId, artistName),
-                        )
-                    },
-                    onNavigateToAlbumDetail = { albumId, albumTitle ->
-                        navController.navigate(
-                            Screen.AlbumDetail.createRoute(albumId, albumTitle),
-                        )
-                    },
-                    onNavigateToPlaylistDetail = { playlistId, playlistName ->
-                        navController.navigate(
-                            Screen.PlaylistDetail.createRoute(playlistId, playlistName),
-                        )
-                    },
-                    playbackViewModel = playbackViewModel,
-                    viewModel = searchViewModel,
-                )
-            // }
+            SearchScreen(
+                topBar = {
+                    SynthXTopBar(
+                        onSettingsClick = { navController.navigate(Screen.Settings.route) },
+                    )
+                },
+                onNavigateToArtistDetail = { artistId, artistName ->
+                    navController.navigate(
+                        Screen.ArtistDetail.createRoute(artistId, artistName),
+                    )
+                },
+                onNavigateToAlbumDetail = { albumId, albumTitle ->
+                    navController.navigate(
+                        Screen.AlbumDetail.createRoute(albumId, albumTitle),
+                    )
+                },
+                onNavigateToPlaylistDetail = { playlistId, playlistName ->
+                    navController.navigate(
+                        Screen.PlaylistDetail.createRoute(playlistId, playlistName),
+                    )
+                },
+                playbackViewModel = playbackViewModel,
+                viewModel = searchViewModel,
+            )
         }
     }
     composable(Screen.Settings.route) {

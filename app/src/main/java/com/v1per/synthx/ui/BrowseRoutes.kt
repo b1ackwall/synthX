@@ -20,6 +20,7 @@ import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.common.isReady
 import com.v1per.synthx.ui.components.DetailTopBar
+import com.v1per.synthx.ui.components.ReadinessCoverOverlay
 import com.v1per.synthx.ui.screens.albumdetail.AlbumDetailScreen
 import com.v1per.synthx.ui.screens.albumdetail.AlbumDetailViewModel
 import com.v1per.synthx.ui.screens.albumlist.AlbumListScreen
@@ -45,31 +46,26 @@ fun NavGraphBuilder.browseRoutes(
             val songsViewModel = viewModel<SongsViewModel>(
                 factory = SongsViewModel.Factory(LocalContext.current, playbackViewModel),
             )
-            val uiState by songsViewModel.uiState.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = uiState.isReady()) {
-                SongsScreen(
-                    topBar = { onSortClick ->
-                        DetailTopBar(
-                            title = stringResource(R.string.screen_songs),
-                            onBack = { navController.popBackStack() },
-                            actions = {
-                                IconButton(onClick = onSortClick) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Sort,
-                                        contentDescription = stringResource(R.string.cd_sort),
-                                        tint = TextPrimary,
-                                    )
-                                }
-                            },
-                        )
-                    },
-                    playbackViewModel = playbackViewModel,
-                    onShowSortSheet = onShowSortSheet,
-                    viewModel = songsViewModel,
-                )
-            // }
+            SongsScreen(
+                topBar = { onSortClick ->
+                    DetailTopBar(
+                        title = stringResource(R.string.screen_songs),
+                        onBack = { navController.popBackStack() },
+                        actions = {
+                            IconButton(onClick = onSortClick) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                                    contentDescription = stringResource(R.string.cd_sort),
+                                    tint = TextPrimary,
+                                )
+                            }
+                        },
+                    )
+                },
+                playbackViewModel = playbackViewModel,
+                onShowSortSheet = onShowSortSheet,
+                viewModel = songsViewModel,
+            )
         }
     }
     composable(Screen.Starred.route) {
@@ -90,25 +86,20 @@ fun NavGraphBuilder.browseRoutes(
             val artistListViewModel = viewModel<ArtistListViewModel>(
                 factory = ArtistListViewModel.factory(LocalContext.current),
             )
-            val uiState by artistListViewModel.uiState.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = uiState.isReady()) {
-                ArtistListScreen(
-                    topBar = {
-                        DetailTopBar(
-                            title = stringResource(R.string.screen_artists),
-                            onBack = { navController.popBackStack() },
-                        )
-                    },
-                    onArtistClick = { artistId, artistName ->
-                        navController.navigate(
-                            Screen.ArtistDetail.createRoute(artistId, artistName),
-                        )
-                    },
-                    viewModel = artistListViewModel,
-                )
-            // }
+            ArtistListScreen(
+                topBar = {
+                    DetailTopBar(
+                        title = stringResource(R.string.screen_artists),
+                        onBack = { navController.popBackStack() },
+                    )
+                },
+                onArtistClick = { artistId, artistName ->
+                    navController.navigate(
+                        Screen.ArtistDetail.createRoute(artistId, artistName),
+                    )
+                },
+                viewModel = artistListViewModel,
+            )
         }
     }
     composable(
@@ -126,9 +117,7 @@ fun NavGraphBuilder.browseRoutes(
                 factory = ArtistDetailViewModel.factory(LocalContext.current, artistId),
             )
             val uiState by artistDetailViewModel.uiState.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = uiState.isReady()) {
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
                 ArtistDetailScreen(
                     topBar = {
                         DetailTopBar(
@@ -140,7 +129,7 @@ fun NavGraphBuilder.browseRoutes(
                     playbackViewModel = playbackViewModel,
                     viewModel = artistDetailViewModel,
                 )
-            // }
+            }
         }
     }
     composable(Screen.AlbumList.route) {
@@ -148,25 +137,20 @@ fun NavGraphBuilder.browseRoutes(
             val albumListViewModel = viewModel<AlbumListViewModel>(
                 factory = AlbumListViewModel.factory(LocalContext.current),
             )
-            val uiState by albumListViewModel.uiState.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = uiState.isReady()) {
-                AlbumListScreen(
-                    topBar = {
-                        DetailTopBar(
-                            title = stringResource(R.string.screen_albums),
-                            onBack = { navController.popBackStack() },
-                        )
-                    },
-                    onAlbumClick = { albumId, albumTitle ->
-                        navController.navigate(
-                            Screen.AlbumDetail.createRoute(albumId, albumTitle),
-                        )
-                    },
-                    viewModel = albumListViewModel,
-                )
-            // }
+            AlbumListScreen(
+                topBar = {
+                    DetailTopBar(
+                        title = stringResource(R.string.screen_albums),
+                        onBack = { navController.popBackStack() },
+                    )
+                },
+                onAlbumClick = { albumId, albumTitle ->
+                    navController.navigate(
+                        Screen.AlbumDetail.createRoute(albumId, albumTitle),
+                    )
+                },
+                viewModel = albumListViewModel,
+            )
         }
     }
     composable(
@@ -184,9 +168,7 @@ fun NavGraphBuilder.browseRoutes(
                 factory = AlbumDetailViewModel.factory(LocalContext.current, albumId),
             )
             val uiState by albumDetailViewModel.uiState.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = uiState.isReady()) {
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
                 AlbumDetailScreen(
                     topBar = {
                         DetailTopBar(
@@ -198,7 +180,7 @@ fun NavGraphBuilder.browseRoutes(
                     playbackViewModel = playbackViewModel,
                     viewModel = albumDetailViewModel,
                 )
-            // }
+            }
         }
     }
 }

@@ -16,6 +16,7 @@ import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.common.isReady
 import com.v1per.synthx.ui.components.DetailTopBar
+import com.v1per.synthx.ui.components.ReadinessCoverOverlay
 import com.v1per.synthx.ui.screens.addsongs.AddSongsScreen
 import com.v1per.synthx.ui.screens.addsongs.AddSongsViewModel
 import com.v1per.synthx.ui.screens.createplaylist.CreatePlaylistScreen
@@ -36,33 +37,28 @@ fun NavGraphBuilder.playlistRoutes(
             val playlistListViewModel = viewModel<PlaylistListViewModel>(
                 factory = PlaylistListViewModel.factory(LocalContext.current),
             )
-            val uiState by playlistListViewModel.uiState.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = !uiState.isLoading) {
-                PlaylistListScreen(
-                    topBar = {
-                        DetailTopBar(
-                            title = stringResource(R.string.screen_playlists),
-                            onBack = { navController.popBackStack() },
-                        )
-                    },
-                    onGroupClick = { groupId, groupName ->
-                        navController.navigate(
-                            Screen.GroupDetail.createRoute(groupId, groupName),
-                        )
-                    },
-                    onPlaylistClick = { playlistId, playlistName ->
-                        navController.navigate(
-                            Screen.PlaylistDetail.createRoute(playlistId, playlistName),
-                        )
-                    },
-                    onCreatePlaylistClick = {
-                        navController.navigate(Screen.CreatePlaylist.route)
-                    },
-                    viewModel = playlistListViewModel,
-                )
-            // }
+            PlaylistListScreen(
+                topBar = {
+                    DetailTopBar(
+                        title = stringResource(R.string.screen_playlists),
+                        onBack = { navController.popBackStack() },
+                    )
+                },
+                onGroupClick = { groupId, groupName ->
+                    navController.navigate(
+                        Screen.GroupDetail.createRoute(groupId, groupName),
+                    )
+                },
+                onPlaylistClick = { playlistId, playlistName ->
+                    navController.navigate(
+                        Screen.PlaylistDetail.createRoute(playlistId, playlistName),
+                    )
+                },
+                onCreatePlaylistClick = {
+                    navController.navigate(Screen.CreatePlaylist.route)
+                },
+                viewModel = playlistListViewModel,
+            )
         }
     }
     composable(Screen.CreatePlaylist.route) {
@@ -93,9 +89,7 @@ fun NavGraphBuilder.playlistRoutes(
                 factory = GroupDetailViewModel.factory(LocalContext.current, groupId),
             )
             val uiState by groupDetailViewModel.uiState.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = uiState.isReady()) {
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
                 GroupDetailScreen(
                     topBar = {
                         DetailTopBar(
@@ -111,7 +105,7 @@ fun NavGraphBuilder.playlistRoutes(
                     groupId = groupId,
                     viewModel = groupDetailViewModel,
                 )
-            // }
+            }
         }
     }
     composable(
@@ -129,9 +123,7 @@ fun NavGraphBuilder.playlistRoutes(
                 factory = PlaylistDetailViewModel.factory(LocalContext.current, playlistId),
             )
             val uiState by playlistDetailViewModel.uiState.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = uiState.isReady()) {
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
                 PlaylistDetailScreen(
                     topBar = {
                         DetailTopBar(
@@ -146,7 +138,7 @@ fun NavGraphBuilder.playlistRoutes(
                     },
                     viewModel = playlistDetailViewModel,
                 )
-            // }
+            }
         }
     }
     composable(
@@ -162,9 +154,7 @@ fun NavGraphBuilder.playlistRoutes(
                 factory = AddSongsViewModel.factory(LocalContext.current, playlistId),
             )
             val isLoading by addSongsViewModel.isLoading.collectAsState()
-            // Disabled 2026-08-13: opaque backgrounds fix the double-composition issue this was
-            // also masking; re-enable if cold-load flash becomes a problem.
-            // ReadinessCoverOverlay(isReady = !isLoading) {
+            ReadinessCoverOverlay(isReady = !isLoading) {
                 AddSongsScreen(
                     topBar = {
                         DetailTopBar(
@@ -176,7 +166,7 @@ fun NavGraphBuilder.playlistRoutes(
                     onSubmitted = { navController.popBackStack() },
                     viewModel = addSongsViewModel,
                 )
-            // }
+            }
         }
     }
 }
