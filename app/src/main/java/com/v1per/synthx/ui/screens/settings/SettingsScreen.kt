@@ -38,6 +38,7 @@ import com.v1per.synthx.ui.theme.TextTertiary
 fun SettingsScreen(
     topBar: @Composable () -> Unit,
     onLibraryManagementClick: () -> Unit,
+    onDeveloperSettingsClick: () -> Unit,
 ) {
     // Settings owns no state of its own yet — the ViewModel is instantiated to keep the
     // one-ViewModel-per-screen wiring in place for the next setting that lands here.
@@ -47,6 +48,7 @@ fun SettingsScreen(
         topBar()
         SettingsScreenContent(
             onLibraryManagementClick = onLibraryManagementClick,
+            onDeveloperSettingsClick = onDeveloperSettingsClick,
         )
     }
 }
@@ -54,18 +56,24 @@ fun SettingsScreen(
 @Composable
 private fun SettingsScreenContent(
     onLibraryManagementClick: () -> Unit,
+    onDeveloperSettingsClick: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         SettingsRow(
             title = stringResource(R.string.settings_library_management),
             onClick = onLibraryManagementClick,
         )
+        SettingsRow(
+            title = stringResource(R.string.settings_developer_settings),
+            onClick = onDeveloperSettingsClick,
+        )
     }
 }
 
 @Composable
-private fun SettingsRow(
+internal fun SettingsRow(
     title: String,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -75,6 +83,7 @@ private fun SettingsRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(
+                    enabled = enabled,
                     interactionSource = interactionSource,
                     indication = ripple(color = Accent),
                     onClick = onClick,
@@ -114,6 +123,7 @@ private fun SettingsScreenPreview() {
         ) {
             SettingsScreenContent(
                 onLibraryManagementClick = {},
+                onDeveloperSettingsClick = {},
             )
         }
     }

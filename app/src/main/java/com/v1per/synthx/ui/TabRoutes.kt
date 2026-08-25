@@ -15,6 +15,7 @@ import com.v1per.synthx.ui.screens.library.LibraryViewModel
 import com.v1per.synthx.ui.screens.search.SearchScreen
 import com.v1per.synthx.ui.screens.search.SearchViewModel
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
+import com.v1per.synthx.ui.screens.developersettings.DeveloperSettingsScreen
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.R
 import androidx.compose.ui.res.stringResource
@@ -92,6 +93,21 @@ fun NavGraphBuilder.tabRoutes(
                 },
                 onLibraryManagementClick = {
                     navController.navigate(Screen.LibraryManagement.route)
+                },
+                onDeveloperSettingsClick = {
+                    navController.navigate(Screen.DeveloperSettings.route)
+                },
+            )
+        }
+    }
+    composable(Screen.DeveloperSettings.route) {
+        RouteContent(chromeBottomPadding) {
+            DeveloperSettingsScreen(
+                topBar = {
+                    DetailTopBar(
+                        title = stringResource(R.string.screen_developer_settings),
+                        onBack = { navController.popBackStack() },
+                    )
                 },
             )
         }

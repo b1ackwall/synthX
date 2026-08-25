@@ -29,6 +29,9 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlists ORDER BY name COLLATE NOCASE ASC")
     fun getAllPlaylists(): Flow<List<PlaylistEntity>>
 
+    @Query("SELECT COUNT(*) FROM playlists")
+    suspend fun getPlaylistCount(): Int
+
     @Query("SELECT * FROM playlists WHERE group_id IS NULL ORDER BY name COLLATE NOCASE ASC")
     fun getUngroupedPlaylists(): Flow<List<PlaylistEntity>>
 
