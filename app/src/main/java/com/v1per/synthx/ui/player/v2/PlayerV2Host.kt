@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
@@ -384,6 +385,7 @@ fun PlayerV2Host(
                         onPreviousClick = onPreviousClick,
                         onNextClick = onNextClick,
                         progress = progressState,
+                        bottomInset = bottomInset,
                     )
                 }
                 PlayerV2MiniContent(
@@ -479,6 +481,15 @@ private val ExpandedContentHorizontalInset: Dp = Spacing.HorizontalPadding * 2
  *
  * @param expandedHeight the sheet's height at progress 1, i.e. [PlayerV2Host]'s
  *   `BoxWithConstraints.maxHeight`. Deliberately *not* the live `sheetHeight` — see above.
+ * @param bottomInset [PlayerV2Host]'s own progress-driven sheet padding
+ *   (`lerpDp(BottomNavHeight, 0.dp, progress)`), threaded in only so this container can cancel
+ *   it back out of its own placement. It is `align(BottomCenter)`-welded to the sheet's bottom
+ *   edge, and that edge itself descends as the padding on the sheet's parent Box relaxes from
+ *   BottomNavHeight to 0dp across the drag — without cancellation the content would silently
+ *   drift down by up to BottomNavHeight as the nav slides out from under the sheet. Mirrors
+ *   PlayerSkeletonControlsOverlay.kt's identical `+ bottomInset` correction on the old player's
+ *   equivalent bottom-anchored block. Reused, not recomputed — same instance [PlayerV2Host]
+ *   already applies to its own outer Box padding.
  */
 @Composable
 private fun BoxScope.PlayerV2ExpandedContent(
@@ -495,6 +506,7 @@ private fun BoxScope.PlayerV2ExpandedContent(
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
     progress: State<Float>,
+    bottomInset: Dp,
 ) {
     // Keyed on progress's own identity (stable for this composable's whole lifetime — it's
     // the same derivedStateOf instance from PlayerV2Host on every recomposition), so this
@@ -527,6 +539,16 @@ private fun BoxScope.PlayerV2ExpandedContent(
             // Bottom-anchored, so the container overhangs the shorter sheet upward and is
             // clipped by the sheet Box's own .clip() rather than being squashed.
             .align(Alignment.BottomCenter)
+            // Cancels [bottomInset] back out of this container's placement — see the
+            // parameter doc above. Positive Y, same sign as
+            // PlayerSkeletonControlsOverlay.kt's `+ bottomInset` correction: this Column is
+            // welded to the sheet's bottom edge, which itself descends as bottomInset
+            // relaxes toward 0dp across the drag, so adding it back here holds the content
+            // at a fixed screen position instead of drifting down with that edge. Ordered
+            // after .align (whose BoxScope alignment data this doesn't affect) and before
+            // .clip (clip is size-driven, not position-driven, so it clips the same shape
+            // regardless of where this container is placed).
+            .offset(y = bottomInset)
             .clip(revealShape),
     ) {
         Spacer(modifier = Modifier.height(topInset + ExpandedArtTopMargin))
