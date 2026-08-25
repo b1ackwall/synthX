@@ -94,11 +94,15 @@ fun BottomChromeOverlay(
     // val duration by playbackViewModel.duration.collectAsState()
     // ---------------------------------------------------------------------------------
 
-    // Stage 2.1: fresh, live reads feeding PlayerV2Host's real mini-bar content — not a
-    // restoration of the commented-out block above, which still feeds only the old,
-    // uncomposed PlayerSheetSkeleton call further down.
+    // Stage 2.1/2.2: fresh, live reads feeding PlayerV2Host's real mini-bar and expanded
+    // content — not a restoration of the commented-out block above, which still feeds only
+    // the old, uncomposed PlayerSheetSkeleton call further down.
     val isPlaying by playbackViewModel.isPlaying.collectAsState()
     val isBuffering by playbackViewModel.isBuffering.collectAsState()
+    val currentPosition by playbackViewModel.currentPosition.collectAsState()
+    val duration by playbackViewModel.duration.collectAsState()
+    val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
+    val hasNext by playbackViewModel.hasNext.collectAsState()
 
     // Both the nav and the sheet live in one Box sharing one navigationBarsPadding() call —
     // previously the sheet had no inset applied at all, so it measured its available height
@@ -209,17 +213,25 @@ fun BottomChromeOverlay(
             // applies the complementary bottom inset internally, so the collapsed bar now
             // stacks above the nav instead of overlaying it.
             //
-            // Stage 2.1 adds real mini-bar content, so song/isPlaying/isBuffering/
-            // onPlayPauseClick are now real too. currentSong?.let is redundant with the
-            // AnimatedVisibility gate above (currentSong is never null once this content is
-            // entered) but matches the old block's own currentSong?.let pattern above rather
-            // than introducing a differently-shaped non-null assertion here.
+            // Stage 2.1 added real mini-bar content; Stage 2.2 adds real expanded content
+            // (seek bar, transport, 3-dot, queue placeholder) on top of that. currentSong?.let
+            // is redundant with the AnimatedVisibility gate above (currentSong is never null
+            // once this content is entered) but matches the old block's own currentSong?.let
+            // pattern above rather than introducing a differently-shaped non-null assertion
+            // here.
             currentSong?.let { song ->
                 PlayerV2Host(
                     song = song,
                     isPlaying = isPlaying,
                     isBuffering = isBuffering,
                     onPlayPauseClick = playbackViewModel::togglePlayPause,
+                    currentPosition = currentPosition,
+                    duration = duration,
+                    onSeek = playbackViewModel::seekTo,
+                    hasPrevious = hasPrevious,
+                    hasNext = hasNext,
+                    onPreviousClick = playbackViewModel::previous,
+                    onNextClick = playbackViewModel::next,
                     onProgressChanged = onPlayerProgressChanged,
                 )
             }
