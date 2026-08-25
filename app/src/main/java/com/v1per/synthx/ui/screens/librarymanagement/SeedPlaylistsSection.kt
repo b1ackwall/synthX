@@ -24,59 +24,18 @@ import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
 /**
- * Temporary feature — safe to delete. Removing this file plus its four other touch
- * points fully removes "Seed Playlists (Temporary)" with no other cleanup needed:
- *   1. data/PlaylistSeeder.kt
- *   2. This file (ui/screens/librarymanagement/SeedPlaylistsSection.kt)
- *   3. The `seedPlaylists()` function (plus `_seedPlaylistsStatus`/`isSeeding` state) in
- *      LibraryManagementViewModel.kt
- *   4. The `SeedPlaylistsSection(...)` call in LibraryManagementScreenContent, and its
- *      `seedPlaylistsStatus`/`isSeeding` params (LibraryManagementScreen.kt)
- *   5. The `seedPlaylistsStatus`/`isSeeding`/`onSeedPlaylists` args added to the three
- *      `LibraryManagementScreenContent(...)` preview call sites
- *      (LibraryManagementScreenPreviews.kt)
- *
- * Mirrors [BackupSection]'s shape: a divider, a section header, and one action row
- * whose subtitle carries the last run's status. The indeterminate progress bar while
- * [isSeeding] is true reuses [ScanSection]'s bar styling (same colors, same
- * fillMaxWidth/clip shape) rather than inventing a new loading indicator.
- *
- * The "Remove organized from Starred (temporary)" row directly below is a separate,
- * independently-removable piece of debug tooling — see
+ * Temporary, independently-removable debug tooling — see
  * [com.v1per.synthx.data.db.SongDao.removeOrganizedFromStarred] for its own removal
- * checklist. It's kept in this file rather than a new one so it doesn't add another file
- * to that checklist. Unlike Seed Playlists, this action is destructive-ish (unrecoverable
- * within the app) and irreversible enough to warrant a confirm dialog before running —
+ * checklist. The action is irreversible enough to warrant a confirm dialog before running;
  * the dialog is local to this composable since nothing else needs its state.
  */
 @Composable
 internal fun SeedPlaylistsSection(
-    seedStatus: String?,
-    isSeeding: Boolean,
-    onSeedPlaylists: () -> Unit,
     removeOrganizedStatus: String?,
     isRemovingOrganized: Boolean,
     onRemoveOrganizedFromStarred: () -> Unit,
 ) {
     HorizontalDivider(thickness = 1.dp, color = Hairline)
-    SectionHeader(title = "Seed Playlists")
-
-    ManagementRow(
-        title = "Seed Playlists (Temporary)",
-        subtitle = seedStatus,
-        enabled = !isSeeding,
-        onClick = onSeedPlaylists,
-    )
-    if (isSeeding) {
-        LinearProgressIndicator(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm)
-                .clip(MaterialTheme.shapes.small),
-            color = TextPrimary,
-            trackColor = Hairline,
-        )
-    }
 
     var showConfirmDialog by remember { mutableStateOf(false) }
 

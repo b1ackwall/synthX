@@ -28,8 +28,6 @@ private fun LibraryManagementWithFolderPreview() {
                 backupFolderPath = null,
                 backupStatus = null,
                 deleteSongsEnabled = false,
-                seedPlaylistsStatus = null,
-                isSeeding = false,
                 removeOrganizedStatus = null,
                 isRemovingOrganized = false,
                 onPickFolder = {},
@@ -41,7 +39,6 @@ private fun LibraryManagementWithFolderPreview() {
                 onBackupNow = {},
                 onRestoreClick = {},
                 onToggleDeleteSongs = {},
-                onSeedPlaylists = {},
                 onRemoveOrganizedFromStarred = {},
             )
         }
@@ -68,8 +65,6 @@ private fun LibraryManagementEmptyPreview() {
                 backupFolderPath = null,
                 backupStatus = null,
                 deleteSongsEnabled = false,
-                seedPlaylistsStatus = null,
-                isSeeding = false,
                 removeOrganizedStatus = null,
                 isRemovingOrganized = false,
                 onPickFolder = {},
@@ -81,7 +76,6 @@ private fun LibraryManagementEmptyPreview() {
                 onBackupNow = {},
                 onRestoreClick = {},
                 onToggleDeleteSongs = {},
-                onSeedPlaylists = {},
                 onRemoveOrganizedFromStarred = {},
             )
         }
@@ -108,8 +102,6 @@ private fun LibraryManagementScanningPreview() {
                 backupFolderPath = null,
                 backupStatus = null,
                 deleteSongsEnabled = false,
-                seedPlaylistsStatus = null,
-                isSeeding = false,
                 removeOrganizedStatus = null,
                 isRemovingOrganized = false,
                 onPickFolder = {},
@@ -121,7 +113,6 @@ private fun LibraryManagementScanningPreview() {
                 onBackupNow = {},
                 onRestoreClick = {},
                 onToggleDeleteSongs = {},
-                onSeedPlaylists = {},
                 onRemoveOrganizedFromStarred = {},
             )
         }

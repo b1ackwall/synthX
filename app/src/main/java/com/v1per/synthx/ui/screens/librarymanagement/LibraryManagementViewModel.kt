@@ -18,7 +18,6 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.data.scanner.RootNesting
-import com.v1per.synthx.data.seedPlaylistsFromFolders
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.delay
@@ -104,27 +103,14 @@ class LibraryManagementViewModel(
     /** Thin passthrough to the shared in-memory gate — see [DeleteSongsGate]. */
     val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
 
-    // Temporary feature — see PlaylistSeeder.kt's doc comment for the full removal
-    // checklist. This state plus seedPlaylists() below are the only ViewModel touch
-    // points.
-    private val _seedPlaylistsStatus = MutableStateFlow<String?>(null)
-    val seedPlaylistsStatus: StateFlow<String?> = _seedPlaylistsStatus.asStateFlow()
-
-    // Guards against a double-tap enqueuing a second concurrent run — there's no
-    // WorkManager-style unique-work dedupe here, so this is the only thing preventing
-    // two seedPlaylistsFromFolders calls from racing on the same playlists.
-    private val _isSeeding = MutableStateFlow(false)
-    val isSeeding: StateFlow<Boolean> = _isSeeding.asStateFlow()
-
-    // Temporary debug tooling — safe to delete independently of the Seed Playlists feature
-    // above. See SongDao.removeOrganizedFromStarred's doc comment for the full removal
-    // checklist. This state plus removeOrganizedFromStarred() below are the only ViewModel
-    // touch points.
+    // Temporary debug tooling — see SongDao.removeOrganizedFromStarred's doc comment for
+    // the full removal checklist. This state plus removeOrganizedFromStarred() below are
+    // the only ViewModel touch points.
     private val _removeOrganizedFromStarredStatus = MutableStateFlow<String?>(null)
     val removeOrganizedFromStarredStatus: StateFlow<String?> =
         _removeOrganizedFromStarredStatus.asStateFlow()
 
-    // Same double-tap guard as _isSeeding above.
+    // Guards against a double-tap starting a second concurrent run.
     private val _isRemovingOrganizedFromStarred = MutableStateFlow(false)
     val isRemovingOrganizedFromStarred: StateFlow<Boolean> =
         _isRemovingOrganizedFromStarred.asStateFlow()
@@ -387,53 +373,12 @@ class LibraryManagementViewModel(
     }
 
     /**
-     * Temporary feature — safe to delete. Removing this function (plus the
-     * [_seedPlaylistsStatus]/[seedPlaylistsStatus] and [_isSeeding]/[isSeeding] state
-     * above it) and its four other touch points fully removes "Seed Playlists
-     * (Temporary)" with no other cleanup needed:
-     *   1. data/PlaylistSeeder.kt
-     *   2. ui/screens/librarymanagement/SeedPlaylistsSection.kt
-     *   3. This function, plus the state fields noted above (LibraryManagementViewModel.kt)
-     *   4. The `SeedPlaylistsSection(...)` call in LibraryManagementScreenContent, and its
-     *      `seedPlaylistsStatus`/`isSeeding` params (LibraryManagementScreen.kt)
-     *   5. The `seedPlaylistsStatus`/`isSeeding`/`onSeedPlaylists` args added to the three
-     *      `LibraryManagementScreenContent(...)` preview call sites
-     *      (LibraryManagementScreenPreviews.kt)
-     */
-    fun seedPlaylists() {
-        if (_isSeeding.value) return // already running — ignore a double-tap
-
-        val folderUri = _musicFolderUri.value
-        if (folderUri == null) {
-            _seedPlaylistsStatus.showTemporarily(context.getString(R.string.settings_no_folder_selected))
-            return
-        }
-        viewModelScope.launch {
-            _isSeeding.value = true
-            _seedPlaylistsStatus.value = "Seeding…"
-            try {
-                val result = seedPlaylistsFromFolders(context, folderUri, repository) { progress ->
-                    _seedPlaylistsStatus.value = "Seeding… folder ${progress.foldersProcessed}/" +
-                        "${progress.totalFolders} (${progress.songsMatchedSoFar} songs matched)"
-                }
-                _seedPlaylistsStatus.showTemporarily(
-                    "Created ${result.playlistsCreated}, updated ${result.playlistsUpdated} — " +
-                        "${result.songsMatched} songs matched, ${result.filesUnmatched} unmatched"
-                )
-            } finally {
-                _isSeeding.value = false
-            }
-        }
-    }
-
-    /**
-     * Temporary debug tooling — safe to delete independently of [seedPlaylists]. Restores
-     * test state after a fresh install/empty DB by bulk-clearing the Starred flag for every
-     * song already filed into a playlist. Not a production feature.
+     * Temporary debug tooling. Restores test state after a fresh install/empty DB by
+     * bulk-clearing the Starred flag for every song already filed into a playlist. Not a
+     * production feature.
      *
      * Called only after the confirmation dialog in SeedPlaylistsSection.kt is accepted — this
-     * function itself does not confirm, it just guards against a double-tap the same way
-     * [seedPlaylists] guards against re-enqueuing.
+     * function itself does not confirm; it only guards against a double-tap.
      *
      * See [com.v1per.synthx.data.db.SongDao.removeOrganizedFromStarred] for the full removal
      * checklist.

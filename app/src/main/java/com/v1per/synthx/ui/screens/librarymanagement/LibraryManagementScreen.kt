@@ -37,8 +37,6 @@ fun LibraryManagementScreen(
     val backupFolderUri by viewModel.backupFolderUri.collectAsState()
     val backupStatus by viewModel.backupStatus.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
-    val seedPlaylistsStatus by viewModel.seedPlaylistsStatus.collectAsState()
-    val isSeeding by viewModel.isSeeding.collectAsState()
     val removeOrganizedStatus by viewModel.removeOrganizedFromStarredStatus.collectAsState()
     val isRemovingOrganized by viewModel.isRemovingOrganizedFromStarred.collectAsState()
 
@@ -117,8 +115,6 @@ fun LibraryManagementScreen(
             backupFolderPath = backupFolderUri?.let { FolderPathFormatter.format(context, it) },
             backupStatus = backupStatus,
             deleteSongsEnabled = deleteSongsEnabled,
-            seedPlaylistsStatus = seedPlaylistsStatus,
-            isSeeding = isSeeding,
             removeOrganizedStatus = removeOrganizedStatus,
             isRemovingOrganized = isRemovingOrganized,
             onPickFolder = { folderPicker.launch(null) },
@@ -130,7 +126,6 @@ fun LibraryManagementScreen(
             onBackupNow = viewModel::createManualBackup,
             onRestoreClick = onRestoreClick,
             onToggleDeleteSongs = viewModel::setDeleteSongsEnabled,
-            onSeedPlaylists = viewModel::seedPlaylists,
             onRemoveOrganizedFromStarred = viewModel::removeOrganizedFromStarred,
         )
     }
@@ -149,8 +144,6 @@ internal fun LibraryManagementScreenContent(
     backupFolderPath: String?,
     backupStatus: String?,
     deleteSongsEnabled: Boolean,
-    seedPlaylistsStatus: String?,
-    isSeeding: Boolean,
     removeOrganizedStatus: String?,
     isRemovingOrganized: Boolean,
     onPickFolder: () -> Unit,
@@ -162,7 +155,6 @@ internal fun LibraryManagementScreenContent(
     onBackupNow: () -> Unit,
     onRestoreClick: () -> Unit,
     onToggleDeleteSongs: (Boolean) -> Unit,
-    onSeedPlaylists: () -> Unit,
     onRemoveOrganizedFromStarred: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -193,12 +185,8 @@ internal fun LibraryManagementScreenContent(
             onToggle = onToggleDeleteSongs,
         )
 
-        // Temporary feature — see SeedPlaylistsSection.kt's doc comment for the full
-        // removal checklist.
+        // Temporary debug tooling — see SeedPlaylistsSection.kt.
         SeedPlaylistsSection(
-            seedStatus = seedPlaylistsStatus,
-            isSeeding = isSeeding,
-            onSeedPlaylists = onSeedPlaylists,
             removeOrganizedStatus = removeOrganizedStatus,
             isRemovingOrganized = isRemovingOrganized,
             onRemoveOrganizedFromStarred = onRemoveOrganizedFromStarred,
