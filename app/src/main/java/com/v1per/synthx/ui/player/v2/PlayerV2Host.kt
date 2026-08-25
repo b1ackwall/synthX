@@ -214,8 +214,8 @@ private const val PlayerV2TransitionMs: Int = Motion.DurationNormal
  *   Kotlin's old context *receivers* were removed in 2.2, and their replacement, context
  *   *parameters*, is still behind `-Xcontext-parameters` at this project's Kotlin 2.4.10 with
  *   the flag not enabled — so `context(...)` would not compile here at all. Extension-receiver
- *   style is also what Compose itself uses for scoped composables, and what this file already
- *   does for [BoxScope.PlayerV2MiniContent].
+ *   style is also what Compose itself uses for scoped composables, and what this file used to do
+ *   for `BoxScope.PlayerV2MiniContent` before migration Step 6 took that receiver away.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -704,13 +704,89 @@ fun SharedTransitionScope.PlayerV2Host(
                         progress = expansionState,
                     )
                 }
-                PlayerV2MiniContent(
-                    song = song,
-                    isPlaying = isPlaying,
-                    isBuffering = isBuffering,
-                    onPlayPauseClick = onPlayPauseClick,
-                    progress = expansionState,
-                )
+                // Migration Step 6: the mirror of Step 5, on the other state.
+                //
+                // **There was no boolean gate here to replace.** Unlike the expanded content —
+                // which Stage 2.3 gated on `expansion > 0f` — the mini content was
+                // *unconditionally composed*, for the whole life of the host, with only its
+                // opacity (the `graphicsLayer` alpha inside [PlayerV2MiniContent]) and its
+                // hit-testing (`miniContentEnabled`) driven by progress. So this step does not
+                // move a gate from one mechanism to another; it introduces a composition
+                // lifecycle where previously there was none, which is the point: Stage 2.4b
+                // needs an `AnimatedVisibilityScope` on *this* side of the transition to hang
+                // the mini album art's `Modifier.sharedElement` off, and only
+                // `Transition.AnimatedVisibility` produces one.
+                //
+                // **What actually changes on screen: nothing.** The only new behavior is
+                // disposal at the far end of an expand, and by then the alpha curve below has
+                // held this content at alpha 0 since progress ≈ 0.333 — it is disposed while
+                // already invisible, and recomposed (on a collapse drag's first frame, when
+                // `seekTo(fraction, Collapsed)` sets targetState = Collapsed) while still
+                // invisible. Traced against the shadow driver, the composition window is:
+                // present at settled Collapsed (both states Collapsed); present through an
+                // entire expand drag, because `seekTo` moves only `targetState` and
+                // `currentState` stays Collapsed; gone once `snapTo(Expanded)` commits both
+                // states; back on the first frame of any collapse drag. `visible(targetState)
+                // || visible(currentState) || …` (AnimatedVisibility.kt:808-815) is what makes
+                // both of those edges land on the same frame the alpha reaches 0f / leaves it.
+                transition.AnimatedVisibility(
+                    visible = { it == PlayerV2State.Collapsed },
+                    // The one modifier that had to relocate. [PlayerV2MiniContent]'s root Row
+                    // carried `.align(TopCenter)` as a [BoxScope] member; the content lambda
+                    // here is an `AnimatedVisibilityScope`, so `align` no longer resolves down
+                    // there and moves onto the node AnimatedVisibility emits — a direct child
+                    // of the sheet Box, exactly as the Row was, so the `BoxChildDataElement`
+                    // parent data reaches the same measure policy.
+                    //
+                    // Position-neutral for the same reason Step 5's three-modifier relocation
+                    // was: AnimatedVisibility emits one Layout whose measure policy forwards
+                    // the incoming constraints to its child untouched, reports `max(children)`
+                    // as its own size and places at (0, 0) (AnimatedVisibility.kt:896-916). So
+                    // the Row's own `fillMaxWidth().height(CollapsedPlayerHeight)` still
+                    // resolves against the sheet Box's constraints and still produces exactly
+                    // the same size, the node reports that size back up unchanged, and
+                    // `align(TopCenter)` positions the node where it positioned the Row. Only
+                    // `align` moved — the sizing modifiers stay on the Row, because unlike
+                    // Step 5's `requiredHeight` they were never fighting an incoming constraint.
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    // Nothing, same as Step 5 and for the same reason: the visible appearance
+                    // is the `graphicsLayer` alpha's job and it is already correct from the
+                    // first frame. Finding 3's disposal hazard is exit-side only, so there is
+                    // no enter-side substitute to reach for.
+                    enter = EnterTransition.None,
+                    // The plan's "same inert-exit treatment" — a hold, not a fade. Two separate,
+                    // complementary mechanisms, and it matters that they stay separate: *this*
+                    // spec governs only how long the node survives after the state flips
+                    // (`shouldDisposeBlock = { current, target -> current == target && target
+                    // == PostExit }`, AnimatedVisibility.kt:780), while the visible opacity
+                    // curve stays the `(1f - progress * 3f)` graphicsLayer fade inside
+                    // [PlayerV2MiniContent]. Substituting a real `fadeOut` here would replace a
+                    // curve that completes by progress ≈ 0.333 with one keyed to the
+                    // transition's whole span — a visible behavior change, and the exact thing
+                    // the plan's Step 6 line rules out.
+                    //
+                    // Duration must be PlayerV2TransitionMs for the same reason it must be on
+                    // Step 5's exit: this is a child transition, `calculateTotalDurationNanos`
+                    // takes the max over children (Transition.kt:1161-1168), and anything
+                    // longer would lift `totalDurationNanos` above the `expansion` tween and
+                    // silently break the fraction↔expansion 1:1 identity every `seekTo`
+                    // depends on. Inert in value terms regardless: alpha targets 1f in every
+                    // one of PreEnter/Visible/PostExit (EnterExitTransition.kt:1180-1184), and
+                    // with no `changeSize` on either side `shouldAnimateSizeChange` is false
+                    // (:956-957), so no size or offset animation is created either.
+                    exit = fadeOut(
+                        animationSpec = tween(PlayerV2TransitionMs, easing = LinearEasing),
+                        targetAlpha = 1f,
+                    ),
+                ) {
+                    PlayerV2MiniContent(
+                        song = song,
+                        isPlaying = isPlaying,
+                        isBuffering = isBuffering,
+                        onPlayPauseClick = onPlayPauseClick,
+                        progress = expansionState,
+                    )
+                }
             }
         }
     }
@@ -1234,6 +1310,29 @@ private fun PlayerV2ControlsBlock(
  * here *is* a direct child of the root `Row`, so fading the whole thing would fade the art too
  * — hence the narrower wrapper.
  *
+ * **Migration Step 6 — the receiver, and what did *not* change.** This composable was a
+ * [BoxScope] extension solely so its root `Row` could call `.align(Alignment.TopCenter)`. It is
+ * now called from inside a `Transition.AnimatedVisibility(visible = { it == Collapsed })`, whose
+ * content lambda is an `AnimatedVisibilityScope`, so that `align` moved up onto the
+ * `AnimatedVisibility` node and the receiver went away with it. Deliberately *not* replaced by an
+ * `AnimatedVisibilityScope` receiver, for the reason Step 5 established on
+ * [PlayerV2ExpandedContent]: that interface carries no `@Stable`, so taking it as a parameter
+ * would make this composable non-skippable. Stage 2.4b will need the scope for the art's
+ * `Modifier.sharedElement` and can take it at that point as a narrower, explicitly-typed
+ * parameter on the art alone.
+ *
+ * Neither of this composable's two progress-driven behaviors is affected by that wrapping. The
+ * `graphicsLayer` alpha below is unchanged — the plan is explicit that Step 6 keeps the
+ * `1f - progress * 3f` curve rather than substituting a real `fadeOut`, because the
+ * `AnimatedVisibility` exit governs *composition lifetime* while this governs *opacity*, and
+ * they are answering different questions. `miniContentEnabled` is likewise untouched: it is a
+ * `derivedStateOf` over the very same `progress` `State<Float>` reference the host passes in,
+ * with no dependency on the transition's visibility machinery, so the play/pause hit-test still
+ * flips at exactly progress ≈ 0.1667 in both directions. The only way `AnimatedVisibility` could
+ * have moved that threshold is by disposing this subtree while the gate still mattered, and it
+ * disposes only once `snapTo(Expanded)` commits — five times past the crossing, with the button
+ * long since disabled and at alpha 0.
+ *
  * @param progress the same `expansionState` reference [PlayerV2Host] hands to
  *   [PlayerV2ExpandedContent] — not the unwrapped value — so the fade alpha below is read
  *   inside [androidx.compose.ui.graphics.graphicsLayer]'s lambda at draw time, the same
@@ -1246,7 +1345,7 @@ private fun PlayerV2ControlsBlock(
  *   composition-phase read the same way, and how that cost is bounded instead.
  */
 @Composable
-private fun BoxScope.PlayerV2MiniContent(
+private fun PlayerV2MiniContent(
     song: Song,
     isPlaying: Boolean,
     isBuffering: Boolean,
@@ -1271,7 +1370,10 @@ private fun BoxScope.PlayerV2MiniContent(
 
     Row(
         modifier = Modifier
-            .align(Alignment.TopCenter)
+            // `.align(Alignment.TopCenter)` used to head this chain. It moved to the
+            // AnimatedVisibility node at the call site in migration Step 6 — see this
+            // composable's doc, and that call site's own comment for why the move is
+            // position-neutral.
             .fillMaxWidth()
             .height(CollapsedPlayerHeight)
             .padding(horizontal = Spacing.md),
