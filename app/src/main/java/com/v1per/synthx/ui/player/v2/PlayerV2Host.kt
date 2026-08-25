@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,6 +34,7 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
+import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Surface
@@ -65,20 +68,29 @@ enum class PlayerV2State { Collapsed, Expanded }
  *   elements and no content to reveal, the transition machinery would buy nothing while the
  *   old player's AnchoredDraggable drag/settle path is already proven on this exact gesture.
  *   Swapping the mechanism is its own later step.
- * - No coordination with SynthXBottomNav (§5). The nav does not slide away, and this sheet
- *   applies no bottom inset to clear it, so the collapsed bar currently overlays the nav
- *   instead of stacking above it. That is Stage 1.2's job and is intentionally left broken.
  * - No BackHandler, and no tap-to-collapse. Dragging down is currently the only way back to
  *   Collapsed.
+ *
+ * Stage 1.2 has since added the nav coordination that this list previously called out as
+ * missing (§5): [onProgressChanged] reports the live drag progress outward, and the sheet
+ * applies the matching bottom inset so the collapsed bar stacks above the nav rather than
+ * overlaying it. Everything else above still stands.
  *
  * Every gesture constant here is copied verbatim from
  * [com.v1per.synthx.ui.player.PlayerSheetSkeleton] rather than re-tuned — the 0.4f
  * positional threshold, the 200dp velocity threshold, exponentialDecay's 1.8f friction
  * multiplier and [Motion.SpringStandard] as the snap spec.
+ *
+ * @param onProgressChanged called with the live 0..1 collapse/expand progress whenever it
+ *   changes, so chrome outside this composable (the bottom nav) can move in lockstep. Fired
+ *   from a [SideEffect] rather than from the composition body — see the call site below.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PlayerV2Host(modifier: Modifier = Modifier) {
+fun PlayerV2Host(
+    modifier: Modifier = Modifier,
+    onProgressChanged: (Float) -> Unit = {},
+) {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val collapsedHeightPx = with(density) { CollapsedPlayerHeight.toPx() }
@@ -133,6 +145,32 @@ fun PlayerV2Host(modifier: Modifier = Modifier) {
             }
         }
 
+        // Publish progress outward so SynthXBottomNav can slide/shrink/fade in lockstep.
+        //
+        // SideEffect, not a bare call in the composition body: the old player does
+        // `onProgressChanged(progress)` inline (PlayerSheetSkeleton.kt:185), which runs the
+        // callback *during* composition. Because the callback writes a snapshot state that
+        // other composables read, that is a write-during-composition — the exact pattern
+        // Compose warns about, since a composition that has not yet committed can be
+        // discarded or replayed, firing the callback more than once or with a value that
+        // never reaches the screen.
+        //
+        // SideEffect is the documented tool for "publish Compose state to non-Compose-managed
+        // state": it runs only after a composition successfully commits, so every value the
+        // nav receives is one that actually rendered. LaunchedEffect(progress) would also be
+        // correct-by-construction but is the wrong instrument here — it would spin up and
+        // cancel a coroutine on every frame of the drag, and the callback would land a
+        // dispatch later than the frame it describes, leaving the nav visibly one frame
+        // behind the finger. SideEffect is synchronous with the commit and allocates nothing.
+        SideEffect { onProgressChanged(progress) }
+
+        // Complement of SynthXBottomNav's own collapse: the nav slides down by
+        // BottomNavHeight * progress while this shrinks by BottomNavHeight * (1 - progress),
+        // so the two edges stay in contact at every intermediate value instead of drifting.
+        // Sharing the BottomNavHeight constant (rather than restating 71.dp) is what keeps
+        // that true — see PlayerChromeMetrics.kt.
+        val bottomInset = lerpDp(BottomNavHeight, 0.dp, progress)
+
         // The three animated properties, all driven off the one progress term so they cannot
         // drift out of step with each other or with the finger.
         val sheetHeight = lerpDp(CollapsedPlayerHeight, maxHeight, progress)
@@ -144,68 +182,77 @@ fun PlayerV2Host(modifier: Modifier = Modifier) {
         // read progress mid-drag at a glance, and it costs one line and one import.
         val surfaceColor = lerp(Surface, SurfaceVariant, progress)
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(sheetHeight)
-                .align(Alignment.BottomCenter)
-                .clip(RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius))
-                .background(surfaceColor)
-                // One unified detector arbitrating tap vs. drag itself, rather than
-                // Modifier.anchoredDraggable paired with a separate tap modifier. Two
-                // co-located detectors fight over pointer consumption — anchoredDraggable's
-                // drag-start detector aborts permanently the moment it sees a consumed
-                // pointer change, and a tap detector consumes the down as its first act.
-                // PlayerSheetSkeleton hit exactly that and landed here; starting from its
-                // conclusion rather than rediscovering it.
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val velocityTracker = VelocityTracker()
-                        velocityTracker.addPosition(down.uptimeMillis, down.position)
+        // Outer wrapper whose only job is to hold the inset, exactly as the old player does
+        // (PlayerSheetSkeleton.kt:257). The padding shrinks the coordinate space the sheet is
+        // bottom-aligned *within*, rather than being applied to the sheet itself — so the
+        // sheet's own .align(BottomCenter) below lands it above the nav with no change to its
+        // alignment or height logic. At progress = 0 the space stops BottomNavHeight short of
+        // the bottom and the 64dp collapsed bar sits on top of the nav's upper edge; at
+        // progress = 1 the inset is 0 and the sheet reclaims the full height the nav vacated.
+        Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomInset)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(sheetHeight)
+                    .align(Alignment.BottomCenter)
+                    .clip(RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius))
+                    .background(surfaceColor)
+                    // One unified detector arbitrating tap vs. drag itself, rather than
+                    // Modifier.anchoredDraggable paired with a separate tap modifier. Two
+                    // co-located detectors fight over pointer consumption — anchoredDraggable's
+                    // drag-start detector aborts permanently the moment it sees a consumed
+                    // pointer change, and a tap detector consumes the down as its first act.
+                    // PlayerSheetSkeleton hit exactly that and landed here; starting from its
+                    // conclusion rather than rediscovering it.
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val velocityTracker = VelocityTracker()
+                            velocityTracker.addPosition(down.uptimeMillis, down.position)
 
-                        // The same slop wait Foundation's own draggable/anchoredDraggable use
-                        // internally: it returns null if the pointer lifted before crossing
-                        // slop (a tap) and the first post-slop change otherwise (a drag).
-                        var overSlopDelta = 0f
-                        val drag = awaitVerticalTouchSlopOrCancellation(down.id) { change, overSlop ->
-                            change.consume()
-                            overSlopDelta = overSlop
-                        }
-
-                        if (drag == null) {
-                            // Tap. Expands from Collapsed only; tapping while Expanded is a
-                            // deliberate no-op, per this stage's scope.
-                            //
-                            // PlayerSheetSkeleton additionally guards this on down.isConsumed
-                            // so a tap on a child button (mini play/pause) doesn't also expand
-                            // the sheet. Omitted here because the sheet has no children at all
-                            // to consume anything — it must come back the moment mini content
-                            // does.
-                            if (draggableState.currentValue == PlayerV2State.Collapsed) {
-                                scope.launch { draggableState.animateTo(PlayerV2State.Expanded) }
-                            }
-                        } else {
-                            // Drag. Feed the post-slop offset and then every subsequent delta
-                            // straight into the state, exactly as anchoredDraggable's own
-                            // internal drag loop would — this is what makes the morph track
-                            // the finger continuously instead of snapping at the end.
-                            velocityTracker.addPosition(drag.uptimeMillis, drag.position)
-                            draggableState.dispatchRawDelta(overSlopDelta)
-                            verticalDrag(drag.id) { change ->
-                                draggableState.dispatchRawDelta(change.positionChange().y)
-                                velocityTracker.addPosition(change.uptimeMillis, change.position)
+                            // The same slop wait Foundation's own draggable/anchoredDraggable use
+                            // internally: it returns null if the pointer lifted before crossing
+                            // slop (a tap) and the first post-slop change otherwise (a drag).
+                            var overSlopDelta = 0f
+                            val drag = awaitVerticalTouchSlopOrCancellation(down.id) { change, overSlop ->
                                 change.consume()
+                                overSlopDelta = overSlop
                             }
-                            // Release. settle() applies the positional threshold (40% of the
-                            // travel) and the 200dp/s velocity threshold configured above,
-                            // seeded with the real release velocity, so a short flick still
-                            // completes and a slow release falls back to nearest-state.
-                            val velocity = velocityTracker.calculateVelocity().y
-                            scope.launch { draggableState.settle(velocity) }
+
+                            if (drag == null) {
+                                // Tap. Expands from Collapsed only; tapping while Expanded is a
+                                // deliberate no-op, per this stage's scope.
+                                //
+                                // PlayerSheetSkeleton additionally guards this on down.isConsumed
+                                // so a tap on a child button (mini play/pause) doesn't also expand
+                                // the sheet. Omitted here because the sheet has no children at all
+                                // to consume anything — it must come back the moment mini content
+                                // does.
+                                if (draggableState.currentValue == PlayerV2State.Collapsed) {
+                                    scope.launch { draggableState.animateTo(PlayerV2State.Expanded) }
+                                }
+                            } else {
+                                // Drag. Feed the post-slop offset and then every subsequent delta
+                                // straight into the state, exactly as anchoredDraggable's own
+                                // internal drag loop would — this is what makes the morph track
+                                // the finger continuously instead of snapping at the end.
+                                velocityTracker.addPosition(drag.uptimeMillis, drag.position)
+                                draggableState.dispatchRawDelta(overSlopDelta)
+                                verticalDrag(drag.id) { change ->
+                                    draggableState.dispatchRawDelta(change.positionChange().y)
+                                    velocityTracker.addPosition(change.uptimeMillis, change.position)
+                                    change.consume()
+                                }
+                                // Release. settle() applies the positional threshold (40% of the
+                                // travel) and the 200dp/s velocity threshold configured above,
+                                // seeded with the real release velocity, so a short flick still
+                                // completes and a slow release falls back to nearest-state.
+                                val velocity = velocityTracker.calculateVelocity().y
+                                scope.launch { draggableState.settle(velocity) }
+                            }
                         }
-                    }
-                },
-        )
+                    },
+            )
+        }
     }
 }

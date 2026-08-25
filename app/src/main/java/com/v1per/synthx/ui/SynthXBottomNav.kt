@@ -34,7 +34,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.v1per.synthx.R
@@ -62,7 +64,7 @@ fun BottomChromeOverlay(
     currentRoute: String?,
     showBottomBar: Boolean,
     currentSong: Song?,
-    playerProgress: Float,
+    playerProgress: () -> Float,
     onPlayerProgressChanged: (Float) -> Unit,
     playbackViewModel: PlaybackViewModel,
 ) {
@@ -114,7 +116,13 @@ fun BottomChromeOverlay(
                 currentRoute = currentRoute,
                 // Fall back to 0f when nothing is playing so a stale progress can't
                 // leave the nav slid off screen after the sheet is gone.
-                playerProgress = if (currentSong != null) playerProgress else 0f,
+                //
+                // Passed as a lambda rather than a Float so this composable is not
+                // re-invoked on every frame of a drag — see SynthXBottomNav's own note.
+                // The lambda itself only changes identity when currentSong changes
+                // (per track, not per frame), so it stays a stable parameter throughout
+                // a gesture and SynthXBottomNav stays skippable.
+                playerProgress = { if (currentSong != null) playerProgress() else 0f },
             )
         }
 
@@ -125,11 +133,12 @@ fun BottomChromeOverlay(
         // than being a separate top-level sibling) is what keeps their coordinate frames —
         // and therefore their bounds — in agreement at every progress value.
         //
-        // Stage 1.1 caveat: the "progress-driven inset" and "sliding nav vacates" halves of
-        // the above describe the detached implementation, not PlayerV2Host. The replacement
-        // reports no progress and applies no bottom inset, so the nav stays put and the
-        // collapsed bar currently sits on top of it rather than above it. Deliberate — chrome
-        // coordination is Stage 1.2. The shared-Box/coordinate-frame point still holds.
+        // As of Stage 1.2 this describes PlayerV2Host too, not just the detached
+        // implementation: it reports progress via onProgressChanged and applies the same
+        // lerp(BottomNavHeight, 0.dp, progress) bottom inset, so the nav slides and the
+        // collapsed bar stacks above it. The one behavioural difference left versus the old
+        // player is that the nav consumes progress through layout/draw-phase modifiers
+        // rather than recomposing — visually identical, materially cheaper.
         AnimatedVisibility(
             visible = showBottomBar && currentSong != null,
             enter = ChromeEnterTransition,
@@ -187,13 +196,15 @@ fun BottomChromeOverlay(
             // -----------------------------------------------------------------------------
 
             // Stage 1.1 replacement, in the old call's exact position and under the exact
-            // same visibility gating (showBottomBar && currentSong != null, above). Takes no
-            // arguments: it renders no content, so it needs no song and no playback state.
+            // same visibility gating (showBottomBar && currentSong != null, above). It still
+            // renders no content, so it needs no song and no playback state.
             //
-            // onPlayerProgressChanged is deliberately not wired — SynthXBottomNav's
-            // slide-away stays disconnected for now (Stage 1.2), so playerProgress remains
-            // 0f and the nav does not move while this sheet expands over it.
-            PlayerV2Host()
+            // Stage 1.2 wires the one thing it does produce: onProgressChanged closes the
+            // loop back to MainScaffold's playerProgress state, which flows down the
+            // playerProgress lambda above and drives the nav's slide/shrink/fade. The sheet
+            // applies the complementary bottom inset internally, so the collapsed bar now
+            // stacks above the nav instead of overlaying it.
+            PlayerV2Host(onProgressChanged = onPlayerProgressChanged)
         }
     }
 }
@@ -206,7 +217,7 @@ private val libraryTabRoutes = Screen.libraryDetailRoutes
 private fun SynthXBottomNav(
     navController: NavController,
     currentRoute: String?,
-    playerProgress: Float = 0f,
+    playerProgress: () -> Float = { 0f },
 ) {
     val items = listOf(
         BottomNavItem(
@@ -244,13 +255,43 @@ private fun SynthXBottomNav(
     // clipToBounds() (so the fixed-height NavigationBar/divider inside can't paint past a
     // zero-height container) plus a matching alpha fade are the actual fix; the offset alone
     // was the previous, insufficient attempt.
-    val collapseFraction = playerProgress.coerceIn(0f, 1f)
+    // All three collapse properties read playerProgress() inside a lambda, so the read
+    // happens in the layout or draw phase rather than in composition. This matters now that
+    // Stage 1.2 feeds a real per-frame value: as a plain Float parameter, every frame of a
+    // drag would be a *changed parameter*, which makes this composable unskippable and
+    // re-runs the whole body — the items list, three NavigationBarItems, three
+    // stringResource lookups — 60 times a second. As a lambda the parameter's identity is
+    // stable for the whole gesture, nothing here subscribes to the value in composition, and
+    // the snapshot read lands in the phase that actually consumes it. Progress changes then
+    // invalidate layout and draw only. See docs/player-rebuild-design.md §5.
     Column(
         modifier = Modifier
-            .offset(y = BottomNavHeight * collapseFraction)
-            .height(BottomNavHeight * (1f - collapseFraction))
+            // Lambda overload of offset (Density.() -> IntOffset), not offset(y: Dp): same
+            // downward slide by the full BottomNavHeight across the drag, resolved during
+            // placement.
+            .offset {
+                val collapseFraction = playerProgress().coerceIn(0f, 1f)
+                IntOffset(0, (BottomNavHeight * collapseFraction).roundToPx())
+            }
+            // Layout-phase equivalent of .height(BottomNavHeight * (1f - collapseFraction)).
+            // Modifier.height pins min and max height to the same value and measures the
+            // child against that, so the fixed 70dp NavigationBar + 1dp divider inside are
+            // squeezed as the container shrinks; measuring with minHeight = maxHeight = the
+            // target reproduces that byte-for-byte, just one phase later.
+            .layout { measurable, constraints ->
+                val collapseFraction = playerProgress().coerceIn(0f, 1f)
+                val targetHeight = (BottomNavHeight * (1f - collapseFraction))
+                    .roundToPx()
+                    .coerceIn(constraints.minHeight, constraints.maxHeight)
+                val placeable = measurable.measure(
+                    constraints.copy(minHeight = targetHeight, maxHeight = targetHeight),
+                )
+                layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+            }
             .clipToBounds()
-            .graphicsLayer { alpha = 1f - collapseFraction },
+            // Already a draw-phase lambda, but it previously closed over a value computed in
+            // composition; reading playerProgress() here instead makes the deferral real.
+            .graphicsLayer { alpha = 1f - playerProgress().coerceIn(0f, 1f) },
     ) {
         HorizontalDivider(
             thickness = 1.dp,

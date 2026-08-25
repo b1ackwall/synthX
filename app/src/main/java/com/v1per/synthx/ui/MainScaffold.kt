@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -83,9 +84,17 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     // both derive from it, and unlike position it only changes when the song itself changes.
     val currentSong by playbackViewModel.currentSong.collectAsState()
 
-    // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerSheet and used
+    // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerV2Host and used
     // to slide the bottom nav down in lockstep with the sheet's expansion.
-    var playerProgress by remember { mutableStateOf(0f) }
+    //
+    // Held as a raw MutableFloatState and read only through a lambda (below), never via a
+    // `by` delegate here: this value changes once per frame for the whole duration of a
+    // drag. Reading it in this composable's body would subscribe MainScaffold — and
+    // therefore BottomChromeOverlay and SynthXBottomNav beneath it — to a 60Hz invalidation
+    // for the entire gesture. Passing `{ playerProgress.floatValue }` instead keeps the
+    // subscription out of composition entirely and defers it to the layout/draw phase
+    // modifiers in SynthXBottomNav that actually consume it.
+    val playerProgress = remember { mutableFloatStateOf(0f) }
 
     // Bottom chrome reservation, applied per destination (never on the NavHost itself, so
     // an outgoing screen can't reflow mid-transition).
@@ -144,8 +153,8 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             currentRoute = currentRoute,
             showBottomBar = showBottomBar,
             currentSong = currentSong,
-            playerProgress = playerProgress,
-            onPlayerProgressChanged = { playerProgress = it },
+            playerProgress = { playerProgress.floatValue },
+            onPlayerProgressChanged = { playerProgress.floatValue = it },
             playbackViewModel = playbackViewModel,
         )
 
