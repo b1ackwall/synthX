@@ -1,5 +1,7 @@
 package com.v1per.synthx.ui.player.v2
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.SeekableTransitionState
@@ -7,6 +9,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -212,7 +215,7 @@ private const val PlayerV2TransitionMs: Int = Motion.DurationNormal
  *   *parameters*, is still behind `-Xcontext-parameters` at this project's Kotlin 2.4.10 with
  *   the flag not enabled — so `context(...)` would not compile here at all. Extension-receiver
  *   style is also what Compose itself uses for scoped composables, and what this file already
- *   does for [BoxScope.PlayerV2MiniContent] / [BoxScope.PlayerV2ExpandedContent].
+ *   does for [BoxScope.PlayerV2MiniContent].
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -437,17 +440,6 @@ fun SharedTransitionScope.PlayerV2Host(
         }
         // ── end Steps 3–4 ────────────────────────────────────────────────────────────────
 
-        // Stage 2.3: composition-presence gate only — decides whether
-        // PlayerV2ExpandedContent exists in the tree at all, not whether it's visually shown.
-        // That's now the reveal clip's job (EnvelopeRevealShape, applied inside the
-        // composable itself), driven off the same expansionState. Keyed to expansion > 0f
-        // rather than Stage 2.2's `draggableState.targetValue == Expanded` — targetValue only
-        // flips at the anchoredDraggable midpoint, which would leave nothing composed (and
-        // therefore nothing for the clip to grow open) for the first ~40% of every expand
-        // drag. expansion > 0f instead begins composing on the drag's very first frame, so the
-        // clip always has content to reveal from 0.
-        val isContentPresent = expansion > 0f
-
         // Publish expansion outward so SynthXBottomNav can slide/shrink/fade in lockstep.
         //
         // SideEffect, not a bare call in the composition body: the old player does
@@ -475,12 +467,12 @@ fun SharedTransitionScope.PlayerV2Host(
         val bottomInset = lerpDp(BottomNavHeight, 0.dp, expansion)
 
         // The sheet's height at expansion 1, captured here rather than read at the call site
-        // below. PlayerV2ExpandedContent is a BoxScope extension (it needs .align to
-        // bottom-anchor itself), and BoxWithConstraintsScope extends BoxScope — so inside the
-        // sheet Box's content lambda there are two candidate implicit receivers and
-        // `maxHeight` no longer resolves. Naming it once here is clearer than an explicit
-        // qualified receiver at the call site, and gives the value a name that says which
-        // height it is.
+        // below. As of Step 5 it is applied on the AnimatedVisibility node down inside the
+        // sheet Box's content lambda, which nests two more scopes (BoxScope, then
+        // AnimatedVisibilityScope) under this BoxWithConstraintsScope; naming the value once up
+        // here beats a qualified receiver down there, and gives it a name that says which
+        // height it is rather than leaving a bare `maxHeight` to be read as the sheet's live
+        // height. Deliberately *not* the live sheetHeight — see [PlayerV2ExpandedContent].
         val expandedSheetHeight = maxHeight
 
         // The three animated properties, all driven off the one expansion term so they cannot
@@ -618,12 +610,87 @@ fun SharedTransitionScope.PlayerV2Host(
                         }
                     },
             ) {
-                if (isContentPresent) {
+                // Migration Step 5: the expanded content's presence is the transition's job
+                // now, not a hand-written `expansion > 0f` boolean.
+                //
+                // **Presence is unchanged, frame for frame.** AnimatedVisibility composes when
+                // `visible(targetState) || visible(currentState) || … || isSeeking ||
+                // hasInitialValueAnimations` (AnimatedVisibility.kt:808-815). Traced against
+                // this file's shadow driver, that lands on exactly the same frames the old gate
+                // did: the shadow's first `seekTo(fraction, Expanded)` of an expand drag sets
+                // targetState = Expanded, so content composes on the drag's first frame just as
+                // `expansion > 0f` did; a collapse drag keeps currentState = Expanded for its
+                // whole length; and the shadow's `snapTo(Collapsed)` — which fires on precisely
+                // the frame `expansion` reaches 0f — drops both states to Collapsed and
+                // disposes. The two gates flip on the same frame in both directions.
+                //
+                // Not `isSeeking`, despite the name: for a top-level transition backed by a
+                // SeekableTransitionState that flag is never actually set. Its one writer is
+                // `setPlaytimeAfterInitialAndTargetStateEstablished` (Transition.kt:1284), a
+                // @RestrictTo tooling entry point; the real seek path is
+                // `seekToFraction() → transition.seekAnimations()` (:845-848, :1384), which
+                // never touches it. Worth knowing because it means the framework treats this as
+                // an ordinary state-driven transition, and `targetEnterExit` takes its
+                // non-seeking branch (:957-977) — the `hasBeenVisible`/PostExit one.
+                transition.AnimatedVisibility(
+                    visible = { it == PlayerV2State.Expanded },
+                    // The placement/sizing half of what used to be PlayerV2ExpandedContent's
+                    // own modifier chain — see that composable's doc for why it had to move and
+                    // why the split is size-neutral. `.align` is a BoxScope member and resolves
+                    // here because this lambda's receiver is still the sheet Box; the node it
+                    // tags is the single Layout AnimatedVisibility emits
+                    // (AnimatedVisibility.kt:855-877), a direct child of that Box, so the
+                    // BoxChildDataElement parent data reaches the Box's measure policy exactly
+                    // as it did from the Column.
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        // The sheet's *fully expanded* height, not the live sheetHeight — this
+                        // is what makes the expanded layout static. requiredHeight (not height)
+                        // so the shorter sheet's incoming maximum is ignored and the container
+                        // overhangs upward, to be clipped by the sheet Box's own .clip().
+                        .requiredHeight(expandedSheetHeight)
+                        // Cancels bottomInset back out of this container's placement: it is
+                        // welded to the sheet's bottom edge, and that edge descends as the
+                        // padding on the sheet's parent Box relaxes from BottomNavHeight to
+                        // 0dp across the drag. Without this the content would drift down by up
+                        // to BottomNavHeight as the nav slides out from under the sheet.
+                        // Positive Y, same sign as PlayerSkeletonControlsOverlay.kt's identical
+                        // correction on the old player.
+                        .offset(y = bottomInset),
+                    // Nothing. The reveal clip is what makes this content appear, and it
+                    // already runs off `expansion` from the drag's first frame — an enter
+                    // transition would be a second, redundant appearance animation layered on
+                    // top of the envelope, which is precisely what design doc §2 replaced.
+                    // EnterTransition.None is also free of Finding 3's disposal hazard: that
+                    // concern is specific to *exit* (content being dropped before the clip can
+                    // close over it); there is no enter-side equivalent.
+                    enter = EnterTransition.None,
+                    // ExitTransition.None would dispose the content on the first frame of a
+                    // collapse and leave EnvelopeRevealShape nothing to clip (Step 0's Finding
+                    // 3). fadeOut(targetAlpha = 1f) is the substitute the plan specifies: a
+                    // hold, not a fade. Confirmed inert from source — the alpha child animation
+                    // targets `enter.data.fade?.alpha ?: 1f` at PreEnter, 1f at Visible, and
+                    // `exit.data.fade.alpha` = 1f at PostExit (EnterExitTransition.kt:1180-1184),
+                    // so it is the constant 1f in every state, and with no changeSize on either
+                    // side `shouldAnimateSizeChange` is false (:956-957) so the node performs no
+                    // size or offset animation either.
+                    //
+                    // The duration must be exactly PlayerV2TransitionMs, and this is the first
+                    // place that constraint bites: `calculateTotalDurationNanos` recurses into
+                    // child transitions and takes the max (Transition.kt:1161-1168), and this
+                    // AnimatedVisibility is a child transition. A longer spec here would raise
+                    // totalDurationNanos above the `expansion` tween's duration and silently
+                    // break the fraction↔expansion 1:1 identity every seekTo depends on. The
+                    // enter direction resolves to DefaultAlphaAndScaleSpring (:1172) rather
+                    // than this spec, which is harmless: a spring from 1f to 1f at rest has
+                    // zero duration and cannot raise the max.
+                    exit = fadeOut(
+                        animationSpec = tween(PlayerV2TransitionMs, easing = LinearEasing),
+                        targetAlpha = 1f,
+                    ),
+                ) {
                     PlayerV2ExpandedContent(
                         song = song,
-                        // The sheet's *fully expanded* height, not the live sheetHeight — this
-                        // is what makes the expanded layout static. See the composable's doc.
-                        expandedHeight = expandedSheetHeight,
                         isPlaying = isPlaying,
                         isBuffering = isBuffering,
                         onPlayPauseClick = onPlayPauseClick,
@@ -635,7 +702,6 @@ fun SharedTransitionScope.PlayerV2Host(
                         onPreviousClick = onPreviousClick,
                         onNextClick = onNextClick,
                         progress = expansionState,
-                        bottomInset = bottomInset,
                     )
                 }
                 PlayerV2MiniContent(
@@ -780,17 +846,20 @@ private val ExpandedContentHorizontalInset: Dp = Spacing.HorizontalPadding * 2
  * Stage 2.3 adds the envelope reveal: [EnvelopeRevealShape], clipped onto this Column as the
  * single container the design doc (§2) calls for, grows the visible region bottom-up as
  * [progress] climbs — content is drawn once at its final position and revealed, never
- * animated in place. The call site's presence gate (`progress > 0f` in [PlayerV2Host]) still
- * decides whether this composable exists in the tree at all; once present, this clip decides
- * how much of it is visible. The fact that this block renders underneath the mini content
+ * animated in place. The call site decides whether this composable exists in the tree at all —
+ * as of migration Step 5 that is a `Transition.AnimatedVisibility(visible = { it == Expanded })`
+ * rather than Stage 2.3's `progress > 0f` boolean, on the same frames in both directions; once
+ * present, this clip decides how much of it is visible. The fact that this block renders
+ * underneath the mini content
  * whenever both are visible in the same frame is unrelated to the reveal and still expected —
  * z-order layering between the two is out of scope for this stage.
  *
  * Stage 2.3b makes two changes on top of that.
  *
- * First, the container is no longer `fillMaxSize`. It is [requiredHeight] at
- * [expandedHeight] — the sheet's fully expanded height, constant for the screen — and
- * bottom-anchored inside the sheet Box. Under `fillMaxSize` this Column was re-measured
+ * First, the container is no longer `fillMaxSize`. It is [requiredHeight] at the sheet's fully
+ * expanded height — constant for the screen — and bottom-anchored inside the sheet Box. (Those
+ * three modifiers now live on the [PlayerV2Host] call site's AnimatedVisibility node rather than
+ * on this Column; see the modifier note below.) Under `fillMaxSize` this Column was re-measured
  * against the live `sheetHeight` on every frame of a drag, which was harmless while the only
  * flexible child was a spacer but would have resized the album art (and re-triggered Coil)
  * once-per-frame. Design doc §1 asks for the expanded layout to be "laid out once, at fixed
@@ -816,22 +885,39 @@ private val ExpandedContentHorizontalInset: Dp = Spacing.HorizontalPadding * 2
  * until Stage 4, so there is nothing to wire it to yet, but it's laid out in its final
  * position now so Stage 4 only has to attach behavior, not insert a new element.
  *
- * @param expandedHeight the sheet's height at progress 1, i.e. [PlayerV2Host]'s
- *   `BoxWithConstraints.maxHeight`. Deliberately *not* the live `sheetHeight` — see above.
- * @param bottomInset [PlayerV2Host]'s own progress-driven sheet padding
- *   (`lerpDp(BottomNavHeight, 0.dp, progress)`), threaded in only so this container can cancel
- *   it back out of its own placement. It is `align(BottomCenter)`-welded to the sheet's bottom
- *   edge, and that edge itself descends as the padding on the sheet's parent Box relaxes from
- *   BottomNavHeight to 0dp across the drag — without cancellation the content would silently
- *   drift down by up to BottomNavHeight as the nav slides out from under the sheet. Mirrors
- *   PlayerSkeletonControlsOverlay.kt's identical `+ bottomInset` correction on the old player's
- *   equivalent bottom-anchored block. Reused, not recomputed — same instance [PlayerV2Host]
- *   already applies to its own outer Box padding.
+ * **Migration Step 5 — the modifier split, and why it is geometry-neutral.** This composable's
+ * outer Column used to carry
+ * `fillMaxWidth → requiredHeight(expandedHeight) → align(BottomCenter) → offset(y = bottomInset)
+ * → clip(revealShape)`, with `expandedHeight` and `bottomInset` as parameters and [BoxScope] as
+ * the receiver (for `align`). `AnimatedVisibility`'s content lambda is an
+ * `AnimatedVisibilityScope`, not a `BoxScope`, so the three placement/sizing modifiers moved out
+ * to the `AnimatedVisibility` call itself and both parameters went with them; only
+ * `fillMaxWidth` and `clip` stayed. The receiver went away entirely.
+ *
+ * The split is size- and position-neutral, traced through the framework rather than assumed:
+ * `AnimatedVisibility` emits exactly one `Layout` node with the caller's modifier applied first
+ * (`AnimatedVisibility.kt:855-877`), and its measure policy passes the incoming constraints to
+ * its child untouched, reports `max(children)` as its own size, and places at `(0, 0)`
+ * (:896-916). So `requiredHeight` on that node fixes the constraints the Column is measured
+ * with, the Column's `fillMaxWidth` still resolves against the sheet Box's width, the node
+ * reports the Column's exact size back up, and `align`/`offset` position that node precisely
+ * where they positioned the Column. `EnvelopeRevealShape` therefore still reads the same
+ * `size.height` it always did. The one node that could have perturbed this — the
+ * `EnterExitTransitionElement` from `createModifier` — is inert here because neither the enter
+ * nor the exit carries a `changeSize`, so `shouldAnimateSizeChange` is false and no size or
+ * offset animation is created (`EnterExitTransition.kt:956-957`).
+ *
+ * One genuinely new behavior, harmless today: `AnimatedVisibilityImpl` wraps the caller's
+ * modifier in a `layout` that reports `IntSize.Zero` **during lookahead** while the target state
+ * is not visible (`AnimatedVisibility.kt:766-776`). This subtree *is* inside a lookahead scope —
+ * Step 1 wrapped it in `SharedTransitionLayout` — so on a collapse drag this node's lookahead
+ * size is zero while its approach (real) size is unchanged. Nothing reads lookahead geometry
+ * here yet, so there is no visible effect; it becomes load-bearing at Stage 2.4b, when the album
+ * art's `sharedElement` starts deriving its target bounds from exactly that pass.
  */
 @Composable
-private fun BoxScope.PlayerV2ExpandedContent(
+private fun PlayerV2ExpandedContent(
     song: Song,
-    expandedHeight: Dp,
     isPlaying: Boolean,
     isBuffering: Boolean,
     onPlayPauseClick: () -> Unit,
@@ -843,7 +929,6 @@ private fun BoxScope.PlayerV2ExpandedContent(
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
     progress: State<Float>,
-    bottomInset: Dp,
 ) {
     // Keyed on progress's own identity (stable for this composable's whole lifetime — as of
     // migration Step 4 it's the same animateFloat TransitionAnimationState instance from
@@ -867,26 +952,10 @@ private fun BoxScope.PlayerV2ExpandedContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            // requiredHeight, not height: the parent sheet Box is measured at the live
-            // `sheetHeight`, so plain Modifier.height() — which is documented as a *preferred*
-            // size and resolves as `constraints.constrain(target)` (Size.kt, enforceIncoming =
-            // true) — would be clamped straight back down to sheetHeight and this whole change
-            // would silently do nothing. requiredHeight passes enforceIncoming = false and so
-            // ignores the incoming maximum, which is precisely what is wanted here.
-            .requiredHeight(expandedHeight)
-            // Bottom-anchored, so the container overhangs the shorter sheet upward and is
-            // clipped by the sheet Box's own .clip() rather than being squashed.
-            .align(Alignment.BottomCenter)
-            // Cancels [bottomInset] back out of this container's placement — see the
-            // parameter doc above. Positive Y, same sign as
-            // PlayerSkeletonControlsOverlay.kt's `+ bottomInset` correction: this Column is
-            // welded to the sheet's bottom edge, which itself descends as bottomInset
-            // relaxes toward 0dp across the drag, so adding it back here holds the content
-            // at a fixed screen position instead of drifting down with that edge. Ordered
-            // after .align (whose BoxScope alignment data this doesn't affect) and before
-            // .clip (clip is size-driven, not position-driven, so it clips the same shape
-            // regardless of where this container is placed).
-            .offset(y = bottomInset)
+            // All this Column keeps as of Step 5. The `.requiredHeight(expandedHeight)
+            // .align(BottomCenter).offset(y = bottomInset)` that used to sit between
+            // fillMaxWidth and clip now lives on the AnimatedVisibility node one level up —
+            // see this composable's doc for why, and why the geometry is unchanged.
             .clip(revealShape),
     ) {
         Spacer(modifier = Modifier.height(topInset + ExpandedArtTopMargin))
