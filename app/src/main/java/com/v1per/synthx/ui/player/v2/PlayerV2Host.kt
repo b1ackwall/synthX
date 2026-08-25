@@ -8,7 +8,6 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.animateTo
-import androidx.compose.foundation.gestures.animateToWithDecay
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
@@ -197,6 +196,15 @@ fun SharedTransitionScope.PlayerV2Host(
     val scope = rememberCoroutineScope()
     val collapsedHeightPx = with(density) { CollapsedPlayerHeight.toPx() }
     // Higher friction lets a fling decelerate before handing off to the snap spring.
+    //
+    // Dead on the release path as of migration Step 2b: the only caller that ever consulted a
+    // decay spec was animateToWithDecay, and the release site now calls the plain animateTo.
+    // Kept because the deprecated AnchoredDraggableState constructor below requires the
+    // parameter (it is `lateinit` and the state's `usePreModifierChangeBehavior` check reads
+    // `::decayAnimationSpec.isInitialized`, which is what makes animateTo default to
+    // Motion.SpringStandard rather than Foundation's own tween). It goes away with the state
+    // itself at Step 8, not before — deleting it here would be an unrelated behavior change
+    // smuggled into a one-line experiment.
     val decayAnimationSpec = remember { exponentialDecay<Float>(frictionMultiplier = 1.8f) }
 
     // BoxWithConstraints, not fillMaxSize alone: the expanded height target has to be a real
@@ -394,25 +402,50 @@ fun SharedTransitionScope.PlayerV2Host(
                                     velocityTracker.addPosition(change.uptimeMillis, change.position)
                                     change.consume()
                                 }
-                                // Release. Migration Step 2a (docs/player-v2-migration-plan.md):
-                                // this used to be `draggableState.settle(velocity)`, which is
-                                // both deprecated and — more importantly for the migration —
-                                // the one piece of release behavior that has no equivalent
-                                // once AnchoredDraggableState goes away. Its two halves are
-                                // now spelled out explicitly:
+                                // Release, in two explicitly separated halves — target
+                                // selection, then the animation that acts on it. This was one
+                                // `draggableState.settle(velocity)` call before migration Step
+                                // 2a (docs/player-v2-migration-plan.md) split it apart.
                                 //
-                                //   1. target selection — the positional/velocity threshold
-                                //      logic, ported verbatim into computeReleaseTarget below.
-                                //   2. the animation — animateToWithDecay, which is the exact
-                                //      call settle() made internally
-                                //      (AnchoredDraggable.kt:1078), not the plain animateTo.
+                                //   1. Target selection: the positional/velocity threshold
+                                //      logic, ported verbatim from Foundation's own private
+                                //      computeTarget in Step 2a. See computeReleaseTarget
+                                //      below. Unchanged by Step 2b and still fed the real
+                                //      release velocity — which anchor we go to is decided
+                                //      exactly as it always was.
+                                //   2. The animation: **Step 2b changes this line, and only
+                                //      this line.** It was `animateToWithDecay(releaseTarget,
+                                //      velocity)` — the call settle() made internally
+                                //      (AnchoredDraggable.kt:1078), which projects the fling
+                                //      with the exponentialDecay spec and only falls back to
+                                //      the spring when the decay can't reach the target. It is
+                                //      now the plain `animateTo(releaseTarget)`.
                                 //
-                                // Step 2a is deliberately a no-op: same target, same animation,
-                                // same velocity seeding. Dropping the decay/velocity seeding to
-                                // measure what SeekableTransitionState.animateTo's missing
-                                // velocity parameter actually costs is Step 2b's job, and
-                                // having 2a verified identical first is what makes 2b's A/B
-                                // mean anything.
+                                // Why: SeekableTransitionState.animateTo takes no velocity
+                                // parameter at all (Step 0, Finding 1 — there is no overload
+                                // that does), so the velocity-seeded decay-then-spring release
+                                // has no equivalent on the other side of this migration. Rather
+                                // than discover that at Step 7, where it would be tangled up
+                                // with reversal continuity and the fraction-space spring, this
+                                // step drops velocity seeding *alone*, on the otherwise
+                                // untouched AnchoredDraggable path, so the only variable in the
+                                // A/B is the one being measured.
+                                //
+                                // No animationSpec argument: animateTo's default resolves
+                                // through usePreModifierChangeBehavior to the state's own
+                                // snapAnimationSpec (AnchoredDraggable.kt:1370-1375), i.e.
+                                // Motion.SpringStandard as configured above — the same spring
+                                // animateToWithDecay used for its non-decay path. Passing it
+                                // explicitly would just restate it.
+                                //
+                                // The release is genuinely velocity-free, not merely
+                                // velocity-unseeded-at-the-call: animateTo internally starts
+                                // from the state's `lastVelocity` (:1378), but this drag loop
+                                // feeds the state through dispatchRawDelta, which calls
+                                // dragTo(newOffset) at the default lastKnownVelocity = 0f
+                                // (:1248, :684), so lastVelocity is 0f at release. `velocity`
+                                // below survives only as computeReleaseTarget's input, which is
+                                // why it is still read and still needed.
                                 val velocity = velocityTracker.calculateVelocity().y
                                 val releaseTarget = draggableState.anchors.computeReleaseTarget(
                                     currentOffset = draggableState.requireOffset(),
@@ -421,7 +454,7 @@ fun SharedTransitionScope.PlayerV2Host(
                                     velocityThreshold = velocityThreshold,
                                 )
                                 scope.launch {
-                                    draggableState.animateToWithDecay(releaseTarget, velocity)
+                                    draggableState.animateTo(releaseTarget)
                                 }
                             }
                         }
