@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -46,6 +47,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -54,6 +59,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.R
@@ -92,11 +99,13 @@ enum class PlayerV2State { Collapsed, Expanded }
  *
  * This was originally a blank dark surface that morphs between a 64dp mini bar and a
  * full-height sheet and nothing else. Stage 2.1 added real mini-bar content (art,
- * title/artist, play/pause) — see [PlayerV2MiniContent]. Stage 2.2 adds real expanded
- * content — see [PlayerV2ExpandedContent] — statically laid out at fixed final positions:
- * no drag-progress-driven offsets and no reveal-clip yet (both Stage 2.3), and no album art
- * frame yet (Stage 2.4), so the title block sits at a placeholder fixed top offset rather
- * than below real art bounds.
+ * title/artist, play/pause) — see [PlayerV2MiniContent]. Stage 2.2 added real expanded
+ * content — see [PlayerV2ExpandedContent] — statically laid out at fixed final positions, no
+ * drag-progress-driven offsets. Stage 2.3 added the envelope reveal-clip on top of that
+ * static layout — see [EnvelopeRevealShape] — so the content now reveals bottom-up with
+ * progress instead of popping in/out at the drag's midpoint. Still no album art frame (Stage
+ * 2.4), so the title block sits at a placeholder fixed top offset rather than below real art
+ * bounds.
  *
  * Deliberate divergences from docs/player-rebuild-design.md, all scoped to this stage:
  * - The design doc's mechanism is SeekableTransitionState inside a SharedTransitionLayout
@@ -194,12 +203,16 @@ fun PlayerV2Host(
         // 0f = fully collapsed, 1f = fully expanded. Guards the pre-initialization NaN
         // AnchoredDraggableState.offset reports before the first updateAnchors() call lands.
         //
-        // Read as a State in composition, which recomposes this subtree once per frame while
-        // a drag is in flight. That is what the old player does too; the design doc's fix
-        // (§5 — lambda-based modifiers reading the transition in the draw phase) belongs with
-        // the SeekableTransitionState rewrite, not here, and there is no content below to
-        // make the recompositions expensive.
-        val progress by remember(availableHeightPx, collapsedHeightPx) {
+        // Held as progressState (the State object itself, not just its value) so Stage 2.3's
+        // reveal-clip shape below can be handed a reference and read .value from inside
+        // createOutline — a draw/layout-phase read, not a composition-phase one. The `by`
+        // delegate immediately below still unwraps it for every composition-phase use
+        // (isContentPresent, the sheetHeight/cornerRadius/surfaceColor lerps), which is what
+        // recomposes this subtree once per frame while a drag is in flight. That per-frame
+        // recomposition is unchanged from before this stage; the design doc's fix (§5 —
+        // lambda-based modifiers reading the transition in the draw phase) belongs with the
+        // SeekableTransitionState rewrite, not here.
+        val progressState = remember(availableHeightPx, collapsedHeightPx) {
             derivedStateOf {
                 val offset = draggableState.offset
                 if (offset.isNaN()) return@derivedStateOf 0f
@@ -208,13 +221,18 @@ fun PlayerV2Host(
                 else ((collapsedAnchor - offset) / collapsedAnchor).coerceIn(0f, 1f)
             }
         }
+        val progress by progressState
 
-        // Stage 2.2: gates the expanded content's presence. Discrete, not a continuous fade —
-        // targetValue flips the instant the drag crosses the anchoredDraggable midpoint
-        // (whichever anchor .offset is currently closest to), same threshold that already
-        // decides where settle() lands on release. A continuous progress-driven crossfade is
-        // Stage 2.3's reveal-clip mechanism, not this stage's.
-        val isExpanded = draggableState.targetValue == PlayerV2State.Expanded
+        // Stage 2.3: composition-presence gate only — decides whether
+        // PlayerV2ExpandedContent exists in the tree at all, not whether it's visually shown.
+        // That's now the reveal clip's job (EnvelopeRevealShape, applied inside the
+        // composable itself), driven off the same progressState. Keyed to progress > 0f
+        // rather than Stage 2.2's `draggableState.targetValue == Expanded` — targetValue only
+        // flips at the anchoredDraggable midpoint, which would leave nothing composed (and
+        // therefore nothing for the clip to grow open) for the first ~40% of every expand
+        // drag. progress > 0f instead begins composing on the drag's very first frame, so the
+        // clip always has content to reveal from 0.
+        val isContentPresent = progress > 0f
 
         // Publish progress outward so SynthXBottomNav can slide/shrink/fade in lockstep.
         //
@@ -329,7 +347,7 @@ fun PlayerV2Host(
                         }
                     },
             ) {
-                if (isExpanded) {
+                if (isContentPresent) {
                     PlayerV2ExpandedContent(
                         song = song,
                         isPlaying = isPlaying,
@@ -342,6 +360,7 @@ fun PlayerV2Host(
                         hasNext = hasNext,
                         onPreviousClick = onPreviousClick,
                         onNextClick = onNextClick,
+                        progress = progressState,
                     )
                 }
                 PlayerV2MiniContent(
@@ -362,16 +381,20 @@ fun PlayerV2Host(
 private val ExpandedTitleTopOffset = 320.dp
 
 /**
- * Stage 2.2: real expanded content — title/artist + 3-dot menu near the top, seek bar +
- * transport + queue button near the bottom. Statically laid out via a fillMaxSize Column
+ * Stage 2.2 built real expanded content — title/artist + 3-dot menu near the top, seek bar +
+ * transport + queue button near the bottom — statically laid out via a fillMaxSize Column
  * with a flexible middle spacer, not the old (detached) PlayerSkeletonControlsOverlay's
- * progress-driven slide/fade/reveal-clip wrapper — only its *inner* content (the seek bar,
- * transport row, and queue row themselves) is mirrored here. Rendered only while the call
- * site's `isExpanded` gate (`draggableState.targetValue == PlayerV2State.Expanded`) is true —
- * there is no fade-in/out of this block yet, so it appears/disappears abruptly at the drag's
- * midpoint. That abruptness, and the fact that this block currently renders underneath the
- * mini content whenever both happen to be visible in the same frame, are both expected at
- * this stage and fixed by Stage 2.3's reveal-clip mechanism, not addressed here.
+ * progress-driven slide/fade/reveal-clip wrapper; only its *inner* content (the seek bar,
+ * transport row, and queue row themselves) is mirrored here.
+ *
+ * Stage 2.3 adds the envelope reveal: [EnvelopeRevealShape], clipped onto this Column as the
+ * single container the design doc (§2) calls for, grows the visible region bottom-up as
+ * [progress] climbs — content is drawn once at its final position and revealed, never
+ * animated in place. The call site's presence gate (`progress > 0f` in [PlayerV2Host]) still
+ * decides whether this composable exists in the tree at all; once present, this clip decides
+ * how much of it is visible. The fact that this block renders underneath the mini content
+ * whenever both are visible in the same frame is unrelated to the reveal and still expected —
+ * z-order layering between the two is out of scope for this stage.
  *
  * The queue button's [onClick][DragResistantIconButton] is a no-op: queue mode doesn't exist
  * until Stage 4, so there is nothing to wire it to yet, but it's laid out in its final
@@ -390,8 +413,17 @@ private fun PlayerV2ExpandedContent(
     hasNext: Boolean,
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
+    progress: State<Float>,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    // Keyed on progress's own identity (stable for this composable's whole lifetime — it's
+    // the same derivedStateOf instance from PlayerV2Host on every recomposition), so this
+    // Shape instance itself is built once, not once per frame.
+    val revealShape = remember(progress) { EnvelopeRevealShape(progress) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(revealShape),
+    ) {
         Spacer(modifier = Modifier.height(ExpandedTitleTopOffset))
         PlayerV2TitleRow(song = song)
         Spacer(modifier = Modifier.weight(1f))
@@ -406,6 +438,45 @@ private fun PlayerV2ExpandedContent(
             hasNext = hasNext,
             onPreviousClick = onPreviousClick,
             onNextClick = onNextClick,
+        )
+    }
+}
+
+/**
+ * Stage 2.3's envelope reveal clip (design doc §2) — a rectangle grown bottom-up as
+ * [progress] climbs from 0f (nothing revealed) to 1f (the whole container revealed), so
+ * content already drawn at its final position becomes visible edge-first from the bottom,
+ * matching the sheet's own bottom-up growth ([PlayerV2Host]'s `sheetHeight` lerp) rather than
+ * fading or sliding in place.
+ *
+ * [progress] is read inside [createOutline] — called from [Shape], not from this class's own
+ * constructor or from any `@Composable` body — so the read happens where Compose UI's
+ * graphics-layer machinery invokes it: inside `NodeCoordinator.updateLayerParameters()`'s
+ * `snapshotObserver.observeReads(...)` block (`GraphicsLayerScope.updateOutline()` calls
+ * `shape.createOutline(...)` there — verified against the actual `ui-android:1.12.0` sources,
+ * the version this module builds against). That observer is scoped to the layer/coordinator,
+ * entirely separate from the composition's own snapshot observer: a change to [progress]
+ * re-runs only that layer's parameter update (recomputing the outline and redrawing), the
+ * same phase-deferred path `Modifier.graphicsLayer { }` reads are documented to use, since
+ * `Modifier.clip(shape)` is defined as `graphicsLayer(shape = shape, clip = true)`
+ * (`androidx.compose.ui.draw.Clip.kt`). No `@Composable` function re-executes when progress
+ * changes because of this shape — this class holds no snapshot-state read anywhere outside
+ * [createOutline].
+ */
+private class EnvelopeRevealShape(private val progress: State<Float>) : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ): Outline {
+        val revealedHeight = size.height * progress.value.coerceIn(0f, 1f)
+        return Outline.Rectangle(
+            Rect(
+                left = 0f,
+                top = size.height - revealedHeight,
+                right = size.width,
+                bottom = size.height,
+            ),
         )
     }
 }
