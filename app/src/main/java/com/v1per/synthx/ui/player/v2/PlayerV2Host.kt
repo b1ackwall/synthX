@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player.v2
 
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -159,10 +160,23 @@ enum class PlayerV2State { Collapsed, Expanded }
  * @param onProgressChanged called with the live 0..1 collapse/expand progress whenever it
  *   changes, so chrome outside this composable (the bottom nav) can move in lockstep. Fired
  *   from a [SideEffect] rather than from the composition body — see the call site below.
+ *
+ * @receiver [SharedTransitionScope] — threaded in by migration Step 1
+ *   (docs/player-v2-migration-plan.md) and **deliberately unused for now**. Stage 2.4b consumes
+ *   it to give the album art a `Modifier.sharedElement`, morphing it between the mini and
+ *   expanded frames; taking the receiver now means 2.4b is a pure addition rather than a
+ *   signature change rippling back out to [BottomChromeOverlay].
+ *
+ *   Declared as an extension receiver rather than a `context(SharedTransitionScope)` parameter:
+ *   Kotlin's old context *receivers* were removed in 2.2, and their replacement, context
+ *   *parameters*, is still behind `-Xcontext-parameters` at this project's Kotlin 2.4.10 with
+ *   the flag not enabled — so `context(...)` would not compile here at all. Extension-receiver
+ *   style is also what Compose itself uses for scoped composables, and what this file already
+ *   does for [BoxScope.PlayerV2MiniContent] / [BoxScope.PlayerV2ExpandedContent].
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PlayerV2Host(
+fun SharedTransitionScope.PlayerV2Host(
     song: Song,
     modifier: Modifier = Modifier,
     isPlaying: Boolean = false,

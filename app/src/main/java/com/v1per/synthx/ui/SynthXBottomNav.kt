@@ -3,6 +3,7 @@ package com.v1per.synthx.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,136 +105,159 @@ fun BottomChromeOverlay(
     val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
     val hasNext by playbackViewModel.hasNext.collectAsState()
 
-    // Both the nav and the sheet live in one Box sharing one navigationBarsPadding() call —
-    // previously the sheet had no inset applied at all, so it measured its available height
-    // against the raw window while the nav measured against the inset-adjusted one. On any
-    // device with a non-zero system nav bar, that mismatch let the sheet's growing bounds
-    // and the nav's fixed bounds genuinely overlap instead of sitting cleanly stacked.
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .navigationBarsPadding(),
-        contentAlignment = Alignment.BottomCenter,
-    ) {
-        AnimatedVisibility(
-            visible = showBottomBar,
-            enter = ChromeEnterTransition,
-            exit = ChromeExitTransition,
+    // Migration Step 1 (docs/player-v2-migration-plan.md). Deliberately wraps the shared
+    // navigationBarsPadding() Box rather than sitting inside PlayerV2Host, so the scope
+    // encloses *both* the nav and the player: design doc §5 keeps the nav and mini player
+    // elevated above the shared-element transition via
+    // Modifier.renderInSharedTransitionScopeOverlay() at Stage 2.4b, and that modifier is only
+    // available to children of this layout. Placing it inside PlayerV2Host would have to be
+    // undone at 2.4b.
+    //
+    // Inert as of this step: nothing calls sharedElement()/sharedBounds() yet, so this
+    // contributes a CompositionLocal and one Box. fillMaxSize() is passed explicitly because
+    // SharedTransitionLayout renders as `Box(modifier.then(sharedTransitionModifier))`
+    // (SharedTransitionScope.kt:126-135) — without it the wrapper Box would wrap its content
+    // rather than fill, and the child Box's own fillMaxSize() would resolve against a
+    // different parent than before.
+    //
+    // One genuine (accepted) structural consequence: SharedTransitionScope extends
+    // LookaheadScope (SharedTransitionScope.kt:298), so everything below is now inside a
+    // lookahead scope and gets a lookahead measure pass in addition to the approach pass.
+    // That is invisible for layouts that don't opt into lookahead-aware behavior, which is all
+    // of them here, but it is the one thing that could make this step non-inert — see the
+    // step's on-device check.
+    SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
+        // Both the nav and the sheet live in one Box sharing one navigationBarsPadding() call —
+        // previously the sheet had no inset applied at all, so it measured its available height
+        // against the raw window while the nav measured against the inset-adjusted one. On any
+        // device with a non-zero system nav bar, that mismatch let the sheet's growing bounds
+        // and the nav's fixed bounds genuinely overlap instead of sitting cleanly stacked.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.BottomCenter,
         ) {
-            SynthXBottomNav(
-                navController = navController,
-                currentRoute = currentRoute,
-                // Fall back to 0f when nothing is playing so a stale progress can't
-                // leave the nav slid off screen after the sheet is gone.
-                //
-                // Passed as a lambda rather than a Float so this composable is not
-                // re-invoked on every frame of a drag — see SynthXBottomNav's own note.
-                // The lambda itself only changes identity when currentSong changes
-                // (per track, not per frame), so it stays a stable parameter throughout
-                // a gesture and SynthXBottomNav stays skippable.
-                playerProgress = { if (currentSong != null) playerProgress() else 0f },
-            )
-        }
-
-        // The player overlays everything as a sibling to the nav so it can expand upward
-        // over the content — and, once expanded, over the nav area the sliding nav vacates.
-        // It fills the whole Box; its own progress-driven inset keeps the collapsed mini
-        // above the nav. Sharing the same navigationBarsPadding()'d Box as the nav (rather
-        // than being a separate top-level sibling) is what keeps their coordinate frames —
-        // and therefore their bounds — in agreement at every progress value.
-        //
-        // As of Stage 1.2 this describes PlayerV2Host too, not just the detached
-        // implementation: it reports progress via onProgressChanged and applies the same
-        // lerp(BottomNavHeight, 0.dp, progress) bottom inset, so the nav slides and the
-        // collapsed bar stacks above it. The one behavioural difference left versus the old
-        // player is that the nav consumes progress through layout/draw-phase modifiers
-        // rather than recomposing — visually identical, materially cheaper.
-        AnimatedVisibility(
-            visible = showBottomBar && currentSong != null,
-            enter = ChromeEnterTransition,
-            exit = ChromeExitTransition,
-        ) {
-            // -----------------------------------------------------------------------------
-            // INTENTIONALLY DETACHED — PLAYER REBUILD IN PROGRESS
-            //
-            // The old player (PlayerSheetSkeleton and every composable it pulls in from
-            // ui/player/ and ui/components/) is being replaced. Its call site is commented
-            // out rather than deleted, and not one file of the old implementation has been
-            // touched, renamed, or removed — the whole thing remains on disk, compiling, and
-            // fully functional. Restoring it is: delete the replacement call below,
-            // uncomment this block, uncomment the four collectAsState reads at the top of
-            // BottomChromeOverlay, and uncomment the four imports flagged at the top of
-            // this file. No other edit is required.
-            //
-            // Target architecture for the rebuild: docs/player-rebuild-design.md.
-            // What replaces this today is Stage 1.1 only — a deliberately blank two-state
-            // skeleton (PlayerV2Host) with no content, no playback wiring, and no chrome
-            // coordination. It is NOT an attempt at the design doc's full architecture.
-            //
-            // currentSong?.let { song ->
-            //     val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
-            //     val hasNext by playbackViewModel.hasNext.collectAsState()
-            //     val upcomingQueue by playbackViewModel.upcomingQueue.collectAsState()
-            //     val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
-            //     val repeatMode by playbackViewModel.repeatMode.collectAsState()
-            //     // Skeleton now renders mini content + expanded transport controls + full
-            //     // queue-mode list (reorder, tap-to-play, swipe-to-remove, shuffle/repeat,
-            //     // real MoreOptionsButton).
-            //     PlayerSheetSkeleton(
-            //         song = song,
-            //         isPlaying = isPlaying,
-            //         isBuffering = isBuffering,
-            //         currentPosition = currentPosition,
-            //         duration = duration,
-            //         onPlayPauseClick = playbackViewModel::togglePlayPause,
-            //         onSeek = playbackViewModel::seekTo,
-            //         onPreviousClick = playbackViewModel::previous,
-            //         onNextClick = playbackViewModel::next,
-            //         hasPrevious = hasPrevious,
-            //         hasNext = hasNext,
-            //         upcomingQueue = upcomingQueue,
-            //         shuffleEnabled = shuffleEnabled,
-            //         repeatMode = repeatMode,
-            //         onShuffleClick = { playbackViewModel.setShuffleEnabled(!shuffleEnabled) },
-            //         onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
-            //         onQueueSongClick = playbackViewModel::playQueueItem,
-            //         onQueueMove = playbackViewModel::moveQueueItem,
-            //         onQueueRemove = playbackViewModel::removeQueueItem,
-            //         onProgressChanged = onPlayerProgressChanged,
-            //     )
-            // }
-            // -----------------------------------------------------------------------------
-
-            // Stage 1.1 replacement, in the old call's exact position and under the exact
-            // same visibility gating (showBottomBar && currentSong != null, above).
-            //
-            // Stage 1.2 wires the one thing it produced then: onProgressChanged closes the
-            // loop back to MainScaffold's playerProgress state, which flows down the
-            // playerProgress lambda above and drives the nav's slide/shrink/fade. The sheet
-            // applies the complementary bottom inset internally, so the collapsed bar now
-            // stacks above the nav instead of overlaying it.
-            //
-            // Stage 2.1 added real mini-bar content; Stage 2.2 adds real expanded content
-            // (seek bar, transport, 3-dot, queue placeholder) on top of that. currentSong?.let
-            // is redundant with the AnimatedVisibility gate above (currentSong is never null
-            // once this content is entered) but matches the old block's own currentSong?.let
-            // pattern above rather than introducing a differently-shaped non-null assertion
-            // here.
-            currentSong?.let { song ->
-                PlayerV2Host(
-                    song = song,
-                    isPlaying = isPlaying,
-                    isBuffering = isBuffering,
-                    onPlayPauseClick = playbackViewModel::togglePlayPause,
-                    currentPosition = currentPosition,
-                    duration = duration,
-                    onSeek = playbackViewModel::seekTo,
-                    hasPrevious = hasPrevious,
-                    hasNext = hasNext,
-                    onPreviousClick = playbackViewModel::previous,
-                    onNextClick = playbackViewModel::next,
-                    onProgressChanged = onPlayerProgressChanged,
+            AnimatedVisibility(
+                visible = showBottomBar,
+                enter = ChromeEnterTransition,
+                exit = ChromeExitTransition,
+            ) {
+                SynthXBottomNav(
+                    navController = navController,
+                    currentRoute = currentRoute,
+                    // Fall back to 0f when nothing is playing so a stale progress can't
+                    // leave the nav slid off screen after the sheet is gone.
+                    //
+                    // Passed as a lambda rather than a Float so this composable is not
+                    // re-invoked on every frame of a drag — see SynthXBottomNav's own note.
+                    // The lambda itself only changes identity when currentSong changes
+                    // (per track, not per frame), so it stays a stable parameter throughout
+                    // a gesture and SynthXBottomNav stays skippable.
+                    playerProgress = { if (currentSong != null) playerProgress() else 0f },
                 )
+            }
+
+            // The player overlays everything as a sibling to the nav so it can expand upward
+            // over the content — and, once expanded, over the nav area the sliding nav vacates.
+            // It fills the whole Box; its own progress-driven inset keeps the collapsed mini
+            // above the nav. Sharing the same navigationBarsPadding()'d Box as the nav (rather
+            // than being a separate top-level sibling) is what keeps their coordinate frames —
+            // and therefore their bounds — in agreement at every progress value.
+            //
+            // As of Stage 1.2 this describes PlayerV2Host too, not just the detached
+            // implementation: it reports progress via onProgressChanged and applies the same
+            // lerp(BottomNavHeight, 0.dp, progress) bottom inset, so the nav slides and the
+            // collapsed bar stacks above it. The one behavioural difference left versus the old
+            // player is that the nav consumes progress through layout/draw-phase modifiers
+            // rather than recomposing — visually identical, materially cheaper.
+            AnimatedVisibility(
+                visible = showBottomBar && currentSong != null,
+                enter = ChromeEnterTransition,
+                exit = ChromeExitTransition,
+            ) {
+                // -----------------------------------------------------------------------------
+                // INTENTIONALLY DETACHED — PLAYER REBUILD IN PROGRESS
+                //
+                // The old player (PlayerSheetSkeleton and every composable it pulls in from
+                // ui/player/ and ui/components/) is being replaced. Its call site is commented
+                // out rather than deleted, and not one file of the old implementation has been
+                // touched, renamed, or removed — the whole thing remains on disk, compiling, and
+                // fully functional. Restoring it is: delete the replacement call below,
+                // uncomment this block, uncomment the four collectAsState reads at the top of
+                // BottomChromeOverlay, and uncomment the four imports flagged at the top of
+                // this file. No other edit is required.
+                //
+                // Target architecture for the rebuild: docs/player-rebuild-design.md.
+                // What replaces this today is Stage 1.1 only — a deliberately blank two-state
+                // skeleton (PlayerV2Host) with no content, no playback wiring, and no chrome
+                // coordination. It is NOT an attempt at the design doc's full architecture.
+                //
+                // currentSong?.let { song ->
+                //     val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
+                //     val hasNext by playbackViewModel.hasNext.collectAsState()
+                //     val upcomingQueue by playbackViewModel.upcomingQueue.collectAsState()
+                //     val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
+                //     val repeatMode by playbackViewModel.repeatMode.collectAsState()
+                //     // Skeleton now renders mini content + expanded transport controls + full
+                //     // queue-mode list (reorder, tap-to-play, swipe-to-remove, shuffle/repeat,
+                //     // real MoreOptionsButton).
+                //     PlayerSheetSkeleton(
+                //         song = song,
+                //         isPlaying = isPlaying,
+                //         isBuffering = isBuffering,
+                //         currentPosition = currentPosition,
+                //         duration = duration,
+                //         onPlayPauseClick = playbackViewModel::togglePlayPause,
+                //         onSeek = playbackViewModel::seekTo,
+                //         onPreviousClick = playbackViewModel::previous,
+                //         onNextClick = playbackViewModel::next,
+                //         hasPrevious = hasPrevious,
+                //         hasNext = hasNext,
+                //         upcomingQueue = upcomingQueue,
+                //         shuffleEnabled = shuffleEnabled,
+                //         repeatMode = repeatMode,
+                //         onShuffleClick = { playbackViewModel.setShuffleEnabled(!shuffleEnabled) },
+                //         onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
+                //         onQueueSongClick = playbackViewModel::playQueueItem,
+                //         onQueueMove = playbackViewModel::moveQueueItem,
+                //         onQueueRemove = playbackViewModel::removeQueueItem,
+                //         onProgressChanged = onPlayerProgressChanged,
+                //     )
+                // }
+                // -----------------------------------------------------------------------------
+
+                // Stage 1.1 replacement, in the old call's exact position and under the exact
+                // same visibility gating (showBottomBar && currentSong != null, above).
+                //
+                // Stage 1.2 wires the one thing it produced then: onProgressChanged closes the
+                // loop back to MainScaffold's playerProgress state, which flows down the
+                // playerProgress lambda above and drives the nav's slide/shrink/fade. The sheet
+                // applies the complementary bottom inset internally, so the collapsed bar now
+                // stacks above the nav instead of overlaying it.
+                //
+                // Stage 2.1 added real mini-bar content; Stage 2.2 adds real expanded content
+                // (seek bar, transport, 3-dot, queue placeholder) on top of that. currentSong?.let
+                // is redundant with the AnimatedVisibility gate above (currentSong is never null
+                // once this content is entered) but matches the old block's own currentSong?.let
+                // pattern above rather than introducing a differently-shaped non-null assertion
+                // here.
+                currentSong?.let { song ->
+                    PlayerV2Host(
+                        song = song,
+                        isPlaying = isPlaying,
+                        isBuffering = isBuffering,
+                        onPlayPauseClick = playbackViewModel::togglePlayPause,
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        onSeek = playbackViewModel::seekTo,
+                        hasPrevious = hasPrevious,
+                        hasNext = hasNext,
+                        onPreviousClick = playbackViewModel::previous,
+                        onNextClick = playbackViewModel::next,
+                        onProgressChanged = onPlayerProgressChanged,
+                    )
+                }
             }
         }
     }
