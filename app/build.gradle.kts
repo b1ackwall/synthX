@@ -98,6 +98,7 @@ dependencies {
     implementation(libs.kotlinx.collections.immutable)
 
     testImplementation(kotlin("test"))
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 
     debugImplementation(libs.androidx.ui.tooling)
 }

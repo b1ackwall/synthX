@@ -35,6 +35,8 @@ import com.v1per.synthx.ui.components.SongActionsHost
 import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
 import com.v1per.synthx.ui.screens.songs.SortBottomSheet
 import com.v1per.synthx.ui.screens.songs.SortOrder
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 
 @Composable
@@ -56,6 +58,13 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
         factory = PlaybackViewModel.Factory(context.applicationContext)
     )
     val snackbarHostState = remember { SnackbarHostState() }
+    val searchReselectEvents = remember {
+        MutableSharedFlow<Unit>(
+            replay = 0,
+            extraBufferCapacity = 1,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
+    }
 
     // context.getString rather than stringResource: the collect lambda is not a composable
     // scope, and the message needs the song title formatted in at emit time.
@@ -134,6 +143,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             navController = navController,
             playbackViewModel = playbackViewModel,
             chromeBottomPadding = chromeBottomPadding,
+            searchReselectEvents = searchReselectEvents,
             onShowSortSheet = { order, onOrderSelected ->
                 sortSheetTarget = SortSheetTarget(order, onOrderSelected)
             },
@@ -147,6 +157,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             playerProgress = playerProgress,
             onPlayerProgressChanged = { playerProgress = it },
             playbackViewModel = playbackViewModel,
+            onSearchReselected = { searchReselectEvents.tryEmit(Unit) },
         )
 
         // Declared after BottomChromeOverlay (not nested inside SynthXNavHost) so it draws

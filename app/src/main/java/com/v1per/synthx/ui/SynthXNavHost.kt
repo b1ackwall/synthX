@@ -16,12 +16,14 @@ import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.screens.songs.SortOrder
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextPrimary
+import kotlinx.coroutines.flow.SharedFlow
 
 @Composable
 fun SynthXNavHost(
     navController: NavHostController,
     playbackViewModel: PlaybackViewModel,
     chromeBottomPadding: Dp,
+    searchReselectEvents: SharedFlow<Unit>,
     // Rendering lives at MainScaffold level (above BottomChromeOverlay) so the sheet draws
     // above the bottom nav/player as a structural sibling, not a descendant of this NavHost.
     onShowSortSheet: (currentOrder: SortOrder, onOrderSelected: (SortOrder) -> Unit) -> Unit,
@@ -50,6 +52,7 @@ fun SynthXNavHost(
                 navController = navController,
                 playbackViewModel = playbackViewModel,
                 chromeBottomPadding = chromeBottomPadding,
+                searchReselectEvents = searchReselectEvents,
             )
             libraryManagementRoutes(
                 navController = navController,

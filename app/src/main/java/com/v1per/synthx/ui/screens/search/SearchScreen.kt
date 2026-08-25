@@ -43,9 +43,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -71,6 +74,7 @@ import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
+import kotlinx.coroutines.flow.SharedFlow
 
 @Composable
 fun SearchScreen(
@@ -79,6 +83,7 @@ fun SearchScreen(
     onNavigateToAlbumDetail: (albumId: String, albumTitle: String) -> Unit,
     onNavigateToPlaylistDetail: (playlistId: String, playlistName: String) -> Unit,
     playbackViewModel: PlaybackViewModel,
+    searchReselectEvents: SharedFlow<Unit>,
     viewModel: SearchViewModel = viewModel(
         factory = SearchViewModel.factory(LocalContext.current),
     ),
@@ -90,6 +95,15 @@ fun SearchScreen(
     val currentSong by playbackViewModel.currentSong.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(searchReselectEvents, keyboardController) {
+        searchReselectEvents.collect {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.actionErrors.collect { actionError ->
@@ -130,6 +144,7 @@ fun SearchScreen(
             },
             singleLine = true,
             modifier = Modifier
+                .focusRequester(focusRequester)
                 .fillMaxWidth()
                 .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
             colors = OutlinedTextFieldDefaults.colors(

@@ -19,11 +19,13 @@ import com.v1per.synthx.ui.screens.developersettings.DeveloperSettingsScreen
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.R
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.flow.SharedFlow
 
 fun NavGraphBuilder.tabRoutes(
     navController: NavHostController,
     playbackViewModel: PlaybackViewModel,
     chromeBottomPadding: Dp,
+    searchReselectEvents: SharedFlow<Unit>,
 ) {
     composable(Screen.Home.route) {
         RouteContent(chromeBottomPadding) {
@@ -78,6 +80,7 @@ fun NavGraphBuilder.tabRoutes(
                     )
                 },
                 playbackViewModel = playbackViewModel,
+                searchReselectEvents = searchReselectEvents,
                 viewModel = searchViewModel,
             )
         }

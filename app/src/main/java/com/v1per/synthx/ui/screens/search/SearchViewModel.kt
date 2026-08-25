@@ -53,7 +53,7 @@ class SearchViewModel(
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
-    private val _filter = MutableStateFlow(SearchFilter.SONGS)
+    private val _filter = MutableStateFlow(SearchFilter.ALL)
     val filter: StateFlow<SearchFilter> = _filter.asStateFlow()
 
     private val _results = MutableStateFlow(SearchResults())

@@ -62,6 +62,7 @@ fun BottomChromeOverlay(
     playerProgress: Float,
     onPlayerProgressChanged: (Float) -> Unit,
     playbackViewModel: PlaybackViewModel,
+    onSearchReselected: () -> Unit,
 ) {
     // Collected here rather than hoisted up into MainScaffold: currentPosition ticks every
     // second while a song plays, and MainScaffold's body also hosts navigation/dialog state
@@ -94,6 +95,7 @@ fun BottomChromeOverlay(
                 // Fall back to 0f when nothing is playing so a stale progress can't
                 // leave the nav slid off screen after the sheet is gone.
                 playerProgress = if (currentSong != null) playerProgress else 0f,
+                onSearchReselected = onSearchReselected,
             )
         }
 
@@ -153,6 +155,7 @@ private fun SynthXBottomNav(
     navController: NavController,
     currentRoute: String?,
     playerProgress: Float = 0f,
+    onSearchReselected: () -> Unit,
 ) {
     val items = listOf(
         BottomNavItem(
@@ -213,8 +216,11 @@ private fun SynthXBottomNav(
                     selected = selected,
                     onClick = {
                         when {
-                            // Already at this tab's own root — nothing to do.
-                            currentRoute == item.screen.route -> Unit
+                            // Search root reselect focuses its existing field; other roots remain
+                            // no-ops.
+                            currentRoute == item.screen.route -> {
+                                if (item.screen == Screen.Search) onSearchReselected()
+                            }
                             // Deeper in this tab's own hierarchy — reset to root instead of
                             // restoring the sub-screen just left.
                             currentRoute in item.hierarchyRoutes -> {
