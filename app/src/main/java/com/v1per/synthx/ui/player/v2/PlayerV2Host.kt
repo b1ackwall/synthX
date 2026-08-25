@@ -58,6 +58,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -393,6 +394,7 @@ fun PlayerV2Host(
                     isPlaying = isPlaying,
                     isBuffering = isBuffering,
                     onPlayPauseClick = onPlayPauseClick,
+                    progress = progressState,
                 )
             }
         }
@@ -803,12 +805,40 @@ private fun PlayerV2ControlsBlock(
 }
 
 /**
- * Stage 2.1: real mini-bar content — art, title/artist, play/pause. Deliberately static:
- * no fade-as-you-drag (design doc §4) and no shared-element art morph (§3) yet, both later
- * stages. Pinned to the sheet's own top edge at a fixed [CollapsedPlayerHeight] like the old
- * (detached) PlayerSkeletonMiniContent, but with no reveal/fade treatment it stays visible at
- * every progress value, including fully expanded — acceptable for now only because the
- * expanded state itself is still blank.
+ * Stage 2.1 built real mini-bar content — art, title/artist, play/pause — statically, with no
+ * shared-element art morph yet (§3, still a later stage).
+ *
+ * This stage adds the fade-as-you-drag design doc §4 calls for: the title/artist/play-pause
+ * portion fades out as the sheet grows past mini height, using
+ * [PlayerSheetSkeleton.kt:210][com.v1per.synthx.ui.player.PlayerSheetSkeleton]'s exact proven
+ * curve (`1f - progress * 3f`, coerced 0..1 — fully visible at progress 0, fully gone by
+ * progress ≈ 0.333) rather than inventing a new one. Deliberately *not* symmetric with
+ * [PlayerV2ExpandedContent]'s reveal, which starts opening from `progress > 0f` — the two
+ * overlapping for roughly the first third of the drag is expected, not a bug: design doc §4
+ * calls mini content "disposable, not part of the envelope content," with no reveal treatment
+ * of its own.
+ *
+ * The album art is deliberately outside the fade: it is pinned at the sheet's top edge and
+ * stays fully visible for the whole drag, exactly as before this stage. That's why the fade
+ * modifier lands on a new wrapper `Row` around just the title/artist [Column] and the
+ * play/pause button, rather than on this composable's own root `Row` the way the old
+ * (detached) PlayerSkeletonMiniContent applies its `.alpha(miniContentAlpha)` — that file's
+ * root `Row` never actually contained its real art (a `Spacer` there only reserves the art's
+ * footprint; the real art is a separately-positioned overlay drawn elsewhere,
+ * PlayerSheetSkeleton.kt:392-399), so a whole-`Row` alpha never touched it. `PlayerAlbumArt`
+ * here *is* a direct child of the root `Row`, so fading the whole thing would fade the art too
+ * — hence the narrower wrapper.
+ *
+ * @param progress the same `progressState` reference [PlayerV2Host] hands to
+ *   [PlayerV2ExpandedContent] — not the unwrapped value — so the fade alpha below is read
+ *   inside [androidx.compose.ui.graphics.graphicsLayer]'s lambda at draw time, the same
+ *   phase-deferred, zero-recomposition-cost pattern [EnvelopeRevealShape] already establishes
+ *   in this file. Reading `progress.value` directly in this composable's body instead (e.g. to
+ *   share one local val between the alpha and the enabled check below) would subscribe this
+ *   whole composable to a 60Hz recomposition for the entire drag, not just the ~33% of it where
+ *   the fade is actually animating — a cost this composable doesn't currently pay and shouldn't
+ *   newly acquire. See the `miniContentEnabled` local below for why `enabled` can't avoid a
+ *   composition-phase read the same way, and how that cost is bounded instead.
  */
 @Composable
 private fun BoxScope.PlayerV2MiniContent(
@@ -816,7 +846,24 @@ private fun BoxScope.PlayerV2MiniContent(
     isPlaying: Boolean,
     isBuffering: Boolean,
     onPlayPauseClick: () -> Unit,
+    progress: State<Float>,
 ) {
+    // `DragResistantIconButton`'s `enabled` is a plain Boolean composable parameter, not a
+    // draw-phase-readable modifier — unlike the graphicsLayer alpha below, there is no way to
+    // gate it without a composition-phase read of `progress.value` somewhere. Wrapped in
+    // derivedStateOf (mirroring this file's own `progressState`/`isContentPresent` pattern
+    // above) rather than a bare `val`, so this composable only recomposes when the *boolean*
+    // actually flips — twice per drag, at the progress ≈ 0.1667 crossing — instead of on every
+    // one of the ~60 progress ticks a full drag produces. A bare `val miniContentEnabled =
+    // (1f - progress.value * 3f).coerceIn(0f, 1f) > 0.5f` would read progress.value in the
+    // composition body directly, subscribing this composable to every progress change for the
+    // *entire* drag (Compose can't know the post-coerce, post-comparison result is unchanged
+    // without derivedStateOf's own value-equality check) — exactly the cost this stage
+    // otherwise avoids by keeping the alpha itself draw-phase-only.
+    val miniContentEnabled by remember(progress) {
+        derivedStateOf { (1f - progress.value * 3f).coerceIn(0f, 1f) > 0.5f }
+    }
+
     Row(
         modifier = Modifier
             .align(Alignment.TopCenter)
@@ -831,41 +878,60 @@ private fun BoxScope.PlayerV2MiniContent(
             size = 44.dp,
         )
         Spacer(modifier = Modifier.width(Spacing.sm))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.basicMarquee(),
-            )
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        DragResistantIconButton(onClick = onPlayPauseClick) {
-            if (isBuffering) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
+        // Wraps exactly the title/artist + play/pause portion — see this composable's doc for
+        // why the fade can't land on the root Row the way the old player's does. weight(1f)
+        // moves here from the inner Column (below) so this wrapper still claims the same
+        // leftover horizontal space in the outer Row that the Column alone used to; the
+        // Column's own weight(1f) now applies within this wrapper instead, so the button's
+        // size and position, and the Column's width, are unchanged from before this stage.
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .graphicsLayer {
+                    // Same curve as `miniContentEnabled` above, deliberately inlined again
+                    // rather than sharing a local val — see this composable's `progress` param
+                    // doc. This read happens once per draw/layer update, not once per
+                    // recomposition, and costs nothing extra by being duplicated.
+                    alpha = (1f - progress.value * 3f).coerceIn(0f, 1f)
+                },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = song.title,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee(),
+                )
+                Text(
+                    text = song.artist,
+                    style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
-                    strokeWidth = 2.dp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-            } else {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (isPlaying) {
-                        stringResource(R.string.cd_pause)
-                    } else {
-                        stringResource(R.string.cd_play)
-                    },
-                    tint = if (isPlaying) Accent else TextPrimary,
-                    modifier = Modifier.size(28.dp),
-                )
+            }
+            DragResistantIconButton(onClick = onPlayPauseClick, enabled = miniContentEnabled) {
+                if (isBuffering) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = TextSecondary,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (isPlaying) {
+                            stringResource(R.string.cd_pause)
+                        } else {
+                            stringResource(R.string.cd_play)
+                        },
+                        tint = if (isPlaying) Accent else TextPrimary,
+                        modifier = Modifier.size(28.dp),
+                    )
+                }
             }
         }
     }
