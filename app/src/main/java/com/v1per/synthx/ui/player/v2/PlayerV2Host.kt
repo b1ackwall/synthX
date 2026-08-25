@@ -18,10 +18,16 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,8 +66,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
@@ -103,9 +111,12 @@ enum class PlayerV2State { Collapsed, Expanded }
  * content — see [PlayerV2ExpandedContent] — statically laid out at fixed final positions, no
  * drag-progress-driven offsets. Stage 2.3 added the envelope reveal-clip on top of that
  * static layout — see [EnvelopeRevealShape] — so the content now reveals bottom-up with
- * progress instead of popping in/out at the drag's midpoint. Still no album art frame (Stage
- * 2.4), so the title block sits at a placeholder fixed top offset rather than below real art
- * bounds.
+ * progress instead of popping in/out at the drag's midpoint. Stage 2.3b replaced the 320dp
+ * placeholder gap above the title with a real album art frame, measured rather than budgeted,
+ * and made the expanded layout genuinely static by sizing its container at the sheet's
+ * *fully expanded* height instead of letting it track the live sheetHeight — see
+ * [PlayerV2ExpandedContent]. The art is still statically positioned: no shared-element morph
+ * between the mini and expanded frames (Stage 2.4).
  *
  * Deliberate divergences from docs/player-rebuild-design.md, all scoped to this stage:
  * - The design doc's mechanism is SeekableTransitionState inside a SharedTransitionLayout
@@ -260,9 +271,18 @@ fun PlayerV2Host(
         // that true — see PlayerChromeMetrics.kt.
         val bottomInset = lerpDp(BottomNavHeight, 0.dp, progress)
 
+        // The sheet's height at progress 1, captured here rather than read at the call site
+        // below. PlayerV2ExpandedContent is a BoxScope extension (it needs .align to
+        // bottom-anchor itself), and BoxWithConstraintsScope extends BoxScope — so inside the
+        // sheet Box's content lambda there are two candidate implicit receivers and
+        // `maxHeight` no longer resolves. Naming it once here is clearer than an explicit
+        // qualified receiver at the call site, and gives the value a name that says which
+        // height it is.
+        val expandedSheetHeight = maxHeight
+
         // The three animated properties, all driven off the one progress term so they cannot
         // drift out of step with each other or with the finger.
-        val sheetHeight = lerpDp(CollapsedPlayerHeight, maxHeight, progress)
+        val sheetHeight = lerpDp(CollapsedPlayerHeight, expandedSheetHeight, progress)
         // 24dp on the top corners only, deliberately breaking the app's 2dp shapes.small
         // rule — the documented Apple-Music-style exception, re-confirmed in the design doc
         // (§8) rather than accidentally normalized.
@@ -350,6 +370,9 @@ fun PlayerV2Host(
                 if (isContentPresent) {
                     PlayerV2ExpandedContent(
                         song = song,
+                        // The sheet's *fully expanded* height, not the live sheetHeight — this
+                        // is what makes the expanded layout static. See the composable's doc.
+                        expandedHeight = expandedSheetHeight,
                         isPlaying = isPlaying,
                         isBuffering = isBuffering,
                         onPlayPauseClick = onPlayPauseClick,
@@ -375,15 +398,43 @@ fun PlayerV2Host(
 }
 
 /**
- * Placeholder fixed offset for the title block's top edge, standing in for "below the album
- * art frame" until Stage 2.4 defines that frame's real bounds and size.
+ * Deliberate breathing room between the top system inset and the album art region — and
+ * *only* that. It is not a status-bar allowance: the real inset is read separately from
+ * [WindowInsets.safeDrawing] and added to this (see [PlayerV2ExpandedContent]).
+ *
+ * That separation is the whole point of the constant. The old (detached) player's
+ * `ExpandedTopMargin = 32.dp` (PlayerSheetSkeleton.kt:68) was one number silently doing both
+ * jobs, which is why the old expanded sheet's top edge sat *under* the status bar on every
+ * device — there was no inset term anywhere in that layout. Design doc §8 lists fixing this
+ * as in scope for the rebuild rather than something to carry over.
  */
-private val ExpandedTitleTopOffset = 320.dp
+private val ExpandedArtTopMargin: Dp = 24.dp
+
+/**
+ * Left/right inset of the expanded content column, and the single source of the expanded
+ * album art's width.
+ *
+ * The art is centered at `maxWidth - ExpandedContentHorizontalInset * 2`, so its left edge
+ * lands exactly here; [PlayerV2TitleRow] uses the same value as its start padding so the
+ * title text's left edge lines up with the art's. Declaring it once is deliberate — the old
+ * player's art inset (`maxWidth - Spacing.HorizontalPadding * 4`, QueueArtPositioning.kt:58)
+ * and its title row's start padding (`Spacing.HorizontalPadding` + `Spacing.lg` = 40dp,
+ * PlayerSkeletonExpandedContent.kt:47,53) were independently written constants that happened
+ * to disagree by 8dp, which is exactly the class of drift this stage exists to remove.
+ *
+ * Numerically identical to the old `Spacing.HorizontalPadding * 4` art width, so the art
+ * itself is unchanged in size — only the title now agrees with it.
+ *
+ * Note this alignment is exact only while the art is width-bound (every normal portrait
+ * phone). On a short/landscape screen the art clamps to the available height and, being
+ * centered, its edges move inward; the title row stays at this fixed inset.
+ */
+private val ExpandedContentHorizontalInset: Dp = Spacing.HorizontalPadding * 2
 
 /**
  * Stage 2.2 built real expanded content — title/artist + 3-dot menu near the top, seek bar +
- * transport + queue button near the bottom — statically laid out via a fillMaxSize Column
- * with a flexible middle spacer, not the old (detached) PlayerSkeletonControlsOverlay's
+ * transport + queue button near the bottom — statically laid out via a Column, not the old
+ * (detached) PlayerSkeletonControlsOverlay's
  * progress-driven slide/fade/reveal-clip wrapper; only its *inner* content (the seek bar,
  * transport row, and queue row themselves) is mirrored here.
  *
@@ -396,13 +447,43 @@ private val ExpandedTitleTopOffset = 320.dp
  * whenever both are visible in the same frame is unrelated to the reveal and still expected —
  * z-order layering between the two is out of scope for this stage.
  *
+ * Stage 2.3b makes two changes on top of that.
+ *
+ * First, the container is no longer `fillMaxSize`. It is [requiredHeight] at
+ * [expandedHeight] — the sheet's fully expanded height, constant for the screen — and
+ * bottom-anchored inside the sheet Box. Under `fillMaxSize` this Column was re-measured
+ * against the live `sheetHeight` on every frame of a drag, which was harmless while the only
+ * flexible child was a spacer but would have resized the album art (and re-triggered Coil)
+ * once-per-frame. Design doc §1 asks for the expanded layout to be "laid out once, at fixed
+ * final positions… not re-derived per animation frame"; this is what actually delivers that.
+ * The visible consequence is that the content no longer slides with the sheet's top edge as
+ * the sheet grows — it holds still and is revealed, which is the §2 envelope model taken
+ * literally.
+ *
+ * Second, the 320dp placeholder spacer is gone, replaced by a real album art frame sized off
+ * Column's own measurement of the title row and controls block. See the inline comments.
+ *
+ * The art deliberately stays *inside* this clipped Column rather than being split out as an
+ * unclipped sibling, which is where design doc §2 will eventually want it. At this stage the
+ * art has no independent animation, so there is nothing for the clip to interfere with, and
+ * the split only becomes load-bearing at Stage 2.4b — where it arrives for free: a matched
+ * `Modifier.sharedElement` renders into the SharedTransitionScope's overlay specifically, per
+ * its own API docs, "to avoid being faded in/out along with its parents or clipped by its
+ * parent". Outside an active transition the clip is either fully open (settled expanded) or
+ * this composable is not in the tree at all (settled collapsed), so drawing in place is never
+ * wrong in the meantime.
+ *
  * The queue button's [onClick][DragResistantIconButton] is a no-op: queue mode doesn't exist
  * until Stage 4, so there is nothing to wire it to yet, but it's laid out in its final
  * position now so Stage 4 only has to attach behavior, not insert a new element.
+ *
+ * @param expandedHeight the sheet's height at progress 1, i.e. [PlayerV2Host]'s
+ *   `BoxWithConstraints.maxHeight`. Deliberately *not* the live `sheetHeight` — see above.
  */
 @Composable
-private fun PlayerV2ExpandedContent(
+private fun BoxScope.PlayerV2ExpandedContent(
     song: Song,
+    expandedHeight: Dp,
     isPlaying: Boolean,
     isBuffering: Boolean,
     onPlayPauseClick: () -> Unit,
@@ -419,14 +500,76 @@ private fun PlayerV2ExpandedContent(
     // the same derivedStateOf instance from PlayerV2Host on every recomposition), so this
     // Shape instance itself is built once, not once per frame.
     val revealShape = remember(progress) { EnvelopeRevealShape(progress) }
+
+    // Read as a plain Dp rather than applied via Modifier.statusBarsPadding(): this value is
+    // a term in the art's height budget below, and a padding modifier would shrink the
+    // Column's usable height invisibly from outside the arithmetic. safeDrawing rather than
+    // statusBars so a display cutout taller than the status bar is not under-reported —
+    // identical on non-cutout devices. Un-consumed by the time it reaches here: the only
+    // inset consumed above this point is BottomChromeOverlay's navigationBarsPadding()
+    // (SynthXBottomNav.kt:115), and SynthXNavHost's consumeWindowInsets is on a sibling
+    // subtree, not an ancestor.
+    val topInset = WindowInsets.safeDrawing
+        .only(WindowInsetsSides.Top)
+        .asPaddingValues()
+        .calculateTopPadding()
+
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
+            // requiredHeight, not height: the parent sheet Box is measured at the live
+            // `sheetHeight`, so plain Modifier.height() — which is documented as a *preferred*
+            // size and resolves as `constraints.constrain(target)` (Size.kt, enforceIncoming =
+            // true) — would be clamped straight back down to sheetHeight and this whole change
+            // would silently do nothing. requiredHeight passes enforceIncoming = false and so
+            // ignores the incoming maximum, which is precisely what is wanted here.
+            .requiredHeight(expandedHeight)
+            // Bottom-anchored, so the container overhangs the shorter sheet upward and is
+            // clipped by the sheet Box's own .clip() rather than being squashed.
+            .align(Alignment.BottomCenter)
             .clip(revealShape),
     ) {
-        Spacer(modifier = Modifier.height(ExpandedTitleTopOffset))
+        Spacer(modifier = Modifier.height(topInset + ExpandedArtTopMargin))
+        // The art frame. Sized by Column's own measurement rather than by any budget
+        // arithmetic: Column measures its zero-weight children first (the title row and the
+        // controls block below, each at whatever height it actually needs at the current font
+        // scale) and hands this weighted child exactly what is left
+        // (RowColumnMeasurePolicy.kt — "First measure children with zero weight", then
+        // `mainAxisMax = childMainAxisSize` for the weighted pass). BoxWithConstraints reads
+        // that remainder back as a real Dp.
+        //
+        // This is the direct replacement for the old player's two hand-written height
+        // budgets, which partitioned the same space and disagreed by exactly
+        // ExpandedTopMargin — `artMaxHeight` (QueueArtPositioning.kt:59) omitted the top
+        // margin that `expandedRegionHeight` (:81) subtracted, so on any screen where height
+        // was the binding constraint the art overran its region by 32dp and the controls
+        // overlay painted over the bottom of the artist line. There is only one budget now
+        // and Compose owns it.
+        //
+        // It also removes the two sp-as-dp constants that fed those budgets
+        // (TitleRowReservedHeight = 52.dp is titleLarge's 28sp + bodyLarge's 24sp line
+        // heights written down as dp; ControlsOverlayHeight = 300.dp over-reserved the real
+        // ~240dp block by 60dp). Measuring the real composables is correct at every font
+        // scale; neither constant was.
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            // Square, capped by whichever axis binds. maxHeight here is the genuine leftover
+            // space, so the cap needs no separate derivation.
+            val side = min(maxWidth - ExpandedContentHorizontalInset * 2, maxHeight)
+            PlayerAlbumArt(
+                song = song,
+                isPlaying = isPlaying,
+                size = side,
+                // The mini bar's 44dp thumbnail would visibly upscale at this size.
+                fullResolution = true,
+            )
+        }
         PlayerV2TitleRow(song = song)
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(Spacing.lg))
         PlayerV2ControlsBlock(
             isPlaying = isPlaying,
             isBuffering = isBuffering,
@@ -494,8 +637,13 @@ private fun PlayerV2TitleRow(song: Song) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.HorizontalPadding)
-            .padding(start = Spacing.lg, end = 12.dp),
+            // Start is [ExpandedContentHorizontalInset] (32dp) so the title's left edge lines
+            // up with the album art's — the old pair of stacked paddings
+            // (Spacing.HorizontalPadding + Spacing.lg) put it at 40dp against art at 32dp, an
+            // 8dp disagreement that was invisible only because there was no art on screen yet.
+            // End is unchanged at 28dp (Spacing.HorizontalPadding + 12dp): it trails
+            // MoreOptionsButton, not the art, so it has no reason to match.
+            .padding(start = ExpandedContentHorizontalInset, end = Spacing.HorizontalPadding + 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
