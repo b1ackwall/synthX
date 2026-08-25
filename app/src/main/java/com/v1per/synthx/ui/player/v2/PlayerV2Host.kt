@@ -1,6 +1,5 @@
 package com.v1per.synthx.ui.player.v2
 
-import android.util.Log
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.SeekableTransitionState
@@ -135,11 +134,13 @@ enum class PlayerV2State { Collapsed, Expanded }
  * "these are all the normal duration" — a later decision to retune the player specifically then
  * has one place to land.
  *
- * **Not yet load-bearing.** Nothing reads `expansion` until Step 4, and during a drag the value
- * is driven by `seekTo` rather than by elapsed time, so this duration currently governs no
- * visible motion at all. It first matters at Step 7, where release switches to
- * `SeekableTransitionState.animateTo` and the transition actually runs on a clock — that is the
- * point to re-examine whether 300ms is the right feel, not now.
+ * **Still governs no visible motion.** As of Step 4 every consumer reads `expansion`, so this
+ * tween is now load-bearing for *correctness* — its linearity is what keeps `expansion` equal to
+ * `fraction` and therefore equal to the finger. Its **duration** still governs nothing, because
+ * during a drag the transition is positioned by `seekTo` rather than run on a clock, and the
+ * release is still AnchoredDraggable's spring mirrored in. Duration first becomes visible at
+ * Step 7, where release switches to `SeekableTransitionState.animateTo` — that is the point to
+ * re-examine whether 300ms is the right feel, not now.
  */
 private const val PlayerV2TransitionMs: Int = Motion.DurationNormal
 
@@ -297,15 +298,18 @@ fun SharedTransitionScope.PlayerV2Host(
         // 0f = fully collapsed, 1f = fully expanded. Guards the pre-initialization NaN
         // AnchoredDraggableState.offset reports before the first updateAnchors() call lands.
         //
-        // Held as progressState (the State object itself, not just its value) so Stage 2.3's
-        // reveal-clip shape below can be handed a reference and read .value from inside
-        // createOutline — a draw/layout-phase read, not a composition-phase one. The `by`
-        // delegate immediately below still unwraps it for every composition-phase use
-        // (isContentPresent, the sheetHeight/cornerRadius/surfaceColor lerps), which is what
-        // recomposes this subtree once per frame while a drag is in flight. That per-frame
-        // recomposition is unchanged from before this stage; the design doc's fix (§5 —
-        // lambda-based modifiers reading the transition in the draw phase) belongs with the
-        // SeekableTransitionState rewrite, not here.
+        // **No longer a UI progress source as of migration Step 4.** Every consumer that used
+        // to read this — the sheetHeight/cornerRadius/surfaceColor lerps, bottomInset, the
+        // isContentPresent gate, the onProgressChanged SideEffect, EnvelopeRevealShape and the
+        // mini fade — now reads `expansionState` instead. Its `by` delegate is gone with them.
+        //
+        // It survives because it is still the *shadow's input*: the LaunchedEffect below is the
+        // one remaining reader, converting this AnchoredDraggable-derived number into the
+        // seekTo/snapTo calls that position the transition. Deleting it here would mean
+        // inlining the same arithmetic into that snapshotFlow, which is the shadow mechanism
+        // Step 4 is explicitly not allowed to touch. It goes away for real at Step 8, together
+        // with the AnchoredDraggableState it reads and the whole shadow bridge — at which point
+        // the drag writes the transition directly and there is nothing left to convert.
         val progressState = remember(availableHeightPx, collapsedHeightPx) {
             derivedStateOf {
                 val offset = draggableState.offset
@@ -315,14 +319,15 @@ fun SharedTransitionScope.PlayerV2Host(
                 else ((collapsedAnchor - offset) / collapsedAnchor).coerceIn(0f, 1f)
             }
         }
-        val progress by progressState
 
-        // ── Migration Step 3: the transition, shadow-driven and not yet consumed ──────────
+        // ── Migration Steps 3–4: the transition, shadow-driven and now load-bearing ───────
         //
-        // docs/player-v2-migration-plan.md Step 3. Everything in this block is additive: the
-        // gesture path above and every consumer below still run entirely off progressState.
-        // Step 4 flips the consumers over; Step 8 deletes the AnchoredDraggableState that
-        // currently feeds this.
+        // docs/player-v2-migration-plan.md Steps 3 and 4. Step 3 added everything in this block
+        // as pure addition, consumed by nothing. Step 4 flipped every consumer below onto
+        // `expansionState`, so this is now the single progress source the whole sheet runs on —
+        // while the gesture path above is still untouched AnchoredDraggable, feeding this
+        // through the shadow. Step 8 deletes the AnchoredDraggableState and the shadow with it,
+        // and the drag starts writing this state directly.
         val seekableState = remember { SeekableTransitionState(PlayerV2State.Collapsed) }
 
         // rememberTransition is mandatory, not stylistic. A SeekableTransitionState is inert
@@ -354,15 +359,27 @@ fun SharedTransitionScope.PlayerV2Host(
         // shadow below — which sets fraction from a finger position — would no longer track
         // the finger 1:1. See PlayerV2TransitionMs for why the duration must be shared.
         //
-        // Held as a State<Float> rather than unwrapped with `by`: this is the shape Step 4
-        // needs (progressState is passed *as a State* into PlayerV2ExpandedContent and
-        // PlayerV2MiniContent precisely so EnvelopeRevealShape and the mini fade can read it in
-        // the draw phase), and it keeps the per-frame value out of this composable's
-        // composition-phase reads in the meantime.
+        // Held as a State<Float>, with a separate `by` unwrap below, because the consumers need
+        // both shapes. EnvelopeRevealShape and the mini fade take the State object itself and
+        // read `.value` in the draw phase; the lerps and the gate need a plain Float in the
+        // composition phase. This is exactly the split progressState used to serve, and the
+        // instance is safe to hand out as an identity key — animateValue's returned animation
+        // is `remember(this)`-scoped to the transition (Transition.kt:2119-2120), so it is the
+        // same object on every recomposition, which is what PlayerV2ExpandedContent's
+        // `remember(progress) { EnvelopeRevealShape(progress) }` relies on.
         val expansionState = transition.animateFloat(
             transitionSpec = { tween(PlayerV2TransitionMs, easing = LinearEasing) },
             label = "expansion",
         ) { state -> if (state == PlayerV2State.Expanded) 1f else 0f }
+
+        // Migration Step 4: the composition-phase half of the swap. Every `progress` read that
+        // used to unwrap progressState now unwraps this instead — same reads, same formulas,
+        // same once-per-frame recomposition of this subtree during a drag, different source.
+        // The design doc's §5 fix (lambda-based modifiers so the lerps stop recomposing at all)
+        // is deliberately still not attempted here; Step 4's success criterion is
+        // pixel-identical behavior, and changing the read phase at the same time as the source
+        // would put two variables in that comparison.
+        val expansion by expansionState
 
         // The shadow. Mirrors the AnchoredDraggableState's live position into the seekable
         // state continuously — through the release animation too, not just the finger — so
@@ -416,43 +433,22 @@ fun SharedTransitionScope.PlayerV2Host(
                             if (target == PlayerV2State.Expanded) p else 1f - p
                         seekableState.seekTo(fraction.coerceIn(0f, 1f), target)
                     }
-
-                    // TEMPORARY DEBUG — delete at Step 4, when progressState starts deriving
-                    // from expansionState and any disagreement becomes visible on screen
-                    // instead of silent. Worth its five lines specifically because Step 3 is
-                    // the one step in the plan with no on-device check: every way this wiring
-                    // can fail (a swallowed seekTo, a stale currentState, a broken
-                    // fraction↔expansion mapping) fails by leaving expansion parked at a
-                    // constant, which compiles, runs, and looks exactly like success until
-                    // Step 4 makes it load-bearing and it reads as a Step 4 regression.
-                    // Logged, never thrown: an assertion that kills the app mid-gesture would
-                    // be a worse bug than the one it detects.
-                    val expansion = expansionState.value
-                    if (abs(expansion - p) > 0.01f) {
-                        Log.w(
-                            "PlayerV2Shadow",
-                            "expansion=$expansion drifted from progress=$p " +
-                                "(current=${seekableState.currentState} " +
-                                "target=${seekableState.targetState} " +
-                                "fraction=${seekableState.fraction})",
-                        )
-                    }
                 }
         }
-        // ── end Step 3 ───────────────────────────────────────────────────────────────────
+        // ── end Steps 3–4 ────────────────────────────────────────────────────────────────
 
         // Stage 2.3: composition-presence gate only — decides whether
         // PlayerV2ExpandedContent exists in the tree at all, not whether it's visually shown.
         // That's now the reveal clip's job (EnvelopeRevealShape, applied inside the
-        // composable itself), driven off the same progressState. Keyed to progress > 0f
+        // composable itself), driven off the same expansionState. Keyed to expansion > 0f
         // rather than Stage 2.2's `draggableState.targetValue == Expanded` — targetValue only
         // flips at the anchoredDraggable midpoint, which would leave nothing composed (and
         // therefore nothing for the clip to grow open) for the first ~40% of every expand
-        // drag. progress > 0f instead begins composing on the drag's very first frame, so the
+        // drag. expansion > 0f instead begins composing on the drag's very first frame, so the
         // clip always has content to reveal from 0.
-        val isContentPresent = progress > 0f
+        val isContentPresent = expansion > 0f
 
-        // Publish progress outward so SynthXBottomNav can slide/shrink/fade in lockstep.
+        // Publish expansion outward so SynthXBottomNav can slide/shrink/fade in lockstep.
         //
         // SideEffect, not a bare call in the composition body: the old player does
         // `onProgressChanged(progress)` inline (PlayerSheetSkeleton.kt:185), which runs the
@@ -464,21 +460,21 @@ fun SharedTransitionScope.PlayerV2Host(
         //
         // SideEffect is the documented tool for "publish Compose state to non-Compose-managed
         // state": it runs only after a composition successfully commits, so every value the
-        // nav receives is one that actually rendered. LaunchedEffect(progress) would also be
+        // nav receives is one that actually rendered. LaunchedEffect(expansion) would also be
         // correct-by-construction but is the wrong instrument here — it would spin up and
         // cancel a coroutine on every frame of the drag, and the callback would land a
         // dispatch later than the frame it describes, leaving the nav visibly one frame
         // behind the finger. SideEffect is synchronous with the commit and allocates nothing.
-        SideEffect { onProgressChanged(progress) }
+        SideEffect { onProgressChanged(expansion) }
 
         // Complement of SynthXBottomNav's own collapse: the nav slides down by
-        // BottomNavHeight * progress while this shrinks by BottomNavHeight * (1 - progress),
+        // BottomNavHeight * expansion while this shrinks by BottomNavHeight * (1 - expansion),
         // so the two edges stay in contact at every intermediate value instead of drifting.
         // Sharing the BottomNavHeight constant (rather than restating 71.dp) is what keeps
         // that true — see PlayerChromeMetrics.kt.
-        val bottomInset = lerpDp(BottomNavHeight, 0.dp, progress)
+        val bottomInset = lerpDp(BottomNavHeight, 0.dp, expansion)
 
-        // The sheet's height at progress 1, captured here rather than read at the call site
+        // The sheet's height at expansion 1, captured here rather than read at the call site
         // below. PlayerV2ExpandedContent is a BoxScope extension (it needs .align to
         // bottom-anchor itself), and BoxWithConstraintsScope extends BoxScope — so inside the
         // sheet Box's content lambda there are two candidate implicit receivers and
@@ -487,24 +483,24 @@ fun SharedTransitionScope.PlayerV2Host(
         // height it is.
         val expandedSheetHeight = maxHeight
 
-        // The three animated properties, all driven off the one progress term so they cannot
+        // The three animated properties, all driven off the one expansion term so they cannot
         // drift out of step with each other or with the finger.
-        val sheetHeight = lerpDp(CollapsedPlayerHeight, expandedSheetHeight, progress)
+        val sheetHeight = lerpDp(CollapsedPlayerHeight, expandedSheetHeight, expansion)
         // 24dp on the top corners only, deliberately breaking the app's 2dp shapes.small
         // rule — the documented Apple-Music-style exception, re-confirmed in the design doc
         // (§8) rather than accidentally normalized.
-        val cornerRadius = lerpDp(0.dp, 24.dp, progress)
+        val cornerRadius = lerpDp(0.dp, 24.dp, expansion)
         // Lerped rather than flat: with no content whatsoever, this shift is the only way to
-        // read progress mid-drag at a glance, and it costs one line and one import.
-        val surfaceColor = lerp(Surface, SurfaceVariant, progress)
+        // read expansion mid-drag at a glance, and it costs one line and one import.
+        val surfaceColor = lerp(Surface, SurfaceVariant, expansion)
 
         // Outer wrapper whose only job is to hold the inset, exactly as the old player does
         // (PlayerSheetSkeleton.kt:257). The padding shrinks the coordinate space the sheet is
         // bottom-aligned *within*, rather than being applied to the sheet itself — so the
         // sheet's own .align(BottomCenter) below lands it above the nav with no change to its
-        // alignment or height logic. At progress = 0 the space stops BottomNavHeight short of
+        // alignment or height logic. At expansion = 0 the space stops BottomNavHeight short of
         // the bottom and the 64dp collapsed bar sits on top of the nav's upper edge; at
-        // progress = 1 the inset is 0 and the sheet reclaims the full height the nav vacated.
+        // expansion = 1 the inset is 0 and the sheet reclaims the full height the nav vacated.
         Box(modifier = Modifier.fillMaxSize().padding(bottom = bottomInset)) {
             Box(
                 modifier = Modifier
@@ -638,7 +634,7 @@ fun SharedTransitionScope.PlayerV2Host(
                         hasNext = hasNext,
                         onPreviousClick = onPreviousClick,
                         onNextClick = onNextClick,
-                        progress = progressState,
+                        progress = expansionState,
                         bottomInset = bottomInset,
                     )
                 }
@@ -647,7 +643,7 @@ fun SharedTransitionScope.PlayerV2Host(
                     isPlaying = isPlaying,
                     isBuffering = isBuffering,
                     onPlayPauseClick = onPlayPauseClick,
-                    progress = progressState,
+                    progress = expansionState,
                 )
             }
         }
@@ -849,9 +845,10 @@ private fun BoxScope.PlayerV2ExpandedContent(
     progress: State<Float>,
     bottomInset: Dp,
 ) {
-    // Keyed on progress's own identity (stable for this composable's whole lifetime — it's
-    // the same derivedStateOf instance from PlayerV2Host on every recomposition), so this
-    // Shape instance itself is built once, not once per frame.
+    // Keyed on progress's own identity (stable for this composable's whole lifetime — as of
+    // migration Step 4 it's the same animateFloat TransitionAnimationState instance from
+    // PlayerV2Host on every recomposition, `remember(this)`-scoped to the transition itself,
+    // Transition.kt:2119-2120), so this Shape instance is built once, not once per frame.
     val revealShape = remember(progress) { EnvelopeRevealShape(progress) }
 
     // Read as a plain Dp rather than applied via Modifier.statusBarsPadding(): this value is
@@ -1168,7 +1165,7 @@ private fun PlayerV2ControlsBlock(
  * here *is* a direct child of the root `Row`, so fading the whole thing would fade the art too
  * — hence the narrower wrapper.
  *
- * @param progress the same `progressState` reference [PlayerV2Host] hands to
+ * @param progress the same `expansionState` reference [PlayerV2Host] hands to
  *   [PlayerV2ExpandedContent] — not the unwrapped value — so the fade alpha below is read
  *   inside [androidx.compose.ui.graphics.graphicsLayer]'s lambda at draw time, the same
  *   phase-deferred, zero-recomposition-cost pattern [EnvelopeRevealShape] already establishes
@@ -1190,8 +1187,8 @@ private fun BoxScope.PlayerV2MiniContent(
     // `DragResistantIconButton`'s `enabled` is a plain Boolean composable parameter, not a
     // draw-phase-readable modifier — unlike the graphicsLayer alpha below, there is no way to
     // gate it without a composition-phase read of `progress.value` somewhere. Wrapped in
-    // derivedStateOf (mirroring this file's own `progressState`/`isContentPresent` pattern
-    // above) rather than a bare `val`, so this composable only recomposes when the *boolean*
+    // derivedStateOf (mirroring this file's own `isContentPresent` pattern above) rather than
+    // a bare `val`, so this composable only recomposes when the *boolean*
     // actually flips — twice per drag, at the progress ≈ 0.1667 crossing — instead of on every
     // one of the ~60 progress ticks a full drag produces. A bare `val miniContentEnabled =
     // (1f - progress.value * 3f).coerceIn(0f, 1f) > 0.5f` would read progress.value in the
