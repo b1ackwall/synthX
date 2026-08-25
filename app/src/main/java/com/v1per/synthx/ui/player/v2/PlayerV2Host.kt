@@ -5,9 +5,11 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.SeekableTransitionState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.rememberTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -57,6 +59,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
@@ -99,6 +102,7 @@ import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -256,6 +260,13 @@ fun SharedTransitionScope.PlayerV2Host(
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val availableHeightPx = constraints.maxHeight.toFloat()
 
+        // The full pixel distance between the two anchors — the sheet's entire travel. Hoisted
+        // here by migration Step 7 because three separate things now need it and had been
+        // deriving it independently: the Collapsed anchor below, [progressState]'s normalization,
+        // and — the reason it had to become a named value — [releaseSpring]'s visibility
+        // threshold, which is precisely "0.01px expressed as a fraction of this".
+        val collapsedAnchorPx = availableHeightPx - collapsedHeightPx
+
         // Hoisted out of the AnchoredDraggableState constructor call below so that the release
         // site's own target computation (see computeReleaseTarget) uses the *same two lambda
         // instances* the state itself was configured with, rather than a second copy of 0.4f
@@ -291,7 +302,7 @@ fun SharedTransitionScope.PlayerV2Host(
             if (availableHeightPx > 0f) {
                 draggableState.updateAnchors(
                     DraggableAnchors {
-                        PlayerV2State.Collapsed at availableHeightPx - collapsedHeightPx
+                        PlayerV2State.Collapsed at collapsedAnchorPx
                         PlayerV2State.Expanded at 0f
                     },
                 )
@@ -313,13 +324,12 @@ fun SharedTransitionScope.PlayerV2Host(
         // Step 4 is explicitly not allowed to touch. It goes away for real at Step 8, together
         // with the AnchoredDraggableState it reads and the whole shadow bridge — at which point
         // the drag writes the transition directly and there is nothing left to convert.
-        val progressState = remember(availableHeightPx, collapsedHeightPx) {
+        val progressState = remember(collapsedAnchorPx) {
             derivedStateOf {
                 val offset = draggableState.offset
                 if (offset.isNaN()) return@derivedStateOf 0f
-                val collapsedAnchor = availableHeightPx - collapsedHeightPx
-                if (collapsedAnchor <= 0f) 0f
-                else ((collapsedAnchor - offset) / collapsedAnchor).coerceIn(0f, 1f)
+                if (collapsedAnchorPx <= 0f) 0f
+                else ((collapsedAnchorPx - offset) / collapsedAnchorPx).coerceIn(0f, 1f)
             }
         }
 
@@ -384,19 +394,159 @@ fun SharedTransitionScope.PlayerV2Host(
         // would put two variables in that comparison.
         val expansion by expansionState
 
-        // The shadow. Mirrors the AnchoredDraggableState's live position into the seekable
-        // state continuously — through the release animation too, not just the finger — so
-        // that by Step 4 the transition is already a faithful echo of the gesture and flipping
-        // the consumers over is the only thing that changes.
+        // ── Migration Step 7: the release animation moves to the transition ───────────────
         //
-        // One collector, never two. Both seekTo and snapTo take SeekableTransitionState's
-        // internal mutatorMutex (Transition.kt:560, :609), so running them from separate
-        // coroutines would let one cancel the other mid-drag — the intermittent failure the
-        // plan flags as Step 8's main risk. Sequencing them on a single coroutine makes that
-        // unrepresentable here rather than merely unlikely.
-        LaunchedEffect(seekableState, draggableState, progressState) {
-            snapshotFlow { draggableState.settledValue to progressState.value }
-                .collect { (settledValue, rawProgress) ->
+        // [Motion.SpringStandard] re-expressed for a 0..1 fraction. Same damping ratio, same
+        // stiffness — read off the shared token rather than restated, so a later retune of the
+        // app's standard spring still reaches this one — and one thing added: an explicit
+        // `visibilityThreshold`.
+        //
+        // **Why the threshold is not optional.** `SeekableTransitionState.animateTo` applies the
+        // spec to the transition's *fraction*: it builds an animation with `start[0] = fraction`
+        // and `targetValue = Target1` (= 1f), then sets `animationSpecDuration =
+        // spec.getDurationNanos(...)` and snaps the value to exactly 1f the moment play time
+        // reaches that duration (Transition.kt:769-786, :512-535). So the spec's convergence
+        // threshold is, quite literally, the point at which the sheet stops moving and jumps the
+        // rest of the way.
+        //
+        // `Motion.SpringStandard` carries no threshold, so it falls through to
+        // [Spring.DefaultDisplacementThreshold] = 0.01f (VectorizedAnimationSpec.kt:839).
+        // Against the pixel-space offset AnchoredDraggableState animates today that is 0.01 of a
+        // *pixel* — for practical purposes full convergence. Against a 0..1 fraction it is 1% of
+        // the sheet's entire travel: on this device's ~$collapsedAnchorPx px that is ~20px of
+        // remaining motion discarded in a single frame. Same spec, same damping, ~2000× looser
+        // criterion. Numerically: with StiffnessMediumLow (ω = 20 rad/s) and critical damping,
+        // the settle would end at ~0.33s instead of the ~0.75s it runs today — a ~400ms tail
+        // simply absent. That is the plan's Step 7 risk #2, and it is not a subtle one.
+        //
+        // **The value.** The honest conversion is the proportional one: the same 0.01px, divided
+        // by the travel it is now being measured against. That is not a tuning choice — it is the
+        // identity that makes the fraction-space spring terminate on exactly the same *physical*
+        // displacement as the pixel-space spring it replaces, which is what "behavior-identical"
+        // has to mean here. It also self-adjusts across devices, where a hand-picked constant
+        // would silently mean a different thing on a tablet than on a phone.
+        //
+        // A rounder number (1e-3, say ≈ 2px) was the alternative and is deliberately not taken:
+        // it would be a *decision to change the feel*, made in the same step that is trying to
+        // prove the mechanism swap changed nothing. If  finds the ~0.75s tail too long, that
+        // is a real and separate question — and this is the one line to change to answer it.
+        val releaseSpring = remember(collapsedAnchorPx) {
+            spring(
+                dampingRatio = Motion.SpringStandard.dampingRatio,
+                stiffness = Motion.SpringStandard.stiffness,
+                visibilityThreshold = if (collapsedAnchorPx > 0f) {
+                    Spring.DefaultDisplacementThreshold / collapsedAnchorPx
+                } else {
+                    // Anchors not measured yet; no release can be in flight. Any value is
+                    // unreachable — use the framework default rather than divide by zero.
+                    Spring.DefaultDisplacementThreshold
+                },
+            )
+        }
+
+        // The release request, handed from the gesture detector to the shadow collector.
+        //
+        // **Why a hand-off rather than just calling `animateTo` at the release site.** Every
+        // mutating entry point on SeekableTransitionState — `seekTo`, `snapTo`, `animateTo` —
+        // runs inside `mutatorMutex.mutate { }` (Transition.kt:560, :609, :720). Reading
+        // `MutatorMutex` itself (InternalMutatorMutex.kt): `mutate` opens a `coroutineScope`,
+        // registers *that scope's* Job as the current mutator, and a later mutator of equal
+        // priority calls `job.cancel(MutationInterruptedException())` on it. The interrupted
+        // scope then rethrows that `CancellationException` **out to its caller**.
+        //
+        // That caller would be the shadow collector below. Its own Job is not cancelled, so the
+        // exception would propagate out of `collect`, complete the `LaunchedEffect` coroutine
+        // exceptionally, and — since the keys never change — it would *never restart*. The shadow
+        // would be permanently dead and the sheet would stop tracking the finger for the rest of
+        // the session. And the collector is very likely to be inside a `seekTo` at exactly that
+        // moment, because `seekTo` suspends on `waitForCompositionAfterTargetStateChange()`,
+        // which waits a whole composition.
+        //
+        // A "release in progress" flag, checked before each `seekTo`, does not fix this: it stops
+        // *new* seeks, but cannot un-start the one already suspended. Handing the release to the
+        // collector does fix it, by construction — one coroutine remains the only mutator of
+        // `seekableState`, so `MutatorMutex` is never contended and `MutationInterruptedException`
+        // is unreachable rather than merely unlikely. This is the plan's Step 8 architecture
+        // ("one consumer coroutine owning every seekTo *and* the release animateTo") arriving one
+        // step early, for the release half only; the drag half is still the untouched snapshotFlow
+        // shadow. See the collector for the second problem this also solves.
+        //
+        // Nullable rather than a boolean + separate target: the two are never meaningfully apart,
+        // and a single nullable makes "no release pending" and "release to X" the same read.
+        val pendingRelease = remember { mutableStateOf<PlayerV2State?>(null) }
+        // ── end Step 7 declarations ──────────────────────────────────────────────────────
+
+        // The shadow. Mirrors the AnchoredDraggableState's live position into the seekable
+        // state continuously, so that by Step 4 the transition is already a faithful echo of the
+        // gesture and flipping the consumers over is the only thing that changes.
+        //
+        // **Migration Step 7 narrows what "continuously" means.** Through Step 6 this mirrored
+        // the release animation too — the sheet settled on AnchoredDraggable's spring, echoed one
+        // frame later. It no longer does: the release is now the transition's own `animateTo`,
+        // run below by this same coroutine, and the mirror is suspended for its duration. Between
+        // finger-down and finger-up nothing here changed.
+        //
+        // One collector, never two — and as of Step 7 that is load-bearing rather than merely
+        // tidy. seekTo, snapTo *and* animateTo all take SeekableTransitionState's internal
+        // mutatorMutex (Transition.kt:560, :609, :720), and an interrupted mutator does not fail
+        // quietly: it is cancelled with a MutationInterruptedException that surfaces in *its
+        // caller*. A second coroutine calling animateTo would therefore kill this collector
+        // outright — see [pendingRelease] for the full trace. Sequencing every mutation on one
+        // coroutine makes that unrepresentable rather than merely unlikely.
+        LaunchedEffect(seekableState, draggableState, progressState, pendingRelease) {
+            snapshotFlow {
+                Triple(pendingRelease.value, draggableState.settledValue, progressState.value)
+            }
+                .collect { (release, settledValue, rawProgress) ->
+                    // Migration Step 7. The release runs *here*, on the collector's own
+                    // coroutine, for the MutatorMutex reason set out at [pendingRelease] — and
+                    // for a second reason that only shows up once you ask when mirroring may
+                    // safely resume.
+                    //
+                    // The two springs do not finish together. This one converges in fraction
+                    // space; AnchoredDraggable's still converges in pixel space against its own
+                    // 0.01px threshold, and `settledValue` does not flip until it does. If the
+                    // shadow resumed the instant `seekableState.animateTo` returned, its very
+                    // next emission would read a progress still a few thousandths short of the
+                    // anchor, fail the `p == settledExpansion` test, and issue a `seekTo` that
+                    // drags the sheet back off the target it had just reached — a small visible
+                    // twitch at the end of every single release. Running both animations inside
+                    // one `coroutineScope` and only then returning to the collect loop means
+                    // mirroring cannot resume until *both* have landed, at which point the next
+                    // emission takes the `snapTo` branch and self-no-ops.
+                    //
+                    // Emissions produced while this suspends are not queued up behind it:
+                    // `snapshotFlow` delivers through a conflated channel, so what waits is the
+                    // single latest value — the settled one.
+                    if (release != null) {
+                        // Cleared before the animation, not after: a second release arriving
+                        // mid-settle must be able to re-arm this, and clearing afterwards would
+                        // overwrite it with null and lose that gesture.
+                        pendingRelease.value = null
+                        coroutineScope {
+                            // AnchoredDraggable is no longer driving anything visible, but it is
+                            // still the drag loop's state: `dispatchRawDelta` works off `offset`
+                            // and the tap branch reads `currentValue`, so both must land on the
+                            // target or the next gesture starts from the wrong place. Launched
+                            // rather than awaited first so the two run concurrently, exactly as
+                            // they did when this call sat in the gesture detector.
+                            launch { draggableState.animateTo(release) }
+                            // The one that is actually on screen now. No velocity argument
+                            // because there is no overload that takes one (Step 0, Finding 1) —
+                            // and nothing is lost, because Step 2b already established this
+                            // release is velocity-free on the AnchoredDraggable side too: the
+                            // drag loop feeds `dispatchRawDelta`, which leaves `lastVelocity` at
+                            // 0f. `animateTo` likewise seeds from `oldVelocity`, which is
+                            // `ZeroVelocity` here because there is no running `currentAnimation`
+                            // to inherit from — we were seeking, not animating
+                            // (Transition.kt:751-757). Velocity still decides *which* anchor,
+                            // via the untouched computeReleaseTarget; it has never shaped the
+                            // curve since Step 2b.
+                            seekableState.animateTo(release, releaseSpring)
+                        }
+                        return@collect
+                    }
+
                     // Clamp at the producer. seekTo hard-throws on an out-of-range fraction
                     // (requirePrecondition(fraction in 0f..1f), Transition.kt:604-606) rather
                     // than coercing, and AnchoredDraggableState's spring is free to overshoot
@@ -603,9 +753,21 @@ fun SharedTransitionScope.PlayerV2Host(
                                     positionalThreshold = positionalThreshold,
                                     velocityThreshold = velocityThreshold,
                                 )
-                                scope.launch {
-                                    draggableState.animateTo(releaseTarget)
-                                }
+                                // Migration Step 7: this used to be
+                                // `scope.launch { draggableState.animateTo(releaseTarget) }`.
+                                // The target is computed exactly as before — computeReleaseTarget
+                                // is untouched, still fed the real release velocity — but acting
+                                // on it is now the shadow collector's job, because it also has to
+                                // animate `seekableState` and only one coroutine may mutate that.
+                                // See [pendingRelease] for the MutatorMutex reasoning and the
+                                // collector for why the two animations have to finish together.
+                                //
+                                // A plain state write, not a `scope.launch`: there is nothing to
+                                // suspend on here any more, and writing from the pointer handler
+                                // means the release is armed before this gesture's coroutine
+                                // yields, with no window in which the collector could observe a
+                                // finished drag that has not yet asked for anything.
+                                pendingRelease.value = releaseTarget
                             }
                         }
                     },
