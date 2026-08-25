@@ -13,8 +13,6 @@ import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.screens.issues.IssuesScreen
 import com.v1per.synthx.ui.screens.issues.IssuesViewModel
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementScreen
-import com.v1per.synthx.ui.screens.restore.RestoreScreen
-import com.v1per.synthx.ui.screens.restore.RestoreViewModel
 
 fun NavGraphBuilder.libraryManagementRoutes(
     navController: NavHostController,
@@ -32,25 +30,6 @@ fun NavGraphBuilder.libraryManagementRoutes(
                 onIssuesClick = {
                     navController.navigate(Screen.Issues.route)
                 },
-                onRestoreClick = {
-                    navController.navigate(Screen.Restore.route)
-                },
-            )
-        }
-    }
-    composable(Screen.Restore.route) {
-        RouteContent(chromeBottomPadding) {
-            val restoreViewModel = viewModel<RestoreViewModel>(
-                factory = RestoreViewModel.Factory(LocalContext.current),
-            )
-            RestoreScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = stringResource(R.string.screen_restore),
-                        onBack = { navController.popBackStack() },
-                    )
-                },
-                viewModel = restoreViewModel,
             )
         }
     }

@@ -38,6 +38,7 @@ import com.v1per.synthx.ui.theme.TextTertiary
 fun SettingsScreen(
     topBar: @Composable () -> Unit,
     onLibraryManagementClick: () -> Unit,
+    onBackupsAndRestoreClick: () -> Unit,
     onDeveloperSettingsClick: () -> Unit,
 ) {
     // Settings owns no state of its own yet — the ViewModel is instantiated to keep the
@@ -48,6 +49,7 @@ fun SettingsScreen(
         topBar()
         SettingsScreenContent(
             onLibraryManagementClick = onLibraryManagementClick,
+            onBackupsAndRestoreClick = onBackupsAndRestoreClick,
             onDeveloperSettingsClick = onDeveloperSettingsClick,
         )
     }
@@ -56,12 +58,17 @@ fun SettingsScreen(
 @Composable
 private fun SettingsScreenContent(
     onLibraryManagementClick: () -> Unit,
+    onBackupsAndRestoreClick: () -> Unit,
     onDeveloperSettingsClick: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         SettingsRow(
             title = stringResource(R.string.settings_library_management),
             onClick = onLibraryManagementClick,
+        )
+        SettingsRow(
+            title = stringResource(R.string.settings_backups_and_restore),
+            onClick = onBackupsAndRestoreClick,
         )
         SettingsRow(
             title = stringResource(R.string.settings_developer_settings),
@@ -123,6 +130,7 @@ private fun SettingsScreenPreview() {
         ) {
             SettingsScreenContent(
                 onLibraryManagementClick = {},
+                onBackupsAndRestoreClick = {},
                 onDeveloperSettingsClick = {},
             )
         }

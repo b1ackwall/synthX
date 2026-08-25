@@ -1,8 +1,11 @@
-package com.v1per.synthx.ui.screens.librarymanagement
+package com.v1per.synthx.ui.screens.developersettings
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -13,9 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
+import com.v1per.synthx.ui.screens.librarymanagement.ManagementRow
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
@@ -30,7 +31,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
  * the dialog is local to this composable since nothing else needs its state.
  */
 @Composable
-internal fun SeedPlaylistsSection(
+internal fun RemoveOrganizedFromStarredSection(
     removeOrganizedStatus: String?,
     isRemovingOrganized: Boolean,
     onRemoveOrganizedFromStarred: () -> Unit,

@@ -33,6 +33,8 @@ fun DeveloperSettingsScreen(
 ) {
     val isSeeding by viewModel.isSeeding.collectAsState()
     val seedResult by viewModel.seedResult.collectAsState()
+    val removeOrganizedStatus by viewModel.removeOrganizedFromStarredStatus.collectAsState()
+    val isRemovingOrganized by viewModel.isRemovingOrganizedFromStarred.collectAsState()
     var showConfirmation by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
@@ -41,6 +43,11 @@ fun DeveloperSettingsScreen(
             title = stringResource(R.string.settings_seed_playlists_from_manifest),
             enabled = !isSeeding,
             onClick = { showConfirmation = true },
+        )
+        RemoveOrganizedFromStarredSection(
+            removeOrganizedStatus = removeOrganizedStatus,
+            isRemovingOrganized = isRemovingOrganized,
+            onRemoveOrganizedFromStarred = viewModel::removeOrganizedFromStarred,
         )
     }
 

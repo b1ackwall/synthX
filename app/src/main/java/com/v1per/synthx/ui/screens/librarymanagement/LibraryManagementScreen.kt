@@ -20,7 +20,6 @@ import com.v1per.synthx.ui.theme.Background
 fun LibraryManagementScreen(
     topBar: @Composable () -> Unit,
     onIssuesClick: () -> Unit,
-    onRestoreClick: () -> Unit,
 ) {
     val context = LocalContext.current
     val viewModel: LibraryManagementViewModel = viewModel(
@@ -34,11 +33,7 @@ fun LibraryManagementScreen(
     val folderError by viewModel.folderError.collectAsState()
     val newArrivalsFolderError by viewModel.newArrivalsFolderError.collectAsState()
     val missingSongCount by viewModel.missingSongCount.collectAsState()
-    val backupFolderUri by viewModel.backupFolderUri.collectAsState()
-    val backupStatus by viewModel.backupStatus.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
-    val removeOrganizedStatus by viewModel.removeOrganizedFromStarredStatus.collectAsState()
-    val isRemovingOrganized by viewModel.isRemovingOrganizedFromStarred.collectAsState()
 
     // Resolved here, not in the callback below: the launcher result lambda is not a
     // composable scope, so stringResource cannot be called from inside it.
@@ -81,24 +76,6 @@ fun LibraryManagementScreen(
         }
     }
 
-    // Backups need write access, unlike the read-only music folder grant above.
-    val backupFolderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree(),
-    ) { uri ->
-        uri?.let { newUri ->
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                )
-                viewModel.saveBackupFolder(newUri)
-            } catch (e: SecurityException) {
-                viewModel.setFolderError(permissionDeniedMessage)
-            }
-        }
-    }
-
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
         LibraryManagementScreenContent(
@@ -112,21 +89,13 @@ fun LibraryManagementScreen(
             isScanning = isScanning,
             scanProgress = scanProgress,
             missingSongCount = missingSongCount,
-            backupFolderPath = backupFolderUri?.let { FolderPathFormatter.format(context, it) },
-            backupStatus = backupStatus,
             deleteSongsEnabled = deleteSongsEnabled,
-            removeOrganizedStatus = removeOrganizedStatus,
-            isRemovingOrganized = isRemovingOrganized,
             onPickFolder = { folderPicker.launch(null) },
             onPickNewArrivalsFolder = { newArrivalsFolderPicker.launch(null) },
             onRescan = viewModel::rescanLibrary,
             onCancelScan = viewModel::cancelScan,
             onIssuesClick = onIssuesClick,
-            onPickBackupFolder = { backupFolderPicker.launch(null) },
-            onBackupNow = viewModel::createManualBackup,
-            onRestoreClick = onRestoreClick,
             onToggleDeleteSongs = viewModel::setDeleteSongsEnabled,
-            onRemoveOrganizedFromStarred = viewModel::removeOrganizedFromStarred,
         )
     }
 }
@@ -141,21 +110,13 @@ internal fun LibraryManagementScreenContent(
     isScanning: Boolean,
     scanProgress: ScanProgress?,
     missingSongCount: Int,
-    backupFolderPath: String?,
-    backupStatus: String?,
     deleteSongsEnabled: Boolean,
-    removeOrganizedStatus: String?,
-    isRemovingOrganized: Boolean,
     onPickFolder: () -> Unit,
     onPickNewArrivalsFolder: () -> Unit,
     onRescan: () -> Unit,
     onCancelScan: () -> Unit,
     onIssuesClick: () -> Unit,
-    onPickBackupFolder: () -> Unit,
-    onBackupNow: () -> Unit,
-    onRestoreClick: () -> Unit,
     onToggleDeleteSongs: (Boolean) -> Unit,
-    onRemoveOrganizedFromStarred: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         SectionHeader(title = stringResource(R.string.section_music_library))
@@ -183,21 +144,6 @@ internal fun LibraryManagementScreenContent(
         DeleteSongsRow(
             enabled = deleteSongsEnabled,
             onToggle = onToggleDeleteSongs,
-        )
-
-        // Temporary debug tooling — see SeedPlaylistsSection.kt.
-        SeedPlaylistsSection(
-            removeOrganizedStatus = removeOrganizedStatus,
-            isRemovingOrganized = isRemovingOrganized,
-            onRemoveOrganizedFromStarred = onRemoveOrganizedFromStarred,
-        )
-
-        BackupSection(
-            backupFolderPath = backupFolderPath,
-            backupStatus = backupStatus,
-            onPickBackupFolder = onPickBackupFolder,
-            onBackupNow = onBackupNow,
-            onRestoreClick = onRestoreClick,
         )
     }
 }

@@ -86,7 +86,7 @@ class PlaylistExportManager(
         val bytes = json.encodeToString(PlaylistExport.serializer(), export).toByteArray()
 
         val root = DocumentFile.fromTreeUri(context, treeUri)
-            ?: error("Backup folder is unreachable — re-select it in Library Management")
+            ?: error("Backup folder is unreachable — re-select it in Backups and Restore")
 
         // Leftover from a previous run that crashed before reaching the rename below.
         root.findFile(TEMP_FILE_NAME)?.delete()

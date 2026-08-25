@@ -122,11 +122,10 @@ interface SongDao {
      *   1. This method (data/db/SongDao.kt)
      *   2. `SongRepository.removeOrganizedFromStarred` / `SongRepositoryImpl` override
      *   3. `removeOrganizedFromStarred()` (plus its status/in-flight state) in
-     *      LibraryManagementViewModel.kt
+     *      DeveloperSettingsViewModel.kt
      *   4. The "Remove organized from Starred (temporary)" row + confirm dialog in
-     *      SeedPlaylistsSection.kt
-     *   5. The callback/state wiring through LibraryManagementScreen.kt
-     *   6. The extra preview params in LibraryManagementScreenPreviews.kt
+     *      RemoveOrganizedFromStarredSection.kt
+     *   5. The callback/state wiring through DeveloperSettingsScreen.kt
      */
     @Query(
         """

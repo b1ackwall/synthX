@@ -55,6 +55,10 @@ fun SynthXNavHost(
                 navController = navController,
                 chromeBottomPadding = chromeBottomPadding,
             )
+            backupsAndRestoreRoutes(
+                navController = navController,
+                chromeBottomPadding = chromeBottomPadding,
+            )
             browseRoutes(
                 navController = navController,
                 playbackViewModel = playbackViewModel,

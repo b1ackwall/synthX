@@ -83,7 +83,7 @@ class BackupManager(private val context: Context) {
             checkpointWal(dbFile)
 
             val tierDir = resolveTierDir(treeUri, tier)
-                ?: error("Backup folder is unreachable — re-select it in Library Management")
+                ?: error("Backup folder is unreachable — re-select it in Backups and Restore")
 
             val stamp = System.currentTimeMillis()
             val baseName = "synthx_backup_${FILE_STAMP.format(Date(stamp))}"

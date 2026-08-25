@@ -47,7 +47,7 @@ private object ScanStatusAcknowledgement {
     var acknowledgedWorkId: UUID? = null
 }
 
-/** How long a terminal status message (e.g. "Backup created", "No folder selected") stays
+/** How long a terminal status message (e.g. "No folder selected") stays
  *  visible before auto-clearing, matching typical snackbar/status-message durations. */
 private const val StatusMessageDisplayMs = 4_000L
 
@@ -92,28 +92,8 @@ class LibraryManagementViewModel(
     private val _newArrivalsFolderError = MutableStateFlow<String?>(null)
     val newArrivalsFolderError: StateFlow<String?> = _newArrivalsFolderError.asStateFlow()
 
-    private val _backupFolderUri = MutableStateFlow(
-        preferencesManager.backupFolderUri?.let { Uri.parse(it) }
-    )
-    val backupFolderUri: StateFlow<Uri?> = _backupFolderUri.asStateFlow()
-
-    private val _backupStatus = MutableStateFlow<String?>(null)
-    val backupStatus: StateFlow<String?> = _backupStatus.asStateFlow()
-
     /** Thin passthrough to the shared in-memory gate — see [DeleteSongsGate]. */
     val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
-
-    // Temporary debug tooling — see SongDao.removeOrganizedFromStarred's doc comment for
-    // the full removal checklist. This state plus removeOrganizedFromStarred() below are
-    // the only ViewModel touch points.
-    private val _removeOrganizedFromStarredStatus = MutableStateFlow<String?>(null)
-    val removeOrganizedFromStarredStatus: StateFlow<String?> =
-        _removeOrganizedFromStarredStatus.asStateFlow()
-
-    // Guards against a double-tap starting a second concurrent run.
-    private val _isRemovingOrganizedFromStarred = MutableStateFlow(false)
-    val isRemovingOrganizedFromStarred: StateFlow<Boolean> =
-        _isRemovingOrganizedFromStarred.asStateFlow()
 
     // Set only for states WorkManager can't express — currently just "no folder picked",
     // which never reaches the worker. Cleared as soon as a scan is actually enqueued.
@@ -323,37 +303,6 @@ class LibraryManagementViewModel(
         }
     }
 
-    fun saveBackupFolder(uri: Uri) {
-        preferencesManager.backupFolderUri = uri.toString()
-        _backupFolderUri.value = uri
-        viewModelScope.launch {
-            val created = backupManager.ensureFolderStructure(uri)
-            if (created) {
-                _backupStatus.value = null
-            } else {
-                _backupStatus.showTemporarily(context.getString(R.string.backup_status_folder_create_failed))
-            }
-        }
-    }
-
-    fun createManualBackup() {
-        viewModelScope.launch {
-            _backupStatus.value = context.getString(R.string.backup_status_backing_up)
-            val result = backupManager.createBackup(BackupTier.Manual)
-            _backupStatus.showTemporarily(
-                result.fold(
-                    onSuccess = { context.getString(R.string.backup_status_created) },
-                    onFailure = { e ->
-                        context.getString(
-                            R.string.backup_status_failed,
-                            e.message ?: context.getString(R.string.scan_status_unknown_error),
-                        )
-                    },
-                )
-            )
-        }
-    }
-
     fun rescanLibrary() {
         if (_musicFolderUri.value == null) {
             _localStatus.showTemporarily(context.getString(R.string.settings_no_folder_selected))
@@ -370,33 +319,6 @@ class LibraryManagementViewModel(
 
     fun setDeleteSongsEnabled(enabled: Boolean) {
         DeleteSongsGate.setDeleteSongsEnabled(enabled)
-    }
-
-    /**
-     * Temporary debug tooling. Restores test state after a fresh install/empty DB by
-     * bulk-clearing the Starred flag for every song already filed into a playlist. Not a
-     * production feature.
-     *
-     * Called only after the confirmation dialog in SeedPlaylistsSection.kt is accepted — this
-     * function itself does not confirm; it only guards against a double-tap.
-     *
-     * See [com.v1per.synthx.data.db.SongDao.removeOrganizedFromStarred] for the full removal
-     * checklist.
-     */
-    fun removeOrganizedFromStarred() {
-        if (_isRemovingOrganizedFromStarred.value) return // already running — ignore a double-tap
-
-        viewModelScope.launch {
-            _isRemovingOrganizedFromStarred.value = true
-            try {
-                val count = repository.removeOrganizedFromStarred()
-                _removeOrganizedFromStarredStatus.showTemporarily(
-                    if (count > 0) "Removed $count songs from Starred" else "No organized songs to remove"
-                )
-            } finally {
-                _isRemovingOrganizedFromStarred.value = false
-            }
-        }
     }
 
     // Only acknowledges a *finished* run — an in-progress scan's WorkInfo is never

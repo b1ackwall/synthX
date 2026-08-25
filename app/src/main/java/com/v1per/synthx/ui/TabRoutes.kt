@@ -94,6 +94,9 @@ fun NavGraphBuilder.tabRoutes(
                 onLibraryManagementClick = {
                     navController.navigate(Screen.LibraryManagement.route)
                 },
+                onBackupsAndRestoreClick = {
+                    navController.navigate(Screen.BackupsAndRestore.route)
+                },
                 onDeveloperSettingsClick = {
                     navController.navigate(Screen.DeveloperSettings.route)
                 },

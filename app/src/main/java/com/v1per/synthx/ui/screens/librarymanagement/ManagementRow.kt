@@ -28,9 +28,9 @@ import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 
 /**
- * Shared shape for Library Management's menu rows: title, optional secondary line, optional
+ * Shared shape for management-settings menu rows: title, optional secondary line, optional
  * trailing text badge, trailing chevron. Unifies what were four near-identical composables
- * (BackupSection's TwoLineRow, MusicFolderSection's MusicFolderRow, ScanSection's RescanRow,
+ * (the backup TwoLineRow, MusicFolderSection's MusicFolderRow, ScanSection's RescanRow,
  * IssuesRow) — as a side effect this also fixes those rows' ripple, which previously fell
  * back to the platform default instead of the design system's [ripple] with [Accent].
  */
