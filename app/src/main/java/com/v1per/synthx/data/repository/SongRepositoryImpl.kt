@@ -278,14 +278,6 @@ class SongRepositoryImpl(
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
 
-    override suspend fun getSongIdsForPlaylist(playlistId: String): List<String> =
-        playlistDao.getSongIdsForPlaylist(playlistId)
-
-    override suspend fun setPlaylistSongs(playlistId: String, songIds: List<String>) {
-        playlistDao.replacePlaylistSongs(playlistId, songIds)
-        playlistExportManager.scheduleExport()
-    }
-
     override suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean {
         // Checked rather than relying on REPLACE-on-conflict: that would silently move an
         // already-present song to the end, which reads as the playlist reordering itself.

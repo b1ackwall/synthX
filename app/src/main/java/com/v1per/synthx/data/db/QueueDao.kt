@@ -37,8 +37,7 @@ interface QueueDao {
 
     /**
      * Replaces the whole queue in one atomic step — `position` follows list order.
-     * Clear-and-reinsert, matching [PlaylistDao.replacePlaylistSongs]: the queue is
-     * rewritten on every mutation anyway, so there is no per-row state worth preserving.
+     * The queue is rewritten on every mutation, so there is no per-row state worth preserving.
      */
     @Transaction
     suspend fun replaceQueue(songIds: List<String>) {

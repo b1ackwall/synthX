@@ -80,8 +80,6 @@ interface SongRepository {
 
     // Playlist songs
     fun getSongsForPlaylist(playlistId: String): Flow<List<Song>>
-    suspend fun getSongIdsForPlaylist(playlistId: String): List<String>
-    suspend fun setPlaylistSongs(playlistId: String, songIds: List<String>)
 
     /**
      * Appends to the end of the playlist.

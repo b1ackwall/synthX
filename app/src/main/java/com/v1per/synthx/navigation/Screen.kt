@@ -41,12 +41,6 @@ sealed class Screen(val route: String) {
         fun createRoute(playlistId: String, playlistName: String) =
             "playlist_detail/$playlistId/${Uri.encode(playlistName)}"
     }
-    object AddSongs : Screen("add_songs/{playlistId}") {
-        // Must mirror the constructor arg — a member isn't referencable in the supertype call
-        const val ROUTE = "add_songs/{playlistId}"
-        fun createRoute(playlistId: String) = "add_songs/$playlistId"
-    }
-
     companion object {
         // Routes reachable by pushing further from Library's root. Shared by MainScaffold
         // (which unions it with Home/Library/Search for bottom-bar visibility) and
@@ -64,7 +58,6 @@ sealed class Screen(val route: String) {
             CreatePlaylist.route,
             GroupDetail.ROUTE,
             PlaylistDetail.ROUTE,
-            AddSongs.ROUTE,
         )
     }
 }

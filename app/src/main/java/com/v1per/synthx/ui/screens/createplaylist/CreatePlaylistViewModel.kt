@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 // Kept as plain strings rather than string resources: this ViewModel has no Context (its
 // Factory only needs a SongRepository), and threading one in solely to resolve two error
 // strings isn't worth the extra constructor parameter. Screen-layer ViewModels elsewhere
-// (AddSongs, GroupDetail) that already hold a Context resolve through strings.xml instead —
+// that already hold a Context resolve through strings.xml instead —
 // this is the one exception, not the new pattern.
 private const val GENERIC_LOAD_ERROR = "Couldn't load your groups. Try again."
 private const val GENERIC_CREATE_ERROR = "Couldn't create this playlist. Try again."

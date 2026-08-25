@@ -1,23 +1,14 @@
 package com.v1per.synthx.ui.screens.playlistdetail
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -27,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.playback.PlaybackViewModel
@@ -44,7 +34,6 @@ fun PlaylistDetailScreen(
     topBar: @Composable () -> Unit,
     playlistId: String,
     playbackViewModel: PlaybackViewModel,
-    onAddSongsClick: () -> Unit,
     viewModel: PlaylistDetailViewModel = viewModel(
         key = playlistId,
         factory = PlaylistDetailViewModel.factory(LocalContext.current, playlistId),
@@ -55,30 +44,6 @@ fun PlaylistDetailScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
-        ) {
-            OutlinedButton(
-                onClick = onAddSongsClick,
-                border = BorderStroke(1.dp, TextSecondary),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                )
-                Spacer(modifier = Modifier.width(Spacing.xs))
-                Text(
-                    text = stringResource(R.string.action_add_songs),
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-        }
 
         Box(modifier = Modifier.fillMaxSize()) {
             when (val state = uiState) {

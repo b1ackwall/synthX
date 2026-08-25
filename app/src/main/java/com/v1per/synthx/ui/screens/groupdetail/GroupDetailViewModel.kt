@@ -26,8 +26,7 @@ class GroupDetailViewModel(
     private val appContext: Context,
 ) : ViewModel() {
 
-    /** Resolved to app-voice strings.xml copy by the screen — see AddSongsViewModel.AddSongsError
-     *  for the same pattern. */
+    /** Resolved to app-voice strings.xml copy by the screen. */
     enum class ActionError { RenameFailed, DeleteFailed, RemoveFromGroupFailed }
 
     private val _uiState = MutableStateFlow<UiState<List<Playlist>>>(UiState.Loading)

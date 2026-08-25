@@ -17,8 +17,6 @@ import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.common.isReady
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.components.ReadinessCoverOverlay
-import com.v1per.synthx.ui.screens.addsongs.AddSongsScreen
-import com.v1per.synthx.ui.screens.addsongs.AddSongsViewModel
 import com.v1per.synthx.ui.screens.createplaylist.CreatePlaylistScreen
 import com.v1per.synthx.ui.screens.groupdetail.GroupDetailScreen
 import com.v1per.synthx.ui.screens.groupdetail.GroupDetailViewModel
@@ -133,38 +131,7 @@ fun NavGraphBuilder.playlistRoutes(
                     },
                     playlistId = playlistId,
                     playbackViewModel = playbackViewModel,
-                    onAddSongsClick = {
-                        navController.navigate(Screen.AddSongs.createRoute(playlistId))
-                    },
                     viewModel = playlistDetailViewModel,
-                )
-            }
-        }
-    }
-    composable(
-        route = Screen.AddSongs.ROUTE,
-        arguments = listOf(
-            navArgument("playlistId") { type = NavType.StringType },
-        ),
-    ) { entry ->
-        val playlistId = entry.requireStringArg("playlistId")
-        RouteContent(chromeBottomPadding) {
-            val addSongsViewModel = viewModel<AddSongsViewModel>(
-                key = playlistId,
-                factory = AddSongsViewModel.factory(LocalContext.current, playlistId),
-            )
-            val isLoading by addSongsViewModel.isLoading.collectAsState()
-            ReadinessCoverOverlay(isReady = !isLoading) {
-                AddSongsScreen(
-                    topBar = {
-                        DetailTopBar(
-                            title = stringResource(R.string.screen_add_songs),
-                            onBack = { navController.popBackStack() },
-                        )
-                    },
-                    playlistId = playlistId,
-                    onSubmitted = { navController.popBackStack() },
-                    viewModel = addSongsViewModel,
                 )
             }
         }

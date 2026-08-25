@@ -44,7 +44,7 @@ app/src/main/java/com/v1per/synthx/
     ├── common/       — UiState.kt
     ├── components/   — shared composables (PlayerSheet, SongRow, TopBars, Wordmark, etc.)
     ├── screens/      — one dir per screen, each with <Name>Screen.kt + <Name>ViewModel.kt
-    │   (addsongs, albumdetail, albumlist, artistdetail, artistlist, createplaylist,
+    │   (albumdetail, albumlist, artistdetail, artistlist, createplaylist,
     │    groupdetail, home, issues, librarymanagement, library, playlistdetail, playlistlist,
     │    restore, search, settings, songs, starred)
     └── theme/        — Color, Motion, Shape, Spacing, Theme, Type (design tokens)
