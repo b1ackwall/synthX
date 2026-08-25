@@ -1,7 +1,13 @@
 package com.v1per.synthx.ui.player.v2
 
+import android.util.Log
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.SeekableTransitionState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.animation.core.rememberTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -51,6 +57,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -104,6 +111,37 @@ import kotlin.math.abs
  * CollapsedPlayerHeight.
  */
 enum class PlayerV2State { Collapsed, Expanded }
+
+/**
+ * The single duration every child animation of [PlayerV2Host]'s transition must share, added by
+ * migration Step 3 (docs/player-v2-migration-plan.md).
+ *
+ * **Why it has to be exactly one number.** `SeekableTransitionState.seekTo(fraction)` positions
+ * the whole transition by setting play time to `fraction × totalDurationNanos`, and
+ * `totalDurationNanos` is the **maximum** over the transition's child animations. While every
+ * child shares one duration, that maximum equals each child's own duration and the mapping from
+ * `fraction` to any child's value stays 1:1. Give one child a longer spec and the max becomes
+ * that child's duration, every *other* child finishes early, and the `expansion ↔ fraction`
+ * identity this migration is built on quietly stops holding — with no error anywhere. So this
+ * constant is used for the `expansion` tween below *and*, when Steps 5 and 6 land, for the
+ * `fadeOut(targetAlpha = 1f)` hold specs on the expanded and mini content.
+ *
+ * **Why [Motion.DurationNormal] rather than a fresh number.** The design system already owns the
+ * app's duration scale, and this is squarely the "normal" bucket; inventing a fifth value here
+ * would be exactly the independently-written-constant drift that
+ * [ExpandedContentHorizontalInset]'s doc describes cleaning up elsewhere in this file. It gets a
+ * name of its own anyway rather than being spelled `Motion.DurationNormal` at each use site,
+ * because the *thing being asserted* at those sites is "these all agree with each other", not
+ * "these are all the normal duration" — a later decision to retune the player specifically then
+ * has one place to land.
+ *
+ * **Not yet load-bearing.** Nothing reads `expansion` until Step 4, and during a drag the value
+ * is driven by `seekTo` rather than by elapsed time, so this duration currently governs no
+ * visible motion at all. It first matters at Step 7, where release switches to
+ * `SeekableTransitionState.animateTo` and the transition actually runs on a clock — that is the
+ * point to re-examine whether 300ms is the right feel, not now.
+ */
+private const val PlayerV2TransitionMs: Int = Motion.DurationNormal
 
 /**
  * Stage 1.1 of the player rebuild — see docs/player-rebuild-design.md for the eventual
@@ -278,6 +316,130 @@ fun SharedTransitionScope.PlayerV2Host(
             }
         }
         val progress by progressState
+
+        // ── Migration Step 3: the transition, shadow-driven and not yet consumed ──────────
+        //
+        // docs/player-v2-migration-plan.md Step 3. Everything in this block is additive: the
+        // gesture path above and every consumer below still run entirely off progressState.
+        // Step 4 flips the consumers over; Step 8 deletes the AnchoredDraggableState that
+        // currently feeds this.
+        val seekableState = remember { SeekableTransitionState(PlayerV2State.Collapsed) }
+
+        // rememberTransition is mandatory, not stylistic. A SeekableTransitionState is inert
+        // on its own: rememberTransition is what installs its SnapshotStateObserver
+        // (Transition.kt:941-954, `transitionState.snapshotStateObserver = ...`) and what runs
+        // the observeTotalDuration() LaunchedEffect (:955-962) that seekTo suspends on via
+        // waitForCompositionAfterTargetStateChange(). Constructing the state and calling
+        // seekTo on it without this line would not fail loudly — it would just never move.
+        //
+        // Resolves to the plain overload at Transition.kt:922-926, not the
+        // @ExperimentalDeferredTransitionApi one at :208, which takes a DeferredTransitionState
+        // specifically. No opt-in needed.
+        val transition = rememberTransition(seekableState, label = "PlayerV2Expansion")
+
+        // The progress source the whole migration is built around.
+        //
+        // Keyed on *state*, not on fraction-plus-a-direction-mapping. This is Step 0's Finding
+        // 2 taken literally: SeekableTransitionState.fraction resets to 0f on a target change
+        // and currentState becomes the target that was never reached, so any `1f - fraction`
+        // style mapping renders a half-open sheet as fully open for one frame. animateFloat
+        // asks only "what is this value at Collapsed, and at Expanded" and lets the framework's
+        // own initial-value-animation machinery carry continuity across reversals — the case
+        // that mapping gets wrong is the case it handles for free.
+        //
+        // LinearEasing, deliberately: it is what makes `fraction` and this value the same
+        // number rather than merely correlated. seekTo positions the transition by play time
+        // (fraction × totalDurationNanos) and a linear tween of exactly that duration reads
+        // back as lerp(from, to, fraction). Any eased curve would still be *correct*, but the
+        // shadow below — which sets fraction from a finger position — would no longer track
+        // the finger 1:1. See PlayerV2TransitionMs for why the duration must be shared.
+        //
+        // Held as a State<Float> rather than unwrapped with `by`: this is the shape Step 4
+        // needs (progressState is passed *as a State* into PlayerV2ExpandedContent and
+        // PlayerV2MiniContent precisely so EnvelopeRevealShape and the mini fade can read it in
+        // the draw phase), and it keeps the per-frame value out of this composable's
+        // composition-phase reads in the meantime.
+        val expansionState = transition.animateFloat(
+            transitionSpec = { tween(PlayerV2TransitionMs, easing = LinearEasing) },
+            label = "expansion",
+        ) { state -> if (state == PlayerV2State.Expanded) 1f else 0f }
+
+        // The shadow. Mirrors the AnchoredDraggableState's live position into the seekable
+        // state continuously — through the release animation too, not just the finger — so
+        // that by Step 4 the transition is already a faithful echo of the gesture and flipping
+        // the consumers over is the only thing that changes.
+        //
+        // One collector, never two. Both seekTo and snapTo take SeekableTransitionState's
+        // internal mutatorMutex (Transition.kt:560, :609), so running them from separate
+        // coroutines would let one cancel the other mid-drag — the intermittent failure the
+        // plan flags as Step 8's main risk. Sequencing them on a single coroutine makes that
+        // unrepresentable here rather than merely unlikely.
+        LaunchedEffect(seekableState, draggableState, progressState) {
+            snapshotFlow { draggableState.settledValue to progressState.value }
+                .collect { (settledValue, rawProgress) ->
+                    // Clamp at the producer. seekTo hard-throws on an out-of-range fraction
+                    // (requirePrecondition(fraction in 0f..1f), Transition.kt:604-606) rather
+                    // than coercing, and AnchoredDraggableState's spring is free to overshoot
+                    // past an anchor — so a release near 1f can genuinely produce >1f here.
+                    val p = rawProgress.coerceIn(0f, 1f)
+                    val settledExpansion =
+                        if (settledValue == PlayerV2State.Expanded) 1f else 0f
+
+                    if (p == settledExpansion) {
+                        // At rest on an anchor. snapTo commits currentState *and* targetState
+                        // to it, which is what lets the next drag seek away from the right
+                        // place — without this the seekable state would sit forever at
+                        // (Collapsed, Expanded, 1f) after an expand, and the next collapse
+                        // drag would compute its direction from a stale currentState.
+                        // Self-no-ops when already fully settled there (:555-559).
+                        seekableState.snapTo(settledValue)
+                    } else {
+                        // Seek away from wherever the seekable state currently rests, toward
+                        // the opposite value. Anchoring on currentState rather than on the
+                        // drag's direction is what dodges the silent-no-op gotcha: seekTo
+                        // returns without doing anything when currentState == targetState and
+                        // no new target is named (:615-617), so passing "Expanded" while
+                        // already settled Expanded would move nothing, with no error. The
+                        // opposite state is never equal to currentState, so the first seek of
+                        // every drag always names a real target.
+                        val target =
+                            if (seekableState.currentState == PlayerV2State.Collapsed) {
+                                PlayerV2State.Expanded
+                            } else {
+                                PlayerV2State.Collapsed
+                            }
+                        // fraction is "how far from currentState toward target", so it is
+                        // progress itself when expanding and its complement when collapsing.
+                        // Both directions land expansion == p: lerp(0f, 1f, p) = p, and
+                        // lerp(1f, 0f, 1f - p) = p.
+                        val fraction =
+                            if (target == PlayerV2State.Expanded) p else 1f - p
+                        seekableState.seekTo(fraction.coerceIn(0f, 1f), target)
+                    }
+
+                    // TEMPORARY DEBUG — delete at Step 4, when progressState starts deriving
+                    // from expansionState and any disagreement becomes visible on screen
+                    // instead of silent. Worth its five lines specifically because Step 3 is
+                    // the one step in the plan with no on-device check: every way this wiring
+                    // can fail (a swallowed seekTo, a stale currentState, a broken
+                    // fraction↔expansion mapping) fails by leaving expansion parked at a
+                    // constant, which compiles, runs, and looks exactly like success until
+                    // Step 4 makes it load-bearing and it reads as a Step 4 regression.
+                    // Logged, never thrown: an assertion that kills the app mid-gesture would
+                    // be a worse bug than the one it detects.
+                    val expansion = expansionState.value
+                    if (abs(expansion - p) > 0.01f) {
+                        Log.w(
+                            "PlayerV2Shadow",
+                            "expansion=$expansion drifted from progress=$p " +
+                                "(current=${seekableState.currentState} " +
+                                "target=${seekableState.targetState} " +
+                                "fraction=${seekableState.fraction})",
+                        )
+                    }
+                }
+        }
+        // ── end Step 3 ───────────────────────────────────────────────────────────────────
 
         // Stage 2.3: composition-presence gate only — decides whether
         // PlayerV2ExpandedContent exists in the tree at all, not whether it's visually shown.
