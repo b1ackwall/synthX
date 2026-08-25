@@ -8,6 +8,7 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.animateTo
+import androidx.compose.foundation.gestures.animateToWithDecay
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
@@ -91,6 +92,7 @@ import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * The two states this skeleton morphs between. Deliberately two — no Queue state. Queue
@@ -204,11 +206,30 @@ fun SharedTransitionScope.PlayerV2Host(
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val availableHeightPx = constraints.maxHeight.toFloat()
 
+        // Hoisted out of the AnchoredDraggableState constructor call below so that the release
+        // site's own target computation (see computeReleaseTarget) uses the *same two lambda
+        // instances* the state itself was configured with, rather than a second copy of 0.4f
+        // and 200.dp written out again. The state's own `positionalThreshold` /
+        // `velocityThreshold` fields are `internal` in Foundation 1.12.0
+        // (AnchoredDraggable.kt:830-831), so reading them back off the state is not possible
+        // from app code — hoisting the shared definition upward is the only form "reuse, don't
+        // duplicate" can actually take here.
+        //
+        // remember with no keys, matching draggableState's own remember below: the velocity
+        // lambda closes over `density`, and the state (being remembered unkeyed) has always
+        // held the lambda that captured the *first* composition's density. Keying these on
+        // `density` would hand the release site a lambda capturing a newer density than the one
+        // inside the state, which is a behavioral difference, not a fix — out of scope here.
+        val positionalThreshold: (totalDistance: Float) -> Float =
+            remember { { totalDistance -> totalDistance * 0.4f } }
+        val velocityThreshold: () -> Float =
+            remember { { with(density) { 200.dp.toPx() } } }
+
         val draggableState = remember {
             AnchoredDraggableState(
                 initialValue = PlayerV2State.Collapsed,
-                positionalThreshold = { totalDistance -> totalDistance * 0.4f },
-                velocityThreshold = { with(density) { 200.dp.toPx() } },
+                positionalThreshold = positionalThreshold,
+                velocityThreshold = velocityThreshold,
                 snapAnimationSpec = Motion.SpringStandard,
                 decayAnimationSpec = decayAnimationSpec,
             )
@@ -373,12 +394,35 @@ fun SharedTransitionScope.PlayerV2Host(
                                     velocityTracker.addPosition(change.uptimeMillis, change.position)
                                     change.consume()
                                 }
-                                // Release. settle() applies the positional threshold (40% of the
-                                // travel) and the 200dp/s velocity threshold configured above,
-                                // seeded with the real release velocity, so a short flick still
-                                // completes and a slow release falls back to nearest-state.
+                                // Release. Migration Step 2a (docs/player-v2-migration-plan.md):
+                                // this used to be `draggableState.settle(velocity)`, which is
+                                // both deprecated and — more importantly for the migration —
+                                // the one piece of release behavior that has no equivalent
+                                // once AnchoredDraggableState goes away. Its two halves are
+                                // now spelled out explicitly:
+                                //
+                                //   1. target selection — the positional/velocity threshold
+                                //      logic, ported verbatim into computeReleaseTarget below.
+                                //   2. the animation — animateToWithDecay, which is the exact
+                                //      call settle() made internally
+                                //      (AnchoredDraggable.kt:1078), not the plain animateTo.
+                                //
+                                // Step 2a is deliberately a no-op: same target, same animation,
+                                // same velocity seeding. Dropping the decay/velocity seeding to
+                                // measure what SeekableTransitionState.animateTo's missing
+                                // velocity parameter actually costs is Step 2b's job, and
+                                // having 2a verified identical first is what makes 2b's A/B
+                                // mean anything.
                                 val velocity = velocityTracker.calculateVelocity().y
-                                scope.launch { draggableState.settle(velocity) }
+                                val releaseTarget = draggableState.anchors.computeReleaseTarget(
+                                    currentOffset = draggableState.requireOffset(),
+                                    velocity = velocity,
+                                    positionalThreshold = positionalThreshold,
+                                    velocityThreshold = velocityThreshold,
+                                )
+                                scope.launch {
+                                    draggableState.animateToWithDecay(releaseTarget, velocity)
+                                }
                             }
                         }
                     },
@@ -411,6 +455,92 @@ fun SharedTransitionScope.PlayerV2Host(
                     progress = progressState,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Migration Step 2a — a verbatim port of Foundation's own private
+ * `DraggableAnchors<T>.computeTarget` (AnchoredDraggable.kt:1483-1513 in
+ * `foundation-android-1.12.0-sources.jar`), the target-selection half of the deprecated
+ * `AnchoredDraggableState.settle(velocity)` this file no longer calls.
+ *
+ * It exists so the threshold logic survives the eventual removal of AnchoredDraggableState.
+ * `SeekableTransitionState` has no settle at all — a release under it is just "pick a target,
+ * then `animateTo` it" — so this function is the piece that has to be brought across by hand.
+ * Porting it now, while the old mechanism is still in place and can be A/B'd against, is the
+ * point of Step 2a: any difference in feel at this stage is a porting bug, isolated from every
+ * later change.
+ *
+ * Faithful to the original in all three branches, in order:
+ *
+ * 1. **Not moving** (`velocity == 0f` exactly) — nearest anchor by absolute distance, direction
+ *    and positional threshold not consulted at all.
+ * 2. **Past the velocity threshold** (`abs(velocity) >= abs(velocityThreshold())`, i.e. 200dp/s
+ *    here) — the next anchor in the direction of travel, positional threshold ignored. This is
+ *    what lets a short flick complete a drag it never positionally earned.
+ * 3. **Otherwise, positional** — and this is the branch that is easy to get wrong. The distance
+ *    is measured from the anchor *behind the direction of motion* (`leftAnchorPosition` when
+ *    moving forward, `rightAnchorPosition` when moving back), not from the nearest anchor. That
+ *    asymmetry is the whole source of the release hysteresis: with this file's anchor geometry
+ *    (offset measured downward, so Expanded = 0f and Collapsed = the larger offset), releasing
+ *    while still moving *down* keeps the sheet expanded until progress has fallen below 0.6,
+ *    while releasing while moving *up* commits to expanding as soon as progress reaches 0.4. A
+ *    simplified "is progress past 0.4" two-branch version would collapse both cases onto the
+ *    same 0.4 line and lose that.
+ *
+ * Two things in the original are deliberately *not* reproduced, both unreachable rather than
+ * dropped:
+ * - `settle()`'s `confirmValueChange(target)` veto and its rollback-to-`previousValue` branch
+ *   (AnchoredDraggable.kt:1077-1082). [PlayerV2Host] constructs its state without a
+ *   `confirmValueChange`, so it is the default `{ true }` and the veto branch is dead code. The
+ *   callback is `internal` and could not be invoked from here in any case.
+ * - `settle()`'s `requirePrecondition(usePreModifierChangeBehavior)` guard, which only checks
+ *   that the deprecated threshold-carrying constructor was used — it was, unconditionally, a
+ *   few lines above.
+ *
+ * The `!!`s are the original's, kept rather than softened to `?:` fallbacks: they can only fire
+ * on an empty anchor set, and an empty anchor set would already have thrown out of
+ * `dispatchRawDelta`'s `requireOffset()` on the drag's very first frame, long before any
+ * release. A fallback here would be unreachable code that quietly changes what "faithful port"
+ * means.
+ *
+ * @param currentOffset the state's live offset, i.e. `AnchoredDraggableState.requireOffset()`.
+ * @param velocity the release velocity in px/s, signed — positive is downward in this
+ *   coordinate space.
+ * @param positionalThreshold the *same lambda instance* the state was constructed with — see
+ *   the hoist in [PlayerV2Host].
+ * @param velocityThreshold likewise.
+ */
+private fun <T> DraggableAnchors<T>.computeReleaseTarget(
+    currentOffset: Float,
+    velocity: Float,
+    positionalThreshold: (totalDistance: Float) -> Float,
+    velocityThreshold: () -> Float,
+): T {
+    require(!currentOffset.isNaN()) {
+        "The offset provided to computeReleaseTarget must not be NaN."
+    }
+    val isMoving = abs(velocity) > 0.0f
+    val isMovingForward = isMoving && velocity > 0f
+    // When we're not moving, pick the closest anchor and don't consider directionality
+    return if (!isMoving) {
+        closestAnchor(currentOffset)!!
+    } else if (abs(velocity) >= abs(velocityThreshold())) {
+        closestAnchor(currentOffset, searchUpwards = isMovingForward)!!
+    } else {
+        val left = closestAnchor(currentOffset, false)!!
+        val leftAnchorPosition = positionOf(left)
+        val right = closestAnchor(currentOffset, true)!!
+        val rightAnchorPosition = positionOf(right)
+        val distance = abs(leftAnchorPosition - rightAnchorPosition)
+        val relativeThreshold = abs(positionalThreshold(distance))
+        val closestAnchorFromStart =
+            if (isMovingForward) leftAnchorPosition else rightAnchorPosition
+        val relativePosition = abs(closestAnchorFromStart - currentOffset)
+        when (relativePosition >= relativeThreshold) {
+            true -> if (isMovingForward) right else left
+            false -> if (isMovingForward) left else right
         }
     }
 }
