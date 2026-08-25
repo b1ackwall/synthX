@@ -7,17 +7,13 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.SeekableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
-import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
@@ -59,10 +55,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -102,7 +95,9 @@ import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -117,6 +112,34 @@ import kotlin.math.abs
  * CollapsedPlayerHeight.
  */
 enum class PlayerV2State { Collapsed, Expanded }
+
+/**
+ * What the gesture detector tells the transition, added by migration Step 8
+ * (docs/player-v2-migration-plan.md). The only traffic between the pointer handler and the single
+ * coroutine that owns [SeekableTransitionState] — see `gestureEvents` in [PlayerV2Host].
+ *
+ * Two events, not one per gesture kind: a tap and a drag-release both mean "animate to this state"
+ * and both send [Settle]. That is the whole of Step 8's tap/release unification — before it, a tap
+ * ran AnchoredDraggable's pixel-space spring while a release ran the transition's fraction-space
+ * one, and the two could not be made to agree while both mechanisms existed.
+ */
+private sealed interface PlayerV2GestureEvent {
+    /**
+     * The live finger position as **expansion** — 0f fully collapsed, 1f fully expanded,
+     * pre-clamped by the producer.
+     *
+     * Deliberately not a fraction and deliberately direction-free. The transition's own `fraction`
+     * means "how far from `currentState` toward `targetState`", so it inverts depending on which
+     * way the sheet is pointed; keeping that inversion out of the drag loop and doing it once in
+     * the consumer is what the plan means by "accumulate direction-free expansion in the drag loop
+     * and convert in the consumer", and it is why the drag loop needs to know nothing about
+     * [PlayerV2State] at all.
+     */
+    data class Seek(val expansion: Float) : PlayerV2GestureEvent
+
+    /** Animate to a settled state and commit to it: a drag release, or a tap-to-expand. */
+    data class Settle(val target: PlayerV2State) : PlayerV2GestureEvent
+}
 
 /**
  * The single duration every child animation of [PlayerV2Host]'s transition must share, added by
@@ -168,14 +191,23 @@ private const val PlayerV2TransitionMs: Int = Motion.DurationNormal
  * [PlayerV2ExpandedContent]. The art is still statically positioned: no shared-element morph
  * between the mini and expanded frames (Stage 2.4).
  *
- * Deliberate divergences from docs/player-rebuild-design.md, all scoped to this stage:
- * - The design doc's mechanism is SeekableTransitionState inside a SharedTransitionLayout
- *   (§1). This uses [AnchoredDraggableState] instead, because at two states with no shared
- *   elements and no content to reveal, the transition machinery would buy nothing while the
- *   old player's AnchoredDraggable drag/settle path is already proven on this exact gesture.
- *   Swapping the mechanism is its own later step.
+ * **Migration complete as of Step 8.** This composable no longer diverges from
+ * docs/player-rebuild-design.md §1 on the mechanism: the sheet is a `SeekableTransitionState`
+ * inside a `SharedTransitionLayout`, drag deltas feed `seekTo` and releases feed `animateTo`,
+ * and `AnchoredDraggableState` — along with its anchors, its decay spec, the shadow bridge that
+ * mirrored it, and the deprecated constructor it required — is gone from this file entirely.
+ * Only `DraggableAnchors` survives, as a plain immutable lookup table for
+ * [computeReleaseTarget]; see `releaseAnchors` for why.
+ *
+ * Remaining deliberate divergences, all still scoped:
  * - No BackHandler, and no tap-to-collapse. Dragging down is currently the only way back to
  *   Collapsed.
+ * - No `down.isConsumed` guard on the tap branch, so a tap on a child button also expands the
+ *   sheet. Deferred out of Step 8 on purpose — see the tap branch for why, and for the fact
+ *   that it is now a one-line follow-up with nothing blocking it.
+ * - The album art is still statically positioned; the shared-element morph is Stage 2.4b, which
+ *   the [SharedTransitionScope] receiver and both `AnimatedVisibilityScope`s now exist to make
+ *   a pure addition.
  *
  * Stage 1.2 has since added the nav coordination that this list previously called out as
  * missing (§5): [onProgressChanged] reports the live drag progress outward, and the sheet
@@ -183,9 +215,12 @@ private const val PlayerV2TransitionMs: Int = Motion.DurationNormal
  * overlaying it. Everything else above still stands.
  *
  * Every gesture constant here is copied verbatim from
- * [com.v1per.synthx.ui.player.PlayerSheetSkeleton] rather than re-tuned — the 0.4f
- * positional threshold, the 200dp velocity threshold, exponentialDecay's 1.8f friction
- * multiplier and [Motion.SpringStandard] as the snap spec.
+ * [com.v1per.synthx.ui.player.PlayerSheetSkeleton] rather than re-tuned — the 0.4f positional
+ * threshold, the 200dp velocity threshold and [Motion.SpringStandard] as the settle spec. Two
+ * of those have since been re-expressed rather than re-tuned: the decay spec's 1.8f friction
+ * multiplier went away at Step 2b with the velocity-seeded release it fed, and
+ * [Motion.SpringStandard] is now applied through `releaseSpring`, which adds the
+ * `visibilityThreshold` a 0..1 fraction needs and changes nothing else about it.
  *
  * @param song the currently playing song. Required, not nullable: the call site
  *   (BottomChromeOverlay) only composes this at all inside
@@ -221,7 +256,6 @@ private const val PlayerV2TransitionMs: Int = Motion.DurationNormal
  *   style is also what Compose itself uses for scoped composables, and what this file used to do
  *   for `BoxScope.PlayerV2MiniContent` before migration Step 6 took that receiver away.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SharedTransitionScope.PlayerV2Host(
     song: Song,
@@ -239,19 +273,7 @@ fun SharedTransitionScope.PlayerV2Host(
     onProgressChanged: (Float) -> Unit = {},
 ) {
     val density = LocalDensity.current
-    val scope = rememberCoroutineScope()
     val collapsedHeightPx = with(density) { CollapsedPlayerHeight.toPx() }
-    // Higher friction lets a fling decelerate before handing off to the snap spring.
-    //
-    // Dead on the release path as of migration Step 2b: the only caller that ever consulted a
-    // decay spec was animateToWithDecay, and the release site now calls the plain animateTo.
-    // Kept because the deprecated AnchoredDraggableState constructor below requires the
-    // parameter (it is `lateinit` and the state's `usePreModifierChangeBehavior` check reads
-    // `::decayAnimationSpec.isInitialized`, which is what makes animateTo default to
-    // Motion.SpringStandard rather than Foundation's own tween). It goes away with the state
-    // itself at Step 8, not before — deleting it here would be an unrelated behavior change
-    // smuggled into a one-line experiment.
-    val decayAnimationSpec = remember { exponentialDecay<Float>(frictionMultiplier = 1.8f) }
 
     // BoxWithConstraints, not fillMaxSize alone: the expanded height target has to be a real
     // measured number (maxHeight) rather than a guess, and the drag anchors need the same
@@ -260,87 +282,75 @@ fun SharedTransitionScope.PlayerV2Host(
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val availableHeightPx = constraints.maxHeight.toFloat()
 
-        // The full pixel distance between the two anchors — the sheet's entire travel. Hoisted
-        // here by migration Step 7 because three separate things now need it and had been
-        // deriving it independently: the Collapsed anchor below, [progressState]'s normalization,
-        // and — the reason it had to become a named value — [releaseSpring]'s visibility
-        // threshold, which is precisely "0.01px expressed as a fraction of this".
+        // The full pixel distance between the two anchors — the sheet's entire travel, and as
+        // of Step 8 the single number the whole mechanism is scaled by. [releaseAnchors] places
+        // the Collapsed anchor at it, [releaseSpring]'s visibility threshold is 0.01px expressed
+        // as a fraction of it, the drag loop divides every pointer delta by it to get expansion,
+        // and the release multiplies back through it to hand [computeReleaseTarget] an offset.
+        // Those last two are exact inverses of each other by construction, which is what lets
+        // the drag work in 0..1 while the threshold logic stays in the pixel space it was tuned
+        // in.
         val collapsedAnchorPx = availableHeightPx - collapsedHeightPx
 
-        // Hoisted out of the AnchoredDraggableState constructor call below so that the release
-        // site's own target computation (see computeReleaseTarget) uses the *same two lambda
-        // instances* the state itself was configured with, rather than a second copy of 0.4f
-        // and 200.dp written out again. The state's own `positionalThreshold` /
-        // `velocityThreshold` fields are `internal` in Foundation 1.12.0
-        // (AnchoredDraggable.kt:830-831), so reading them back off the state is not possible
-        // from app code — hoisting the shared definition upward is the only form "reuse, don't
-        // duplicate" can actually take here.
+        // The two release thresholds, still the values copied verbatim from
+        // PlayerSheetSkeleton: 0.4 of the travel positionally, 200dp/s by velocity.
         //
-        // remember with no keys, matching draggableState's own remember below: the velocity
-        // lambda closes over `density`, and the state (being remembered unkeyed) has always
-        // held the lambda that captured the *first* composition's density. Keying these on
-        // `density` would hand the release site a lambda capturing a newer density than the one
-        // inside the state, which is a behavioral difference, not a fix — out of scope here.
+        // They were hoisted at Step 2a so the release site and the AnchoredDraggableState
+        // constructor could share one pair of lambda instances rather than each writing 0.4f and
+        // 200.dp out again. Step 8 deleted the state, so there is nothing left to share them
+        // *with* — [computeReleaseTarget] is now the only reader. They stay as named values
+        // regardless, because that function's signature takes them as parameters (it is a
+        // verbatim port of Foundation's own `computeTarget`, which does the same), and because a
+        // threshold with a name is a threshold that can be found.
+        //
+        // remember with no keys, as before: the velocity lambda closes over `density`, and
+        // re-keying it on `density` would be a behavior change rather than a fix — out of scope
+        // here exactly as it was at Step 2a.
         val positionalThreshold: (totalDistance: Float) -> Float =
             remember { { totalDistance -> totalDistance * 0.4f } }
         val velocityThreshold: () -> Float =
             remember { { with(density) { 200.dp.toPx() } } }
 
-        val draggableState = remember {
-            AnchoredDraggableState(
-                initialValue = PlayerV2State.Collapsed,
-                positionalThreshold = positionalThreshold,
-                velocityThreshold = velocityThreshold,
-                snapAnimationSpec = Motion.SpringStandard,
-                decayAnimationSpec = decayAnimationSpec,
-            )
-        }
-
-        // Offset is measured from the top of this box downward, so Expanded (the sheet's top
-        // edge at the very top) is 0f and Collapsed is everything-but-the-mini-bar.
-        LaunchedEffect(availableHeightPx) {
-            if (availableHeightPx > 0f) {
-                draggableState.updateAnchors(
-                    DraggableAnchors {
-                        PlayerV2State.Collapsed at collapsedAnchorPx
-                        PlayerV2State.Expanded at 0f
-                    },
-                )
+        // The anchor geometry, surviving the removal of AnchoredDraggableState.
+        //
+        // This used to be handed to `draggableState.updateAnchors(...)` from a
+        // `LaunchedEffect(availableHeightPx)`. Both are gone: there is no state to update, and
+        // `remember` already re-derives this whenever the measured height changes, with no frame
+        // of lag and no coroutine.
+        //
+        // **Why [DraggableAnchors] is kept at all** when the plan's Step 8 line says to delete
+        // "the anchors". `DraggableAnchors` is not `AnchoredDraggableState`, and nothing about it
+        // is deprecated or experimental — it is an immutable two-entry lookup table
+        // (AnchoredDraggable.kt:549, plain public API) with no state, no coroutines and no mutex.
+        // Everything that made the *state* worth deleting is absent here.
+        //
+        // Keeping it is what lets [computeReleaseTarget] stay the verbatim port Step 2a made it.
+        // The alternative — re-expressing the algorithm in 0..1 expansion space — means
+        // re-deriving `closestAnchor`'s exact edge semantics by hand, including the fact that its
+        // `distance <= minDistance` comparison lets a *later* anchor win ties
+        // (AnchoredDraggable.kt:1620-1646), which is what decides the zero-velocity release at
+        // exactly 0.5. That is precisely the "subtly wrong, and the hysteresis is quietly
+        // corrupted" failure this migration has spent eight steps avoiding. Offset space also
+        // keeps the velocity threshold honest: 200dp/s is a gesture velocity in px/s, which is
+        // what [VelocityTracker] reports and what `computeReleaseTarget` compares against —
+        // converting it to expansion-per-second would buy nothing and add a conversion to get
+        // wrong.
+        //
+        // Offset is measured from the top of this box downward, so Expanded (the sheet's top edge
+        // at the very top) is 0f and Collapsed is everything-but-the-mini-bar.
+        val releaseAnchors = remember(collapsedAnchorPx) {
+            DraggableAnchors {
+                PlayerV2State.Collapsed at collapsedAnchorPx
+                PlayerV2State.Expanded at 0f
             }
         }
 
-        // 0f = fully collapsed, 1f = fully expanded. Guards the pre-initialization NaN
-        // AnchoredDraggableState.offset reports before the first updateAnchors() call lands.
+        // ── The transition: the whole mechanism ──────────────────────────────────────────
         //
-        // **No longer a UI progress source as of migration Step 4.** Every consumer that used
-        // to read this — the sheetHeight/cornerRadius/surfaceColor lerps, bottomInset, the
-        // isContentPresent gate, the onProgressChanged SideEffect, EnvelopeRevealShape and the
-        // mini fade — now reads `expansionState` instead. Its `by` delegate is gone with them.
-        //
-        // It survives because it is still the *shadow's input*: the LaunchedEffect below is the
-        // one remaining reader, converting this AnchoredDraggable-derived number into the
-        // seekTo/snapTo calls that position the transition. Deleting it here would mean
-        // inlining the same arithmetic into that snapshotFlow, which is the shadow mechanism
-        // Step 4 is explicitly not allowed to touch. It goes away for real at Step 8, together
-        // with the AnchoredDraggableState it reads and the whole shadow bridge — at which point
-        // the drag writes the transition directly and there is nothing left to convert.
-        val progressState = remember(collapsedAnchorPx) {
-            derivedStateOf {
-                val offset = draggableState.offset
-                if (offset.isNaN()) return@derivedStateOf 0f
-                if (collapsedAnchorPx <= 0f) 0f
-                else ((collapsedAnchorPx - offset) / collapsedAnchorPx).coerceIn(0f, 1f)
-            }
-        }
-
-        // ── Migration Steps 3–4: the transition, shadow-driven and now load-bearing ───────
-        //
-        // docs/player-v2-migration-plan.md Steps 3 and 4. Step 3 added everything in this block
-        // as pure addition, consumed by nothing. Step 4 flipped every consumer below onto
-        // `expansionState`, so this is now the single progress source the whole sheet runs on —
-        // while the gesture path above is still untouched AnchoredDraggable, feeding this
-        // through the shadow. Step 8 deletes the AnchoredDraggableState and the shadow with it,
-        // and the drag starts writing this state directly.
+        // Introduced by Step 3 as pure addition, consumed by nothing, and shadow-fed from an
+        // AnchoredDraggableState. Step 4 flipped every consumer onto `expansionState`, Step 7
+        // moved the release onto it, and Step 8 removed the shadow and the state behind it —
+        // the drag now writes this directly. This is the design doc's §1 mechanism, arrived at.
         val seekableState = remember { SeekableTransitionState(PlayerV2State.Collapsed) }
 
         // rememberTransition is mandatory, not stylistic. A SeekableTransitionState is inert
@@ -444,151 +454,183 @@ fun SharedTransitionScope.PlayerV2Host(
             )
         }
 
-        // The release request, handed from the gesture detector to the shadow collector.
+        // The one pipe from the gesture detector to the coroutine that owns the transition.
         //
-        // **Why a hand-off rather than just calling `animateTo` at the release site.** Every
-        // mutating entry point on SeekableTransitionState — `seekTo`, `snapTo`, `animateTo` —
-        // runs inside `mutatorMutex.mutate { }` (Transition.kt:560, :609, :720). Reading
-        // `MutatorMutex` itself (InternalMutatorMutex.kt): `mutate` opens a `coroutineScope`,
-        // registers *that scope's* Job as the current mutator, and a later mutator of equal
-        // priority calls `job.cancel(MutationInterruptedException())` on it. The interrupted
-        // scope then rethrows that `CancellationException` **out to its caller**.
+        // **Why a channel rather than direct calls.** Every mutating entry point on
+        // SeekableTransitionState — `seekTo`, `snapTo`, `animateTo` — runs inside
+        // `mutatorMutex.mutate { }` (Transition.kt:560, :609, :720), and an interrupted mutator
+        // does not fail quietly. Reading `MutatorMutex` itself (InternalMutatorMutex.kt): `mutate`
+        // opens a `coroutineScope`, registers *that scope's* Job as the current mutator, and a
+        // later mutator of equal priority calls `job.cancel(MutationInterruptedException())` on
+        // it; the interrupted scope then rethrows that `CancellationException` **out to its
+        // caller**. When that caller is a long-lived `LaunchedEffect` whose own Job is perfectly
+        // healthy, the exception propagates out of it, completes the coroutine exceptionally, and
+        // — keys unchanged — it never restarts. Step 7 found this, and it is the reason this
+        // architecture exists: a second coroutine touching `seekableState` does not cause a
+        // glitch, it permanently kills whichever one it interrupts.
         //
-        // That caller would be the shadow collector below. Its own Job is not cancelled, so the
-        // exception would propagate out of `collect`, complete the `LaunchedEffect` coroutine
-        // exceptionally, and — since the keys never change — it would *never restart*. The shadow
-        // would be permanently dead and the sheet would stop tracking the finger for the rest of
-        // the session. And the collector is very likely to be inside a `seekTo` at exactly that
-        // moment, because `seekTo` suspends on `waitForCompositionAfterTargetStateChange()`,
-        // which waits a whole composition.
+        // A channel makes that unrepresentable rather than merely unlikely. The producer (the
+        // pointer handler) only ever calls `trySend`, which touches no mutex and can neither
+        // suspend nor fail on a conflated channel. The consumer is the single coroutine below,
+        // and it is the only caller of `seekTo`/`animateTo` anywhere in this file. With exactly
+        // one contender, `tryMutateOrCancel` never has an `oldMutator` to cancel and
+        // `MutationInterruptedException` is unreachable.
         //
-        // A "release in progress" flag, checked before each `seekTo`, does not fix this: it stops
-        // *new* seeks, but cannot un-start the one already suspended. Handing the release to the
-        // collector does fix it, by construction — one coroutine remains the only mutator of
-        // `seekableState`, so `MutatorMutex` is never contended and `MutationInterruptedException`
-        // is unreachable rather than merely unlikely. This is the plan's Step 8 architecture
-        // ("one consumer coroutine owning every seekTo *and* the release animateTo") arriving one
-        // step early, for the release half only; the drag half is still the untouched snapshotFlow
-        // shadow. See the collector for the second problem this also solves.
-        //
-        // Nullable rather than a boolean + separate target: the two are never meaningfully apart,
-        // and a single nullable makes "no release pending" and "release to X" the same read.
-        val pendingRelease = remember { mutableStateOf<PlayerV2State?>(null) }
-        // ── end Step 7 declarations ──────────────────────────────────────────────────────
+        // **Conflated**, per the plan. During a drag only the newest finger position matters, so
+        // dropping superseded [PlayerV2GestureEvent.Seek]s is the intent rather than a
+        // compromise. Two orderings are worth being explicit about, since conflation drops by
+        // recency and not by kind: a `Settle` landing on top of an undrained `Seek` replaces it,
+        // which is right (the finger has left); a `Seek` landing on top of an undrained `Settle`
+        // also replaces it, which is also right (a new gesture has begun and will send its own
+        // `Settle` when it ends) — in between, the transition simply stays mid-seek rather than
+        // committing to a state nobody is asking for any more.
+        val gestureEvents = remember { Channel<PlayerV2GestureEvent>(Channel.CONFLATED) }
 
-        // The shadow. Mirrors the AnchoredDraggableState's live position into the seekable
-        // state continuously, so that by Step 4 the transition is already a faithful echo of the
-        // gesture and flipping the consumers over is the only thing that changes.
+        // The consumer. The single owner of every mutation of [seekableState], and — as of
+        // Step 8 — the only thing driving the sheet at all.
         //
-        // **Migration Step 7 narrows what "continuously" means.** Through Step 6 this mirrored
-        // the release animation too — the sheet settled on AnchoredDraggable's spring, echoed one
-        // frame later. It no longer does: the release is now the transition's own `animateTo`,
-        // run below by this same coroutine, and the mirror is suspended for its duration. Between
-        // finger-down and finger-up nothing here changed.
+        // Through Step 7 this was a *shadow*: it watched an AnchoredDraggableState via
+        // `snapshotFlow` and mirrored its offset in. There is nothing left to shadow. Deltas now
+        // arrive here directly from the pointer handler, and the whole `progressState` /
+        // `settledValue` / `snapTo`-on-settle bridge is gone with the state it existed to mirror.
         //
-        // One collector, never two — and as of Step 7 that is load-bearing rather than merely
-        // tidy. seekTo, snapTo *and* animateTo all take SeekableTransitionState's internal
-        // mutatorMutex (Transition.kt:560, :609, :720), and an interrupted mutator does not fail
-        // quietly: it is cancelled with a MutationInterruptedException that surfaces in *its
-        // caller*. A second coroutine calling animateTo would therefore kill this collector
-        // outright — see [pendingRelease] for the full trace. Sequencing every mutation on one
-        // coroutine makes that unrepresentable rather than merely unlikely.
-        LaunchedEffect(seekableState, draggableState, progressState, pendingRelease) {
-            snapshotFlow {
-                Triple(pendingRelease.value, draggableState.settledValue, progressState.value)
-            }
-                .collect { (release, settledValue, rawProgress) ->
-                    // Migration Step 7. The release runs *here*, on the collector's own
-                    // coroutine, for the MutatorMutex reason set out at [pendingRelease] — and
-                    // for a second reason that only shows up once you ask when mirroring may
-                    // safely resume.
-                    //
-                    // The two springs do not finish together. This one converges in fraction
-                    // space; AnchoredDraggable's still converges in pixel space against its own
-                    // 0.01px threshold, and `settledValue` does not flip until it does. If the
-                    // shadow resumed the instant `seekableState.animateTo` returned, its very
-                    // next emission would read a progress still a few thousandths short of the
-                    // anchor, fail the `p == settledExpansion` test, and issue a `seekTo` that
-                    // drags the sheet back off the target it had just reached — a small visible
-                    // twitch at the end of every single release. Running both animations inside
-                    // one `coroutineScope` and only then returning to the collect loop means
-                    // mirroring cannot resume until *both* have landed, at which point the next
-                    // emission takes the `snapTo` branch and self-no-ops.
-                    //
-                    // Emissions produced while this suspends are not queued up behind it:
-                    // `snapshotFlow` delivers through a conflated channel, so what waits is the
-                    // single latest value — the settled one.
-                    if (release != null) {
-                        // Cleared before the animation, not after: a second release arriving
-                        // mid-settle must be able to re-arm this, and clearing afterwards would
-                        // overwrite it with null and lose that gesture.
-                        pendingRelease.value = null
-                        coroutineScope {
-                            // AnchoredDraggable is no longer driving anything visible, but it is
-                            // still the drag loop's state: `dispatchRawDelta` works off `offset`
-                            // and the tap branch reads `currentValue`, so both must land on the
-                            // target or the next gesture starts from the wrong place. Launched
-                            // rather than awaited first so the two run concurrently, exactly as
-                            // they did when this call sat in the gesture detector.
-                            launch { draggableState.animateTo(release) }
-                            // The one that is actually on screen now. No velocity argument
-                            // because there is no overload that takes one (Step 0, Finding 1) —
-                            // and nothing is lost, because Step 2b already established this
-                            // release is velocity-free on the AnchoredDraggable side too: the
-                            // drag loop feeds `dispatchRawDelta`, which leaves `lastVelocity` at
-                            // 0f. `animateTo` likewise seeds from `oldVelocity`, which is
-                            // `ZeroVelocity` here because there is no running `currentAnimation`
-                            // to inherit from — we were seeking, not animating
-                            // (Transition.kt:751-757). Velocity still decides *which* anchor,
-                            // via the untouched computeReleaseTarget; it has never shaped the
-                            // curve since Step 2b.
-                            seekableState.animateTo(release, releaseSpring)
-                        }
-                        return@collect
-                    }
+        // Two structural properties this shape buys, both of which were bought expensively at
+        // earlier steps and are now free:
+        //
+        //  1. **One mutator.** See [gestureEvents]. Every `seekTo` and every `animateTo` in this
+        //     file happens on this coroutine, in the order the gestures happened, so the
+        //     MutatorMutex interruption that would permanently kill this `LaunchedEffect` has no
+        //     second party to come from.
+        //  2. **The release cannot be raced by a late seek.** Every event first cancels and
+        //     *joins* any settle still running, so `seekTo` and `animateTo` never overlap even
+        //     though the settle lives in its own child coroutine. The plan's "late seekTo
+        //     cancels the release, sheet sticks halfway" failure is not handled here — it is
+        //     unrepresentable, because the two can never be in flight at once.
+        //
+        // **Why the settle is a cancellable child rather than an inline await.** Running
+        // `animateTo` inline — the obvious shape — means a `Seek` arriving mid-settle waits for
+        // the settle to finish and is *then* applied. That is not merely unresponsive, it is
+        // wrong: the drag loop bases its accumulator on the expansion it read at finger-down, so
+        // a Seek computed from 0.8 gets applied after the settle has already carried the sheet
+        // to 1.0, and the sheet visibly jumps backwards the moment the spring ends. Cancelling
+        // the settle instead means the sheet is grabbed exactly where the finger found it, which
+        // is also what the pre-migration player did — `dispatchRawDelta` took no mutex and wrote
+        // the offset straight through a running settle.
+        //
+        // Cancellation is safe on both sides. `MutatorMutex.mutate` releases in a `finally`, so
+        // `cancelAndJoin` leaves the mutex free and `currentMutator` null before the loop
+        // touches `seekableState` again. And a half-finished `animateTo` is cleanly taken over
+        // by the next seek in both directions, because `seekTo`'s same-target branch clears
+        // `currentAnimation` outright (Transition.kt:613-618): interrupt an expand and
+        // `currentState` is still Collapsed, so the next seek names Expanded, `fraction = e` and
+        // `expansion = lerp(0f, 1f, e) = e`; interrupt a reversal-collapse and `currentState` is
+        // Expanded (set at :728), so the next seek names Collapsed, `fraction = 1f - e` and
+        // `expansion = lerp(1f, 0f, 1f - e) = e`. Either way the sheet stays exactly under the
+        // finger.
+        //
+        // Keyed on [releaseSpring] as well as the state and the channel: the spring is derived
+        // from the measured travel, and without the key a size change would leave this coroutine
+        // holding the spec it captured at first composition. Restarting drops any in-flight
+        // animation, which on a size change is the right thing anyway.
+        LaunchedEffect(seekableState, gestureEvents, releaseSpring) {
+            // The settle in flight, if any. Never read for anything but cancellation — the
+            // loop's only question is "is something animating that I must stop first".
+            var settle: Job? = null
+            for (event in gestureEvents) {
+                // Unconditional, and `cancelAndJoin` rather than `cancel`: joining is what makes
+                // the no-overlap guarantee above real, since `cancel` alone would return before
+                // the child had unwound out of `mutate` and released the mutex. A no-op against
+                // a settle that already finished on its own.
+                settle?.cancelAndJoin()
+                settle = null
+                when (event) {
+                    is PlayerV2GestureEvent.Seek -> {
+                        // Finding 4, gotcha 1 — and this is the first step where it is a real
+                        // call site rather than a mirror. `seekTo` hard-throws on an
+                        // out-of-range fraction (`requirePrecondition(fraction in 0f..1f)`,
+                        // Transition.kt:604-606) instead of coercing. The producer already
+                        // clamps its accumulator, so this is the second of two belts.
+                        //
+                        // It is explicitly *not* a NaN guard: `Float.coerceIn` compares with
+                        // `<` and `>`, both of which are false against NaN, so a NaN passes
+                        // straight through and would fail the same precondition. NaN is instead
+                        // made unreachable at the source — the drag loop returns early rather
+                        // than divide by a zero travel, and `expansionState` is a lerp between
+                        // 0f and 1f and cannot produce one.
+                        val expansionTarget = event.expansion.coerceIn(0f, 1f)
 
-                    // Clamp at the producer. seekTo hard-throws on an out-of-range fraction
-                    // (requirePrecondition(fraction in 0f..1f), Transition.kt:604-606) rather
-                    // than coercing, and AnchoredDraggableState's spring is free to overshoot
-                    // past an anchor — so a release near 1f can genuinely produce >1f here.
-                    val p = rawProgress.coerceIn(0f, 1f)
-                    val settledExpansion =
-                        if (settledValue == PlayerV2State.Expanded) 1f else 0f
-
-                    if (p == settledExpansion) {
-                        // At rest on an anchor. snapTo commits currentState *and* targetState
-                        // to it, which is what lets the next drag seek away from the right
-                        // place — without this the seekable state would sit forever at
-                        // (Collapsed, Expanded, 1f) after an expand, and the next collapse
-                        // drag would compute its direction from a stale currentState.
-                        // Self-no-ops when already fully settled there (:555-559).
-                        seekableState.snapTo(settledValue)
-                    } else {
-                        // Seek away from wherever the seekable state currently rests, toward
-                        // the opposite value. Anchoring on currentState rather than on the
-                        // drag's direction is what dodges the silent-no-op gotcha: seekTo
-                        // returns without doing anything when currentState == targetState and
-                        // no new target is named (:615-617), so passing "Expanded" while
-                        // already settled Expanded would move nothing, with no error. The
-                        // opposite state is never equal to currentState, so the first seek of
-                        // every drag always names a real target.
+                        // Finding 4, gotcha 2. `seekTo` returns silently without doing anything
+                        // when `currentState == targetState` and no new target is named
+                        // (Transition.kt:613-618) — from a settled Collapsed, `seekTo(0.2f)`
+                        // moves nothing, with no exception and no log. Naming the state opposite
+                        // to `currentState` makes that unreachable: the opposite of a value is
+                        // never equal to it, so the first seek of every drag always names a real
+                        // target.
+                        //
+                        // It is also stable for the whole drag, which is what makes this correct
+                        // rather than merely non-crashing. `seekTo` never writes `currentState`
+                        // (verified: the only assignments in SeekableTransitionState are in
+                        // `snapTo` :574 and `animateTo` :728, :791), so `currentState` stays at
+                        // the state the drag *started* from for the drag's entire length. Every
+                        // seek of one gesture therefore names the same pair, and a mid-drag
+                        // reversal is just a smaller fraction against that same pair — no
+                        // direction tracking, no re-targeting, nothing to get wrong.
                         val target =
                             if (seekableState.currentState == PlayerV2State.Collapsed) {
                                 PlayerV2State.Expanded
                             } else {
                                 PlayerV2State.Collapsed
                             }
-                        // fraction is "how far from currentState toward target", so it is
-                        // progress itself when expanding and its complement when collapsing.
-                        // Both directions land expansion == p: lerp(0f, 1f, p) = p, and
-                        // lerp(1f, 0f, 1f - p) = p.
+
+                        // `fraction` is "how far from currentState toward target", so it is
+                        // expansion itself when expanding and its complement when collapsing.
+                        // Both directions land expansion == the finger: lerp(0f, 1f, e) = e, and
+                        // lerp(1f, 0f, 1f - e) = e. This is the one place the inversion lives,
+                        // exactly as the plan asks — the drag loop above accumulates
+                        // direction-free expansion and knows nothing about it.
                         val fraction =
-                            if (target == PlayerV2State.Expanded) p else 1f - p
+                            if (target == PlayerV2State.Expanded) {
+                                expansionTarget
+                            } else {
+                                1f - expansionTarget
+                            }
                         seekableState.seekTo(fraction.coerceIn(0f, 1f), target)
                     }
+
+                    is PlayerV2GestureEvent.Settle -> {
+                        // The release, and — as of Step 8 — the tap too. Step 7 left
+                        // tap-to-expand on `draggableState.animateTo`, which meant a tap and a
+                        // drag-release settled on two different springs; there is only one
+                        // mechanism now, so they are the same call and the inconsistency is gone
+                        // rather than merely reconciled.
+                        //
+                        // No velocity argument because no overload takes one (Finding 1), and
+                        // nothing is lost: Step 2b already established the release is
+                        // velocity-free, and `animateTo` seeds from `oldVelocity`, which is
+                        // `ZeroVelocity` when there is no running `currentAnimation` to inherit
+                        // from (Transition.kt:751-757) — we were seeking, not animating. Velocity
+                        // decides *which* state, via [computeReleaseTarget]; it has not shaped
+                        // the curve since Step 2b.
+                        //
+                        // No `snapTo` afterwards either. The shadow needed one because
+                        // AnchoredDraggable settled independently and the transition had to be
+                        // told where it had ended up; `animateTo` commits `currentState =
+                        // targetState` itself on completion (:791), which is what leaves the
+                        // opposite-state rule above pointing somewhere useful for the next drag.
+                        //
+                        // Launched rather than awaited so the loop goes straight back to
+                        // receiving and can interrupt this — see the note above. A
+                        // `CancellationException` inside a `launch`ed child is ordinary
+                        // cancellation, not a failure, so even in the impossible case that
+                        // something did interrupt it via the MutatorMutex, it would end this
+                        // animation rather than propagate out and kill the consumer. That is
+                        // strictly safer than the arrangement Step 7 shipped.
+                        settle = launch { seekableState.animateTo(event.target, releaseSpring) }
+                    }
                 }
+            }
         }
-        // ── end Steps 3–4 ────────────────────────────────────────────────────────────────
+        // ── end the transition and its consumer ──────────────────────────────────────────
 
         // Publish expansion outward so SynthXBottomNav can slide/shrink/fade in lockstep.
         //
@@ -658,9 +700,24 @@ fun SharedTransitionScope.PlayerV2Host(
                     // pointer change, and a tap detector consumes the down as its first act.
                     // PlayerSheetSkeleton hit exactly that and landed here; starting from its
                     // conclusion rather than rediscovering it.
-                    .pointerInput(Unit) {
+                    // Keyed on the travel, not on Unit. Through Step 7 this block only ever
+                    // touched `draggableState`, a stable object whose anchors were refreshed
+                    // from outside, so `Unit` was correct. Step 8 made it read
+                    // `collapsedAnchorPx` and [releaseAnchors] directly, and a `pointerInput`
+                    // that never restarts would go on using the height measured at first
+                    // composition — every delta scaled by a stale travel after a rotation or a
+                    // window resize. Keying on the one value both are derived from restarts the
+                    // detector exactly when, and only when, that geometry actually changes.
+                    .pointerInput(collapsedAnchorPx) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
+                            // Nothing can be computed against a zero-width travel: the delta →
+                            // expansion conversion below would divide by zero and produce NaN,
+                            // and NaN fails seekTo's `fraction in 0f..1f` precondition as hard
+                            // as an out-of-range number does. Unreachable in practice — this box
+                            // fills the screen — but the alternative to one line here is a crash
+                            // rather than a glitch.
+                            if (collapsedAnchorPx <= 0f) return@awaitEachGesture
                             val velocityTracker = VelocityTracker()
                             velocityTracker.addPosition(down.uptimeMillis, down.position)
 
@@ -677,97 +734,124 @@ fun SharedTransitionScope.PlayerV2Host(
                                 // Tap. Expands from Collapsed only; tapping while Expanded is a
                                 // deliberate no-op, per this stage's scope.
                                 //
-                                // PlayerSheetSkeleton additionally guards this on down.isConsumed
-                                // so a tap on a child button doesn't also expand the sheet. Still
-                                // missing here — a known, deliberately deferred bug, not a
-                                // regression: Stage 2.1 already made this reachable via the mini
-                                // play/pause button, and Stage 2.2 has now added several more
-                                // interactive children (seek bar, prev/next, 3-dot, queue) that
-                                // hit the same gap. The fix is deferred until after Stage 2.4
-                                // (album art shared-element morph), since this gesture detector
-                                // changes shape again at that point and re-deriving the guard
-                                // twice isn't worth it.
-                                if (draggableState.currentValue == PlayerV2State.Collapsed) {
-                                    scope.launch { draggableState.animateTo(PlayerV2State.Expanded) }
+                                // `seekableState.currentState` replaces
+                                // `draggableState.currentValue` as the "where are we settled"
+                                // read, and it is the exact analogue: `currentState` only moves
+                                // on `snapTo`/`animateTo` completion (Transition.kt:574, :791),
+                                // never on a seek, so between gestures it holds the settled
+                                // state and nothing else.
+                                //
+                                // The event is the same [PlayerV2GestureEvent.Settle] a release
+                                // sends, which is what finally makes tap and release agree.
+                                // Step 7 had to leave the tap on `draggableState.animateTo` —
+                                // its scope was the release — so a tap and a drag-release
+                                // settled on two different springs in two different spaces. One
+                                // mechanism now, one call, one spring.
+                                //
+                                // **The `down.isConsumed` guard is still missing, and is still
+                                // deferred — but its reason has changed.** PlayerSheetSkeleton
+                                // guards this branch on `!down.isConsumed` so a tap on a child
+                                // button (mini play/pause, seek bar, prev/next, 3-dot, queue)
+                                // does not also expand the sheet. The old comment here deferred
+                                // the fix "until after Stage 2.4, since this gesture detector
+                                // changes shape again at that point". That reshape is this step,
+                                // so that reason has expired and the comment would now be
+                                // pointing at a stage in the past.
+                                //
+                                // Deferred anyway, deliberately and for a different reason: Step
+                                // 8's entire success criterion is behavior parity across a
+                                // mechanism swap, and adding a tap-behavior change to the same
+                                // diff would put two variables into that comparison — the same
+                                // discipline that kept Step 2b to one line. It is now a plain
+                                // one-line follow-up with nothing blocking it, and should be the
+                                // next task once parity here is confirmed on device.
+                                if (seekableState.currentState == PlayerV2State.Collapsed) {
+                                    gestureEvents.trySend(
+                                        PlayerV2GestureEvent.Settle(PlayerV2State.Expanded),
+                                    )
                                 }
                             } else {
-                                // Drag. Feed the post-slop offset and then every subsequent delta
-                                // straight into the state, exactly as anchoredDraggable's own
-                                // internal drag loop would — this is what makes the morph track
-                                // the finger continuously instead of snapping at the end.
+                                // Drag. Accumulate *expansion* — direction-free, 0..1, exactly
+                                // what the sheet shows — and send it. The conversion to a
+                                // transition fraction, and with it the only inversion in the
+                                // whole mechanism, lives in the consumer; this loop knows
+                                // nothing about Collapsed-vs-Expanded or which way the
+                                // transition is currently pointed.
+                                //
+                                // Accumulated here rather than re-read from `expansionState` on
+                                // each delta. `expansionState` is the *rendered* value and lags
+                                // the finger by a frame; feeding each delta onto a lagging base
+                                // would compound that lag into visible rubber-banding. Reading
+                                // it once, at drag start, is the analogue of AnchoredDraggable's
+                                // `offset` being the state's own accumulator rather than
+                                // anything measured back off the screen.
+                                //
+                                // Sign: `positionChange().y` is positive downward and the offset
+                                // this replaces grew downward too, so expansion moves *against*
+                                // it — dragging up (negative y) expands. The `/ collapsedAnchorPx`
+                                // is the same normalization the deleted `progressState` did, just
+                                // applied per-delta instead of to an absolute offset.
+                                //
+                                // `coerceIn` on every step is the producer-side clamp Finding 4
+                                // demands, and it doubles as AnchoredDraggable's own behavior:
+                                // `newOffsetForDelta` coerced the offset into the anchor range,
+                                // so overdragging past an end never banked a debt that had to be
+                                // paid back before the sheet moved again. Clamping the
+                                // accumulator preserves that exactly.
                                 velocityTracker.addPosition(drag.uptimeMillis, drag.position)
-                                draggableState.dispatchRawDelta(overSlopDelta)
+                                var dragExpansion =
+                                    (expansionState.value - overSlopDelta / collapsedAnchorPx)
+                                        .coerceIn(0f, 1f)
+                                gestureEvents.trySend(PlayerV2GestureEvent.Seek(dragExpansion))
                                 verticalDrag(drag.id) { change ->
-                                    draggableState.dispatchRawDelta(change.positionChange().y)
+                                    dragExpansion =
+                                        (dragExpansion - change.positionChange().y / collapsedAnchorPx)
+                                            .coerceIn(0f, 1f)
+                                    gestureEvents.trySend(
+                                        PlayerV2GestureEvent.Seek(dragExpansion),
+                                    )
                                     velocityTracker.addPosition(change.uptimeMillis, change.position)
                                     change.consume()
                                 }
-                                // Release, in two explicitly separated halves — target
-                                // selection, then the animation that acts on it. This was one
-                                // `draggableState.settle(velocity)` call before migration Step
-                                // 2a (docs/player-v2-migration-plan.md) split it apart.
+
+                                // Release, still the two explicitly separated halves Step 2a
+                                // split `settle(velocity)` into: pick a target, then animate to
+                                // it. Only the two *inputs* to the picking changed at Step 8 —
+                                // the logic in [computeReleaseTarget] is byte-for-byte the port
+                                // Step 2a made and Step 2b left alone.
                                 //
-                                //   1. Target selection: the positional/velocity threshold
-                                //      logic, ported verbatim from Foundation's own private
-                                //      computeTarget in Step 2a. See computeReleaseTarget
-                                //      below. Unchanged by Step 2b and still fed the real
-                                //      release velocity — which anchor we go to is decided
-                                //      exactly as it always was.
-                                //   2. The animation: **Step 2b changes this line, and only
-                                //      this line.** It was `animateToWithDecay(releaseTarget,
-                                //      velocity)` — the call settle() made internally
-                                //      (AnchoredDraggable.kt:1078), which projects the fling
-                                //      with the exponentialDecay spec and only falls back to
-                                //      the spring when the decay can't reach the target. It is
-                                //      now the plain `animateTo(releaseTarget)`.
+                                //   - `anchors` was `draggableState.anchors`, the live copy the
+                                //     state held. It is now [releaseAnchors], the same
+                                //     `DraggableAnchors` value, remembered here instead of
+                                //     pushed into a state.
+                                //   - `currentOffset` was `draggableState.requireOffset()`. It
+                                //     is now the accumulator converted back to that same offset
+                                //     axis. This is an exact identity, not an approximation:
+                                //     `progressState` defined expansion as
+                                //     `(collapsedAnchorPx - offset) / collapsedAnchorPx`, whose
+                                //     inverse is precisely the line below, and `dragExpansion`
+                                //     is the same number `dispatchRawDelta` used to accumulate
+                                //     into `offset` — same deltas, same clamp, same axis, just
+                                //     normalized. So the positional branch still measures from
+                                //     the anchor behind the direction of travel, and the
+                                //     hysteresis it produces (commit to expanding at 0.4 when
+                                //     moving up, hold expanded until 0.6 when moving down) is
+                                //     unchanged.
                                 //
-                                // Why: SeekableTransitionState.animateTo takes no velocity
-                                // parameter at all (Step 0, Finding 1 — there is no overload
-                                // that does), so the velocity-seeded decay-then-spring release
-                                // has no equivalent on the other side of this migration. Rather
-                                // than discover that at Step 7, where it would be tangled up
-                                // with reversal continuity and the fraction-space spring, this
-                                // step drops velocity seeding *alone*, on the otherwise
-                                // untouched AnchoredDraggable path, so the only variable in the
-                                // A/B is the one being measured.
-                                //
-                                // No animationSpec argument: animateTo's default resolves
-                                // through usePreModifierChangeBehavior to the state's own
-                                // snapAnimationSpec (AnchoredDraggable.kt:1370-1375), i.e.
-                                // Motion.SpringStandard as configured above — the same spring
-                                // animateToWithDecay used for its non-decay path. Passing it
-                                // explicitly would just restate it.
-                                //
-                                // The release is genuinely velocity-free, not merely
-                                // velocity-unseeded-at-the-call: animateTo internally starts
-                                // from the state's `lastVelocity` (:1378), but this drag loop
-                                // feeds the state through dispatchRawDelta, which calls
-                                // dragTo(newOffset) at the default lastKnownVelocity = 0f
-                                // (:1248, :684), so lastVelocity is 0f at release. `velocity`
-                                // below survives only as computeReleaseTarget's input, which is
-                                // why it is still read and still needed.
+                                // Velocity is untouched and still the real thing: px/s from
+                                // [VelocityTracker], compared against a 200dp/s threshold in the
+                                // same units. That is the other half of why the offset axis was
+                                // worth keeping — see [releaseAnchors].
                                 val velocity = velocityTracker.calculateVelocity().y
-                                val releaseTarget = draggableState.anchors.computeReleaseTarget(
-                                    currentOffset = draggableState.requireOffset(),
+                                val releaseTarget = releaseAnchors.computeReleaseTarget(
+                                    currentOffset = collapsedAnchorPx * (1f - dragExpansion),
                                     velocity = velocity,
                                     positionalThreshold = positionalThreshold,
                                     velocityThreshold = velocityThreshold,
                                 )
-                                // Migration Step 7: this used to be
-                                // `scope.launch { draggableState.animateTo(releaseTarget) }`.
-                                // The target is computed exactly as before — computeReleaseTarget
-                                // is untouched, still fed the real release velocity — but acting
-                                // on it is now the shadow collector's job, because it also has to
-                                // animate `seekableState` and only one coroutine may mutate that.
-                                // See [pendingRelease] for the MutatorMutex reasoning and the
-                                // collector for why the two animations have to finish together.
-                                //
-                                // A plain state write, not a `scope.launch`: there is nothing to
-                                // suspend on here any more, and writing from the pointer handler
-                                // means the release is armed before this gesture's coroutine
-                                // yields, with no window in which the collector could observe a
-                                // finished drag that has not yet asked for anything.
-                                pendingRelease.value = releaseTarget
+                                gestureEvents.trySend(
+                                    PlayerV2GestureEvent.Settle(releaseTarget),
+                                )
                             }
                         }
                     },
@@ -1000,12 +1084,23 @@ fun SharedTransitionScope.PlayerV2Host(
  * release. A fallback here would be unreachable code that quietly changes what "faithful port"
  * means.
  *
- * @param currentOffset the state's live offset, i.e. `AnchoredDraggableState.requireOffset()`.
+ * **Migration Step 8 changed this function's callers, not this function.** It is still the
+ * byte-for-byte port Step 2a made. What went away underneath it is where its two positional
+ * inputs come from: the receiver was `draggableState.anchors` and is now [PlayerV2Host]'s
+ * remembered `releaseAnchors` — the same `DraggableAnchors` value, just no longer owned by a
+ * state — and `currentOffset` was `draggableState.requireOffset()` and is now the drag loop's
+ * own expansion accumulator mapped back onto the same axis by
+ * `collapsedAnchorPx * (1f - expansion)`. That mapping is the exact inverse of the one the drag
+ * loop applies per delta, so the number reaching this function is the number `requireOffset()`
+ * would have reported, and every branch below still sees the geometry it was written for.
+ *
+ * @param currentOffset the live drag position on the anchor axis, in px, measured downward from
+ *   the top of the host — 0f at Expanded, `collapsedAnchorPx` at Collapsed.
  * @param velocity the release velocity in px/s, signed — positive is downward in this
- *   coordinate space.
- * @param positionalThreshold the *same lambda instance* the state was constructed with — see
- *   the hoist in [PlayerV2Host].
- * @param velocityThreshold likewise.
+ *   coordinate space. Still the real [VelocityTracker] reading, in the same units as
+ *   [velocityThreshold], which is why the whole computation stays in pixel space.
+ * @param positionalThreshold the 0.4-of-travel lambda from [PlayerV2Host].
+ * @param velocityThreshold the 200dp/s lambda, likewise.
  */
 private fun <T> DraggableAnchors<T>.computeReleaseTarget(
     currentOffset: Float,
