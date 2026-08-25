@@ -3,6 +3,7 @@ package com.v1per.synthx.ui.player.v2
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.animateTo
@@ -11,12 +12,25 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -32,13 +46,24 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
+import com.v1per.synthx.R
+import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
+import com.v1per.synthx.ui.components.DragResistantIconButton
+import com.v1per.synthx.ui.components.PlayerAlbumArt
+import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Motion
+import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.SurfaceVariant
+import com.v1per.synthx.ui.theme.TextPrimary
+import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 /**
@@ -57,10 +82,10 @@ enum class PlayerV2State { Collapsed, Expanded }
  * Stage 1.1 of the player rebuild — see docs/player-rebuild-design.md for the eventual
  * target architecture.
  *
- * This is deliberately, aggressively incomplete: a blank dark surface that morphs between a
- * 64dp mini bar and a full-height sheet, and nothing else. No album art, no title, no
- * transport controls, no seek bar, no queue, no playback state — it takes no parameters
- * because it has nothing to render.
+ * This was originally a blank dark surface that morphs between a 64dp mini bar and a
+ * full-height sheet and nothing else. Stage 2.1 has since added real mini-bar content
+ * (art, title/artist, play/pause) — see [PlayerV2MiniContent] — but the expanded state is
+ * still blank: no transport controls, no seek bar, no queue.
  *
  * Deliberate divergences from docs/player-rebuild-design.md, all scoped to this stage:
  * - The design doc's mechanism is SeekableTransitionState inside a SharedTransitionLayout
@@ -81,6 +106,15 @@ enum class PlayerV2State { Collapsed, Expanded }
  * positional threshold, the 200dp velocity threshold, exponentialDecay's 1.8f friction
  * multiplier and [Motion.SpringStandard] as the snap spec.
  *
+ * @param song the currently playing song. Required, not nullable: the call site
+ *   (BottomChromeOverlay) only composes this at all inside
+ *   `AnimatedVisibility(visible = showBottomBar && currentSong != null)`, so a null song can
+ *   never actually reach here — a nullable parameter would just add a dead branch.
+ * @param isPlaying drives the mini bar's play/pause icon and [PlayerAlbumArt]'s breathing
+ *   scale.
+ * @param isBuffering when true, the mini bar's transport button shows a spinner instead of
+ *   the play/pause icon — mirrors the old (detached) PlayerSkeletonMiniContent exactly.
+ * @param onPlayPauseClick wired to the mini bar's transport button.
  * @param onProgressChanged called with the live 0..1 collapse/expand progress whenever it
  *   changes, so chrome outside this composable (the bottom nav) can move in lockstep. Fired
  *   from a [SideEffect] rather than from the composition body — see the call site below.
@@ -88,7 +122,11 @@ enum class PlayerV2State { Collapsed, Expanded }
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PlayerV2Host(
+    song: Song,
     modifier: Modifier = Modifier,
+    isPlaying: Boolean = false,
+    isBuffering: Boolean = false,
+    onPlayPauseClick: () -> Unit = {},
     onProgressChanged: (Float) -> Unit = {},
 ) {
     val density = LocalDensity.current
@@ -252,7 +290,83 @@ fun PlayerV2Host(
                             }
                         }
                     },
+            ) {
+                PlayerV2MiniContent(
+                    song = song,
+                    isPlaying = isPlaying,
+                    isBuffering = isBuffering,
+                    onPlayPauseClick = onPlayPauseClick,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Stage 2.1: real mini-bar content — art, title/artist, play/pause. Deliberately static:
+ * no fade-as-you-drag (design doc §4) and no shared-element art morph (§3) yet, both later
+ * stages. Pinned to the sheet's own top edge at a fixed [CollapsedPlayerHeight] like the old
+ * (detached) PlayerSkeletonMiniContent, but with no reveal/fade treatment it stays visible at
+ * every progress value, including fully expanded — acceptable for now only because the
+ * expanded state itself is still blank.
+ */
+@Composable
+private fun BoxScope.PlayerV2MiniContent(
+    song: Song,
+    isPlaying: Boolean,
+    isBuffering: Boolean,
+    onPlayPauseClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .fillMaxWidth()
+            .height(CollapsedPlayerHeight)
+            .padding(horizontal = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PlayerAlbumArt(
+            song = song,
+            isPlaying = isPlaying,
+            size = 44.dp,
+        )
+        Spacer(modifier = Modifier.width(Spacing.sm))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee(),
             )
+            Text(
+                text = song.artist,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        DragResistantIconButton(onClick = onPlayPauseClick) {
+            if (isBuffering) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = TextSecondary,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (isPlaying) {
+                        stringResource(R.string.cd_pause)
+                    } else {
+                        stringResource(R.string.cd_play)
+                    },
+                    tint = if (isPlaying) Accent else TextPrimary,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
         }
     }
 }

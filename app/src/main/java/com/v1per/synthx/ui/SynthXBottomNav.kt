@@ -27,9 +27,8 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-// Detached with the old player — see the two INTENTIONALLY DETACHED blocks below.
-// import androidx.compose.runtime.collectAsState
-// import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -94,6 +93,12 @@ fun BottomChromeOverlay(
     // val currentPosition by playbackViewModel.currentPosition.collectAsState()
     // val duration by playbackViewModel.duration.collectAsState()
     // ---------------------------------------------------------------------------------
+
+    // Stage 2.1: fresh, live reads feeding PlayerV2Host's real mini-bar content — not a
+    // restoration of the commented-out block above, which still feeds only the old,
+    // uncomposed PlayerSheetSkeleton call further down.
+    val isPlaying by playbackViewModel.isPlaying.collectAsState()
+    val isBuffering by playbackViewModel.isBuffering.collectAsState()
 
     // Both the nav and the sheet live in one Box sharing one navigationBarsPadding() call —
     // previously the sheet had no inset applied at all, so it measured its available height
@@ -196,15 +201,28 @@ fun BottomChromeOverlay(
             // -----------------------------------------------------------------------------
 
             // Stage 1.1 replacement, in the old call's exact position and under the exact
-            // same visibility gating (showBottomBar && currentSong != null, above). It still
-            // renders no content, so it needs no song and no playback state.
+            // same visibility gating (showBottomBar && currentSong != null, above).
             //
-            // Stage 1.2 wires the one thing it does produce: onProgressChanged closes the
+            // Stage 1.2 wires the one thing it produced then: onProgressChanged closes the
             // loop back to MainScaffold's playerProgress state, which flows down the
             // playerProgress lambda above and drives the nav's slide/shrink/fade. The sheet
             // applies the complementary bottom inset internally, so the collapsed bar now
             // stacks above the nav instead of overlaying it.
-            PlayerV2Host(onProgressChanged = onPlayerProgressChanged)
+            //
+            // Stage 2.1 adds real mini-bar content, so song/isPlaying/isBuffering/
+            // onPlayPauseClick are now real too. currentSong?.let is redundant with the
+            // AnimatedVisibility gate above (currentSong is never null once this content is
+            // entered) but matches the old block's own currentSong?.let pattern above rather
+            // than introducing a differently-shaped non-null assertion here.
+            currentSong?.let { song ->
+                PlayerV2Host(
+                    song = song,
+                    isPlaying = isPlaying,
+                    isBuffering = isBuffering,
+                    onPlayPauseClick = playbackViewModel::togglePlayPause,
+                    onProgressChanged = onPlayerProgressChanged,
+                )
+            }
         }
     }
 }
