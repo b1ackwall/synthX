@@ -94,11 +94,11 @@ interface PlaybackEngine {
     fun setShuffleEnabled(enabled: Boolean)
     fun setRepeatMode(mode: RepeatMode)
 
-    /** Inserts [song] directly after the current item. */
-    fun playNext(song: Song)
+    /** Inserts [song] directly after the current item. Always returns `true`. */
+    fun playNext(song: Song): Boolean
 
-    /** Appends [song] to the end of the queue. */
-    fun addToQueue(song: Song)
+    /** Appends [song] to the end of the queue. Always returns `true`. */
+    fun addToQueue(song: Song): Boolean
 
     /**
      * Moves the item at [fromIndex] to [toIndex] within [upcomingQueue], leaving playback

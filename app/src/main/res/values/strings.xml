@@ -50,6 +50,8 @@
     <string name="actions_added_to_playlist">Added to %1$s</string>
     <string name="actions_playing_next">Playing next</string>
     <string name="actions_added_to_queue">Added to queue</string>
+    <string name="actions_already_in_queue">Already in queue</string>
+    <string name="actions_already_playing_next">Already playing next</string>
     <string name="actions_remove_from_starred">Remove from Starred</string>
     <string name="actions_removed_from_starred">Removed from Starred</string>
 
