@@ -1,5 +1,6 @@
 package com.v1per.synthx.playback
 
+import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
@@ -17,6 +18,11 @@ class SynthXPlaybackService : MediaLibraryService() {
 
     private lateinit var player: ExoPlayer
     private lateinit var mediaLibrarySession: MediaLibrarySession
+
+    // ExoPlayer.release() has no internal double-release guard (unlike MediaSession, which
+    // does) — calling it a second time is not safe. Both onTaskRemoved() and onDestroy() can
+    // release the player, so this flag makes that idempotent regardless of which runs first.
+    private var released = false
 
     override fun onCreate() {
         super.onCreate()
@@ -54,9 +60,32 @@ class SynthXPlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession =
         mediaLibrarySession
 
+    /**
+     * Default media3 MediaSessionService behavior leaves an actively-playing session running
+     * after the task is swiped from Recents. Product decision: synthX should stop playback and
+     * tear the service down there instead, matching Spotify/YouTube Music free-tier behavior,
+     * rather than continuing to play from a task the user just dismissed.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        val index = player.currentMediaItemIndex
+        if (index != C.INDEX_UNSET && player.mediaItemCount > 0) {
+            QueuePersistence.create(this).savePlaybackState(index, player.currentPosition)
+        }
+        releasePlayback()
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
-        mediaLibrarySession.release()
-        player.release()
+        releasePlayback()
         super.onDestroy()
+    }
+
+    private fun releasePlayback() {
+        if (released) return
+        released = true
+        player.stop()
+        player.release()
+        mediaLibrarySession.release()
     }
 }
