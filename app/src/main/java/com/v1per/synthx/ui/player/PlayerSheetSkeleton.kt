@@ -133,6 +133,7 @@ fun PlayerSheetSkeleton(
     onQueueMove: (Int, Int) -> Unit,
     onQueueRemove: (songId: String) -> Unit,
     onProgressChanged: (Float) -> Unit = {},
+    collapsePlayerSignal: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -157,6 +158,17 @@ fun PlayerSheetSkeleton(
 
         BackHandler(enabled = draggableState.currentValue == PlayerSheetValue.Expanded) {
             scope.launch { draggableState.animateTo(PlayerSheetValue.Collapsed) }
+        }
+
+        // Collapses the sheet on external request (e.g. "Go to Album"/"Go to Artist"
+        // navigating away from underneath it) — same target as BackHandler above, just
+        // triggered by a caller-supplied signal instead of the system back gesture. Guarded
+        // on > 0 rather than reacting to every value change so the initial default (0) never
+        // fires a spurious collapse-from-collapsed on first composition.
+        LaunchedEffect(collapsePlayerSignal) {
+            if (collapsePlayerSignal > 0) {
+                draggableState.animateTo(PlayerSheetValue.Collapsed)
+            }
         }
 
         LaunchedEffect(availableHeightPx) {
