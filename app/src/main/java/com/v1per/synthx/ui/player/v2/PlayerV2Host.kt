@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player.v2
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.SharedTransitionScope
@@ -69,6 +70,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -173,6 +175,35 @@ private sealed interface PlayerV2GestureEvent {
  * re-examine whether 300ms is the right feel, not now.
  */
 private const val PlayerV2TransitionMs: Int = Motion.DurationNormal
+
+/**
+ * Stage 2.4b-2 — places [y] the same way `Modifier.offset(y = y)` would, except the placement
+ * happens inside [androidx.compose.ui.layout.Placeable.PlacementScope.withMotionFrameOfReferencePlacement],
+ * which tags this node's `NodeCoordinator` so that `LayoutCoordinates.localPositionOf(...,
+ * includeMotionFrameOfReference = false)` skips *this node's own offset* when computing an
+ * ancestor-to-descendant position. That flag is read per-`NodeCoordinator`
+ * (`NodeCoordinator.toParentPosition`/`fromParentPosition`, `ui-android:1.12.0`), so it must be
+ * applied at the exact node that carries the live offset — a descendant with no offset of its own
+ * cannot retroactively exclude an ancestor's.
+ *
+ * `SharedElement.onLookaheadPlaced` computes exactly this excluded-offset position as
+ * `structuralOffset` and only re-targets the shared-element bounds animation when
+ * `structuralOffset` changes (`SharedTransitionStateMachine.updateTargetData`,
+ * `animation-android:1.12.0`). A live per-frame offset like `bottomInset` feeding a plain
+ * `Modifier.offset` therefore re-targets the bounds animation every frame during a drag — the
+ * `totalDurationNanos` runaway Stage 2.4b-0's probe found. Foundation's own scroll containers
+ * (`Scroll.kt`, `LazyListMeasure.kt`) use this exact pattern for the same reason: `scroll`/`drag`
+ * offsets are motion, not structure, and `TargetData`'s own doc calls this out directly —
+ * "Structural offset is intended to only track offsets from structural changes, as opposed to
+ * scrolling/dragging offset changes."
+ */
+private fun Modifier.motionFrameOffsetY(y: Dp): Modifier = layout { measurable, constraints ->
+    val yPx = y.roundToPx()
+    val placeable = measurable.measure(constraints)
+    layout(placeable.width, placeable.height) {
+        withMotionFrameOfReferencePlacement { placeable.placeRelative(0, yPx) }
+    }
+}
 
 /**
  * Stage 1.1 of the player rebuild — see docs/player-rebuild-design.md for the eventual
@@ -902,7 +933,12 @@ fun SharedTransitionScope.PlayerV2Host(
                         // to BottomNavHeight as the nav slides out from under the sheet.
                         // Positive Y, same sign as PlayerSkeletonControlsOverlay.kt's identical
                         // correction on the old player.
-                        .offset(y = bottomInset),
+                        //
+                        // Stage 2.4b-2: was a plain `.offset(y = bottomInset)`. Replaced with
+                        // [motionFrameOffsetY] — same visual placement, but tags this node as
+                        // motion rather than structure so the coming shared-element art doesn't
+                        // see this live offset as a re-target signal. See that function's doc.
+                        .motionFrameOffsetY(bottomInset),
                     // Nothing. The reveal clip is what makes this content appear, and it
                     // already runs off `expansion` from the drag's first frame — an enter
                     // transition would be a second, redundant appearance animation layered on
@@ -948,92 +984,126 @@ fun SharedTransitionScope.PlayerV2Host(
                         onPreviousClick = onPreviousClick,
                         onNextClick = onNextClick,
                         progress = expansionState,
-                    )
-                }
-                // Migration Step 6: the mirror of Step 5, on the other state.
-                //
-                // **There was no boolean gate here to replace.** Unlike the expanded content —
-                // which Stage 2.3 gated on `expansion > 0f` — the mini content was
-                // *unconditionally composed*, for the whole life of the host, with only its
-                // opacity (the `graphicsLayer` alpha inside [PlayerV2MiniContent]) and its
-                // hit-testing (`miniContentEnabled`) driven by progress. So this step does not
-                // move a gate from one mechanism to another; it introduces a composition
-                // lifecycle where previously there was none, which is the point: Stage 2.4b
-                // needs an `AnimatedVisibilityScope` on *this* side of the transition to hang
-                // the mini album art's `Modifier.sharedElement` off, and only
-                // `Transition.AnimatedVisibility` produces one.
-                //
-                // **What actually changes on screen: nothing.** The only new behavior is
-                // disposal at the far end of an expand, and by then the alpha curve below has
-                // held this content at alpha 0 since progress ≈ 0.333 — it is disposed while
-                // already invisible, and recomposed (on a collapse drag's first frame, when
-                // `seekTo(fraction, Collapsed)` sets targetState = Collapsed) while still
-                // invisible. Traced against the shadow driver, the composition window is:
-                // present at settled Collapsed (both states Collapsed); present through an
-                // entire expand drag, because `seekTo` moves only `targetState` and
-                // `currentState` stays Collapsed; gone once `snapTo(Expanded)` commits both
-                // states; back on the first frame of any collapse drag. `visible(targetState)
-                // || visible(currentState) || …` (AnimatedVisibility.kt:808-815) is what makes
-                // both of those edges land on the same frame the alpha reaches 0f / leaves it.
-                transition.AnimatedVisibility(
-                    visible = { it == PlayerV2State.Collapsed },
-                    // The one modifier that had to relocate. [PlayerV2MiniContent]'s root Row
-                    // carried `.align(TopCenter)` as a [BoxScope] member; the content lambda
-                    // here is an `AnimatedVisibilityScope`, so `align` no longer resolves down
-                    // there and moves onto the node AnimatedVisibility emits — a direct child
-                    // of the sheet Box, exactly as the Row was, so the `BoxChildDataElement`
-                    // parent data reaches the same measure policy.
-                    //
-                    // Position-neutral for the same reason Step 5's three-modifier relocation
-                    // was: AnimatedVisibility emits one Layout whose measure policy forwards
-                    // the incoming constraints to its child untouched, reports `max(children)`
-                    // as its own size and places at (0, 0) (AnimatedVisibility.kt:896-916). So
-                    // the Row's own `fillMaxWidth().height(CollapsedPlayerHeight)` still
-                    // resolves against the sheet Box's constraints and still produces exactly
-                    // the same size, the node reports that size back up unchanged, and
-                    // `align(TopCenter)` positions the node where it positioned the Row. Only
-                    // `align` moved — the sizing modifiers stay on the Row, because unlike
-                    // Step 5's `requiredHeight` they were never fighting an incoming constraint.
-                    modifier = Modifier.align(Alignment.TopCenter),
-                    // Nothing, same as Step 5 and for the same reason: the visible appearance
-                    // is the `graphicsLayer` alpha's job and it is already correct from the
-                    // first frame. Finding 3's disposal hazard is exit-side only, so there is
-                    // no enter-side substitute to reach for.
-                    enter = EnterTransition.None,
-                    // The plan's "same inert-exit treatment" — a hold, not a fade. Two separate,
-                    // complementary mechanisms, and it matters that they stay separate: *this*
-                    // spec governs only how long the node survives after the state flips
-                    // (`shouldDisposeBlock = { current, target -> current == target && target
-                    // == PostExit }`, AnimatedVisibility.kt:780), while the visible opacity
-                    // curve stays the `(1f - progress * 3f)` graphicsLayer fade inside
-                    // [PlayerV2MiniContent]. Substituting a real `fadeOut` here would replace a
-                    // curve that completes by progress ≈ 0.333 with one keyed to the
-                    // transition's whole span — a visible behavior change, and the exact thing
-                    // the plan's Step 6 line rules out.
-                    //
-                    // Duration must be PlayerV2TransitionMs for the same reason it must be on
-                    // Step 5's exit: this is a child transition, `calculateTotalDurationNanos`
-                    // takes the max over children (Transition.kt:1161-1168), and anything
-                    // longer would lift `totalDurationNanos` above the `expansion` tween and
-                    // silently break the fraction↔expansion 1:1 identity every `seekTo`
-                    // depends on. Inert in value terms regardless: alpha targets 1f in every
-                    // one of PreEnter/Visible/PostExit (EnterExitTransition.kt:1180-1184), and
-                    // with no `changeSize` on either side `shouldAnimateSizeChange` is false
-                    // (:956-957), so no size or offset animation is created either.
-                    exit = fadeOut(
-                        animationSpec = tween(PlayerV2TransitionMs, easing = LinearEasing),
-                        targetAlpha = 1f,
-                    ),
-                ) {
-                    PlayerV2MiniContent(
-                        song = song,
-                        isPlaying = isPlaying,
-                        isBuffering = isBuffering,
-                        onPlayPauseClick = onPlayPauseClick,
-                        progress = expansionState,
+                        // PROBE 2.4b-2 (TEMPORARY DEBUG — revert before 2.4b-3 lands the real
+                        // wiring): a throwaway sharedElement, same discipline as the reverted
+                        // Stage 2.4b-0 probe, to confirm on-device that totalDurationNanos (see
+                        // the SideEffect near the end of this function) now stays bounded
+                        // through a full expand/collapse drag rather than climbing.
+                        probeArtModifier = Modifier.sharedElement(
+                            rememberSharedContentState(key = "PROBE_2_4b2_player_album_art"),
+                            animatedVisibilityScope = this,
+                        ),
                     )
                 }
             }
+        }
+        // Migration Step 6 introduced this AnimatedVisibility; Stage 2.4b-2 relocated it here,
+        // as a sibling of the sheet Box above rather than a child of it.
+        //
+        // **There was no boolean gate here to replace at Step 6.** Unlike the expanded content —
+        // which Stage 2.3 gated on `expansion > 0f` — the mini content was
+        // *unconditionally composed*, for the whole life of the host, with only its
+        // opacity (the `graphicsLayer` alpha inside [PlayerV2MiniContent]) and its
+        // hit-testing (`miniContentEnabled`) driven by progress. So Step 6 did not
+        // move a gate from one mechanism to another; it introduced a composition
+        // lifecycle where previously there was none — Stage 2.4b needs an
+        // `AnimatedVisibilityScope` on *this* side of the transition to hang the mini
+        // album art's `Modifier.sharedElement` off, and only `Transition.AnimatedVisibility`
+        // produces one.
+        //
+        // **Why this moved out of the sheet Box at Stage 2.4b-2.** Through Step 6 this sat
+        // inside the sheet's own `Box`, `.align(Alignment.TopCenter)` against that Box's live
+        // `sheetHeight` — so the mini row's top edge rose with the sheet as it expanded, purely
+        // as a side effect of sharing a container with something that resizes. Design doc §4
+        // says mini content "simply fades... no reveal treatment," and §3 restricts all
+        // per-frame position/size animation to the album art's eventual shared-element morph —
+        // the mini row was never meant to move at all. It also made the mini album art's frame
+        // a moving lookahead target for exactly the same reason the expanded art's frame was:
+        // Stage 2.4b-0's probe found this exact container's live resize is what sends
+        // `totalDurationNanos` climbing once a `sharedElement` is attached, because
+        // `SharedElement.onLookaheadPlaced`'s `structuralOffset` changes every frame the sheet
+        // is resizing (see [motionFrameOffsetY]'s doc for the same mechanism on the expanded
+        // side). Being a sibling of the sheet rather than a child fixes this outright, rather
+        // than needing a `withMotionFrameOfReferencePlacement` workaround the way the expanded
+        // side does — there's no live offset here left to exclude, because there's nothing left
+        // that varies.
+        //
+        // Position: `BottomCenter` + a **fixed** `-BottomNavHeight`, not the live `bottomInset`.
+        // `BottomNavHeight` is exactly the collapsed bar's resting inset (`bottomInset` at
+        // expansion = 0 — see `bottomInset`'s own `lerp(BottomNavHeight, 0.dp, expansion)`
+        // above), so this reproduces the mini bar's on-screen position at rest and then holds
+        // it there for the mini row's entire visible span, rather than tracking `bottomInset`'s
+        // small drift toward 0 as expansion approaches the ≈0.333 point where the row is
+        // already fully faded out. Using the live value here would have been a smaller version
+        // of the exact bug this stage exists to remove.
+        //
+        // **What actually changes on screen: nothing**, same as Step 6's own claim. The row's
+        // fixed frame at expansion = 0 is numerically identical to where `.align(TopCenter)`
+        // inside the sheet Box put it before (the sheet's own height is `CollapsedPlayerHeight`
+        // at rest, so its top edge and this fixed frame's top edge coincide); the divergence
+        // only exists while dragging, and by ≈0.333 of that drag the row is already invisible.
+        transition.AnimatedVisibility(
+            visible = { it == PlayerV2State.Collapsed },
+            modifier = Modifier.align(Alignment.BottomCenter).offset(y = -BottomNavHeight),
+            // Nothing, same as Step 5 and for the same reason: the visible appearance
+            // is the `graphicsLayer` alpha's job and it is already correct from the
+            // first frame. Finding 3's disposal hazard is exit-side only, so there is
+            // no enter-side substitute to reach for.
+            enter = EnterTransition.None,
+            // The plan's "same inert-exit treatment" — a hold, not a fade. Two separate,
+            // complementary mechanisms, and it matters that they stay separate: *this*
+            // spec governs only how long the node survives after the state flips
+            // (`shouldDisposeBlock = { current, target -> current == target && target
+            // == PostExit }`, AnimatedVisibility.kt:780), while the visible opacity
+            // curve stays the `(1f - progress * 3f)` graphicsLayer fade inside
+            // [PlayerV2MiniContent]. Substituting a real `fadeOut` here would replace a
+            // curve that completes by progress ≈ 0.333 with one keyed to the
+            // transition's whole span — a visible behavior change, and the exact thing
+            // the plan's Step 6 line rules out.
+            //
+            // Duration must be PlayerV2TransitionMs for the same reason it must be on
+            // Step 5's exit: this is a child transition, `calculateTotalDurationNanos`
+            // takes the max over children (Transition.kt:1161-1168), and anything
+            // longer would lift `totalDurationNanos` above the `expansion` tween and
+            // silently break the fraction↔expansion 1:1 identity every `seekTo`
+            // depends on. Inert in value terms regardless: alpha targets 1f in every
+            // one of PreEnter/Visible/PostExit (EnterExitTransition.kt:1180-1184), and
+            // with no `changeSize` on either side `shouldAnimateSizeChange` is false
+            // (:956-957), so no size or offset animation is created either.
+            exit = fadeOut(
+                animationSpec = tween(PlayerV2TransitionMs, easing = LinearEasing),
+                targetAlpha = 1f,
+            ),
+        ) {
+            PlayerV2MiniContent(
+                song = song,
+                isPlaying = isPlaying,
+                isBuffering = isBuffering,
+                onPlayPauseClick = onPlayPauseClick,
+                progress = expansionState,
+                // PROBE 2.4b-2 (TEMPORARY DEBUG — revert before 2.4b-3 lands the real wiring):
+                // see the matching probe at the PlayerV2ExpandedContent call site above for what
+                // this is verifying.
+                probeArtModifier = Modifier.sharedElement(
+                    rememberSharedContentState(key = "PROBE_2_4b2_player_album_art"),
+                    animatedVisibilityScope = this,
+                ),
+            )
+        }
+        // PROBE 2.4b-2 (TEMPORARY DEBUG — revert before 2.4b-3 lands the real wiring): confirms
+        // totalDurationNanos stays bounded near PlayerV2TransitionMs throughout a full drag now
+        // that both album art frames are lookahead-static, rather than climbing the way Stage
+        // 2.4b-0's probe found before this stage's restructure. Remove this SideEffect, the two
+        // `probeArtModifier` call sites above/below, and the `probeArtModifier` parameters on
+        // PlayerV2MiniContent/PlayerV2ExpandedContent once confirmed on-device.
+        SideEffect {
+            Log.d(
+                "PlayerV2Probe2_4b2",
+                "totalDurationMs=${transition.totalDurationNanos / 1_000_000} " +
+                    "expansion=$expansion fraction=${seekableState.fraction} " +
+                    "currentState=${seekableState.currentState} " +
+                    "targetState=${seekableState.targetState}",
+            )
         }
     }
 }
@@ -1262,6 +1332,10 @@ private fun PlayerV2ExpandedContent(
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
     progress: State<Float>,
+    // PROBE 2.4b-2 (TEMPORARY DEBUG parameter — revert before 2.4b-3 lands the real wiring):
+    // applied to a Box wrapping the art below, purely so the probe's throwaway sharedElement
+    // doesn't require changing PlayerAlbumArt's own signature.
+    probeArtModifier: Modifier = Modifier,
 ) {
     // Keyed on progress's own identity (stable for this composable's whole lifetime — as of
     // migration Step 4 it's the same animateFloat TransitionAnimationState instance from
@@ -1322,13 +1396,17 @@ private fun PlayerV2ExpandedContent(
             // Square, capped by whichever axis binds. maxHeight here is the genuine leftover
             // space, so the cap needs no separate derivation.
             val side = min(maxWidth - ExpandedContentHorizontalInset * 2, maxHeight)
-            PlayerAlbumArt(
-                song = song,
-                isPlaying = isPlaying,
-                size = side,
-                // The mini bar's 44dp thumbnail would visibly upscale at this size.
-                fullResolution = true,
-            )
+            // PROBE 2.4b-2 (TEMPORARY DEBUG — revert before 2.4b-3): wrapping Box carries the
+            // throwaway sharedElement rather than changing PlayerAlbumArt's signature.
+            Box(modifier = probeArtModifier) {
+                PlayerAlbumArt(
+                    song = song,
+                    isPlaying = isPlaying,
+                    size = side,
+                    // The mini bar's 44dp thumbnail would visibly upscale at this size.
+                    fullResolution = true,
+                )
+            }
         }
         PlayerV2TitleRow(song = song)
         Spacer(modifier = Modifier.height(Spacing.lg))
@@ -1608,6 +1686,10 @@ private fun PlayerV2MiniContent(
     isBuffering: Boolean,
     onPlayPauseClick: () -> Unit,
     progress: State<Float>,
+    // PROBE 2.4b-2 (TEMPORARY DEBUG parameter — revert before 2.4b-3 lands the real wiring):
+    // applied to a Box wrapping the art below, purely so the probe's throwaway sharedElement
+    // doesn't require changing PlayerAlbumArt's own signature.
+    probeArtModifier: Modifier = Modifier,
 ) {
     // `DragResistantIconButton`'s `enabled` is a plain Boolean composable parameter, not a
     // draw-phase-readable modifier — unlike the graphicsLayer alpha below, there is no way to
@@ -1627,20 +1709,24 @@ private fun PlayerV2MiniContent(
 
     Row(
         modifier = Modifier
-            // `.align(Alignment.TopCenter)` used to head this chain. It moved to the
-            // AnimatedVisibility node at the call site in migration Step 6 — see this
-            // composable's doc, and that call site's own comment for why the move is
-            // position-neutral.
+            // An `.align(...)` used to head this chain (TopCenter through Step 6, then
+            // BottomCenter + a fixed offset as of Stage 2.4b-2). It lives on the
+            // AnimatedVisibility node at the call site, not here — see this composable's
+            // doc, and that call site's own comment for why the move is position-neutral.
             .fillMaxWidth()
             .height(CollapsedPlayerHeight)
             .padding(horizontal = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PlayerAlbumArt(
-            song = song,
-            isPlaying = isPlaying,
-            size = 44.dp,
-        )
+        // PROBE 2.4b-2 (TEMPORARY DEBUG — revert before 2.4b-3): wrapping Box carries the
+        // throwaway sharedElement rather than changing PlayerAlbumArt's signature.
+        Box(modifier = probeArtModifier) {
+            PlayerAlbumArt(
+                song = song,
+                isPlaying = isPlaying,
+                size = 44.dp,
+            )
+        }
         Spacer(modifier = Modifier.width(Spacing.sm))
         // Wraps exactly the title/artist + play/pause portion — see this composable's doc for
         // why the fade can't land on the root Row the way the old player's does. weight(1f)
