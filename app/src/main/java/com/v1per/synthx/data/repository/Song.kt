@@ -12,6 +12,8 @@ data class Song(
     val duration: Long,
     val filePath: String,
     val albumArtUri: String? = null,
+    /** Untouched-original-bytes full-resolution art, used by the player sheet. */
+    val albumArtFullUri: String? = null,
     val isMissing: Boolean = false,
     val dateAdded: Long = 0L,
     /** Null when the file carried no album tag. Needed to navigate to album detail. */

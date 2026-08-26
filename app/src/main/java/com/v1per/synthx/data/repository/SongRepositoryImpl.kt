@@ -352,6 +352,7 @@ class SongRepositoryImpl(
             duration = song.duration,
             filePath = song.filePath,
             albumArtUri = song.albumArtUri,
+            albumArtFullUri = song.albumArtFullUri,
             isMissing = song.isMissing,
             dateAdded = song.dateAdded,
             albumId = song.albumId,

@@ -35,12 +35,13 @@ fun PlayerAlbumArt(
             .scale(scale)
             .clip(MaterialTheme.shapes.small),
     ) {
-        if (song.albumArtUri != null) {
+        val artUri = if (fullResolution) song.albumArtFullUri ?: song.albumArtUri else song.albumArtUri
+        if (artUri != null) {
             // The mini thumbnail loads at its 44dp display size. The expanded player
             // opts into original resolution so Coil decodes the artwork at full size
             // instead of upscaling the small cached thumbnail.
             AsyncImage(
-                model = crossfadeModel(song.albumArtUri, original = fullResolution),
+                model = crossfadeModel(artUri, original = fullResolution),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
