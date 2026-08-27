@@ -228,6 +228,17 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * The canonical migration chain, in order. Single source of truth for every Room
+         * builder in this file — the live singleton in [getOrCreate] and the offline
+         * restore candidate in [createStandalone] must migrate identically, so neither
+         * builds its own list. Append new migrations here and nowhere else.
+         */
+        internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+            MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+        )
+
         fun getInstance(context: Context): SynthXDatabase {
             // Fail closed synchronously. Callers must asynchronously await DatabaseStartupGate;
             // this factory never blocks a main thread on SAF and never opens Room prematurely.
@@ -254,10 +265,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     SynthXDatabase::class.java,
                     DB_NAME,
                 )
-                    .addMigrations(
-                        MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
-                    )
+                    .addMigrations(*ALL_MIGRATIONS)
                     .build()
                     .also { INSTANCE = it }
             }
@@ -273,10 +281,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                 SynthXDatabase::class.java,
                 databaseName,
             )
-                .addMigrations(
-                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                    MIGRATION_6_7, MIGRATION_7_8,
-                )
+                .addMigrations(*ALL_MIGRATIONS)
                 .build()
         }
 
