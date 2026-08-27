@@ -424,6 +424,7 @@ fun PlayerSheetSkeleton(
                     queueListOffsetY = artPosition.queueListOffsetY,
                     headerRegionHeight = QueueHeaderRegionHeight,
                     queueListState = queueModeState.queueListState,
+                    queueScrollConnection = queueModeState.queueScrollConnection,
                     surfaceColor = surfaceColor,
                     expandedContentAlpha = expandedContentAlpha,
                     queueProgressValue = queueModeState.queueProgress.value,
