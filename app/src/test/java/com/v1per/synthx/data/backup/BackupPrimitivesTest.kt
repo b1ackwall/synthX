@@ -1,5 +1,6 @@
 package com.v1per.synthx.data.backup
 
+import com.v1per.synthx.data.db.SynthXDatabase
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.concurrent.atomic.AtomicInteger
@@ -102,14 +103,23 @@ class BackupPrimitivesTest {
 
     @Test
     fun `schema contracts resolve current and known migration versions`() {
-        val current = assertNotNull(BackupSchemaContracts.forVersion(8))
-        assertEquals("5c340ed398e096db822b28b067600167", current.roomIdentityHash)
+        val current = assertNotNull(BackupSchemaContracts.forVersion(SynthXDatabase.VERSION))
+        assertEquals(current, BackupSchemaContracts.current)
+        assertEquals("956df3c0e8aa04390ba812529e813c94", current.roomIdentityHash)
         assertTrue("songs" in current.expectedTables)
         assertTrue("queue_items" in current.expectedTables)
         assertTrue("queue_baseline_items" in current.expectedTables)
+
+        // A trusted v8 backup is still a valid *source* to migrate forward from — the
+        // contract map must keep describing it, not just the current version.
+        val previous = assertNotNull(BackupSchemaContracts.forVersion(8))
+        assertEquals("5c340ed398e096db822b28b067600167", previous.roomIdentityHash)
+        assertTrue(previous.hasMigrationPathToCurrent)
+
         assertEquals(7, BackupSchemaContracts.forVersion(7)?.userVersion)
         assertTrue(BackupSchemaContracts.forVersion(7)?.hasMigrationPathToCurrent == true)
-        assertEquals((1..8).toSet(), (1..8).mapNotNull(BackupSchemaContracts::forVersion).map { it.userVersion }.toSet())
+        val known = 1..SynthXDatabase.VERSION
+        assertEquals(known.toSet(), known.mapNotNull(BackupSchemaContracts::forVersion).map { it.userVersion }.toSet())
         assertNull(BackupSchemaContracts.forVersion(99))
     }
 

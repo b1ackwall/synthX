@@ -120,7 +120,7 @@ class BackupSnapshotInstrumentedTest {
         val validated = BackupSnapshotValidator.validate(staged, migrationSnapshot = false)
 
         assertEquals(SynthXDatabase.VERSION, validated.schema.userVersion)
-        assertEquals("5c340ed398e096db822b28b067600167", validated.schema.roomIdentityHash)
+        assertEquals("956df3c0e8aa04390ba812529e813c94", validated.schema.roomIdentityHash)
         assertTrue(validated.schema.expectedTables.containsAll(setOf("songs", "queue_items")))
     }
 
