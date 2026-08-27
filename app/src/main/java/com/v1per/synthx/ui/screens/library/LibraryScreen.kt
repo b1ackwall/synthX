@@ -55,13 +55,13 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.ArtPlaceholder
-import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -213,12 +213,7 @@ private fun LibraryScreenContent(
 
         item(key = "recently_added") {
             if (isLoading) {
-                LoadingIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .padding(vertical = Spacing.xl),
-                )
+                RecentlyAddedSectionSkeleton()
             } else if (recentSongs.isNotEmpty()) {
                 RecentlyAddedSection(
                     songs = recentSongs,
@@ -292,6 +287,74 @@ private fun RecentlyAddedSection(
                 }
             }
         }
+    }
+}
+
+// Matches RecentlyAddedSection's header/grid shape while data is still loading. The "See
+// all" action is omitted rather than shown disabled — there's nothing to see all of yet.
+private const val SkeletonTileCount = 6
+
+@Composable
+private fun RecentlyAddedSectionSkeleton() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.library_recently_added),
+            style = MaterialTheme.typography.titleMedium,
+            color = TextPrimary,
+            modifier = Modifier
+                .padding(horizontal = Spacing.HorizontalPadding)
+                .padding(top = Spacing.lg),
+        )
+
+        Spacer(modifier = Modifier.height(Spacing.md))
+
+        val rows = (1..SkeletonTileCount).chunked(2)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.HorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
+        ) {
+            rows.forEach { rowSlots ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
+                ) {
+                    rowSlots.forEach { _ ->
+                        RecentSongTileSkeleton(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Static placeholder matching [RecentSongTile]'s silhouette — no shimmer, no animation. */
+@Composable
+private fun RecentSongTileSkeleton(modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(MaterialTheme.shapes.small)
+                .background(SurfaceVariant),
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.7f)
+                .height(10.dp)
+                .clip(MaterialTheme.shapes.small)
+                .background(TextSecondary.copy(alpha = 0.24f)),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.5f)
+                .height(8.dp)
+                .clip(MaterialTheme.shapes.small)
+                .background(TextSecondary.copy(alpha = 0.14f)),
+        )
     }
 }
 

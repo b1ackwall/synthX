@@ -201,15 +201,35 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
      * active playback to queue behind. The engine's insert is timeline-only (no prepare,
      * no play), so without this branch "Play Next" against a dead queue would put the song
      * in the timeline and leave the player idle.
+     *
+     * Returns `false` without touching the controller when [song] is already the current
+     * song or already sits in [upcomingQueue] — dedup only applies to this branch, since
+     * there is nothing to be a duplicate of when [hasActivePlayback] is false.
      */
-    fun playNext(song: Song) {
-        if (hasActivePlayback()) controller.playNext(song) else playQueue(listOf(song), 0)
+    fun playNext(song: Song): Boolean {
+        if (!hasActivePlayback()) {
+            playQueue(listOf(song), 0)
+            return true
+        }
+        if (isAlreadyQueued(song.id)) return false
+        controller.playNext(song)
+        return true
     }
 
-    /** Appends [song], with the same fall back to starting playback as [playNext]. */
-    fun addToQueue(song: Song) {
-        if (hasActivePlayback()) controller.addToQueue(song) else playQueue(listOf(song), 0)
+    /** Appends [song], with the same fall back to starting playback and dedup as [playNext]. */
+    fun addToQueue(song: Song): Boolean {
+        if (!hasActivePlayback()) {
+            playQueue(listOf(song), 0)
+            return true
+        }
+        if (isAlreadyQueued(song.id)) return false
+        controller.addToQueue(song)
+        return true
     }
+
+    /** True when [songId] is the current song or already sits in [upcomingQueue]. */
+    private fun isAlreadyQueued(songId: String): Boolean =
+        songId == currentSongId.value || upcomingQueue.value.any { it.id == songId }
 
     /** [fromIndex]/[toIndex] are positions in [upcomingQueue] — the Up Next screen's rows. */
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = controller.moveQueueItem(fromIndex, toIndex)

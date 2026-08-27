@@ -61,6 +61,7 @@ fun BottomChromeOverlay(
     currentSong: Song?,
     playerProgress: Float,
     onPlayerProgressChanged: (Float) -> Unit,
+    collapsePlayerSignal: Int,
     playbackViewModel: PlaybackViewModel,
     onSearchReselected: () -> Unit,
 ) {
@@ -140,6 +141,7 @@ fun BottomChromeOverlay(
                     onQueueMove = playbackViewModel::moveQueueItem,
                     onQueueRemove = playbackViewModel::removeQueueItem,
                     onProgressChanged = onPlayerProgressChanged,
+                    collapsePlayerSignal = collapsePlayerSignal,
                 )
             }
         }

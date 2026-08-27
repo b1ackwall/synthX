@@ -26,6 +26,8 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 
+private const val RecentSongsLimit = 20
+
 sealed class NavigationEvent {
     object GoToSongs : NavigationEvent()
     object GoToArtistList : NavigationEvent()
@@ -69,15 +71,8 @@ class LibraryViewModel(
 
     init {
         viewModelScope.launch {
-            repository.getSongs()
-                .map { songs ->
-                    // Filtered before the take, so a run of missing songs can't crowd out
-                    // playable ones. RecentSongTile has no disabled state, unlike SongRow.
-                    songs.filter { !it.isMissing }
-                        .sortedByDescending { it.dateAdded }
-                        .take(20)
-                        .toPersistentList()
-                }
+            repository.getRecentSongs(RecentSongsLimit)
+                .map { it.toPersistentList() }
                 .flowOn(Dispatchers.Default)
                 .catch { e ->
                     _error.value = LoadError.RecentlyAdded.message(appContext)

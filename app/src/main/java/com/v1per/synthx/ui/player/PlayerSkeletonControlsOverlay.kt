@@ -62,12 +62,13 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * this Column can cancel it back out of its own placement — see the offset's doc comment below
  * for why this is the one child of the sheet that compensates for it.
  *
- * [controlsVisible] is the queue-list scroll-position term computed in PlayerSheetSkeleton.kt
- * (mirrors the old (dead) PlayerExpandedContent.kt's identically-named value, same
- * ControlsCollapseThreshold and derivedStateOf against the shared queueListState). Combined
+ * [controlsVisible] is the gesture-direction term computed by
+ * `QueueModeState.queueScrollConnection` in QueueModeState.kt (a `NestedScrollConnection`
+ * observing the queue list's own drag deltas — see that property's doc comment). Combined
  * here as `!isQueueMode || controlsVisible` — the overlay always shows in player mode, and is
- * scroll-gated only once queue mode is entered — same logic the old code used for its own
- * `!showQueue || controlsVisible`.
+ * gesture-gated only once queue mode is entered — mirrors the old (dead)
+ * PlayerExpandedContent.kt's identically-named value and its own `!showQueue || controlsVisible`,
+ * just driven by swipe direction instead of scroll position.
  *
  * The result is animated via `animateFloatAsState` rather than wrapping this Column in
  * `AnimatedVisibility`: this file already expresses every other visibility term

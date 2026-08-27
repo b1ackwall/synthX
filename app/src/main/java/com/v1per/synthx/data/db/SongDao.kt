@@ -51,6 +51,17 @@ interface SongDao {
     )
     fun getSongsWithDetailsForAlbum(albumId: String): Flow<List<SongWithDetails>>
 
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM songs
+        WHERE is_missing = 0
+        ORDER BY date_added DESC
+        LIMIT :limit
+        """
+    )
+    fun getRecentSongsWithDetails(limit: Int): Flow<List<SongWithDetails>>
+
     // Room batches the @Relation loads, same as getSongsWithDetailsForArtist/Album — joins
     // straight to playlist_songs so the result set is the playlist, not the whole library.
     @Transaction

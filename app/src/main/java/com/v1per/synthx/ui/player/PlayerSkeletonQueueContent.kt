@@ -21,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -55,10 +57,11 @@ import kotlinx.collections.immutable.toPersistentList
  * region ends.
  *
  * [queueListState] is hoisted up in PlayerSheetSkeleton.kt (not owned here) and passed
- * straight into [QueueList]'s own `state` param — that same instance is what
- * PlayerSheetSkeleton.kt reads to derive `controlsVisible` for
- * `PlayerSkeletonControlsOverlay`, so the overlay's scroll-driven hide/show tracks this exact
- * list's scroll position.
+ * straight into [QueueList]'s own `state` param. [queueScrollConnection] is that same
+ * PlayerSheetSkeleton.kt's `QueueModeState.queueScrollConnection`, applied here via
+ * `Modifier.nestedScroll` on [QueueList]'s modifier — it observes this list's drag deltas
+ * directly (regardless of whether the list itself has room to scroll) to derive
+ * `controlsVisible` for `PlayerSkeletonControlsOverlay`.
  *
  * [QueueList] reports a swipe-to-remove as an index into [upcomingQueue]; this composable
  * resolves it to a song id here, while the list is still in hand, and hands [onQueueRemove]
@@ -89,6 +92,7 @@ fun PlayerSkeletonQueueContent(
     queueListOffsetY: Dp,
     headerRegionHeight: Dp,
     queueListState: LazyListState,
+    queueScrollConnection: NestedScrollConnection,
     surfaceColor: Color,
     expandedContentAlpha: Float,
     queueProgressValue: Float,
@@ -190,6 +194,11 @@ fun PlayerSkeletonQueueContent(
                 modifier = Modifier
                     // Same summed anchor-plus-slide as the header Column above.
                     .offset(y = queueListOffsetY + queueContentSlideOffset)
+                    // Observes drag deltas dispatched by QueueList's own LazyColumn (nested
+                    // scroll dispatch reports these regardless of whether the list can
+                    // actually scroll) to drive the controls overlay's gesture-direction
+                    // visibility — see QueueModeState.queueScrollConnection's doc comment.
+                    .nestedScroll(queueScrollConnection)
                     .fillMaxWidth()
                     .fillMaxHeight()
                     .alpha(queueContentAlpha),

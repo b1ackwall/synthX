@@ -29,6 +29,7 @@ data class SongEntity(
     val duration: Long,
     @ColumnInfo(name = "file_path") val filePath: String,
     @ColumnInfo(name = "album_art_uri") val albumArtUri: String?,
+    @ColumnInfo(name = "album_art_full_uri", defaultValue = "NULL") val albumArtFullUri: String? = null,
     val year: Int?,
     @ColumnInfo(name = "track_number") val trackNumber: Int? = null,
     @ColumnInfo(name = "date_added") val dateAdded: Long,

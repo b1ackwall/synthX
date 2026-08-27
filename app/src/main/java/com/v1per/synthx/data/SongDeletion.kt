@@ -38,17 +38,21 @@ suspend fun deleteSongRowWithArtRepoint(songDao: SongDao, albumDao: AlbumDao, so
 }
 
 /**
- * Deletes a song's embedded-art file from filesDir/art/, if it has one. Best-effort (returns
+ * Deletes a song's embedded-art files from filesDir/art/, if it has any. Best-effort (returns
  * false when the song never had embedded art, which is normal). Must only be called after the
  * transaction that deleted the song row has committed — a file delete cannot be rolled back
  * alongside the DB.
  *
  * Matches by songId prefix rather than a fixed extension: older art was written as
  * `art_<id>.png`, newer art as `art_<id>.jpg` (see FolderScanner.extractAlbumArt) — both must
- * be deletable without knowing which format a given song's file was written in.
+ * be deletable without knowing which format a given song's file was written in. Also matches
+ * the untouched-original full-resolution copy, `art_full_<id>.<ext>`, whose extension varies
+ * by sniffed source format (jpg/png/webp).
  */
 fun deleteSongArtFile(context: Context, songId: String): Boolean {
     val artDir = File(context.filesDir, "art")
-    val matches = artDir.listFiles { file -> file.name.startsWith("art_$songId.") } ?: return false
+    val matches = artDir.listFiles { file ->
+        file.name.startsWith("art_$songId.") || file.name.startsWith("art_full_$songId.")
+    } ?: return false
     return matches.fold(false) { deletedAny, file -> file.delete() || deletedAny }
 }

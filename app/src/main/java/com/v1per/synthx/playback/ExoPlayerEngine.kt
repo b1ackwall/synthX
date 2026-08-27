@@ -228,9 +228,15 @@ class ExoPlayerEngine(
         controller?.repeatMode = mode.toPlayerRepeatMode()
     }
 
-    override fun playNext(song: Song) = playNextInternal(song)
+    override fun playNext(song: Song): Boolean {
+        playNextInternal(song)
+        return true
+    }
 
-    override fun addToQueue(song: Song) = addToQueueInternal(song)
+    override fun addToQueue(song: Song): Boolean {
+        addToQueueInternal(song)
+        return true
+    }
 
     override fun moveQueueItem(fromIndex: Int, toIndex: Int) = moveQueueItemInternal(fromIndex, toIndex)
 

@@ -27,8 +27,8 @@ class PlaybackController(private val engine: PlaybackEngine) {
     fun previous() = engine.previous()
     fun setShuffleEnabled(enabled: Boolean) = engine.setShuffleEnabled(enabled)
     fun setRepeatMode(mode: RepeatMode) = engine.setRepeatMode(mode)
-    fun playNext(song: Song) = engine.playNext(song)
-    fun addToQueue(song: Song) = engine.addToQueue(song)
+    fun playNext(song: Song): Boolean = engine.playNext(song)
+    fun addToQueue(song: Song): Boolean = engine.addToQueue(song)
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = engine.moveQueueItem(fromIndex, toIndex)
     /** Identity-based, not index-based — see [PlaybackEngine.removeQueueItem] for why. */
     fun removeQueueItem(songId: String) = engine.removeQueueItem(songId)

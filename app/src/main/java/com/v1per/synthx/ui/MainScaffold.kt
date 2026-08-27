@@ -129,6 +129,12 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     // to slide the bottom nav down in lockstep with the sheet's expansion.
     var playerProgress by remember { mutableStateOf(0f) }
 
+    // Incremented to signal "collapse the expanded player" — e.g. when "Go to Album"/"Go to
+    // Artist" navigates away from underneath it. An Int counter rather than a Boolean so a
+    // second collapse request while already collapsed still re-triggers the LaunchedEffect
+    // that observes it (a repeated `true` wouldn't).
+    var collapsePlayerSignal by remember { mutableStateOf(0) }
+
     // Bottom chrome reservation, applied per destination (never on the NavHost itself, so
     // an outgoing screen can't reflow mid-transition).
     val chromeBottomPadding by remember(currentSong, showBottomBar) {
@@ -163,9 +169,11 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     SongActionsHost(
         snackbarHostState = snackbarHostState,
         onNavigateToAlbum = { albumId, albumTitle ->
+            collapsePlayerSignal++
             navController.navigate(Screen.AlbumDetail.createRoute(albumId, albumTitle))
         },
         onNavigateToArtist = { artistId, artistName ->
+            collapsePlayerSignal++
             navController.navigate(Screen.ArtistDetail.createRoute(artistId, artistName))
         },
         onPlayNext = playbackViewModel::playNext,
@@ -189,6 +197,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
             currentSong = currentSong,
             playerProgress = playerProgress,
             onPlayerProgressChanged = { playerProgress = it },
+            collapsePlayerSignal = collapsePlayerSignal,
             playbackViewModel = playbackViewModel,
             onSearchReselected = { searchReselectEvents.tryEmit(Unit) },
         )

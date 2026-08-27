@@ -21,7 +21,7 @@ import com.v1per.synthx.data.backup.RestoreStartup
         QueueItemEntity::class,
         BaselineQueueItemEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -35,7 +35,7 @@ abstract class SynthXDatabase : RoomDatabase() {
 
     companion object {
         /** Must track the `version` in the @Database annotation above. */
-        const val VERSION = 8
+        const val VERSION = 9
 
         const val DB_NAME = "synthx.db"
 
@@ -213,6 +213,21 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        // Adds songs.album_art_full_uri, holding the untouched-original-bytes full-resolution
+        // art copy alongside the existing compressed album_art_uri. Additive, same shape as
+        // 7_8's ADD COLUMN — no backfill possible since the original bytes for already-scanned
+        // songs were never retained, so existing rows simply keep this column NULL until a
+        // fresh scan re-extracts art for them.
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Default NULL must match SongEntity's @ColumnInfo(defaultValue = "NULL")
+                // exactly or Room's open-time schema validation throws.
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN album_art_full_uri TEXT DEFAULT NULL"
+                )
+            }
+        }
+
         fun getInstance(context: Context): SynthXDatabase {
             // Fail closed synchronously. Callers must asynchronously await DatabaseStartupGate;
             // this factory never blocks a main thread on SAF and never opens Room prematurely.
@@ -241,7 +256,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                 )
                     .addMigrations(
                         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                        MIGRATION_6_7, MIGRATION_7_8,
+                        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
                     )
                     .build()
                     .also { INSTANCE = it }

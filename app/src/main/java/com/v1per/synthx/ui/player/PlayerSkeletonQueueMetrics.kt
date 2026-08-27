@@ -12,14 +12,6 @@ import com.v1per.synthx.ui.theme.Spacing
 val QueueModeArtSize: Dp = 44.dp
 
 /**
- * How far the queue list has to scroll before the controls overlay hides — mirrored from the
- * old (dead) PlayerExpandedContent.kt's private ControlsCollapseThreshold (32dp), same value,
- * same purpose: `queueListState`'s scroll position (tracked in QueueModeState.kt) is read
- * against this threshold to derive `controlsVisible`.
- */
-val ControlsCollapseThreshold: Dp = 32.dp
-
-/**
  * Approximate height of the (not yet ported) queue-mode header row, used only to vertically
  * center the 44dp queue art within it. The old QueueModeHeader's height was content-driven
  * (sized by its tallest child — effectively the two-line title/artist column), not a fixed

@@ -53,7 +53,9 @@ sealed class SongActionEvent {
     data class AlreadyInPlaylist(val playlistName: String) : SongActionEvent()
     data class AddedToPlaylist(val playlistName: String) : SongActionEvent()
     data object PlayingNext : SongActionEvent()
+    data object AlreadyPlayingNext : SongActionEvent()
     data object AddedToQueue : SongActionEvent()
+    data object AlreadyInQueue : SongActionEvent()
     data object RemovedFromStarred : SongActionEvent()
 }
 
@@ -82,8 +84,8 @@ fun SongActionsHost(
     // Supplied by the caller for the same reason the navigation callbacks are: the host
     // sits below whatever owns the PlaybackViewModel, and SongActionsViewModel has no
     // business reaching playback.
-    onPlayNext: (Song) -> Unit,
-    onAddToQueue: (Song) -> Unit,
+    onPlayNext: (Song) -> Boolean,
+    onAddToQueue: (Song) -> Boolean,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -104,7 +106,11 @@ fun SongActionsHost(
                 is SongActionEvent.AddedToPlaylist ->
                     context.getString(R.string.actions_added_to_playlist, event.playlistName)
                 SongActionEvent.PlayingNext -> context.getString(R.string.actions_playing_next)
+                SongActionEvent.AlreadyPlayingNext ->
+                    context.getString(R.string.actions_already_playing_next)
                 SongActionEvent.AddedToQueue -> context.getString(R.string.actions_added_to_queue)
+                SongActionEvent.AlreadyInQueue ->
+                    context.getString(R.string.actions_already_in_queue)
                 SongActionEvent.RemovedFromStarred ->
                     context.getString(R.string.actions_removed_from_starred)
             }
@@ -174,15 +180,15 @@ fun SongActionsHost(
             onPlayNext = {
                 val song = current.song
                 dismiss {
-                    onPlayNext(song)
-                    viewModel.confirmPlayNext()
+                    val added = onPlayNext(song)
+                    viewModel.confirmPlayNext(added)
                 }
             },
             onAddToQueue = {
                 val song = current.song
                 dismiss {
-                    onAddToQueue(song)
-                    viewModel.confirmAddToQueue()
+                    val added = onAddToQueue(song)
+                    viewModel.confirmAddToQueue(added)
                 }
             },
             onRemoveFromPlaylist = {
@@ -285,12 +291,12 @@ class SongActionsViewModel(
      * same event flow the playlist actions already use, so every sheet action reports back
      * through one channel.
      */
-    fun confirmPlayNext() {
-        _events.tryEmit(SongActionEvent.PlayingNext)
+    fun confirmPlayNext(added: Boolean) {
+        _events.tryEmit(if (added) SongActionEvent.PlayingNext else SongActionEvent.AlreadyPlayingNext)
     }
 
-    fun confirmAddToQueue() {
-        _events.tryEmit(SongActionEvent.AddedToQueue)
+    fun confirmAddToQueue(added: Boolean) {
+        _events.tryEmit(if (added) SongActionEvent.AddedToQueue else SongActionEvent.AlreadyInQueue)
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {

@@ -391,6 +391,7 @@ class FolderScanner internal constructor(
         var rawYear: String? = null
         var rawTrackNumber: String? = null
         var albumArtUri: String? = null
+        var albumArtFullUri: String? = null
         try {
             retriever.setDataSource(context, file.uri)
             rawTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
@@ -399,7 +400,9 @@ class FolderScanner internal constructor(
             rawDuration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             rawYear = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
             rawTrackNumber = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
-            albumArtUri = extractAlbumArt(retriever, id)
+            val (compressedArtUri, fullArtUri) = extractAlbumArt(retriever, id)
+            albumArtUri = compressedArtUri
+            albumArtFullUri = fullArtUri
         } catch (e: Exception) {
             // Unreadable metadata — fall back to filename below, keep the song tracked
         } finally {
@@ -437,6 +440,7 @@ class FolderScanner internal constructor(
                 duration = rawDuration?.toLongOrNull() ?: 0L,
                 filePath = path,
                 albumArtUri = albumArtUri,
+                albumArtFullUri = albumArtFullUri,
                 year = year,
                 trackNumber = trackNumber,
                 dateAdded = dateAdded,
@@ -460,6 +464,7 @@ class FolderScanner internal constructor(
             duration = rawDuration?.toLongOrNull() ?: 0L,
             filePath = path,
             albumArtUri = albumArtUri,
+            albumArtFullUri = albumArtFullUri,
             isMissing = false,
             dateAdded = dateAdded,
             albumId = albumId,
@@ -568,10 +573,39 @@ class FolderScanner internal constructor(
         return parts.map { it.trim() }.filter { it.isNotEmpty() }
     }
 
-    private fun extractAlbumArt(retriever: MediaMetadataRetriever, songId: String): String? {
+    /** Sniffs leading magic bytes to pick a file extension — never throws, defaults to "jpg". */
+    private fun sniffImageExtension(bytes: ByteArray): String {
+        return when {
+            bytes.size >= 8 &&
+                bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+                bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() -> "png"
+            bytes.size >= 12 &&
+                bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() &&
+                bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte() &&
+                bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() &&
+                bytes[10] == 'B'.code.toByte() && bytes[11] == 'P'.code.toByte() -> "webp"
+            else -> "jpg"
+        }
+    }
+
+    private fun extractAlbumArt(retriever: MediaMetadataRetriever, songId: String): Pair<String?, String?> {
         return try {
-            val artBytes = retriever.embeddedPicture ?: return null
-            val decoded = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size) ?: return null
+            val artBytes = retriever.embeddedPicture ?: return null to null
+
+            val artDir = File(context.filesDir, "art").also { it.mkdirs() }
+
+            // Full-resolution copy — the untouched original bytes, no decode/re-encode, kept
+            // for the player sheet's full-width display.
+            val fullExt = sniffImageExtension(artBytes)
+            val fullArtFile = File(artDir, "art_full_${songId}.$fullExt")
+            FileOutputStream(fullArtFile).use { fos -> fos.write(artBytes) }
+            val fullArtUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                fullArtFile,
+            ).toString()
+
+            val decoded = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size) ?: return null to fullArtUri
 
             // Downscale only — never upscale art that's already smaller than the cap.
             val longestSide = maxOf(decoded.width, decoded.height)
@@ -593,7 +627,6 @@ class FolderScanner internal constructor(
             // lossless PNG at 100 was often larger than the embedded source for photographic
             // covers; 90 is visually indistinguishable at the sizes this art is ever displayed
             // at (up to full player-sheet width) while still compressing meaningfully smaller.
-            val artDir = File(context.filesDir, "art").also { it.mkdirs() }
             val artFile = File(artDir, "art_$songId.jpg")
 
             FileOutputStream(artFile).use { fos ->
@@ -602,13 +635,14 @@ class FolderScanner internal constructor(
             bitmap.recycle()
 
             // Return content:// URI via FileProvider — safe across process boundaries
-            FileProvider.getUriForFile(
+            val compressedUri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
                 artFile,
             ).toString()
+            compressedUri to fullArtUri
         } catch (e: Exception) {
-            null
+            null to null
         }
     }
 
