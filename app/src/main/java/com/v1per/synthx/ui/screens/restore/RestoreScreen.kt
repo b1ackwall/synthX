@@ -164,7 +164,11 @@ private fun RestoreContent(
             )
             is UiState.Success -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(uiState.data, key = { it.databaseUri.toString() }) { backup ->
-                    BackupRow(backup = backup, enabled = enabled, onClick = { onSelect(backup) })
+                    BackupRow(
+                        backup = backup,
+                        enabled = enabled && backup.restoreEligible,
+                        onClick = { onSelect(backup) },
+                    )
                 }
             }
         }
@@ -204,6 +208,14 @@ private fun BackupRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (!backup.restoreEligible) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = backup.restoreIneligibleReason ?: "Restore unavailable",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Error,
+                )
+            }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = backup.reason?.let {

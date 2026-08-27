@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -24,6 +27,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.v1per.synthx.R
+import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackError
 import com.v1per.synthx.playback.PlaybackViewModel
@@ -38,9 +42,11 @@ import com.v1per.synthx.ui.screens.songs.SortOrder
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import kotlin.system.exitProcess
 
 @Composable
 fun MainScaffold(navController: NavHostController = rememberNavController()) {
+    val restoreTerminal by RestoreCoordinator.terminal.collectAsState()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
@@ -57,6 +63,20 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     val playbackViewModel = viewModel<PlaybackViewModel>(
         factory = PlaybackViewModel.Factory(context.applicationContext)
     )
+    if (restoreTerminal != RestoreCoordinator.Terminal.NORMAL) {
+        val message = when (restoreTerminal) {
+            RestoreCoordinator.Terminal.RESTART_REQUIRED -> "Restore complete. Close and reopen synthX to continue."
+            RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED -> "Restore was rolled back safely. Close and reopen synthX to continue."
+            RestoreCoordinator.Terminal.EMERGENCY -> "Automatic recovery could not validate a usable local database. Normal app use is disabled."
+            RestoreCoordinator.Terminal.NORMAL -> ""
+        }
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Restart required") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { exitProcess(0) }) { Text("Close") } },
+        )
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     val searchReselectEvents = remember {
         MutableSharedFlow<Unit>(

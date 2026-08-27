@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.data.backup.RestoreCoordinator
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -39,7 +40,7 @@ class PlaylistSeedBootstrapper internal constructor(
             ?: return@withContext PlaylistSeedBootstrapResult.InvalidManifest
 
         try {
-            database.inTransaction {
+            RestoreCoordinator.withDbOperation { database.inTransaction {
                 if (getPlaylistCount() != 0) {
                     return@inTransaction PlaylistSeedBootstrapResult.PlaylistsAlreadyExist
                 }
@@ -90,7 +91,7 @@ class PlaylistSeedBootstrapper internal constructor(
                         .toSet()
                         .size,
                 )
-            }
+            } }
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {

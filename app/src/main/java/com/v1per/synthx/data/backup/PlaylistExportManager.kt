@@ -82,7 +82,9 @@ class PlaylistExportManager(
     private suspend fun writeExport(): Unit = withContext(Dispatchers.IO) {
         val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) } ?: return@withContext
 
-        val export = assembleExport()
+        // The database materialization is a finite tracked operation; SAF writing afterwards
+        // no longer keeps Room alive during restore preparation.
+        val export = RestoreCoordinator.withDbOperation { assembleExport() }
         val bytes = json.encodeToString(PlaylistExport.serializer(), export).toByteArray()
 
         val root = DocumentFile.fromTreeUri(context, treeUri)

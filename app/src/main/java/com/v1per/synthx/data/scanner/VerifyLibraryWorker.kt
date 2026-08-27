@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.data.backup.RestoreCoordinator
 
 /**
  * Launch-time "is anything gone" sweep — a cheap existence check against songs already
@@ -31,7 +32,9 @@ class VerifyLibraryWorker(
 
     override suspend fun doWork(): Result {
         return try {
-            val newlyMissing = SongRepositoryImpl.create(applicationContext).verifyLibrary()
+            val newlyMissing = RestoreCoordinator.withDbOperation {
+                SongRepositoryImpl.create(applicationContext).verifyLibrary()
+            }
             Log.d(TAG, "Launch verify complete: $newlyMissing newly missing")
             Result.success()
         } catch (e: Exception) {

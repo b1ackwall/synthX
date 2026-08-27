@@ -12,6 +12,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Everything the playback engine needs to survive a process death: the queue structure in
@@ -36,9 +39,11 @@ class QueuePersistence(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val writeQueue = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+    private val acceptingWrites = AtomicBoolean(true)
+    private val writer: Job
 
     init {
-        scope.launch {
+        writer = scope.launch {
             for (write in writeQueue) {
                 write()
             }
@@ -58,6 +63,7 @@ class QueuePersistence(
     )
 
     fun saveQueue(songs: List<Song>) {
+        if (!acceptingWrites.get()) return
         val ids = songs.map { it.id }
         writeQueue.trySend {
             try {
@@ -75,6 +81,7 @@ class QueuePersistence(
      * decide when a baseline mutation is worth persisting, this just writes it.
      */
     fun saveBaselineQueue(songs: List<Song>) {
+        if (!acceptingWrites.get()) return
         val ids = songs.map { it.id }
         writeQueue.trySend {
             try {
@@ -148,12 +155,26 @@ class QueuePersistence(
         }
     }
 
+    /** Stops admission, drains accepted writes in FIFO order, then permanently closes Room use. */
+    suspend fun quiesceForRestore() {
+        if (acceptingWrites.getAndSet(false)) writeQueue.close()
+        writer.join()
+    }
+
     fun release() {
+        acceptingWrites.set(false)
+        writeQueue.close()
         scope.cancel()
     }
 
     companion object {
         private const val TAG = "SynthXQueue"
+        private val instances = ConcurrentHashMap.newKeySet<QueuePersistence>()
+
+        /** Called by restore after admission is closed and before Room's close boundary. */
+        suspend fun quiesceAllForRestore() {
+            instances.toList().forEach { it.quiesceForRestore() }
+        }
 
         // Manual DI entry point, matching SongRepositoryImpl.create
         fun create(context: Context): QueuePersistence {
@@ -161,7 +182,7 @@ class QueuePersistence(
             return QueuePersistence(
                 repository = SongRepositoryImpl.create(appContext),
                 preferences = PreferencesManager(appContext),
-            )
+            ).also { instances += it }
         }
     }
 }

@@ -22,6 +22,7 @@ import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.ScanResult
+import com.v1per.synthx.data.backup.RestoreCoordinator
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +47,9 @@ class SongRepositoryImpl(
     private val backupManager: BackupManager,
     private val playlistExportManager: PlaylistExportManager,
 ) : SongRepository {
+
+    private suspend fun <T> dbOperation(block: suspend () -> T): T =
+        RestoreCoordinator.withDbOperation(block)
 
     // This class is a singleton (see companion.create), so this scope effectively lives as
     // long as the app process does — same shape as ExoPlayerEngine.engineScope /
@@ -128,7 +132,7 @@ class SongRepositoryImpl(
         onProgress: suspend (current: Int, total: Int) -> Unit,
     ): ScanResult = folderScanner.scan(folderUri, reconcileMissing, otherRootUris, onProgress)
 
-    override suspend fun verifyLibrary(): Int = folderScanner.verify()
+    override suspend fun verifyLibrary(): Int = dbOperation { folderScanner.verify() }
 
     /**
      * Permanently removes a song. Its song_artists and playlist_songs rows go with it via
@@ -139,7 +143,7 @@ class SongRepositoryImpl(
      * cannot be rolled back alongside the DB. Same shared cleanup FolderScanner's internal
      * evictions use, so both deletion paths stay in sync.
      */
-    override suspend fun deleteSong(id: String) = withContext(Dispatchers.IO) {
+    override suspend fun deleteSong(id: String) = dbOperation { withContext(Dispatchers.IO) {
         // Backup-then-act: a failed backup (no folder configured) must not block the
         // delete the user explicitly asked for.
         backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_SONG)
@@ -150,7 +154,7 @@ class SongRepositoryImpl(
 
         deleteSongArtFile(context, id)
         Unit
-    }
+    } }
 
     // Sort order (date_added DESC) and the starred/missing filters stay in the DAO query;
     // this only resolves artist order, same as the playlist/album/artist song lists above.
@@ -165,8 +169,9 @@ class SongRepositoryImpl(
 
     // No backupManager.createBackup here, unlike deleteSong/deletePlaylist: this clears one
     // boolean and destroys nothing, so there is nothing to restore from.
-    override suspend fun dismissFromStarred(songId: String) =
+    override suspend fun dismissFromStarred(songId: String) = dbOperation {
         songDao.dismissFromStarred(songId)
+    }
 
     override suspend fun isInAnyPlaylist(songId: String): Boolean =
         songDao.isInAnyPlaylist(songId)
@@ -175,8 +180,9 @@ class SongRepositoryImpl(
     // SongDao.removeOrganizedFromStarred's doc comment for the full removal checklist. No
     // backupManager.createBackup here, same reasoning as dismissFromStarred above: this only
     // clears a triage flag, nothing destructive to playlist data.
-    override suspend fun removeOrganizedFromStarred(): Int =
+    override suspend fun removeOrganizedFromStarred(): Int = dbOperation {
         songDao.removeOrganizedFromStarred()
+    }
 
     override fun getMissingSongs(): Flow<List<MissingSongInfo>> = songDao.getMissingSongs()
 
@@ -187,7 +193,7 @@ class SongRepositoryImpl(
             entities.map { PlaylistGroup(id = it.id, name = it.name) }
         }
 
-    override suspend fun createGroup(name: String) {
+    override suspend fun createGroup(name: String) = dbOperation {
         playlistDao.insertGroup(
             PlaylistGroupEntity(
                 id = UUID.randomUUID().toString(),
@@ -199,12 +205,12 @@ class SongRepositoryImpl(
         playlistExportManager.scheduleExport()
     }
 
-    override suspend fun renameGroup(id: String, name: String) {
+    override suspend fun renameGroup(id: String, name: String) = dbOperation {
         playlistDao.renameGroup(id, name)
         playlistExportManager.scheduleExport()
     }
 
-    override suspend fun deleteGroup(id: String) {
+    override suspend fun deleteGroup(id: String) = dbOperation {
         playlistDao.deleteGroup(id)
         playlistExportManager.scheduleExport()
     }
@@ -232,7 +238,7 @@ class SongRepositoryImpl(
             entities.map { it.toDomain() }
         }
 
-    override suspend fun createPlaylist(name: String, groupId: String?): String {
+    override suspend fun createPlaylist(name: String, groupId: String?): String = dbOperation {
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
         playlistDao.insertPlaylist(
@@ -248,22 +254,22 @@ class SongRepositoryImpl(
             )
         )
         playlistExportManager.scheduleExport()
-        return id
+        id
     }
 
-    override suspend fun renamePlaylist(id: String, name: String) {
+    override suspend fun renamePlaylist(id: String, name: String) = dbOperation {
         playlistDao.renamePlaylist(id, name, System.currentTimeMillis())
         playlistExportManager.scheduleExport()
     }
 
-    override suspend fun movePlaylistToGroup(id: String, groupId: String?) {
+    override suspend fun movePlaylistToGroup(id: String, groupId: String?) = dbOperation {
         playlistDao.movePlaylistToGroup(id, groupId, System.currentTimeMillis())
         playlistExportManager.scheduleExport()
     }
 
     // Hooked here rather than in the ViewModels because both PlaylistListViewModel and
     // GroupDetailViewModel delete playlists through this one call.
-    override suspend fun deletePlaylist(id: String) {
+    override suspend fun deletePlaylist(id: String) = dbOperation {
         backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_PLAYLIST)
         playlistDao.deletePlaylist(id)
         playlistExportManager.scheduleExport()
@@ -278,25 +284,27 @@ class SongRepositoryImpl(
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
 
-    override suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean {
+    override suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean = dbOperation {
         // Checked rather than relying on REPLACE-on-conflict: that would silently move an
         // already-present song to the end, which reads as the playlist reordering itself.
-        if (playlistDao.containsSong(playlistId, songId)) return false
-
-        val nextPosition = (playlistDao.getMaxPosition(playlistId) ?: -1) + 1
-        playlistDao.insertPlaylistSong(
-            PlaylistSongEntity(
-                playlistId = playlistId,
-                songId = songId,
-                position = nextPosition,
-                addedAt = System.currentTimeMillis(),
+        if (playlistDao.containsSong(playlistId, songId)) {
+            false
+        } else {
+            val nextPosition = (playlistDao.getMaxPosition(playlistId) ?: -1) + 1
+            playlistDao.insertPlaylistSong(
+                PlaylistSongEntity(
+                    playlistId = playlistId,
+                    songId = songId,
+                    position = nextPosition,
+                    addedAt = System.currentTimeMillis(),
+                )
             )
-        )
-        playlistExportManager.scheduleExport()
-        return true
+            playlistExportManager.scheduleExport()
+            true
+        }
     }
 
-    override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) {
+    override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) = dbOperation {
         playlistDao.removePlaylistSong(playlistId, songId)
         playlistExportManager.scheduleExport()
     }
@@ -310,9 +318,9 @@ class SongRepositoryImpl(
         queueDao.getQueueSongIds()
     }
 
-    override suspend fun setQueueSongs(songIds: List<String>) = withContext(Dispatchers.IO) {
+    override suspend fun setQueueSongs(songIds: List<String>) = dbOperation { withContext(Dispatchers.IO) {
         queueDao.replaceQueue(songIds)
-    }
+    } }
 
     override suspend fun getBaselineQueueSongs(): List<Song> = withContext(Dispatchers.IO) {
         val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
@@ -323,9 +331,9 @@ class SongRepositoryImpl(
         queueDao.getBaselineQueueSongIds()
     }
 
-    override suspend fun setBaselineQueueSongs(songIds: List<String>) = withContext(Dispatchers.IO) {
+    override suspend fun setBaselineQueueSongs(songIds: List<String>) = dbOperation { withContext(Dispatchers.IO) {
         queueDao.replaceBaselineQueue(songIds)
-    }
+    } }
 
     private fun PlaylistEntity.toDomain(): Playlist =
         Playlist(

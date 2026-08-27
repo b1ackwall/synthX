@@ -131,7 +131,7 @@
     <string name="restore_empty">No backups found. Pick a backup folder in Backups and Restore first.</string>
     <string name="restore_tier_with_reason">%1$s · %2$s</string>
     <string name="restore_confirm_title">Restore this backup?</string>
-    <string name="restore_confirm_message">This replaces your entire library — songs, playlists, and listen history — with the contents of %1$s. A safety backup of the current state is taken first. synthX will close when the restore finishes and must be reopened manually. This cannot be undone.</string>
+    <string name="restore_confirm_message">This replaces your entire library — songs, playlists, queue, and Starred state — with the contents of %1$s. A validated local safety snapshot is taken first. synthX will close when the restore finishes and must be reopened manually. This cannot be undone.</string>
     <string name="restore_confirm_action">Restore</string>
     <string name="restore_done_title">Restore complete</string>
     <string name="restore_done_message">Your library has been restored. Please reopen synthX.</string>

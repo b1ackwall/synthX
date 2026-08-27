@@ -8,6 +8,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.work.ExistingWorkPolicy
@@ -18,6 +24,8 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
+import com.v1per.synthx.data.backup.RestoreStartup
+import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
@@ -28,6 +36,7 @@ import com.v1per.synthx.ui.MainScaffold
 import com.v1per.synthx.ui.theme.SynthXTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlin.system.exitProcess
 
 class MainActivity : ComponentActivity() {
 
@@ -45,13 +54,26 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        pruneFinishedWork()
-        runLaunchMaintenance()
-        enableEdgeToEdge()
-        setContent {
-            SynthXTheme {
-                NotificationPermissionEffect()
-                MainScaffold()
+        // The application starts recovery off-main. Do not instantiate playback, Room, or
+        // launch maintenance until it has made the database namespace safe to open.
+        lifecycleScope.launch(Dispatchers.IO) {
+            RestoreStartup.await()
+            launch(Dispatchers.Main) {
+                enableEdgeToEdge()
+                setContent {
+                    SynthXTheme {
+                        if (RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL) {
+                            NotificationPermissionEffect()
+                            MainScaffold()
+                        } else {
+                            RestoreTerminalContent(RestoreCoordinator.current())
+                        }
+                    }
+                }
+                if (RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL) {
+                    pruneFinishedWork()
+                    runLaunchMaintenance()
+                }
             }
         }
     }
@@ -64,7 +86,9 @@ class MainActivity : ComponentActivity() {
      */
     override fun onStop() {
         super.onStop()
-        playbackViewModel.persistPlaybackState()
+        if (RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL) {
+            playbackViewModel.persistPlaybackState()
+        }
     }
 
     /**
@@ -84,7 +108,7 @@ class MainActivity : ComponentActivity() {
     /**
      * Ordered deliberately: the pre-migration snapshot must be taken before anything
      * opens the Room database, because opening it is what runs the migration.
-     * BackupManager checkpoints through a raw SQLite handle for exactly this reason.
+     * BackupManager snapshots through a raw SQLite handle for exactly this reason.
      */
     private fun runLaunchMaintenance() {
         val preferences = PreferencesManager(applicationContext)
@@ -161,6 +185,20 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val TAG = "SynthXScan"
         const val DAILY_INTERVAL_MS = 24L * 60 * 60 * 1000
+    }
+}
+
+@Composable
+private fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
+    val message = when (state) {
+        RestoreCoordinator.Terminal.RESTART_REQUIRED -> "Restore complete. Close and reopen synthX to continue."
+        RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED -> "Restore was rolled back safely. Close and reopen synthX to continue."
+        RestoreCoordinator.Terminal.EMERGENCY -> "Automatic recovery could not validate a usable local database. Normal app use is disabled."
+        RestoreCoordinator.Terminal.NORMAL -> ""
+    }
+    Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AlertDialog(onDismissRequest = {}, title = { Text("Restart required") }, text = { Text(message) },
+            confirmButton = { TextButton(onClick = { exitProcess(0) }) { Text("Close") } })
     }
 }
 

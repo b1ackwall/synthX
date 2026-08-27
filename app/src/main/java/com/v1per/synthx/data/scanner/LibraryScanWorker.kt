@@ -19,6 +19,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
+import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.CancellationException
@@ -63,8 +64,6 @@ class LibraryScanWorker(
         createNotificationChannel()
         setForeground(buildForegroundInfo(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE))
 
-        val repository = SongRepositoryImpl.create(applicationContext)
-
         // Both setProgress and the notification update cross a process boundary, so they
         // are throttled to whole-percent changes — a 5,000-file library would otherwise
         // issue 10,000 IPC round-trips it gains nothing from.
@@ -76,12 +75,15 @@ class LibraryScanWorker(
         val otherRoots = preferences.configuredAudioRootUris().filter { it != uri }
 
         return try {
-            val result = repository.scanLibrary(uri, otherRootUris = otherRoots) { current, total ->
+            val result = RestoreCoordinator.withDbOperation {
+                val repository = SongRepositoryImpl.create(applicationContext)
+                repository.scanLibrary(uri, otherRootUris = otherRoots) { current, total ->
                 val percent = if (total > 0) current * 100 / total else PROGRESS_INDETERMINATE
                 if (percent != lastPercent) {
                     lastPercent = percent
                     setProgress(workDataOf(KEY_CURRENT to current, KEY_TOTAL to total))
                     setForeground(buildForegroundInfo(current, total))
+                }
                 }
             }
             if (!result.missingReconciled) {

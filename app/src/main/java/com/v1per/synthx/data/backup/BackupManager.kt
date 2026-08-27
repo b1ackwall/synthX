@@ -3,21 +3,19 @@ package com.v1per.synthx.data.backup
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.WorkManager
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.Instant
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
 /** Backup tiers, each retained independently in its own subdirectory. */
 enum class BackupTier(val folderName: String, val retention: Int) {
@@ -44,6 +42,8 @@ data class BackupInfo(
     val timestamp: Long,
     val reason: String?,
     val sizeBytes: Long,
+    val restoreEligible: Boolean = false,
+    val restoreIneligibleReason: String? = null,
 )
 
 class BackupNotConfiguredException : IllegalStateException("No backup folder selected")
@@ -51,9 +51,9 @@ class BackupNotConfiguredException : IllegalStateException("No backup folder sel
 /**
  * Whole-database backup and restore against a user-chosen SAF tree.
  *
- * Deliberately never touches the Room singleton: the checkpoint runs through a raw
- * [SQLiteDatabase] handle so that taking a backup cannot itself trigger a Room migration.
- * That is what makes the pre-migration snapshot in [BackupReason.MIGRATION] possible.
+ * Ordinary backups snapshot through Room's live SupportSQLiteDatabase. The migration reason is
+ * deliberately special: it snapshots through a raw framework handle so opening Room cannot migrate
+ * the source before its pre-migration state is captured.
  */
 class BackupManager(private val context: Context) {
 
@@ -62,9 +62,9 @@ class BackupManager(private val context: Context) {
     // ---------------------------------------------------------------- create
 
     /**
-     * @param cancelActiveScan pass `false` from inside [LibraryScanWorker]. The worker is
-     *   itself the running work, so waiting for the unique work to reach a terminal state
-     *   from within it would never return.
+     * @param cancelActiveScan pass `false` from inside [LibraryScanWorker]. The worker is itself the
+     *   running work, so waiting for the unique work to reach a terminal state from within it would
+     *   never return.
      */
     suspend fun createBackup(
         tier: BackupTier,
@@ -72,45 +72,77 @@ class BackupManager(private val context: Context) {
         cancelActiveScan: Boolean = true,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) }
-                ?: throw BackupNotConfiguredException()
-
-            val dbFile = context.getDatabasePath(SynthXDatabase.DB_NAME)
-            if (!dbFile.exists()) error("No database to back up yet")
-
-            if (cancelActiveScan) awaitScanIdle()
-
-            checkpointWal(dbFile)
-
-            val tierDir = resolveTierDir(treeUri, tier)
-                ?: error("Backup folder is unreachable — re-select it in Backups and Restore")
-
-            val stamp = System.currentTimeMillis()
-            val baseName = "synthx_backup_${FILE_STAMP.format(Date(stamp))}"
-
-            val dbDoc = tierDir.createFile(MIME_DB, "$baseName.db")
-                ?: error("Could not create backup file")
-            context.contentResolver.openOutputStream(dbDoc.uri)?.use { out ->
-                FileInputStream(dbFile).use { input -> input.copyTo(out) }
-            } ?: error("Could not open backup file for writing")
-
-            // Sidecar is best-effort: a backup without metadata is still restorable, and
-            // listBackups falls back to the filename stamp.
-            runCatching {
-                val json = JSONObject()
-                    .put(KEY_TIMESTAMP, stamp)
-                    .put(KEY_TIER, tier.name)
-                    .put(KEY_REASON, reason ?: JSONObject.NULL)
-                    .put(KEY_DB_VERSION, SynthXDatabase.VERSION)
-                    .put(KEY_FILE, "$baseName.db")
-                tierDir.createFile(MIME_JSON, "$baseName.json")?.let { doc ->
-                    context.contentResolver.openOutputStream(doc.uri)?.use { out ->
-                        out.write(json.toString().toByteArray())
-                    }
+            RestoreStartup.await()
+            RestoreCoordinator.withDbOperation {
+                BackupCreationCoordinator.serialize {
+                    createBackupLocked(tier, reason, cancelActiveScan)
                 }
             }
+        }
+    }
 
-            enforceRetention(tierDir, tier)
+    private suspend fun createBackupLocked(
+        tier: BackupTier,
+        reason: String?,
+        cancelActiveScan: Boolean,
+    ) {
+        val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) }
+            ?: throw BackupNotConfiguredException()
+        val sourceFile = context.getDatabasePath(SynthXDatabase.DB_NAME)
+        if (!sourceFile.isFile) error("No database to back up yet")
+
+        if (cancelActiveScan) awaitScanIdle()
+
+        val tierDirectory = resolveTierDir(treeUri, tier)
+            ?: error("Backup folder is unreachable — re-select it in Backups and Restore")
+        val stagingDirectory = File(context.noBackupFilesDir, STAGING_DIRECTORY)
+        val snapshot = File(stagingDirectory, "snapshot-${UUID.randomUUID()}.partial.db")
+
+        try {
+            val migrationSnapshot = reason == BackupReason.MIGRATION
+            if (migrationSnapshot) {
+                BackupSnapshotter.createForMigration(sourceFile, snapshot)
+            } else {
+                val roomDatabase = SynthXDatabase.getInstance(context)
+                BackupSnapshotter.createFromRoom(
+                    roomDatabase.openHelper.writableDatabase,
+                    snapshot,
+                )
+            }
+
+            BackupSnapshotter.forceToStorage(snapshot)
+            val validated = BackupSnapshotValidator.validate(snapshot, migrationSnapshot)
+            val digest = BackupHashing.hash(snapshot)
+            if (digest.sizeBytes <= 0L || digest.sizeBytes != snapshot.length()) {
+                throw BackupSnapshotException("Local snapshot size changed while hashing")
+            }
+
+            val timestamp = System.currentTimeMillis()
+            val identity = BackupFileNames.create(Instant.ofEpochMilli(timestamp))
+            val metadata = BackupMetadata(
+                timestamp = timestamp,
+                tier = tier.name,
+                reason = reason,
+                dbVersion = validated.schema.userVersion,
+                file = identity.databaseFileName,
+                sizeBytes = digest.sizeBytes,
+                sha256 = digest.sha256,
+            )
+
+            SafBackupPublisher(context).publish(
+                tierDirectory = tierDirectory,
+                identity = identity,
+                snapshot = snapshot,
+                digest = digest,
+                metadataBytes = BackupMetadataCodec.encode(metadata),
+            )
+
+            // Publication is complete at this point. Preserve retention's current best-effort
+            // policy so cleanup cannot turn a valid, published backup into a reported failure.
+            runCatching { enforceRetention(tierDirectory, tier) }
+                .onFailure { Log.w(TAG, "Backup retention skipped", it) }
+        } finally {
+            deleteLocalStage(snapshot)
         }
     }
 
@@ -118,31 +150,43 @@ class BackupManager(private val context: Context) {
 
     /** All backups across every tier, newest first. Unreadable tiers are skipped. */
     suspend fun listBackups(): List<BackupInfo> = withContext(Dispatchers.IO) {
-        val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) } ?: return@withContext emptyList()
+        val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) }
+            ?: return@withContext emptyList()
         BackupTier.entries.flatMap { tier ->
-            val dir = resolveTierDir(treeUri, tier, create = false) ?: return@flatMap emptyList()
-            val children = runCatching { dir.listFiles().toList() }.getOrDefault(emptyList())
+            val directory = resolveTierDir(treeUri, tier, create = false)
+                ?: return@flatMap emptyList()
+            val children = runCatching { directory.listFiles().toList() }.getOrDefault(emptyList())
             val byName = children.associateBy { it.name.orEmpty() }
 
             children
-                .filter { it.isFile && it.name?.endsWith(".db") == true }
-                .map { dbDoc ->
-                    val name = dbDoc.name.orEmpty()
-                    val base = name.removeSuffix(".db")
-                    val metaDoc = byName["$base.json"]
-                    val meta = metaDoc?.let { readMetadata(it.uri) }
+                .filter { document ->
+                    document.isFile &&
+                        document.name?.let(BackupFileNames::isCompletedDatabaseName) == true
+                }
+                .map { databaseDocument ->
+                    val name = databaseDocument.name.orEmpty()
+                    val stem = name.removeSuffix(".db")
+                    val metadataDocument = byName["$stem.json"]
+                    val metadata = metadataDocument?.let { readMetadata(it.uri) }
+                    val eligible = metadata?.let { value ->
+                        runCatching {
+                            value.requireCompleteForPublication()
+                            value.file == name && value.dbVersion <= SynthXDatabase.VERSION &&
+                                BackupSchemaContracts.forVersion(value.dbVersion)?.hasMigrationPathToCurrent == true
+                        }.getOrDefault(false)
+                    } == true
                     BackupInfo(
-                        databaseUri = dbDoc.uri,
-                        metadataUri = metaDoc?.uri,
+                        databaseUri = databaseDocument.uri,
+                        metadataUri = metadataDocument?.uri,
                         fileName = name,
                         tier = tier,
-                        timestamp = meta?.optLong(KEY_TIMESTAMP)?.takeIf { it > 0 }
-                            ?: parseStampFromName(base)
-                            ?: dbDoc.lastModified(),
-                        reason = meta?.optString(KEY_REASON)?.takeIf {
-                            it.isNotBlank() && it != "null"
-                        },
-                        sizeBytes = dbDoc.length(),
+                        timestamp = metadata?.timestamp?.takeIf { it > 0 }
+                            ?: BackupFileNames.parseTimestampMillis(name)
+                            ?: databaseDocument.lastModified(),
+                        reason = metadata?.reason?.takeIf { it.isNotBlank() },
+                        sizeBytes = databaseDocument.length(),
+                        restoreEligible = eligible,
+                        restoreIneligibleReason = if (eligible) null else "Legacy backup — restore unavailable",
                     )
                 }
         }.sortedByDescending { it.timestamp }
@@ -155,62 +199,20 @@ class BackupManager(private val context: Context) {
      * immediately afterwards — see [SynthXDatabase.closeInstance].
      */
     suspend fun restore(backup: BackupInfo): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            awaitScanIdle()
-
-            SynthXDatabase.closeInstance()
-
-            val dbFile = context.getDatabasePath(SynthXDatabase.DB_NAME)
-            // Stale sidecars would be replayed over the restored file and undo it.
-            File("${dbFile.path}-wal").delete()
-            File("${dbFile.path}-shm").delete()
-
-            context.contentResolver.openInputStream(backup.databaseUri)?.use { input ->
-                FileOutputStream(dbFile).use { out -> input.copyTo(out) }
-            } ?: error("Could not read the selected backup")
-            Unit
-        }
+        RestoreStartup.await()
+        val metadata = readRestoreMetadata(backup)
+            ?: return@withContext Result.failure(IllegalArgumentException("Legacy backup — restore unavailable"))
+        RestoreTransaction.execute(context, backup, metadata)
     }
 
-    /**
-     * Schema version recorded in [backup]'s metadata sidecar at creation time (see
-     * [KEY_DB_VERSION] in [createBackup]), or `null` if the sidecar is missing/unreadable —
-     * the sidecar is written best-effort, so old or interrupted backups may not have one.
-     */
-    suspend fun readBackupDbVersion(backup: BackupInfo): Int? = withContext(Dispatchers.IO) {
-        val metadataUri = backup.metadataUri ?: return@withContext null
-        readMetadata(metadataUri)?.let { json ->
-            json.optInt(KEY_DB_VERSION, -1).takeIf { it > 0 }
-        }
-    }
-
-    /**
-     * Stages [backup]'s bytes into a private cache file and runs `PRAGMA integrity_check`
-     * against that copy, read-only — the live database is never touched by this check. The
-     * staged copy is deleted afterwards regardless of outcome.
-     */
-    suspend fun checkIntegrity(backup: BackupInfo): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val stagedFile = File.createTempFile("restore_check_", ".db", context.cacheDir)
-            try {
-                context.contentResolver.openInputStream(backup.databaseUri)?.use { input ->
-                    FileOutputStream(stagedFile).use { out -> input.copyTo(out) }
-                } ?: error("Could not read the selected backup")
-
-                val passed = SQLiteDatabase.openDatabase(
-                    stagedFile.path,
-                    null,
-                    SQLiteDatabase.OPEN_READONLY,
-                ).use { raw ->
-                    raw.rawQuery("PRAGMA integrity_check", null).use { cursor ->
-                        cursor.moveToFirst() && cursor.getString(0).equals("ok", ignoreCase = true)
-                    }
-                }
-                if (!passed) error("Backup database failed its integrity check")
-            } finally {
-                stagedFile.delete()
-            }
-        }
+    /** Phase-A metadata is mandatory for a trustworthy restore, though old files may still list. */
+    internal suspend fun readRestoreMetadata(backup: BackupInfo): BackupMetadata? = withContext(Dispatchers.IO) {
+        val metadata = backup.metadataUri?.let(::readMetadata) ?: return@withContext null
+        return@withContext runCatching {
+            metadata.requireCompleteForPublication()
+            require(metadata.file == backup.fileName)
+            metadata
+        }.getOrNull()
     }
 
     // ----------------------------------------------------------------- setup
@@ -226,32 +228,11 @@ class BackupManager(private val context: Context) {
 
     // --------------------------------------------------------------- helpers
 
-    /**
-     * Cancels any running scan and waits for the unique work to settle. An empty work list
-     * satisfies the predicate, so this returns immediately when no scan has ever run.
-     */
     private suspend fun awaitScanIdle() {
         val workManager = WorkManager.getInstance(context)
         workManager.cancelUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME)
         workManager.getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
             .first { infos -> infos.all { it.state.isFinished } }
-    }
-
-    /**
-     * Forces the WAL into the main file so a copy of `synthx.db` alone is complete.
-     * Opened raw rather than through Room — Room would run migrations on open, which is
-     * exactly what the pre-migration backup needs to avoid.
-     */
-    private fun checkpointWal(dbFile: File) {
-        runCatching {
-            SQLiteDatabase.openDatabase(
-                dbFile.path,
-                null,
-                SQLiteDatabase.OPEN_READWRITE,
-            ).use { raw ->
-                raw.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use { it.moveToFirst() }
-            }
-        }
     }
 
     private fun resolveTierDir(
@@ -265,44 +246,47 @@ class BackupManager(private val context: Context) {
         return if (create) root.createDirectory(tier.folderName) else null
     }
 
-    /** Deletes oldest-first until the tier holds at most [BackupTier.retention] backups. */
-    private fun enforceRetention(tierDir: DocumentFile, tier: BackupTier) {
-        val children = runCatching { tierDir.listFiles().toList() }.getOrDefault(emptyList())
+    /** Existing retention counts only recognizable final database documents. */
+    private fun enforceRetention(tierDirectory: DocumentFile, tier: BackupTier) {
+        val children = runCatching { tierDirectory.listFiles().toList() }.getOrDefault(emptyList())
         val byName = children.associateBy { it.name.orEmpty() }
         val backups = children
-            .filter { it.isFile && it.name?.endsWith(".db") == true }
-            .sortedByDescending { doc ->
-                parseStampFromName(doc.name.orEmpty().removeSuffix(".db")) ?: doc.lastModified()
+            .filter { document ->
+                document.isFile &&
+                    document.name?.let(BackupFileNames::isCompletedDatabaseName) == true
+            }
+            .sortedByDescending { document ->
+                BackupFileNames.parseTimestampMillis(document.name.orEmpty())
+                    ?: document.lastModified()
             }
 
-        backups.drop(tier.retention).forEach { doc ->
-            val base = doc.name.orEmpty().removeSuffix(".db")
-            runCatching { doc.delete() }
-            byName["$base.json"]?.let { meta -> runCatching { meta.delete() } }
+        backups.drop(tier.retention).forEach { document ->
+            val stem = document.name.orEmpty().removeSuffix(".db")
+            runCatching { document.delete() }
+            byName["$stem.json"]?.let { metadata -> runCatching { metadata.delete() } }
         }
     }
 
-    private fun readMetadata(uri: Uri): JSONObject? = runCatching {
+    private fun readMetadata(uri: Uri): BackupMetadata? = runCatching {
         context.contentResolver.openInputStream(uri)?.use { input ->
-            JSONObject(input.readBytes().decodeToString())
+            BackupMetadataCodec.decodeOrNull(input.readBytes())
         }
     }.getOrNull()
 
-    private fun parseStampFromName(base: String): Long? = runCatching {
-        FILE_STAMP.parse(base.removePrefix("synthx_backup_"))?.time
-    }.getOrNull()
+    private fun deleteLocalStage(snapshot: File) {
+        listOf(
+            snapshot,
+            File("${snapshot.path}-journal"),
+            File("${snapshot.path}-wal"),
+            File("${snapshot.path}-shm"),
+        ).filter(File::exists).forEach { file ->
+            if (!file.delete()) Log.w(TAG, "Could not remove local backup stage ${file.name}")
+        }
+    }
 
     companion object {
-        private const val MIME_DB = "application/octet-stream"
-        private const val MIME_JSON = "application/json"
-
-        private const val KEY_TIMESTAMP = "timestamp"
-        private const val KEY_TIER = "tier"
-        private const val KEY_REASON = "reason"
-        private const val KEY_DB_VERSION = "dbVersion"
-        private const val KEY_FILE = "file"
-
-        private val FILE_STAMP = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US)
+        private const val TAG = "BackupManager"
+        private const val STAGING_DIRECTORY = "backup_staging"
 
         /** Manual-DI entry point, matching SongRepositoryImpl.create. */
         fun create(context: Context): BackupManager = BackupManager(context.applicationContext)

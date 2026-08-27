@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.v1per.synthx.data.backup.RestoreStartup
 
 @Database(
     entities = [
@@ -212,6 +213,7 @@ abstract class SynthXDatabase : RoomDatabase() {
         }
 
         fun getInstance(context: Context): SynthXDatabase {
+            RestoreStartup.await()
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
@@ -226,6 +228,19 @@ abstract class SynthXDatabase : RoomDatabase() {
                     .also { INSTANCE = it }
             }
         }
+
+        /** Builds an isolated Room instance for an offline restore candidate, never the singleton. */
+        fun createStandalone(context: Context, databaseName: String): SynthXDatabase =
+            Room.databaseBuilder(
+                context.applicationContext,
+                SynthXDatabase::class.java,
+                databaseName,
+            )
+                .addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                    MIGRATION_6_7, MIGRATION_7_8,
+                )
+                .build()
 
         /**
          * Closes the database and drops the singleton so the next [getInstance] rebuilds it.
