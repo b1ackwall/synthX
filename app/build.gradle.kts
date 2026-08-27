@@ -108,6 +108,10 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit-ktx:1.2.1")
     androidTestImplementation("androidx.room:room-testing:2.8.4")
     androidTestImplementation("androidx.work:work-testing:2.9.1")
+    // Shell-level Compose assertions (RestoreShellInstrumentedTest); versioned by the BOM above.
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.ui.test.junit4)
 
     debugImplementation(libs.androidx.ui.tooling)
+    debugImplementation(libs.androidx.ui.test.manifest)
 }
