@@ -12,7 +12,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.v1per.synthx.data.repository.SongRepositoryImpl
-import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.backup.WorkerDatabaseAccess
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.CancellationException
 
@@ -60,8 +60,9 @@ class NewArrivalsScanWorker(
         }
 
         return try {
-            val result = RestoreCoordinator.withDbOperation {
-                SongRepositoryImpl.create(applicationContext).scanLibrary(uri, reconcileMissing = false)
+            val result = WorkerDatabaseAccess.run {
+                SongRepositoryImpl.create(applicationContext)
+                    .scanLibraryAlreadyAdmitted(uri, reconcileMissing = false)
             }
             Log.d(TAG, "New arrivals scan complete: ${result.added} added, ${result.updated} updated")
             Result.success(

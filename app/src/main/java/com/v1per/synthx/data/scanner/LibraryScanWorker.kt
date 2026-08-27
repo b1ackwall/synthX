@@ -19,7 +19,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
-import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.backup.WorkerDatabaseAccess
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.CancellationException
@@ -36,6 +36,8 @@ class LibraryScanWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
+        // WorkManager can launch this process without an Activity. Recovery must settle before
+        // this worker admits a DB operation or creates repository/Room objects.
         val preferences = PreferencesManager(applicationContext)
         val uriString = preferences.musicFolderUri
             ?: return Result.failure(workDataOf(KEY_ERROR to "No folder selected"))
@@ -75,9 +77,9 @@ class LibraryScanWorker(
         val otherRoots = preferences.configuredAudioRootUris().filter { it != uri }
 
         return try {
-            val result = RestoreCoordinator.withDbOperation {
+            val result = WorkerDatabaseAccess.run {
                 val repository = SongRepositoryImpl.create(applicationContext)
-                repository.scanLibrary(uri, otherRootUris = otherRoots) { current, total ->
+                repository.scanLibraryAlreadyAdmitted(uri, otherRootUris = otherRoots) { current, total ->
                 val percent = if (total > 0) current * 100 / total else PROGRESS_INDETERMINATE
                 if (percent != lastPercent) {
                     lastPercent = percent

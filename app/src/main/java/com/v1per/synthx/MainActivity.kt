@@ -190,14 +190,20 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
+    val diagnosticId = RestoreCoordinator.diagnosticOperationId.value ?: "unavailable"
     val message = when (state) {
         RestoreCoordinator.Terminal.RESTART_REQUIRED -> "Restore complete. Close and reopen synthX to continue."
         RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED -> "Restore was rolled back safely. Close and reopen synthX to continue."
-        RestoreCoordinator.Terminal.EMERGENCY -> "Automatic recovery could not validate a usable local database. Normal app use is disabled."
+        RestoreCoordinator.Terminal.EMERGENCY ->
+            "Automatic database recovery could not validate a usable database.\n\n" +
+                "Normal app use is disabled to protect your data.\n\n" +
+                "Diagnostic operation ID:\n$diagnosticId"
         RestoreCoordinator.Terminal.NORMAL -> ""
     }
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AlertDialog(onDismissRequest = {}, title = { Text("Restart required") }, text = { Text(message) },
+        AlertDialog(onDismissRequest = {}, title = {
+            Text(if (state == RestoreCoordinator.Terminal.EMERGENCY) "Database recovery required" else "Restart required")
+        }, text = { Text(message) },
             confirmButton = { TextButton(onClick = { exitProcess(0) }) { Text("Close") } })
     }
 }

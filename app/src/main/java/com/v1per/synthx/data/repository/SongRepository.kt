@@ -111,3 +111,9 @@ interface SongRepository {
     /** Overwrites the saved baseline with [songIds], in order. */
     suspend fun setBaselineQueueSongs(songIds: List<String>)
 }
+
+/** Internal queue-only contract: the caller already owns a RestoreCoordinator operation permit. */
+internal interface AdmittedQueuePersistenceRepository {
+    suspend fun setQueueSongsAlreadyAdmitted(songIds: List<String>)
+    suspend fun setBaselineQueueSongsAlreadyAdmitted(songIds: List<String>)
+}

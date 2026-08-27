@@ -27,6 +27,7 @@ import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,15 +47,16 @@ class SongRepositoryImpl(
     private val folderScanner: FolderScanner,
     private val backupManager: BackupManager,
     private val playlistExportManager: PlaylistExportManager,
-) : SongRepository {
+) : SongRepository, AdmittedQueuePersistenceRepository {
 
     private suspend fun <T> dbOperation(block: suspend () -> T): T =
-        RestoreCoordinator.withDbOperation(block)
+        RepositoryDbOperation.run(block)
 
     // This class is a singleton (see companion.create), so this scope effectively lives as
     // long as the app process does — same shape as ExoPlayerEngine.engineScope /
     // QueuePersistence.scope at their own instance-lifetime level.
-    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val repositoryJob = SupervisorJob()
+    private val repositoryScope = CoroutineScope(repositoryJob + Dispatchers.Default)
 
     // Shared across every getSongs() subscriber instead of re-querying and re-mapping the
     // full library (~1500 songs) on every SongsViewModel instance. Lazily rather than
@@ -130,9 +132,25 @@ class SongRepositoryImpl(
         reconcileMissing: Boolean,
         otherRootUris: List<Uri>,
         onProgress: suspend (current: Int, total: Int) -> Unit,
-    ): ScanResult = folderScanner.scan(folderUri, reconcileMissing, otherRootUris, onProgress)
+    ): ScanResult = dbOperation {
+        scanLibraryAlreadyAdmitted(folderUri, reconcileMissing, otherRootUris, onProgress)
+    }
 
-    override suspend fun verifyLibrary(): Int = dbOperation { folderScanner.verify() }
+    internal suspend fun scanLibraryAlreadyAdmitted(
+        folderUri: Uri,
+        reconcileMissing: Boolean = true,
+        otherRootUris: List<Uri> = emptyList(),
+        onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
+    ): ScanResult = folderScanner.scanAlreadyAdmitted(
+        folderUri,
+        reconcileMissing,
+        otherRootUris,
+        onProgress,
+    )
+
+    override suspend fun verifyLibrary(): Int = dbOperation { folderScanner.verifyAlreadyAdmitted() }
+
+    internal suspend fun verifyLibraryAlreadyAdmitted(): Int = folderScanner.verifyAlreadyAdmitted()
 
     /**
      * Permanently removes a song. Its song_artists and playlist_songs rows go with it via
@@ -173,8 +191,9 @@ class SongRepositoryImpl(
         songDao.dismissFromStarred(songId)
     }
 
-    override suspend fun isInAnyPlaylist(songId: String): Boolean =
+    override suspend fun isInAnyPlaylist(songId: String): Boolean = dbOperation {
         songDao.isInAnyPlaylist(songId)
+    }
 
     // Temporary debug tooling — safe to delete independently of PlaylistSeeder. See
     // SongDao.removeOrganizedFromStarred's doc comment for the full removal checklist. No
@@ -309,31 +328,39 @@ class SongRepositoryImpl(
         playlistExportManager.scheduleExport()
     }
 
-    override suspend fun getQueueSongs(): List<Song> = withContext(Dispatchers.IO) {
+    override suspend fun getQueueSongs(): List<Song> = dbOperation { withContext(Dispatchers.IO) {
         val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
         queueDao.getQueueItems().map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
-    }
+    } }
 
-    override suspend fun getQueueSongIds(): List<String> = withContext(Dispatchers.IO) {
+    override suspend fun getQueueSongIds(): List<String> = dbOperation { withContext(Dispatchers.IO) {
         queueDao.getQueueSongIds()
-    }
+    } }
 
     override suspend fun setQueueSongs(songIds: List<String>) = dbOperation { withContext(Dispatchers.IO) {
         queueDao.replaceQueue(songIds)
     } }
 
-    override suspend fun getBaselineQueueSongs(): List<Song> = withContext(Dispatchers.IO) {
-        val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
-        queueDao.getBaselineQueueItems().map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+    override suspend fun setQueueSongsAlreadyAdmitted(songIds: List<String>) = withContext(Dispatchers.IO) {
+        queueDao.replaceQueue(songIds)
     }
 
-    override suspend fun getBaselineQueueSongIds(): List<String> = withContext(Dispatchers.IO) {
+    override suspend fun getBaselineQueueSongs(): List<Song> = dbOperation { withContext(Dispatchers.IO) {
+        val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
+        queueDao.getBaselineQueueItems().map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+    } }
+
+    override suspend fun getBaselineQueueSongIds(): List<String> = dbOperation { withContext(Dispatchers.IO) {
         queueDao.getBaselineQueueSongIds()
-    }
+    } }
 
     override suspend fun setBaselineQueueSongs(songIds: List<String>) = dbOperation { withContext(Dispatchers.IO) {
         queueDao.replaceBaselineQueue(songIds)
     } }
+
+    override suspend fun setBaselineQueueSongsAlreadyAdmitted(songIds: List<String>) = withContext(Dispatchers.IO) {
+        queueDao.replaceBaselineQueue(songIds)
+    }
 
     private fun PlaylistEntity.toDomain(): Playlist =
         Playlist(
@@ -403,6 +430,20 @@ class SongRepositoryImpl(
                     ).also { INSTANCE = it }
                 }
             }
+        }
+
+        /** Stops long-lived Room flows before restore closes the singleton database. */
+        suspend fun quiesceForRestore() {
+            val repository = synchronized(this) {
+                val current = INSTANCE
+                INSTANCE = null
+                current
+            }
+            repository?.repositoryJob?.cancelAndJoin()
+        }
+
+        internal fun resetForTest() {
+            synchronized(this) { INSTANCE = null }
         }
     }
 }

@@ -20,6 +20,12 @@ import com.v1per.synthx.R
 /** WorkManager orchestrates restore; RestoreTransaction owns its crash-safe filesystem work. */
 class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
+        if (RestoreStartup.result() != RestoreRecovery.NORMAL) {
+            return Result.failure(workDataOf(KEY_ERROR to "Existing restore recovery is not complete"))
+        }
+        runCatching { RestoreCoordinator.requireNormal() }.getOrElse {
+            return Result.failure(workDataOf(KEY_ERROR to "Restore requires synthX to be reopened"))
+        }
         val backup = inputData.toBackupInfo()
             ?: return Result.failure(workDataOf(KEY_ERROR to "Missing or invalid backup reference"))
         createNotificationChannel()
@@ -62,15 +68,18 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
         private const val NOTIFICATION_ID = 1002
         fun enqueue(context: Context, backup: BackupInfo) {
             WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP,
-                OneTimeWorkRequestBuilder<RestoreWorker>().setInputData(backup.toInputData())
-                    .setConstraints(Constraints.Builder().setRequiresStorageNotLow(true).build()).build())
+                request(backup))
         }
-        private fun BackupInfo.toInputData(): Data = workDataOf(
+        internal fun request(backup: BackupInfo) =
+            OneTimeWorkRequestBuilder<RestoreWorker>().setInputData(backup.toInputData())
+                .setConstraints(Constraints.Builder().setRequiresStorageNotLow(true).build()).build()
+
+        internal fun BackupInfo.toInputData(): Data = workDataOf(
             KEY_DATABASE_URI to databaseUri.toString(), KEY_METADATA_URI to metadataUri?.toString(),
             KEY_FILE_NAME to fileName, KEY_TIER to tier.name, KEY_TIMESTAMP to timestamp,
             KEY_REASON to reason, KEY_SIZE_BYTES to sizeBytes,
         )
-        private fun Data.toBackupInfo(): BackupInfo? {
+        internal fun Data.toBackupInfo(): BackupInfo? {
             val uri = getString(KEY_DATABASE_URI)?.let(Uri::parse) ?: return null
             val tier = getString(KEY_TIER)?.let { n -> BackupTier.entries.find { it.name == n } } ?: return null
             return BackupInfo(uri, getString(KEY_METADATA_URI)?.let(Uri::parse), getString(KEY_FILE_NAME) ?: return null,

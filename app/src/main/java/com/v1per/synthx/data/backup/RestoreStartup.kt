@@ -16,11 +16,33 @@ internal object RestoreStartup {
                 RestoreRecovery.NORMAL -> RestoreCoordinator.markNormal()
                 RestoreRecovery.RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(false)
                 RestoreRecovery.ROLLED_BACK_RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(true)
-                RestoreRecovery.EMERGENCY -> RestoreCoordinator.markEmergency()
+                RestoreRecovery.EMERGENCY -> RestoreCoordinator.markEmergency(
+                    RestoreTransaction.diagnosticOperationId(),
+                )
             }
             ready.countDown()
         }, "synthx-restore-recovery").start()
     }
     fun await() { ready.await() }
     fun result(): RestoreRecovery { await(); return result }
+
+    /** The only startup gate normal Room owners may cross. */
+    fun requireNormal() {
+        val recovery = result()
+        check(recovery == RestoreRecovery.NORMAL) {
+            "Database access is disabled until restore recovery reaches a safe normal state"
+        }
+        RestoreCoordinator.requireNormal()
+    }
+}
+
+/** Shared worker boundary: recovery resolves before admission and Room construction. */
+internal object WorkerDatabaseAccess {
+    suspend fun <T> run(
+        awaitStartup: suspend () -> Unit = { RestoreStartup.requireNormal() },
+        block: suspend () -> T,
+    ): T {
+        awaitStartup()
+        return RestoreCoordinator.withDbOperation(block)
+    }
 }

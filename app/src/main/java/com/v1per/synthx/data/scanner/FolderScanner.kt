@@ -19,6 +19,7 @@ import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import androidx.room.withTransaction
 import com.v1per.synthx.data.backup.PlaylistExportManager
+import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
@@ -46,7 +47,7 @@ data class ScanResult(
     val missingReconciled: Boolean = true,
 )
 
-class FolderScanner(
+class FolderScanner internal constructor(
     private val context: Context,
     private val database: SynthXDatabase,
     private val songDao: SongDao,
@@ -54,6 +55,7 @@ class FolderScanner(
     private val albumDao: AlbumDao,
     private val songArtistDao: SongArtistDao,
     private val playlistExportManager: PlaylistExportManager,
+    private val scanBodyForTest: (suspend () -> ScanResult)? = null,
 ) {
 
     /**
@@ -95,7 +97,21 @@ class FolderScanner(
         reconcileMissing: Boolean = true,
         otherRootUris: List<Uri> = emptyList(),
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
-    ): ScanResult = withContext(Dispatchers.IO) {
+    ): ScanResult = FolderScannerAdmission.direct {
+        scanAlreadyAdmitted(folderUri, reconcileMissing, otherRootUris, onProgress)
+    }
+
+    /** Caller already owns RestoreCoordinator admission for the complete scan transaction. */
+    internal suspend fun scanAlreadyAdmitted(
+        folderUri: Uri,
+        reconcileMissing: Boolean = true,
+        otherRootUris: List<Uri> = emptyList(),
+        onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
+    ): ScanResult {
+        scanBodyForTest?.let { body ->
+            return FolderScannerAdmission.alreadyAdmitted(body)
+        }
+        return FolderScannerAdmission.alreadyAdmitted { withContext(Dispatchers.IO) {
         val scanStartMs = System.currentTimeMillis()
         onProgress(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE)
 
@@ -257,7 +273,8 @@ class FolderScanner(
         pendingArtCleanup.forEach { deleteSongArtFile(context, it) }
 
         Log.d(TAG, "Scan complete in ${System.currentTimeMillis() - scanStartMs}ms for $folderUri")
-        result
+            result
+        } }
     }
 
     /**
@@ -272,7 +289,12 @@ class FolderScanner(
      *
      * @return the number of songs newly flagged missing by this pass.
      */
-    suspend fun verify(): Int = withContext(Dispatchers.IO) {
+    suspend fun verify(): Int = RestoreCoordinator.withDbOperation {
+        verifyAlreadyAdmitted()
+    }
+
+    /** Caller already owns admission for the complete verification sweep. */
+    internal suspend fun verifyAlreadyAdmitted(): Int = withContext(Dispatchers.IO) {
         var newlyMissing = 0
         for (song in songDao.getAllSongsOnce()) {
             currentCoroutineContext().ensureActive()
@@ -603,4 +625,12 @@ class FolderScanner(
 
         private val ARTIST_DELIMITERS = listOf(",")
     }
+}
+
+/** The two real FolderScanner entrypoint ownership modes, kept small enough for JVM proof. */
+internal object FolderScannerAdmission {
+    suspend fun <T> direct(block: suspend () -> T): T =
+        RestoreCoordinator.withDbOperation(block)
+
+    suspend fun <T> alreadyAdmitted(block: suspend () -> T): T = block()
 }

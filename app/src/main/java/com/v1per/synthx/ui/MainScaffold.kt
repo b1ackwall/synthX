@@ -47,6 +47,7 @@ import kotlin.system.exitProcess
 @Composable
 fun MainScaffold(navController: NavHostController = rememberNavController()) {
     val restoreTerminal by RestoreCoordinator.terminal.collectAsState()
+    val diagnosticOperationId by RestoreCoordinator.diagnosticOperationId.collectAsState()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
@@ -60,23 +61,35 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     val showBottomBar = currentRoute in bottomBarRoutes
 
     val context = LocalContext.current
-    val playbackViewModel = viewModel<PlaybackViewModel>(
-        factory = PlaybackViewModel.Factory(context.applicationContext)
-    )
     if (restoreTerminal != RestoreCoordinator.Terminal.NORMAL) {
         val message = when (restoreTerminal) {
             RestoreCoordinator.Terminal.RESTART_REQUIRED -> "Restore complete. Close and reopen synthX to continue."
             RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED -> "Restore was rolled back safely. Close and reopen synthX to continue."
-            RestoreCoordinator.Terminal.EMERGENCY -> "Automatic recovery could not validate a usable local database. Normal app use is disabled."
+            RestoreCoordinator.Terminal.EMERGENCY ->
+                "Automatic database recovery could not validate a usable database.\n\n" +
+                    "Normal app use is disabled to protect your data.\n\n" +
+                    "Diagnostic operation ID:\n${diagnosticOperationId ?: "unavailable"}"
             RestoreCoordinator.Terminal.NORMAL -> ""
         }
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("Restart required") },
+            title = {
+                Text(
+                    if (restoreTerminal == RestoreCoordinator.Terminal.EMERGENCY) {
+                        "Database recovery required"
+                    } else {
+                        "Restart required"
+                    }
+                )
+            },
             text = { Text(message) },
             confirmButton = { TextButton(onClick = { exitProcess(0) }) { Text("Close") } },
         )
+        return
     }
+    val playbackViewModel = viewModel<PlaybackViewModel>(
+        factory = PlaybackViewModel.Factory(context.applicationContext)
+    )
     val snackbarHostState = remember { SnackbarHostState() }
     val searchReselectEvents = remember {
         MutableSharedFlow<Unit>(

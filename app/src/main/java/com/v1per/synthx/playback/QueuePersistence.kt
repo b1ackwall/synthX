@@ -5,16 +5,16 @@ import android.util.Log
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.data.repository.AdmittedQueuePersistenceRepository
+import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Everything the playback engine needs to survive a process death: the queue structure in
@@ -33,21 +33,25 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class QueuePersistence(
     private val repository: SongRepository,
-    private val preferences: PreferencesManager,
+    private val preferences: PreferencesManager?,
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val writeQueue = Channel<suspend () -> Unit>(Channel.UNLIMITED)
-    private val acceptingWrites = AtomicBoolean(true)
+    /** Serializes writer admission with channel closure. */
+    private val admissionLock = Any()
+    private var acceptingWrites = true
     private val writer: Job
 
     init {
+        instances += this
         writer = scope.launch {
             for (write in writeQueue) {
                 write()
             }
         }
+        writer.invokeOnCompletion { instances.remove(this) }
     }
 
     /**
@@ -63,15 +67,23 @@ class QueuePersistence(
     )
 
     fun saveQueue(songs: List<Song>) {
-        if (!acceptingWrites.get()) return
         val ids = songs.map { it.id }
-        writeQueue.trySend {
-            try {
-                repository.setQueueSongs(ids)
-            } catch (e: Exception) {
-                // A queue that fails to persist costs the user a restore, not a session.
-                Log.w(TAG, "Queue save failed: ${e.message}")
+        val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
+        synchronized(admissionLock) {
+            if (!acceptingWrites) { permit.release(); return }
+            val accepted = writeQueue.trySend {
+                try {
+                    require(repository is AdmittedQueuePersistenceRepository) {
+                        "Queue persistence requires an already-admitted repository"
+                    }
+                    repository.setQueueSongsAlreadyAdmitted(ids)
+                } catch (e: Exception) {
+                    runCatching { Log.w(TAG, "Queue save failed: ${e.message}") }
+                } finally {
+                    permit.release()
+                }
             }
+            if (accepted.isFailure) permit.release()
         }
     }
 
@@ -81,30 +93,39 @@ class QueuePersistence(
      * decide when a baseline mutation is worth persisting, this just writes it.
      */
     fun saveBaselineQueue(songs: List<Song>) {
-        if (!acceptingWrites.get()) return
         val ids = songs.map { it.id }
-        writeQueue.trySend {
-            try {
-                repository.setBaselineQueueSongs(ids)
-            } catch (e: Exception) {
-                Log.w(TAG, "Baseline queue save failed: ${e.message}")
+        val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
+        synchronized(admissionLock) {
+            if (!acceptingWrites) { permit.release(); return }
+            val accepted = writeQueue.trySend {
+                try {
+                    require(repository is AdmittedQueuePersistenceRepository) {
+                        "Queue persistence requires an already-admitted repository"
+                    }
+                    repository.setBaselineQueueSongsAlreadyAdmitted(ids)
+                } catch (e: Exception) {
+                    runCatching { Log.w(TAG, "Baseline queue save failed: ${e.message}") }
+                } finally {
+                    permit.release()
+                }
             }
+            if (accepted.isFailure) permit.release()
         }
     }
 
     fun savePlaybackState(index: Int, positionMs: Long) {
-        preferences.currentQueueIndex = index
-        preferences.currentPositionMs = positionMs
+        requirePreferences().currentQueueIndex = index
+        requirePreferences().currentPositionMs = positionMs
     }
 
     var shuffleEnabled: Boolean
-        get() = preferences.shuffleEnabled
-        set(value) { preferences.shuffleEnabled = value }
+        get() = requirePreferences().shuffleEnabled
+        set(value) { requirePreferences().shuffleEnabled = value }
 
     /** media3's Player.REPEAT_MODE_* int, stored raw so no mapping is needed at either end. */
     var repeatMode: Int
-        get() = preferences.repeatMode
-        set(value) { preferences.repeatMode = value }
+        get() = requirePreferences().repeatMode
+        set(value) { requirePreferences().repeatMode = value }
 
     /**
      * Null when there is nothing to restore: a fresh install, or a saved queue whose songs
@@ -126,7 +147,7 @@ class QueuePersistence(
             return null
         }
 
-        val savedIndex = preferences.currentQueueIndex
+        val savedIndex = requirePreferences().currentQueueIndex
         val savedId = savedIds.getOrNull(savedIndex)
         val resolvedIndex = songs.indexOfFirst { it.id == savedId }
 
@@ -135,7 +156,7 @@ class QueuePersistence(
             // The song that was playing is gone: resume from the top of what is left
             // rather than from an index that now means a different song.
             startIndex = if (resolvedIndex >= 0) resolvedIndex else 0,
-            positionMs = if (resolvedIndex >= 0) preferences.currentPositionMs else 0L,
+            positionMs = if (resolvedIndex >= 0) requirePreferences().currentPositionMs else 0L,
             droppedCount = savedIds.size - songs.size,
         )
     }
@@ -157,14 +178,23 @@ class QueuePersistence(
 
     /** Stops admission, drains accepted writes in FIFO order, then permanently closes Room use. */
     suspend fun quiesceForRestore() {
-        if (acceptingWrites.getAndSet(false)) writeQueue.close()
+        synchronized(admissionLock) {
+            if (acceptingWrites) {
+                acceptingWrites = false
+                writeQueue.close()
+            }
+        }
         writer.join()
+        instances.remove(this)
     }
 
     fun release() {
-        acceptingWrites.set(false)
-        writeQueue.close()
-        scope.cancel()
+        synchronized(admissionLock) {
+            acceptingWrites = false
+            writeQueue.close()
+        }
+        // Do not cancel the single consumer: accepted commands own coordinator permits and
+        // must finish their FIFO drain before this instance leaves the registry.
     }
 
     companion object {
@@ -182,7 +212,12 @@ class QueuePersistence(
             return QueuePersistence(
                 repository = SongRepositoryImpl.create(appContext),
                 preferences = PreferencesManager(appContext),
-            ).also { instances += it }
+            )
         }
+
+        internal fun activeInstanceCountForTest(): Int = instances.size
     }
+
+    private fun requirePreferences(): PreferencesManager =
+        requireNotNull(preferences) { "Playback preferences are unavailable" }
 }

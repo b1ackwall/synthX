@@ -213,7 +213,21 @@ abstract class SynthXDatabase : RoomDatabase() {
         }
 
         fun getInstance(context: Context): SynthXDatabase {
+            RestoreStartup.requireNormal()
+            return getOrCreate(context)
+        }
+
+        /** Restore-owned access after normal admission has closed but before Room is closed. */
+        internal fun getInstanceForRestore(context: Context): SynthXDatabase {
             RestoreStartup.await()
+            check(
+                com.v1per.synthx.data.backup.RestoreCoordinator.currentMode() ==
+                    com.v1per.synthx.data.backup.RestoreCoordinator.Mode.RESTORE_PREPARING
+            ) { "Restore-internal Room access requires restore preparation ownership" }
+            return getOrCreate(context)
+        }
+
+        private fun getOrCreate(context: Context): SynthXDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,

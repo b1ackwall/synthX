@@ -1,10 +1,14 @@
 package com.v1per.synthx.data.playlistseed
 
+import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistSongEntity
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.yield
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -12,6 +16,9 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class PlaylistSeedBootstrapperTest {
+
+    @org.junit.After
+    fun resetRestoreCoordinator() = RestoreCoordinator.resetForTest()
 
     @Test
     fun emptyDatabaseWithAllSongsCreatesCanonicalPlaylistsAndMemberships() = runBlocking {
@@ -212,6 +219,55 @@ class PlaylistSeedBootstrapperTest {
         assertEquals(membershipsAfterFirstSeed, database.memberships)
     }
 
+    @Test
+    fun admittedSeedDrainsBeforeRestoreProceeds() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val database = FakePlaylistSeedDatabase(
+            availableSongIds = approvedSongHashes.toSet(),
+            transactionEntered = entered,
+            finishTransaction = finish,
+        )
+        val seed = async { bootstrapper(database).seed() }
+        entered.await()
+        val drained = CompletableDeferred<Unit>()
+        val restore = async {
+            RestoreCoordinator.exclusive {
+                RestoreCoordinator.awaitDrained()
+                drained.complete(Unit)
+            }
+        }
+        yield()
+        assertTrue(!drained.isCompleted)
+        finish.complete(Unit)
+        assertIs<PlaylistSeedBootstrapResult.Complete>(seed.await())
+        restore.await()
+        assertTrue(drained.isCompleted)
+    }
+
+    @Test
+    fun preparingRejectsSeedBeforeDatabaseTransaction() = runBlocking {
+        val hold = CompletableDeferred<Unit>()
+        val entered = CompletableDeferred<Unit>()
+        val restore = async {
+            RestoreCoordinator.exclusive { entered.complete(Unit); hold.await() }
+        }
+        entered.await()
+        val database = FakePlaylistSeedDatabase(approvedSongHashes.toSet())
+        assertEquals(PlaylistSeedBootstrapResult.DatabaseFailure, bootstrapper(database).seed())
+        assertEquals(0, database.transactionsStarted)
+        hold.complete(Unit)
+        restore.await()
+    }
+
+    @Test
+    fun closedRejectsSeedBeforeDatabaseTransaction() = runBlocking {
+        RestoreCoordinator.markClosed()
+        val database = FakePlaylistSeedDatabase(approvedSongHashes.toSet())
+        assertEquals(PlaylistSeedBootstrapResult.DatabaseFailure, bootstrapper(database).seed())
+        assertEquals(0, database.transactionsStarted)
+    }
+
     private fun bootstrapper(
         database: PlaylistSeedDatabase,
         bytes: ByteArray = approvedManifestBytes,
@@ -272,6 +328,8 @@ private class FakePlaylistSeedDatabase(
     initialPlaylists: List<PlaylistEntity> = emptyList(),
     initialMemberships: List<PlaylistSongEntity> = emptyList(),
     private val failAfterMembershipInsert: Int? = null,
+    private val transactionEntered: CompletableDeferred<Unit>? = null,
+    private val finishTransaction: CompletableDeferred<Unit>? = null,
 ) : PlaylistSeedDatabase {
     val playlists = linkedMapOf<String, PlaylistEntity>().apply {
         initialPlaylists.forEach { put(it.id, it) }
@@ -289,6 +347,8 @@ private class FakePlaylistSeedDatabase(
 
     override suspend fun <T> inTransaction(block: suspend PlaylistSeedDatabase.() -> T): T {
         transactionsStarted++
+        transactionEntered?.complete(Unit)
+        finishTransaction?.await()
         val playlistSnapshot = playlists.toMap()
         val membershipSnapshot = memberships.toList()
         return try {

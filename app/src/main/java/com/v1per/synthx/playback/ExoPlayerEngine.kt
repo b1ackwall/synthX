@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * [PlaybackEngine] implementation backed by a media3 [MediaController]/[SynthXPlaybackService].
@@ -158,6 +160,7 @@ class ExoPlayerEngine(
     private val controllerReady = CompletableDeferred<Boolean>()
 
     init {
+        instances += this
         // A rescan can replace a song's row (and id) while that exact song is the one
         // cached here — see SongRemapEvents' kdoc. songsById is keyed by MediaItem.mediaId,
         // which never changes for an item already in the timeline, so the entry is
@@ -257,16 +260,26 @@ class ExoPlayerEngine(
     }
 
     override fun release() {
+        releaseInternal(releasePersistence = true)
+    }
+
+    /** Stops playback without cancelling accepted FIFO writes; restore drains those next. */
+    private fun releaseForRestore() {
+        releaseInternal(releasePersistence = false)
+    }
+
+    private fun releaseInternal(releasePersistence: Boolean) {
         artworkJob?.cancel()
         engineScope.cancel()
         // Unblocks a restore still waiting on a connection that will now never land.
         controllerReady.complete(false)
-        persistence.release()
+        if (releasePersistence) persistence.release()
         controller?.removeListener(listener)
         MediaController.releaseFuture(controllerFuture)
         // Cleared so the `controller?.` guards in the playback methods actually
         // short-circuit after release instead of calling into a released instance.
         controller = null
+        instances.remove(this)
     }
 
     internal suspend fun awaitController(): MediaController? {
@@ -288,5 +301,17 @@ class ExoPlayerEngine(
 
     internal companion object {
         const val TAG = "SynthXQueue"
+        private val instances = ConcurrentHashMap.newKeySet<ExoPlayerEngine>()
+
+        /** Restore permanently stops every owner that can enqueue queue persistence. */
+        suspend fun releaseAllForRestore() {
+            val engines = instances.toList()
+            withContext(Dispatchers.Main.immediate) {
+                engines.forEach {
+                    it.stop()
+                    it.releaseForRestore()
+                }
+            }
+        }
     }
 }

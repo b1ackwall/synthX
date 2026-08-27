@@ -84,7 +84,7 @@ class PlaylistExportManager(
 
         // The database materialization is a finite tracked operation; SAF writing afterwards
         // no longer keeps Room alive during restore preparation.
-        val export = RestoreCoordinator.withDbOperation { assembleExport() }
+        val export = PlaylistExportMaterialization.run { assembleExport() }
         val bytes = json.encodeToString(PlaylistExport.serializer(), export).toByteArray()
 
         val root = DocumentFile.fromTreeUri(context, treeUri)
@@ -115,7 +115,6 @@ class PlaylistExportManager(
             error("Could not finalize playlist export")
         }
         root.findFile(BACKUP_FILE_NAME)?.delete()
-        Unit
     }
 
     /**
@@ -201,4 +200,9 @@ class PlaylistExportManager(
             )
         }
     }
+}
+
+/** The exact finite Room boundary used by every playlist export. */
+internal object PlaylistExportMaterialization {
+    suspend fun <T> run(block: suspend () -> T): T = RestoreCoordinator.withDbOperation(block)
 }

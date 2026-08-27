@@ -54,6 +54,8 @@ android {
         compose = true
         resValues = true
     }
+
+    sourceSets.getByName("androidTest").assets.srcDir("schemas")
 }
 
 composeCompiler {
@@ -104,6 +106,8 @@ dependencies {
     androidTestImplementation("androidx.test:core-ktx:1.6.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit-ktx:1.2.1")
+    androidTestImplementation("androidx.room:room-testing:2.8.4")
+    androidTestImplementation("androidx.work:work-testing:2.9.1")
 
     debugImplementation(libs.androidx.ui.tooling)
 }
