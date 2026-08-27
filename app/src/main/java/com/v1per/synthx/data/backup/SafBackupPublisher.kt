@@ -12,6 +12,7 @@ internal class BackupPublicationException(message: String, cause: Throwable? = n
     IllegalStateException(message, cause)
 
 internal data class PublishedBackup(
+    val identity: BackupFileIdentity,
     val database: DocumentFile,
     val metadata: DocumentFile,
 )
@@ -69,7 +70,7 @@ internal class SafBackupPublisher(private val context: Context) {
             // not merely the pre-rename temporary document.
             verifyExternalBytes(resolver, finalDatabase.uri, digest)
 
-            return PublishedBackup(finalDatabase, finalMetadata)
+            return PublishedBackup(identity, finalDatabase, finalMetadata)
         } catch (primary: Throwable) {
             cleanupAfterFailure(
                 tierDirectory = tierDirectory,

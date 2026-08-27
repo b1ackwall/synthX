@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.data.repository.RepositoryDbFlow
 import com.v1per.synthx.playback.ExoPlayerEngine
 import com.v1per.synthx.playback.QueuePersistence
 import java.io.File
@@ -143,7 +144,7 @@ internal object RestoreTransaction {
 
                 // Admission is already closed. Let every operation accepted before that
                 // boundary finish so the mandatory safety snapshot includes all of them.
-                RestoreCoordinator.awaitDrained()
+                RestoreCoordinator.awaitFiniteDrained()
 
                 faults.hit(RestoreFaultPoint.SAFETY_SNAPSHOT)
                 val room = SynthXDatabase.getInstanceForRestore(context)
@@ -174,6 +175,7 @@ internal object RestoreTransaction {
                     permanentQuiesceStarted = true
                     ExoPlayerEngine.releaseAllForRestore()
                     QueuePersistence.quiesceAllForRestore()
+                    RepositoryDbFlow.quiesceForRestore()
                     SongRepositoryImpl.quiesceForRestore()
                     RestoreCoordinator.awaitDrained()
                     check(RestoreCoordinator.activeOperationCountForTest() == 0) {

@@ -141,7 +141,7 @@ class BackupManager(private val context: Context) {
                 sha256 = digest.sha256,
             )
 
-            SafBackupPublisher(context).publish(
+            val published = SafBackupPublisher(context).publish(
                 tierDirectory = tierDirectory,
                 identity = identity,
                 snapshot = snapshot,
@@ -151,7 +151,7 @@ class BackupManager(private val context: Context) {
 
             // Publication is complete at this point. Preserve retention's current best-effort
             // policy so cleanup cannot turn a valid, published backup into a reported failure.
-            runCatching { enforceRetention(tierDirectory, tier) }
+            runCatching { enforceRetention(tierDirectory, tier, published.identity) }
                 .onFailure { Log.w(TAG, "Backup retention skipped", it) }
         } finally {
             deleteLocalStage(snapshot)
@@ -169,6 +169,8 @@ class BackupManager(private val context: Context) {
                 ?: return@flatMap emptyList()
             val children = runCatching { directory.listFiles().toList() }.getOrDefault(emptyList())
             val byName = children.associateBy { it.name.orEmpty() }
+            val completedByDatabaseName = completedPairs(children, tier)
+                .associateBy { it.databaseName }
 
             children
                 .filter { document ->
@@ -178,12 +180,14 @@ class BackupManager(private val context: Context) {
                 .map { databaseDocument ->
                     val name = databaseDocument.name.orEmpty()
                     val stem = name.removeSuffix(".db")
-                    val metadataDocument = byName["$stem.json"]
-                    val metadata = metadataDocument?.let { readMetadata(it.uri) }
-                    val eligible = metadata?.let { value ->
+                    val completePair = completedByDatabaseName[name]
+                    val metadataDocument = completePair?.metadataDocument?.document
+                        ?: byName["$stem.json"]
+                    val metadata = completePair?.metadata
+                        ?: metadataDocument?.let { readMetadata(it.uri) }
+                    val eligible = completePair?.metadata?.let { value ->
                         runCatching {
-                            value.requireCompleteForPublication()
-                            value.file == name && value.dbVersion <= SynthXDatabase.VERSION &&
+                            value.dbVersion <= SynthXDatabase.VERSION &&
                                 BackupSchemaContracts.forVersion(value.dbVersion)?.hasMigrationPathToCurrent == true
                         }.getOrDefault(false)
                     } == true
@@ -261,26 +265,39 @@ class BackupManager(private val context: Context) {
         return if (create) root.createDirectory(tier.folderName) else null
     }
 
-    /** Existing retention counts only recognizable final database documents. */
-    private fun enforceRetention(tierDirectory: DocumentFile, tier: BackupTier) {
+    private fun enforceRetention(
+        tierDirectory: DocumentFile,
+        tier: BackupTier,
+        protected: BackupFileIdentity,
+    ) {
         val children = runCatching { tierDirectory.listFiles().toList() }.getOrDefault(emptyList())
-        val byName = children.associateBy { it.name.orEmpty() }
-        val backups = children
-            .filter { document ->
-                document.isFile &&
-                    document.name?.let(BackupFileNames::isCompletedDatabaseName) == true
-            }
-            .sortedByDescending { document ->
-                BackupFileNames.parseTimestampMillis(document.name.orEmpty())
-                    ?: document.lastModified()
-            }
-
-        backups.drop(tier.retention).forEach { document ->
-            val stem = document.name.orEmpty().removeSuffix(".db")
-            runCatching { document.delete() }
-            byName["$stem.json"]?.let { metadata -> runCatching { metadata.delete() } }
+        BackupRetention.prune(
+            completed = completedPairs(children, tier),
+            limit = tier.retention,
+            protectedDatabaseName = protected.databaseFileName,
+        ) { pair ->
+            // Attempt both sides independently. If one fails, the survivor is an orphan and
+            // cannot re-enter CompletedBackupCatalog on the next pass.
+            runCatching { pair.database.document.delete() }
+            runCatching { pair.metadataDocument.document.delete() }
         }
     }
+
+    private fun completedPairs(
+        children: List<DocumentFile>,
+        tier: BackupTier,
+    ): List<CompletedBackup<DocumentFile>> = CompletedBackupCatalog.enumerate(
+        tier = tier,
+        artifacts = children.map { document ->
+            BackupArtifact(
+                document = document,
+                name = document.name.orEmpty(),
+                isFile = document.isFile,
+                sizeBytes = document.length(),
+            )
+        },
+        readMetadata = { document -> readMetadata(document.uri) },
+    )
 
     private fun readMetadata(uri: Uri): BackupMetadata? = runCatching {
         context.contentResolver.openInputStream(uri)?.use { input ->

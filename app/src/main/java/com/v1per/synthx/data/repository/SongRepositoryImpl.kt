@@ -66,7 +66,7 @@ class SongRepositoryImpl(
     // Room's Flow still auto-invalidates on real table changes, so this stays correct
     // across scans/edits regardless of how long the cache is held.
     private val songsFlow: StateFlow<List<Song>> =
-        songDao.getAllSongsWithDetails().map { entries ->
+        RepositoryDbFlow.observe { songDao.getAllSongsWithDetails() }.map { entries ->
             // One refs query per emission — 2 queries total regardless of library size
             val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
             entries.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
@@ -81,7 +81,7 @@ class SongRepositoryImpl(
     // Same caching rationale as songsFlow above — shared across every getArtists()
     // subscriber (Artists list, Search) instead of re-querying per collector.
     private val artistsFlow: StateFlow<List<Artist>> =
-        artistDao.getAllArtists().map { entities ->
+        RepositoryDbFlow.observe { artistDao.getAllArtists() }.map { entities ->
             entities.map { Artist(id = it.id, name = it.name) }
         }.stateIn(
             scope = repositoryScope,
@@ -93,7 +93,7 @@ class SongRepositoryImpl(
 
     // Sort order (title) stays in the DAO query; the Flow conversion preserves it.
     override fun getSongsForArtist(artistId: String): Flow<List<Song>> =
-        songDao.getSongsWithDetailsForArtist(artistId).map { details ->
+        RepositoryDbFlow.observe { songDao.getSongsWithDetailsForArtist(artistId) }.map { details ->
             val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
                 .groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
@@ -102,7 +102,7 @@ class SongRepositoryImpl(
     // Same caching rationale as songsFlow above — shared across every getAlbums()
     // subscriber (Albums list, Search) instead of re-querying per collector.
     private val albumsFlow: StateFlow<List<Album>> =
-        albumDao.getAllAlbums().map { entries ->
+        RepositoryDbFlow.observe { albumDao.getAllAlbums() }.map { entries ->
             entries.map {
                 Album(
                     id = it.id,
@@ -121,7 +121,7 @@ class SongRepositoryImpl(
 
     // Sort order (track number, then title) stays in the DAO query.
     override fun getSongsForAlbum(albumId: String): Flow<List<Song>> =
-        songDao.getSongsWithDetailsForAlbum(albumId).map { details ->
+        RepositoryDbFlow.observe { songDao.getSongsWithDetailsForAlbum(albumId) }.map { details ->
             val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
                 .groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
@@ -177,13 +177,14 @@ class SongRepositoryImpl(
     // Sort order (date_added DESC) and the starred/missing filters stay in the DAO query;
     // this only resolves artist order, same as the playlist/album/artist song lists above.
     override fun getStarredSongs(): Flow<List<Song>> =
-        songDao.getStarredSongs().map { details ->
+        RepositoryDbFlow.observe { songDao.getStarredSongs() }.map { details ->
             val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
                 .groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
 
-    override fun getStarredSongCount(): Flow<Int> = songDao.getStarredSongCount()
+    override fun getStarredSongCount(): Flow<Int> =
+        RepositoryDbFlow.observe { songDao.getStarredSongCount() }
 
     // No backupManager.createBackup here, unlike deleteSong/deletePlaylist: this clears one
     // boolean and destroys nothing, so there is nothing to restore from.
@@ -203,12 +204,14 @@ class SongRepositoryImpl(
         songDao.removeOrganizedFromStarred()
     }
 
-    override fun getMissingSongs(): Flow<List<MissingSongInfo>> = songDao.getMissingSongs()
+    override fun getMissingSongs(): Flow<List<MissingSongInfo>> =
+        RepositoryDbFlow.observe { songDao.getMissingSongs() }
 
-    override fun getMissingSongCount(): Flow<Int> = songDao.getMissingSongCount()
+    override fun getMissingSongCount(): Flow<Int> =
+        RepositoryDbFlow.observe { songDao.getMissingSongCount() }
 
     override fun getAllGroups(): Flow<List<PlaylistGroup>> =
-        playlistDao.getAllGroups().map { entities ->
+        RepositoryDbFlow.observe { playlistDao.getAllGroups() }.map { entities ->
             entities.map { PlaylistGroup(id = it.id, name = it.name) }
         }
 
@@ -237,7 +240,7 @@ class SongRepositoryImpl(
     // Same caching rationale as songsFlow above — shared across every getAllPlaylists()
     // subscriber (SongActionsHost, Search) instead of re-querying per collector.
     private val allPlaylistsFlow: StateFlow<List<Playlist>> =
-        playlistDao.getAllPlaylists().map { entities ->
+        RepositoryDbFlow.observe { playlistDao.getAllPlaylists() }.map { entities ->
             entities.map { it.toDomain() }
         }.stateIn(
             scope = repositoryScope,
@@ -248,12 +251,12 @@ class SongRepositoryImpl(
     override fun getAllPlaylists(): Flow<List<Playlist>> = allPlaylistsFlow
 
     override fun getUngroupedPlaylists(): Flow<List<Playlist>> =
-        playlistDao.getUngroupedPlaylists().map { entities ->
+        RepositoryDbFlow.observe { playlistDao.getUngroupedPlaylists() }.map { entities ->
             entities.map { it.toDomain() }
         }
 
     override fun getPlaylistsForGroup(groupId: String): Flow<List<Playlist>> =
-        playlistDao.getPlaylistsForGroup(groupId).map { entities ->
+        RepositoryDbFlow.observe { playlistDao.getPlaylistsForGroup(groupId) }.map { entities ->
             entities.map { it.toDomain() }
         }
 
@@ -297,7 +300,7 @@ class SongRepositoryImpl(
     // Joins straight to playlist_songs (position order, is_missing filter) rather than
     // re-fetching/joining the whole library and filtering down in Kotlin.
     override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> =
-        songDao.getSongsWithDetailsForPlaylist(playlistId).map { details ->
+        RepositoryDbFlow.observe { songDao.getSongsWithDetailsForPlaylist(playlistId) }.map { details ->
             val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
                 .groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
