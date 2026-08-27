@@ -77,6 +77,14 @@ internal object BackupSchemaContracts {
             expectedTables = coreTables + setOf("queue_items", "queue_baseline_items"),
             hasMigrationPathToCurrent = true,
         ),
+        // 8_9 only adds songs.album_art_full_uri, so the managed table set is unchanged from 8
+        // — only the Room identity hash moves.
+        BackupSchemaContract(
+            userVersion = 9,
+            roomIdentityHash = "956df3c0e8aa04390ba812529e813c94",
+            expectedTables = coreTables + setOf("queue_items", "queue_baseline_items"),
+            hasMigrationPathToCurrent = true,
+        ),
     ).associateBy { it.userVersion }
 
     val current: BackupSchemaContract
