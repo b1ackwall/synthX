@@ -81,6 +81,18 @@ class BackupManager(private val context: Context) {
         }
     }
 
+    /**
+     * C1's only production pre-migration entry point. It retains the complete Phase-A pipeline,
+     * but cannot wait for/cancel the Worker that may itself be the process's first gate caller.
+     * [BackupReason.MIGRATION] selects [BackupSnapshotter.createForMigration], so this path never
+     * obtains Room while the gate is still closed.
+     */
+    internal suspend fun createPreMigrationBackup(): Result<Unit> = createBackup(
+        tier = BackupTier.Auto,
+        reason = BackupReason.MIGRATION,
+        cancelActiveScan = false,
+    )
+
     private suspend fun createBackupLocked(
         tier: BackupTier,
         reason: String?,
@@ -200,6 +212,9 @@ class BackupManager(private val context: Context) {
      */
     suspend fun restore(backup: BackupInfo): Result<Unit> = withContext(Dispatchers.IO) {
         RestoreStartup.await()
+        // A pending restore may itself be the first Worker in a new app process. Its safety
+        // snapshot opens live Room, so it must cross C1 just like every other live Room owner.
+        DatabaseStartupGate.awaitReady()
         val metadata = readRestoreMetadata(backup)
             ?: return@withContext Result.failure(IllegalArgumentException("Legacy backup — restore unavailable"))
         RestoreTransaction.execute(context, backup, metadata)

@@ -58,10 +58,10 @@ internal object RestoreStartup {
     }
 }
 
-/** Shared worker boundary: recovery resolves before admission and Room construction. */
+/** Shared worker boundary: both startup gates resolve before admission and Room construction. */
 internal object WorkerDatabaseAccess {
     suspend fun <T> run(
-        awaitStartup: suspend () -> Unit = { RestoreStartup.requireNormal() },
+        awaitStartup: suspend () -> Unit = { DatabaseStartupGate.awaitReady() },
         block: suspend () -> T,
     ): T {
         awaitStartup()

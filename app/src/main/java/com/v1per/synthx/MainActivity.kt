@@ -22,11 +22,10 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.v1per.synthx.data.backup.BackupManager
-import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
-import com.v1per.synthx.data.backup.RestoreStartup
+import com.v1per.synthx.data.backup.DatabaseStartupGate
 import com.v1per.synthx.data.backup.RestoreCoordinator
-import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.data.backup.UnsupportedLiveDatabaseVersionException
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.data.scanner.VerifyLibraryWorker
@@ -39,6 +38,8 @@ import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
 
 class MainActivity : ComponentActivity() {
+
+    private var databaseStartupAttemptRunning = false
 
     /**
      * Resolved here rather than only inside MainScaffold so the queue restore can start
@@ -54,27 +55,42 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The application starts recovery off-main. Do not instantiate playback, Room, or
-        // launch maintenance until it has made the database namespace safe to open.
-        lifecycleScope.launch(Dispatchers.IO) {
-            RestoreStartup.await()
-            launch(Dispatchers.Main) {
-                enableEdgeToEdge()
-                setContent {
-                    SynthXTheme {
-                        if (RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL) {
+        resolveDatabaseStartup()
+    }
+
+    /**
+     * No production Compose tree is installed until the process-wide database gate resolves.
+     * Failure content owns no repository/DAO and offers a later retry while Room stays closed.
+     */
+    private fun resolveDatabaseStartup() {
+        if (databaseStartupAttemptRunning) return
+        databaseStartupAttemptRunning = true
+        lifecycleScope.launch {
+            val startupFailure = runCatching { DatabaseStartupGate.awaitReady() }.exceptionOrNull()
+            enableEdgeToEdge()
+            setContent {
+                SynthXTheme {
+                    when {
+                        RestoreCoordinator.current() != RestoreCoordinator.Terminal.NORMAL ->
+                            RestoreTerminalContent(RestoreCoordinator.current())
+                        startupFailure != null -> DatabaseStartupFailureContent(
+                            error = startupFailure,
+                            onRetry = ::resolveDatabaseStartup,
+                        )
+                        else -> {
                             NotificationPermissionEffect()
                             MainScaffold()
-                        } else {
-                            RestoreTerminalContent(RestoreCoordinator.current())
                         }
                     }
                 }
-                if (RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL) {
-                    pruneFinishedWork()
-                    runLaunchMaintenance()
-                }
             }
+            if (startupFailure == null &&
+                RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL
+            ) {
+                pruneFinishedWork()
+                runLaunchMaintenance()
+            }
+            databaseStartupAttemptRunning = false
         }
     }
 
@@ -86,7 +102,9 @@ class MainActivity : ComponentActivity() {
      */
     override fun onStop() {
         super.onStop()
-        if (RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL) {
+        if (DatabaseStartupGate.isReady() &&
+            RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL
+        ) {
             playbackViewModel.persistPlaybackState()
         }
     }
@@ -96,20 +114,15 @@ class MainActivity : ComponentActivity() {
      * around until it's explicitly pruned or the unique name is enqueued again — without this,
      * RestoreViewModel reading RestoreWorker.UNIQUE_WORK_NAME's WorkInfo on a later, unrelated
      * visit to the Restore screen would still see last session's SUCCEEDED state and resurface
-     * the "restore complete, reopen synthX" dialog. Called before setContent, ahead of any
-     * ViewModel that might read WorkInfo. WorkManager has no per-unique-work prune, only this
-     * database-wide one — harmless here since nothing else in the app persists across restarts
-     * by reading a finished WorkInfo the way Restore does.
+     * the "restore complete, reopen synthX" dialog. WorkManager has no per-unique-work prune,
+     * only this database-wide one — harmless here since nothing else in the app persists across
+     * restarts by reading a finished WorkInfo the way Restore does.
      */
     private fun pruneFinishedWork() {
         WorkManager.getInstance(applicationContext).pruneWork()
     }
 
-    /**
-     * Ordered deliberately: the pre-migration snapshot must be taken before anything
-     * opens the Room database, because opening it is what runs the migration.
-     * BackupManager snapshots through a raw SQLite handle for exactly this reason.
-     */
+    /** Runs only after C1 has granted process-wide Room permission. */
     private fun runLaunchMaintenance() {
         val preferences = PreferencesManager(applicationContext)
         val backupManager = BackupManager.create(applicationContext)
@@ -118,11 +131,8 @@ class MainActivity : ComponentActivity() {
         val playback = playbackViewModel
 
         lifecycleScope.launch(Dispatchers.IO) {
-            backupBeforeMigration(preferences, backupManager)
             backupDailyIfDue(preferences, backupManager)
-            // Sits inside this chain, not beside it: the restore queries Room, and a query
-            // is what triggers the migration the snapshot above has to precede. Ahead of
-            // verifyLibrary so the mini player comes back without waiting on a full
+            // Ahead of verifyLibrary so the mini player comes back without waiting on a full
             // existence sweep — a song that vanished since last session fails on play with
             // the normal error snackbar.
             playback.restoreSavedQueue()
@@ -155,20 +165,6 @@ class MainActivity : ComponentActivity() {
             .enqueue()
     }
 
-    private suspend fun backupBeforeMigration(
-        preferences: PreferencesManager,
-        backupManager: BackupManager,
-    ) {
-        val lastKnown = preferences.lastKnownDbVersion
-        // 0 means fresh install — there is no prior schema and nothing worth snapshotting.
-        if (lastKnown != 0 && lastKnown != SynthXDatabase.VERSION) {
-            Log.i(TAG, "Schema $lastKnown -> ${SynthXDatabase.VERSION}, backing up first")
-            backupManager.createBackup(BackupTier.Auto, BackupReason.MIGRATION)
-                .onFailure { e -> Log.w(TAG, "Pre-migration backup skipped: ${e.message}") }
-        }
-        preferences.lastKnownDbVersion = SynthXDatabase.VERSION
-    }
-
     private suspend fun backupDailyIfDue(
         preferences: PreferencesManager,
         backupManager: BackupManager,
@@ -185,6 +181,28 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val TAG = "SynthXScan"
         const val DAILY_INTERVAL_MS = 24L * 60 * 60 * 1000
+    }
+}
+
+@Composable
+private fun DatabaseStartupFailureContent(
+    error: Throwable,
+    onRetry: () -> Unit,
+) {
+    val message = if (error is UnsupportedLiveDatabaseVersionException) {
+        "This database was created by a newer synthX version. Downgrade is disabled, and the " +
+            "database remains unopened. Install a compatible synthX version to continue."
+    } else {
+        "synthX could not complete the required database safety maintenance. The database " +
+            "remains unopened. Check backup-folder access and retry.\n\n${error.message.orEmpty()}"
+    }
+    Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Database startup paused") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = onRetry) { Text("Retry") } },
+        )
     }
 }
 

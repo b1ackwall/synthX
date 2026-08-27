@@ -26,6 +26,11 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
         runCatching { RestoreCoordinator.requireNormal() }.getOrElse {
             return Result.failure(workDataOf(KEY_ERROR to "Restore requires synthX to be reopened"))
         }
+        runCatching { DatabaseStartupGate.awaitReady() }.getOrElse { error ->
+            return Result.failure(
+                workDataOf(KEY_ERROR to (error.message ?: "Database startup maintenance failed"))
+            )
+        }
         val backup = inputData.toBackupInfo()
             ?: return Result.failure(workDataOf(KEY_ERROR to "Missing or invalid backup reference"))
         createNotificationChannel()

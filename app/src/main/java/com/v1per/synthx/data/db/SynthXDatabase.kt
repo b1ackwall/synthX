@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.v1per.synthx.data.backup.DatabaseStartupGate
 import com.v1per.synthx.data.backup.RestoreStartup
 
 @Database(
@@ -213,12 +214,16 @@ abstract class SynthXDatabase : RoomDatabase() {
         }
 
         fun getInstance(context: Context): SynthXDatabase {
+            // Fail closed synchronously. Callers must asynchronously await DatabaseStartupGate;
+            // this factory never blocks a main thread on SAF and never opens Room prematurely.
+            DatabaseStartupGate.requireReady()
             RestoreStartup.requireNormal()
             return getOrCreate(context)
         }
 
         /** Restore-owned access after normal admission has closed but before Room is closed. */
         internal fun getInstanceForRestore(context: Context): SynthXDatabase {
+            DatabaseStartupGate.requireReady()
             RestoreStartup.await()
             check(
                 com.v1per.synthx.data.backup.RestoreCoordinator.currentMode() ==
@@ -244,8 +249,11 @@ abstract class SynthXDatabase : RoomDatabase() {
         }
 
         /** Builds an isolated Room instance for an offline restore candidate, never the singleton. */
-        fun createStandalone(context: Context, databaseName: String): SynthXDatabase =
-            Room.databaseBuilder(
+        internal fun createStandalone(context: Context, databaseName: String): SynthXDatabase {
+            require(databaseName != DB_NAME) {
+                "Standalone Room instances cannot target the live database name"
+            }
+            return Room.databaseBuilder(
                 context.applicationContext,
                 SynthXDatabase::class.java,
                 databaseName,
@@ -255,6 +263,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     MIGRATION_6_7, MIGRATION_7_8,
                 )
                 .build()
+        }
 
         /**
          * Closes the database and drops the singleton so the next [getInstance] rebuilds it.

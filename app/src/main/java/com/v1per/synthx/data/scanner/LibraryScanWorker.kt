@@ -19,6 +19,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
+import com.v1per.synthx.data.backup.DatabaseStartupGate
 import com.v1per.synthx.data.backup.WorkerDatabaseAccess
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.preferences.PreferencesManager
@@ -52,6 +53,15 @@ class LibraryScanWorker(
         if (!grantValid) {
             preferences.musicFolderUri = null
             return Result.failure(workDataOf(KEY_ERROR to GRANT_REVOKED_MESSAGE))
+        }
+
+        // This ordinary pre-rescan backup obtains live Room. Await C1 before attempting it;
+        // a Worker-started process must not reach this backup's Room branch ahead of migration
+        // safety. The shared WorkerDatabaseAccess below observes the same already-ready gate.
+        runCatching { DatabaseStartupGate.awaitReady() }.getOrElse { error ->
+            return Result.failure(
+                workDataOf(KEY_ERROR to (error.message ?: "Database startup maintenance failed"))
+            )
         }
 
         // Snapshot before the scan mutates anything. cancelActiveScan = false is required:

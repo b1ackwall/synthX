@@ -162,6 +162,7 @@ class BackupSnapshotInstrumentedTest {
         assertEquals(7, validated.schema.userVersion)
         assertEquals(7, decoded?.dbVersion)
         assertEquals(7, readUserVersion(staged))
+        assertEquals(7, readUserVersion(source))
     }
 
     @Test

@@ -39,11 +39,6 @@ class PreferencesManager(context: Context) {
     fun configuredAudioRootUris(): List<Uri> =
         listOfNotNull(musicFolderUri, newArrivalsFolderUri).map(Uri::parse)
 
-    /** Schema version seen on the previous launch. 0 means "never recorded" (fresh install). */
-    var lastKnownDbVersion: Int
-        get() = prefs.getInt(KEY_LAST_KNOWN_DB_VERSION, 0)
-        set(value) = prefs.edit().putInt(KEY_LAST_KNOWN_DB_VERSION, value).apply()
-
     /** Epoch millis of the last successful Daily backup. 0 means none taken yet. */
     var lastDailyBackupTimestamp: Long
         get() = prefs.getLong(KEY_LAST_DAILY_BACKUP, 0L)
@@ -74,7 +69,6 @@ class PreferencesManager(context: Context) {
         const val KEY_MUSIC_FOLDER_URI = "music_folder_uri"
         private const val KEY_BACKUP_FOLDER_URI = "backup_folder_uri"
         private const val KEY_NEW_ARRIVALS_FOLDER_URI = "new_arrivals_folder_uri"
-        private const val KEY_LAST_KNOWN_DB_VERSION = "last_known_db_version"
         private const val KEY_LAST_DAILY_BACKUP = "last_daily_backup"
         private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
         private const val KEY_REPEAT_MODE = "repeat_mode"

@@ -36,6 +36,7 @@ class RestoreWorkerInstrumentedTest {
         RestoreCoordinator.resetForTest()
         runBlocking { workManager.pruneWork().result.get() }
         cleanOwnedFiles()
+        DatabaseStartupGate.resetForTest(context)
     }
 
     @After fun tearDown() {
@@ -44,6 +45,7 @@ class RestoreWorkerInstrumentedTest {
         if (RestoreCoordinator.activeOperationCountForTest() == 0) RestoreCoordinator.resetForTest()
         runBlocking { workManager.cancelAllWork().result.get(); workManager.pruneWork().result.get() }
         cleanOwnedFiles()
+        DatabaseStartupGate.resetForTest(context)
     }
 
     @Test fun uniqueRestoreUsesKeepSemantics() {

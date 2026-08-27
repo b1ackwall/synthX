@@ -57,6 +57,7 @@ class PhaseBRestoreInstrumentedTest {
         SongRepositoryImpl.resetForTest()
         RestoreStartup.resetForTest()
         RestoreCoordinator.resetForTest()
+        DatabaseStartupGate.markReadyForTest()
         cleanOwnedFiles()
     }
 
