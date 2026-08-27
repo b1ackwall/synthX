@@ -163,6 +163,15 @@ class SongRepositoryImpl(
 
     override fun getStarredSongCount(): Flow<Int> = songDao.getStarredSongCount()
 
+    // Sort order (date_added DESC) and the limit/missing filter stay in the DAO query;
+    // this only resolves artist order, same as the other scoped song lists above.
+    override fun getRecentSongs(limit: Int): Flow<List<Song>> =
+        songDao.getRecentSongsWithDetails(limit).map { details ->
+            val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+                .groupBy { it.songId }
+            details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+        }.flowOn(Dispatchers.Default)
+
     // No backupManager.createBackup here, unlike deleteSong/deletePlaylist: this clears one
     // boolean and destroys nothing, so there is nothing to restore from.
     override suspend fun dismissFromStarred(songId: String) =

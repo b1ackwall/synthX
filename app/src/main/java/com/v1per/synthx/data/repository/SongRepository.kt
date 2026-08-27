@@ -40,6 +40,9 @@ interface SongRepository {
     /** Starred, non-missing songs, newest first. */
     fun getStarredSongs(): Flow<List<Song>>
 
+    /** Non-missing songs, newest-added first, capped at [limit]. */
+    fun getRecentSongs(limit: Int): Flow<List<Song>>
+
     /** How many songs [getStarredSongs] would return — for the Library row's badge. */
     fun getStarredSongCount(): Flow<Int>
 
