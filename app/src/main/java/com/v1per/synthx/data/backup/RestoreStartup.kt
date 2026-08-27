@@ -10,16 +10,7 @@ internal object RestoreStartup {
     @Volatile private var result: RestoreRecovery = RestoreRecovery.NORMAL
     fun begin(context: Context) {
         Thread({
-            val dir = context.getDatabasePath(SynthXDatabase.DB_NAME).parentFile
-            result = if (dir == null) RestoreRecovery.EMERGENCY else RestoreTransaction.recoverIfNeeded(context, dir)
-            when (result) {
-                RestoreRecovery.NORMAL -> RestoreCoordinator.markNormal()
-                RestoreRecovery.RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(false)
-                RestoreRecovery.ROLLED_BACK_RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(true)
-                RestoreRecovery.EMERGENCY -> RestoreCoordinator.markEmergency(
-                    RestoreTransaction.diagnosticOperationId(),
-                )
-            }
+            result = recoverAndPublish(context)
             ready.countDown()
         }, "synthx-restore-recovery").start()
     }
@@ -33,6 +24,37 @@ internal object RestoreStartup {
             "Database access is disabled until restore recovery reaches a safe normal state"
         }
         RestoreCoordinator.requireNormal()
+    }
+
+    private fun recoverAndPublish(context: Context): RestoreRecovery {
+        val dir = context.getDatabasePath(SynthXDatabase.DB_NAME).parentFile
+        val recovery = if (dir == null) {
+            RestoreRecovery.EMERGENCY
+        } else {
+            RestoreTransaction.recoverIfNeeded(context, dir)
+        }
+        when (recovery) {
+            RestoreRecovery.NORMAL -> RestoreCoordinator.markNormal()
+            RestoreRecovery.RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(false)
+            RestoreRecovery.ROLLED_BACK_RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(true)
+            RestoreRecovery.EMERGENCY -> RestoreCoordinator.markEmergency(
+                RestoreTransaction.diagnosticOperationId(),
+            )
+        }
+        return recovery
+    }
+
+    /** Runs the production startup recovery boundary synchronously for instrumentation. */
+    internal fun recoverNowForTest(context: Context): RestoreRecovery {
+        val recovery = recoverAndPublish(context)
+        result = recovery
+        return recovery
+    }
+
+    /** Instrumentation isolation only; a production process never reverses startup result. */
+    internal fun resetForTest() {
+        await()
+        result = RestoreRecovery.NORMAL
     }
 }
 

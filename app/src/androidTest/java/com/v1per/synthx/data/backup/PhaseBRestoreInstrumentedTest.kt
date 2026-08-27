@@ -55,6 +55,7 @@ class PhaseBRestoreInstrumentedTest {
         TestWorkManager.ensureInitialized(context)
         SynthXDatabase.closeInstance()
         SongRepositoryImpl.resetForTest()
+        RestoreStartup.resetForTest()
         RestoreCoordinator.resetForTest()
         cleanOwnedFiles()
     }
@@ -333,6 +334,134 @@ class PhaseBRestoreInstrumentedTest {
         assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
         assertFalse(File(databaseDir, scenario.state.oldName).exists())
         assertFalse(File(databaseDir, scenario.state.safetyName).exists())
+    }
+
+    @Test fun completeValidUnchangedLiveWithMissingArtifactsStartsNormal() {
+        val completed = completeInstalledScenario()
+        assertEquals(completed.state.candidateSize, liveFile().length())
+        assertEquals(completed.state.candidateSha256, BackupHashing.hash(liveFile()).sha256)
+        assertOperationArtifactsAbsent(completed.state)
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreStartup.recoverNowForTest(context))
+        assertEquals(RestoreCoordinator.Terminal.NORMAL, RestoreCoordinator.current())
+        assertEquals("candidate", readMarker(liveFile()))
+    }
+
+    @Test fun completeEvolvedLiveWithDifferentShaStartsNormallyThroughRealStartup() = runBlocking {
+        val completed = completeInstalledScenario()
+        val historicalSha = completed.state.candidateSha256
+        assertOperationArtifactsAbsent(completed.state)
+
+        val room = SynthXDatabase.getInstance(context)
+        room.playlistDao().insertGroup(group("post-complete-data", id = "post-complete"))
+        checkpointRoom(room)
+        SynthXDatabase.closeInstance()
+
+        assertNotEquals(historicalSha, BackupHashing.hash(liveFile()).sha256)
+        assertEquals(RestoreRecovery.NORMAL, RestoreStartup.recoverNowForTest(context))
+        assertEquals(RestoreCoordinator.Terminal.NORMAL, RestoreCoordinator.current())
+
+        val reopened = SynthXDatabase.getInstance(context)
+        reopened.playlistDao().renameGroup("post-complete", "post-complete-still-present")
+        SynthXDatabase.closeInstance()
+        assertEquals("post-complete-still-present", readGroupName(liveFile(), "post-complete"))
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+    }
+
+    @Test fun completeEvolvedLiveWithDifferentSizeStartsNormal() = runBlocking {
+        val completed = completeInstalledScenario()
+        val historicalSize = completed.state.candidateSize
+
+        val room = SynthXDatabase.getInstance(context)
+        repeat(160) { index ->
+            room.playlistDao().insertGroup(
+                group(
+                    marker = "expanded-$index-${"x".repeat(8192)}",
+                    id = "expanded-$index",
+                    position = index + 1,
+                ),
+            )
+        }
+        checkpointRoom(room)
+        SynthXDatabase.closeInstance()
+
+        assertNotEquals(historicalSize, liveFile().length())
+        assertEquals(RestoreRecovery.NORMAL, RestoreStartup.recoverNowForTest(context))
+        val reopened = SynthXDatabase.getInstance(context)
+        reopened.playlistDao().renameGroup("expanded-159", "expanded-data-still-present")
+        SynthXDatabase.closeInstance()
+        assertEquals("expanded-data-still-present", readGroupName(liveFile(), "expanded-159"))
+    }
+
+    @Test fun completeAcceptsOrdinaryLiveWalAndShmWithoutRemovingThem() = runBlocking {
+        completeInstalledScenario()
+        val room = SynthXDatabase.getInstance(context)
+        room.openHelper.writableDatabase.query("PRAGMA wal_autocheckpoint=0").close()
+        room.playlistDao().insertGroup(group("wal-data", id = "post-complete-wal"))
+        val wal = File(liveFile().path + "-wal")
+        val shm = File(liveFile().path + "-shm")
+        assertTrue(wal.isFile && wal.length() > 0)
+        assertTrue(shm.isFile)
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreStartup.recoverNowForTest(context))
+        assertEquals(RestoreCoordinator.Terminal.NORMAL, RestoreCoordinator.current())
+        assertTrue(wal.isFile)
+        assertTrue(shm.isFile)
+        room.playlistDao().renameGroup("post-complete-wal", "wal-data-still-present")
+        assertEquals("wal-data-still-present", readGroupName(liveFile(), "post-complete-wal"))
+    }
+
+    @Test fun completeJournalMayRemainForeverAcrossRepeatedStartups() {
+        completeInstalledScenario()
+        assertTrue(stateFile().isFile)
+
+        repeat(100) {
+            RestoreCoordinator.resetForTest()
+            assertEquals(RestoreRecovery.NORMAL, RestoreStartup.recoverNowForTest(context))
+            assertEquals(RestoreCoordinator.Terminal.NORMAL, RestoreCoordinator.current())
+            assertTrue("COMPLETE journal disappeared on startup ${it + 1}", stateFile().isFile)
+        }
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+    }
+
+    @Test fun completeStructurallyCorruptLiveFailsClosedWithoutRollback() {
+        val completed = completeInstalledScenario()
+        liveFile().writeText("genuinely corrupt current live")
+        assertOperationArtifactsAbsent(completed.state)
+
+        assertEquals(RestoreRecovery.EMERGENCY, RestoreStartup.recoverNowForTest(context))
+        assertEquals(RestoreCoordinator.Terminal.EMERGENCY, RestoreCoordinator.current())
+        expectFailure { SynthXDatabase.getInstance(context) }
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+        assertOperationArtifactsAbsent(completed.state)
+    }
+
+    @Test fun postValidatedValidIdentityMismatchStillRollsBack() {
+        val pending = scenario(
+            RestoreTransaction.Phase.POST_VALIDATED,
+            old = "pre-restore",
+            installCandidate = true,
+        )
+        updateMarker(liveFile(), "changed-before-first-cold-confirmation")
+        assertNotEquals(pending.state.candidateSha256, BackupHashing.hash(liveFile()).sha256)
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        assertEquals("pre-restore", readMarker(liveFile()))
+        assertEquals(RestoreTransaction.Outcome.ROLLED_BACK, readState().outcome)
+    }
+
+    @Test fun candidateInstalledValidIdentityMismatchStillRollsBack() {
+        val pending = scenario(
+            RestoreTransaction.Phase.CANDIDATE_INSTALLED,
+            old = "pre-restore",
+            installCandidate = true,
+        )
+        updateMarker(liveFile(), "changed-before-post-validation")
+        assertNotEquals(pending.state.candidateSha256, BackupHashing.hash(liveFile()).sha256)
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        assertEquals("pre-restore", readMarker(liveFile()))
+        assertEquals(RestoreTransaction.Outcome.ROLLED_BACK, readState().outcome)
     }
 
     @Test fun rollbackIntentContinuesIdempotently() {
@@ -618,6 +747,19 @@ class PhaseBRestoreInstrumentedTest {
         return execute(source, metadata(source), failAt(point))
     }
 
+    private fun completeInstalledScenario(): Scenario {
+        scenario(
+            RestoreTransaction.Phase.POST_VALIDATED,
+            old = "pre-restore",
+            installCandidate = true,
+        )
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        val completed = Scenario(readState())
+        assertEquals(RestoreTransaction.Phase.COMPLETE, completed.state.phase)
+        assertOperationArtifactsAbsent(completed.state)
+        return completed
+    }
+
     private suspend fun execute(
         source: File,
         metadata: BackupMetadata,
@@ -695,17 +837,57 @@ class PhaseBRestoreInstrumentedTest {
         BackupSnapshotValidator.validate(destination, false)
     }
 
-    private fun group(marker: String) = PlaylistGroupEntity(
-        id = "marker",
+    private fun group(
+        marker: String,
+        id: String = "marker",
+        position: Int = 0,
+    ) = PlaylistGroupEntity(
+        id = id,
         name = marker,
-        position = 0,
+        position = position,
         createdAt = 1,
     )
+
+    private fun checkpointRoom(room: SynthXDatabase) {
+        room.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+            assertEquals(cursor.getInt(1), cursor.getInt(2))
+        }
+    }
+
+    private fun updateMarker(file: File, value: String) {
+        SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE).use { database ->
+            database.execSQL(
+                "UPDATE playlist_groups SET name=? WHERE id='marker'",
+                arrayOf(value),
+            )
+        }
+        assertEquals(value, readMarker(file))
+        BackupSnapshotValidator.validate(file, false)
+    }
+
+    private fun assertOperationArtifactsAbsent(state: RestoreTransaction.State) {
+        listOf(state.candidateName, state.oldName, state.safetyName).forEach { name ->
+            assertFalse("Unexpected completed-restore artifact $name", File(databaseDir, name).exists())
+        }
+    }
 
     private fun readMarker(file: File): String =
         SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { database ->
             database.rawQuery("SELECT name FROM playlist_groups WHERE id='marker'", null).use { cursor ->
                 assertTrue("Missing marker in ${file.name}", cursor.moveToFirst())
+                cursor.getString(0)
+            }
+        }
+
+    private fun readGroupName(file: File, id: String): String =
+        SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { database ->
+            database.rawQuery(
+                "SELECT name FROM playlist_groups WHERE id=?",
+                arrayOf(id),
+            ).use { cursor ->
+                assertTrue("Missing group $id in ${file.name}", cursor.moveToFirst())
                 cursor.getString(0)
             }
         }

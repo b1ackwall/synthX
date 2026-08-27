@@ -139,6 +139,7 @@ internal enum class RestoreRecoveryAction {
     CLEAN_PRE_CLOSE_AND_NORMAL,
     ACCEPT_INSTALLED_AND_RESTART,
     COMPLETE_INSTALLED_AND_NORMAL,
+    ACCEPT_COMPLETE_HISTORY_AND_NORMAL,
     PROMOTE_OLD,
     PROMOTE_SAFETY,
     COMPLETE_ROLLBACK_AND_NORMAL,
@@ -186,15 +187,14 @@ internal object RestoreRecoveryPlanner {
             else fallback(facts)
         }
 
-        RestoreTransaction.Phase.COMPLETE -> when (outcome) {
-            RestoreTransaction.Outcome.INSTALLED -> {
-                if (facts.liveIsCandidate) RestoreRecoveryAction.COMPLETE_INSTALLED_AND_NORMAL
-                else fallback(facts)
-            }
-            RestoreTransaction.Outcome.ROLLED_BACK -> {
-                if (facts.liveValid) RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL
-                else fallback(facts)
-            }
+        // COMPLETE is durable proof that a prior cold start already confirmed the
+        // transaction. The live database may evolve after that point, so historical
+        // candidate/old/safety byte identities and cleanup artifacts are no longer
+        // recovery authority. A bad current database still fails closed, but it must
+        // not reopen rollback from an already completed restore.
+        RestoreTransaction.Phase.COMPLETE -> {
+            if (facts.liveValid) RestoreRecoveryAction.ACCEPT_COMPLETE_HISTORY_AND_NORMAL
+            else RestoreRecoveryAction.EMERGENCY
         }
     }
 

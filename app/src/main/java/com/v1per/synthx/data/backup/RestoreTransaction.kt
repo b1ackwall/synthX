@@ -293,15 +293,30 @@ internal object RestoreTransaction {
         val old = File(dir, state.oldName)
         val safety = File(dir, state.safetyName)
         val candidate = File(dir, state.candidateName)
-        val facts = RestoreArtifactFacts(
-            liveExists = live.isFile,
-            liveValid = validateStandalone(live, currentOnly = true),
-            liveIsCandidate = runCatching { validateInstalled(live, state) }.isSuccess,
-            oldExists = old.isFile,
-            oldValid = validateOld(old, state),
-            safetyValid = validateSafety(safety, state),
-            candidateExists = candidate.isFile,
-        )
+        val liveValid = validateStandalone(live, currentOnly = true)
+        val facts = if (state.phase == Phase.COMPLETE) {
+            // COMPLETE is completed history. Do not hash the current live database
+            // against the historical candidate or inspect cleaned transaction copies.
+            RestoreArtifactFacts(
+                liveExists = live.isFile,
+                liveValid = liveValid,
+                liveIsCandidate = false,
+                oldExists = false,
+                oldValid = false,
+                safetyValid = false,
+                candidateExists = false,
+            )
+        } else {
+            RestoreArtifactFacts(
+                liveExists = live.isFile,
+                liveValid = liveValid,
+                liveIsCandidate = runCatching { validateInstalled(live, state) }.isSuccess,
+                oldExists = old.isFile,
+                oldValid = validateOld(old, state),
+                safetyValid = validateSafety(safety, state),
+                candidateExists = candidate.isFile,
+            )
+        }
 
         return when (RestoreRecoveryPlanner.decide(state.phase, state.outcome, facts)) {
             RestoreRecoveryAction.CLEAN_PRE_CLOSE_AND_NORMAL -> {
@@ -331,6 +346,16 @@ internal object RestoreTransaction {
                 )
                 writeState(dir, complete, faults)
                 cleanupAfterColdValidation(dir, complete)
+                clearIncident(dir)
+                RestoreRecovery.NORMAL
+            }
+            RestoreRecoveryAction.ACCEPT_COMPLETE_HISTORY_AND_NORMAL -> {
+                check(validateStandalone(live, currentOnly = true)) {
+                    "Current live database did not validate after completed restore"
+                }
+                // Operation artifacts may already be gone. Retrying their cleanup is
+                // idempotent and deliberately leaves normal synthx.db WAL/SHM alone.
+                cleanupAfterColdValidation(dir, state)
                 clearIncident(dir)
                 RestoreRecovery.NORMAL
             }

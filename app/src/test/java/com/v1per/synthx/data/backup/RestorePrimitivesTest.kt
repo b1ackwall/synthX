@@ -205,7 +205,7 @@ class RestorePrimitivesTest {
         )
     }
 
-    @Test fun rolledBackAndCompleteOutcomesValidateTheirActualLiveIdentity() {
+    @Test fun rolledBackOutcomeValidatesItsActualLiveIdentityBeforeComplete() {
         assertEquals(
             RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL,
             decide(
@@ -214,13 +214,53 @@ class RestorePrimitivesTest {
                 RestoreTransaction.Outcome.ROLLED_BACK,
             ),
         )
+    }
+
+    @Test fun completeAcceptsValidCurrentLiveWithoutHistoricalCandidateIdentity() {
         assertEquals(
-            RestoreRecoveryAction.COMPLETE_INSTALLED_AND_NORMAL,
+            RestoreRecoveryAction.ACCEPT_COMPLETE_HISTORY_AND_NORMAL,
             decide(
                 RestoreTransaction.Phase.COMPLETE,
-                facts(liveExists = true, liveValid = true, liveIsCandidate = true),
+                facts(liveExists = true, liveValid = true, liveIsCandidate = false),
             ),
         )
+        assertEquals(
+            RestoreRecoveryAction.ACCEPT_COMPLETE_HISTORY_AND_NORMAL,
+            decide(
+                RestoreTransaction.Phase.COMPLETE,
+                facts(liveExists = true, liveValid = true),
+                RestoreTransaction.Outcome.ROLLED_BACK,
+            ),
+        )
+    }
+
+    @Test fun completeNeverReopensRollbackWhenCurrentLiveIsInvalid() {
+        assertEquals(
+            RestoreRecoveryAction.EMERGENCY,
+            decide(
+                RestoreTransaction.Phase.COMPLETE,
+                facts(oldExists = true, oldValid = true, safetyValid = true),
+            ),
+        )
+    }
+
+    @Test fun preCompleteCandidatePhasesStillRequireExactIdentity() {
+        listOf(
+            RestoreTransaction.Phase.CANDIDATE_INSTALLED,
+            RestoreTransaction.Phase.POST_VALIDATED,
+        ).forEach { phase ->
+            assertEquals(
+                RestoreRecoveryAction.PROMOTE_OLD,
+                decide(
+                    phase,
+                    facts(liveExists = true, liveValid = true, oldExists = true, oldValid = true),
+                ),
+            )
+            assertEquals(
+                RestoreRecoveryAction.EMERGENCY,
+                decide(phase, facts(liveExists = true, liveValid = true)),
+            )
+        }
     }
 
     @Test fun oldPrecedenceAndSafetyFallbackAreDeterministic() {
