@@ -16,7 +16,19 @@ internal object RestoreCoordinator {
     enum class Mode { NORMAL, RESTORE_PREPARING, RESTORE_CLOSED, RESTART_REQUIRED, EMERGENCY }
 
     private val lock = Any()
-    private var mode = Mode.NORMAL
+
+    /**
+     * Admission state, published so the app shell can react to it rather than poll
+     * [currentMode]. [Mode] and [Terminal] describe different phases and neither implies the
+     * other: RESTORE_PREPARING is entered — and, on an early abort, left again — long before
+     * [markClosed] publishes any [Terminal] at all. A shell watching only [terminal] therefore
+     * stays fully live for the whole preparation window; see RestoreShellPolicy.
+     *
+     * Written exclusively under [lock], exactly as [_terminal] already is.
+     */
+    private val _mode = MutableStateFlow(Mode.NORMAL)
+    val mode: StateFlow<Mode> = _mode.asStateFlow()
+
     private var activeFinite = 0
     private var finiteDrained = completedSignal()
     private var activeReactive = 0
@@ -62,7 +74,7 @@ internal object RestoreCoordinator {
     /** Must be acquired at the point an asynchronous DB command is accepted. */
     internal fun acquireOperation(): OperationPermit {
         synchronized(lock) {
-            check(mode == Mode.NORMAL) { "Database operation is unavailable during restore" }
+            check(_mode.value == Mode.NORMAL) { "Database operation is unavailable during restore" }
             activeFinite += 1
             if (activeFinite == 1) finiteDrained = CompletableDeferred()
             return OperationPermit()
@@ -74,7 +86,7 @@ internal object RestoreCoordinator {
         while (true) {
             var admitted: ReactivePermit? = null
             val waitFor = synchronized(lock) {
-                when (mode) {
+                when (_mode.value) {
                     Mode.NORMAL -> {
                         activeReactive += 1
                         if (activeReactive == 1) reactiveDrained = CompletableDeferred()
@@ -105,8 +117,8 @@ internal object RestoreCoordinator {
     /** Closes normal admission. The restore owner explicitly drains queues, then calls awaitDrained. */
     suspend fun <T> exclusive(block: suspend () -> T): T {
         synchronized(lock) {
-            check(mode == Mode.NORMAL) { "Another restore or terminal state is active" }
-            mode = Mode.RESTORE_PREPARING
+            check(_mode.value == Mode.NORMAL) { "Another restore or terminal state is active" }
+            _mode.value = Mode.RESTORE_PREPARING
             signalAdmissionChanged()
         }
         return block()
@@ -121,7 +133,7 @@ internal object RestoreCoordinator {
      */
     suspend fun quiesceReactiveOperations() {
         val owners = synchronized(lock) {
-            check(mode == Mode.RESTORE_PREPARING) { "Reactive quiescence requires restore ownership" }
+            check(_mode.value == Mode.RESTORE_PREPARING) { "Reactive quiescence requires restore ownership" }
             reactiveJobs.keys.toList()
         }
         owners.forEach { it.cancel() }
@@ -138,7 +150,7 @@ internal object RestoreCoordinator {
 
     fun markClosed() {
         synchronized(lock) {
-            mode = Mode.RESTORE_CLOSED
+            _mode.value = Mode.RESTORE_CLOSED
             signalAdmissionChanged()
             // Room has crossed the irreversible process boundary. Hide every normal UI
             // immediately; the eventual result only changes which restart message is shown.
@@ -146,17 +158,17 @@ internal object RestoreCoordinator {
         }
     }
     fun current(): Terminal = _terminal.value
-    fun currentMode(): Mode = synchronized(lock) { mode }
+    fun currentMode(): Mode = synchronized(lock) { _mode.value }
     fun markRestartRequired(rolledBack: Boolean) {
         synchronized(lock) {
-            mode = Mode.RESTART_REQUIRED
+            _mode.value = Mode.RESTART_REQUIRED
             signalAdmissionChanged()
             _terminal.value = if (rolledBack) Terminal.ROLLED_BACK_RESTART_REQUIRED else Terminal.RESTART_REQUIRED
         }
     }
     fun markEmergency(operationId: String? = null) {
         synchronized(lock) {
-            mode = Mode.EMERGENCY
+            _mode.value = Mode.EMERGENCY
             signalAdmissionChanged()
             _diagnosticOperationId.value = operationId
             _terminal.value = Terminal.EMERGENCY
@@ -165,10 +177,10 @@ internal object RestoreCoordinator {
     /** Only startup and a failure before Room close may reopen normal admission. */
     fun markNormal() {
         synchronized(lock) {
-            check(mode == Mode.NORMAL || mode == Mode.RESTORE_PREPARING) {
+            check(_mode.value == Mode.NORMAL || _mode.value == Mode.RESTORE_PREPARING) {
                 "A process that closed Room or entered a terminal restore state cannot resume normal use"
             }
-            mode = Mode.NORMAL
+            _mode.value = Mode.NORMAL
             signalAdmissionChanged()
             _diagnosticOperationId.value = null
             _terminal.value = Terminal.NORMAL
@@ -187,7 +199,7 @@ internal object RestoreCoordinator {
             check(activeFinite == 0 && activeReactive == 0) {
                 "Cannot reset restore coordinator with active operations"
             }
-            mode = Mode.NORMAL
+            _mode.value = Mode.NORMAL
             finiteDrained = completedSignal()
             reactiveDrained = completedSignal()
             reactiveJobs.clear()
