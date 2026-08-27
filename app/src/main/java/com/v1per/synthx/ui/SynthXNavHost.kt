@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -39,6 +40,7 @@ fun SynthXNavHost(
             startDestination = Screen.Home.route,
             modifier = Modifier
                 .fillMaxSize()
+                .testTag(ShellTestTags.NavHost)
                 .padding(innerPadding)
                 // Screens render their own TopAppBars now — consume the insets this
                 // padding already covers so those bars don't re-apply the status inset.
