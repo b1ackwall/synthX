@@ -152,8 +152,7 @@ fun rememberQueueModeState(
     val queueProgress = remember { Animatable(0f) }
 
     // Hoisted so both QueueList's own scrolling and this composable's derived
-    // controlsVisible below observe the same LazyListState — mirrors the old (dead)
-    // PlayerExpandedContent.kt's hoisting of queueListState for the identical purpose.
+    // controlsVisible below observe the same LazyListState.
     val queueListState = rememberLazyListState()
 
     // Small threshold (tuned to feel, not any existing design constant) a net drag must cross

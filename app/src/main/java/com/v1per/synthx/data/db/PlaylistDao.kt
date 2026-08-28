@@ -52,17 +52,6 @@ interface PlaylistDao {
     // Playlist songs
 
     @Query(
-        """
-        SELECT songs.* FROM songs
-        INNER JOIN playlist_songs ON playlist_songs.song_id = songs.id
-        WHERE playlist_songs.playlist_id = :playlistId
-        AND songs.is_missing = 0
-        ORDER BY playlist_songs.position ASC
-        """
-    )
-    fun getSongsForPlaylist(playlistId: String): Flow<List<SongEntity>>
-
-    @Query(
         "SELECT song_id FROM playlist_songs WHERE playlist_id = :playlistId ORDER BY position ASC"
     )
     suspend fun getSongIdsForPlaylist(playlistId: String): List<String>

@@ -28,9 +28,9 @@ data class ArtPosition(
  * its own endpoint:
  *  - Mini (progress 0): PlayerMiniBar.kt — leading element of a Spacing.md-padded Row,
  *    vertically centered against the row's own height.
- *  - Expanded (progress 1, queueProgressValue 0): PlayerModeContent.kt — horizontally
- *    centered; vertically split 1.5:1 (above:below) within the region below
- *    [expandedTopMargin] and above the reserved title-row space.
+ *  - Expanded (progress 1, queueProgressValue 0): horizontally centered; vertically split
+ *    1.5:1 (above:below) within the region below [expandedTopMargin] and above the
+ *    reserved title-row space.
  *  - Queue (progress 1, queueProgressValue 1): the queue-mode header's art slot, centered on
  *    where the header Row's title/artist text actually renders (see [QueueColumnLeadingSlack]'s
  *    doc comment in PlayerSkeletonQueueMetrics.kt for why that isn't simply the header
@@ -52,9 +52,8 @@ fun computeArtPosition(
     artWeightBelow: Float,
     controlsOverlayHeight: Dp,
 ): ArtPosition {
-    // Same lerp as the old PlayerSheet.kt:205 — 44dp mini thumbnail growing to the expanded
-    // player's full-width art — capped the same way PlayerModeContent.kt:63-64 capped it,
-    // against available height minus the (not yet ported) title row's space.
+    // 44dp mini thumbnail growing to the expanded player's full-width art, capped against
+    // available height minus the title row's reserved space.
     val artSize = lerpDp(44.dp, maxWidth - Spacing.HorizontalPadding * 4, progress)
     val artMaxHeight = (maxHeight - titleRowReservedHeight - controlsOverlayHeight).coerceAtLeast(0.dp)
     val constrainedArtSize = min(artSize, artMaxHeight)
@@ -63,9 +62,8 @@ fun computeArtPosition(
     // while matching each source layout exactly at progress 0 / 1:
     //  - Mini (progress 0): PlayerMiniBar.kt — leading element of a Spacing.md-padded Row,
     //    vertically centered against the row's own height.
-    //  - Expanded (progress 1): PlayerModeContent.kt — horizontally centered; vertically
-    //    split 1.5:1 (above:below) within the region below expandedTopMargin and above the
-    //    reserved title-row space.
+    //  - Expanded (progress 1): horizontally centered; vertically split 1.5:1 (above:below)
+    //    within the region below expandedTopMargin and above the reserved title-row space.
     val artOffsetXMini = Spacing.md
     val artOffsetXExpanded = (maxWidth - constrainedArtSize) / 2
     // Queue mode's left margin is 32dp (Spacing.xl), a deliberate deviation from
@@ -83,10 +81,9 @@ fun computeArtPosition(
     val expandedFlexSpace = (expandedRegionHeight - constrainedArtSize).coerceAtLeast(0.dp)
     val artOffsetYExpanded = expandedTopMargin +
         expandedFlexSpace * (artWeightAbove / (artWeightAbove + artWeightBelow))
-    // Old PlayerExpandedContent.kt's Layer 1 Box uses `.padding(top = TopMargin)` where
-    // TopMargin = 32dp — the exact same value passed in here as expandedTopMargin, so the
-    // queue header's top anchor reuses that existing constant rather than a new one.
-    // QueueModeArtSize is then centered within the QueueHeaderRowHeight approximation.
+    // The queue header's top anchor reuses expandedTopMargin (32dp) rather than a new
+    // constant, so it stays in sync with the expanded state's own top margin. QueueModeArtSize
+    // is then centered within the QueueHeaderRowHeight approximation.
     val artOffsetYQueue = expandedTopMargin + (QueueHeaderRowHeight - QueueModeArtSize) / 2
     // Where QueueList starts: right after the fixed-height header-region Column (header Row +
     // playback row, see QueueHeaderRegionHeight's doc comment) ends. Uses the Column's own
@@ -109,9 +106,8 @@ fun computeArtPosition(
     val finalArtSize = lerpDp(44.dp, expandedTargetSize, progress)
 
     // Title row sits right below the art, in the "below" share (weight 1 of the 1.5:1 split)
-    // of the same expandedFlexSpace the art's own Y offset above already computes — same
-    // relationship as PlayerModeContent.kt's Spacer(weight(1f)) between the art and
-    // NowPlayingTitleRow. Only meaningful once expandedContentAlpha fades it in, so its
+    // of the same expandedFlexSpace the art's own Y offset above already computes. Only
+    // meaningful once expandedContentAlpha fades it in, so its
     // mini-state endpoint (directly under the mini art) is never visible, just a sane
     // continuous starting point for the lerp.
     val titleRowYMini = artOffsetYMini + constrainedArtSize

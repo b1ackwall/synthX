@@ -32,8 +32,8 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  * so a reorder while shuffled is a safe, if temporary, active-timeline-only edit.
  *
  * [state] is hoisted (rather than owned internally) so a host embedding this list — e.g.
- * PlayerExpandedContent's Queue mode — can observe its scroll position for its own purposes
- * (there: collapsing the seek bar/transport controls once the list scrolls).
+ * PlayerSkeletonQueueContent's Queue mode — can observe its scroll position for its own
+ * purposes (there: collapsing the seek bar/transport controls once the list scrolls).
  *
  * [contentPadding] exists for hosts that let this list extend underneath an overlay: the
  * rows draw through the full viewport, but the padding extends the scroll range so the last

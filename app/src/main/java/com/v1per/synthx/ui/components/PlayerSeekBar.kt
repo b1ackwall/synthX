@@ -54,8 +54,8 @@ private const val SeekCatchUpToleranceMs = 750L
 
 /**
  * Pinned rather than left to the text's own line height, so this composable's total height
- * stays independent of the system font scale. PlayerExpandedContent's ControlsOverlayHeight
- * budgets around that fixed total via its `weight(1f)` remainder (see PlayerControlsSection).
+ * stays independent of the system font scale. PlayerSheetSkeleton's ControlsOverlayHeight
+ * budgets around that fixed total via its `weight(1f)` remainder.
  */
 private val TimestampRowHeight = 16.dp
 

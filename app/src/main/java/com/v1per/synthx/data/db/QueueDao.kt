@@ -11,7 +11,7 @@ interface QueueDao {
 
     /**
      * The persisted queue joined to song details, in position order. Rows whose song has
-     * gone missing are filtered out here, the same way [PlaylistDao.getSongsForPlaylist]
+     * gone missing are filtered out here, the same way [SongDao.getSongsWithDetailsForPlaylist]
      * does — so this can return fewer entries than [getQueueSongIds].
      */
     @Transaction

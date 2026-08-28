@@ -70,8 +70,8 @@ private val SwipeVelocityThreshold = 1200.dp
  * the row must never start a reorder-drag, only [onClick] or the swipe.
  *
  * The currently-playing song is never rendered as a row here (it lives in
- * PlayerExpandedContent's Queue-mode header instead), so there is no "is this the playing
- * row" state to track any more.
+ * PlayerSkeletonQueueContent's Queue-mode header instead), so there is no "is this the
+ * playing row" state to track any more.
  *
  * The drag handle is always enabled — queue ordering is fully app-managed, so reordering
  * is safe regardless of shuffle state, see

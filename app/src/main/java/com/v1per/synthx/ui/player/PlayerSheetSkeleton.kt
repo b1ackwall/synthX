@@ -51,9 +51,9 @@ import kotlinx.coroutines.launch
 
 /**
  * Height reserved below the art for the title/artist row. Canonical declaration — also used
- * by [com.v1per.synthx.ui.components.PlayerModeContent] (the real title row's current home)
- * and, in this package, by PlayerSkeletonQueueMetrics.kt's QueueHeaderRowHeight and
- * QueueArtPositioning.kt's computeArtPosition.
+ * by PlayerSkeletonExpandedContent.kt (the title row's current home) and, in this package,
+ * by PlayerSkeletonQueueMetrics.kt's QueueHeaderRowHeight and QueueArtPositioning.kt's
+ * computeArtPosition.
  *
  * Internal rather than private: `internal` in Kotlin is module-wide, not package-scoped, so
  * this is importable from ui/components/ despite the different package.
@@ -61,15 +61,12 @@ import kotlinx.coroutines.launch
 internal val TitleRowReservedHeight: Dp = 52.dp
 
 /**
- * Gap between the expanded sheet's top edge and the art region, mirrored from
- * PlayerExpandedContent.kt's private TopMargin (32dp) — same cross-package-boundary
- * duplication as [TitleRowReservedHeight] above, for the same reason.
+ * Gap between the expanded sheet's top edge and the art region.
  */
 private val ExpandedTopMargin: Dp = 32.dp
 
 /**
- * Weight ratio (above : below) the art is split by within its region in expanded state,
- * mirrored from PlayerModeContent.kt's Spacer(weight(1.5f)) / Spacer(weight(1f)) pair —
+ * Weight ratio (above : below) the art is split by within its region in expanded state —
  * the art sits slightly off-centre in that region, not dead-centered.
  */
 private const val ArtWeightAbove = 1.5f
@@ -77,13 +74,10 @@ private const val ArtWeightBelow = 1f
 
 /**
  * Fixed footprint of the bottom controls overlay (seek bar, transport controls, queue
- * placeholder), mirrored from PlayerExpandedContent.kt's private ControlsOverlayHeight
- * (300dp). Unlike that source constant, this is used *without* adding a navigation-bar
- * inset on top — PlayerSheetSkeleton is hosted inside SynthXBottomNav's Box, which already
- * applies `.navigationBarsPadding()` around both the nav and the sheet, so the inset is
- * already excluded from this composable's own `maxHeight`. Re-adding it here (as the old,
- * differently-hosted PlayerExpandedContent does) would double-count it. Flagged as a
- * deliberate deviation, not an oversight.
+ * placeholder). Used *without* adding a navigation-bar inset on top — PlayerSheetSkeleton
+ * is hosted inside SynthXBottomNav's Box, which already applies `.navigationBarsPadding()`
+ * around both the nav and the sheet, so the inset is already excluded from this composable's
+ * own `maxHeight`. Re-adding it here would double-count it.
  */
 private val ControlsOverlayHeight: Dp = 300.dp
 

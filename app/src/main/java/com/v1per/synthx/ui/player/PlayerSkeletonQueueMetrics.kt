@@ -5,9 +5,9 @@ import androidx.compose.ui.unit.dp
 import com.v1per.synthx.ui.theme.Spacing
 
 /**
- * Queue-mode header art size, mirrored from PlayerQueueModeContent.kt's private
- * QueueModeArtSize (44dp) — same cross-package-boundary duplication as the mirrored constants
- * in PlayerSheetSkeleton.kt (TitleRowReservedHeight, ExpandedTopMargin, ControlsOverlayHeight).
+ * Queue-mode header art size (44dp) — same size as the mini-player thumbnail, matching the
+ * other layout constants declared in PlayerSheetSkeleton.kt (TitleRowReservedHeight,
+ * ExpandedTopMargin, ControlsOverlayHeight).
  */
 val QueueModeArtSize: Dp = 44.dp
 

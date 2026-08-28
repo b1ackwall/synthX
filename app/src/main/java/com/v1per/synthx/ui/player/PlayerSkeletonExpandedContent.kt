@@ -24,12 +24,11 @@ import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
- * Expanded content: title/artist row (PlayerModeContent.kt's NowPlayingTitleRow, reproduced
- * here since it's private to that file) plus the real MoreOptionsButton (internal — same
- * Gradle module, reused as-is rather than duplicated since it already wires LocalSongActions
- * correctly). Fades against queueProgressValue rather than just expandedContentAlpha alone,
- * so the two crossfade against each other on a queue-button tap, not only across the
- * collapse/expand drag.
+ * Expanded content: title/artist row plus [MoreOptionsButton] (shared player-chrome
+ * composable — internal, same Gradle module — reused as-is since it already wires
+ * LocalSongActions correctly). Fades against queueProgressValue rather than just
+ * expandedContentAlpha alone, so the two crossfade against each other on a queue-button
+ * tap, not only across the collapse/expand drag.
  */
 @Composable
 fun PlayerSkeletonExpandedContent(

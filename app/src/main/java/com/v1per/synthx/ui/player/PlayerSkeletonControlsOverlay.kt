@@ -45,10 +45,8 @@ import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
- * Controls overlay: seek bar, transport controls, queue placeholder —
- * PlayerControlsSection.kt's Column, reproduced here (that composable is `internal` but
- * tightly coupled to PlayerExpandedContent's showQueue/controlsVisible state this skeleton
- * doesn't have yet). Queue-mode content (PlayerSkeletonQueueContent's QueueList) now sits
+ * Controls overlay: seek bar, transport controls, queue placeholder, laid out as a Column.
+ * Queue-mode content (PlayerSkeletonQueueContent's QueueList) now sits
  * beneath this overlay in the same screen region, so the source file's no-op
  * `.clickable(indication = null, onClick = {})` touch-blocker is restored on the outer
  * Column, in the same position PlayerControlsSection.kt used it: opaque background alone
@@ -66,9 +64,8 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * `QueueModeState.queueScrollConnection` in QueueModeState.kt (a `NestedScrollConnection`
  * observing the queue list's own drag deltas — see that property's doc comment). Combined
  * here as `!isQueueMode || controlsVisible` — the overlay always shows in player mode, and is
- * gesture-gated only once queue mode is entered — mirrors the old (dead)
- * PlayerExpandedContent.kt's identically-named value and its own `!showQueue || controlsVisible`,
- * just driven by swipe direction instead of scroll position.
+ * gesture-gated only once queue mode is entered, driven by swipe direction rather than
+ * scroll position.
  *
  * The result is animated via `animateFloatAsState` rather than wrapping this Column in
  * `AnimatedVisibility`: this file already expresses every other visibility term
@@ -120,13 +117,10 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
     onQueueClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Player mode: always shown. Queue mode: scroll-gated by controlsVisible. Matches the old
-    // PlayerExpandedContent.kt's `!showQueue || controlsVisible` exactly.
+    // Player mode: always shown. Queue mode: scroll-gated by controlsVisible.
     val overlayVisible = !isQueueMode || controlsVisible
     // Fast, not Normal: this is scroll-driven chrome show/hide, not a content reveal — it
-    // should track the queue-scroll gesture snappily rather than visibly lag behind it. Same
-    // tween tokens the old PlayerControlsSection.kt used for its AnimatedVisibility fadeIn/
-    // fadeOut.
+    // should track the queue-scroll gesture snappily rather than visibly lag behind it.
     val overlayVisibleAlpha by animateFloatAsState(
         targetValue = if (overlayVisible) 1f else 0f,
         animationSpec = tween(Motion.DurationInstant, easing = Motion.EasingStandard),
@@ -328,9 +322,8 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
             ) {
-                // Toggles the queueProgress animation, reusing the exact Crossfade
-                // timing/easing tokens the old PlayerExpandedContent.kt used for its
-                // Player-mode/Queue-mode Crossfade. Same enabled gate now used by the
+                // Toggles the queueProgress animation that crossfades between player mode
+                // and queue mode. Same enabled gate now used by the
                 // transport buttons and PlayerSeekBar (overlayControlsEnabled). onClick is the
                 // remember-ed stable reference from PlayerSheetSkeleton, not an inline closure —
                 // see its doc comment for why.

@@ -39,10 +39,9 @@ import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.collections.immutable.toPersistentList
 
 /**
- * Queue-mode header + Up Next list: header is PlayerQueueModeContent.kt's QueueModeHeader
- * reproduced here — title/artist bound to real, live song data, trailing button now the real
- * MoreOptionsButton (same internal composable PlayerSkeletonExpandedContent's title row
- * already uses, no new provider needed). A leading spacer reserves the art's own footprint
+ * Queue-mode header + Up Next list: title/artist bound to real, live song data, trailing
+ * button is [MoreOptionsButton] (same shared composable PlayerSkeletonExpandedContent's title
+ * row already uses, no new provider needed). A leading spacer reserves the art's own footprint
  * (same technique the mini content Row uses), since the art itself is the separately
  * positioned shared element.
  *
