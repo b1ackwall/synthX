@@ -134,6 +134,13 @@ fun PlayerSheetSkeleton(
     onQueueRemove: (songId: String) -> Unit,
     onProgressChanged: (Float) -> Unit = {},
     collapsePlayerSignal: Int = 0,
+    // Whether the sheet is currently the visible/interactive one — false on routes outside
+    // bottomBarRoutes (Settings, Library Management, etc.), where SynthXBottomNav.kt's
+    // BottomChromeOverlay zero-sizes this composable via `modifier` instead of removing it
+    // from composition, to keep draggableState/QueueModeState alive across the visit. Layout
+    // size alone doesn't gate BackHandler below — its registration follows composition
+    // presence, not measured bounds — so it needs this separate signal.
+    visible: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -156,7 +163,11 @@ fun PlayerSheetSkeleton(
             )
         }
 
-        BackHandler(enabled = draggableState.currentValue == PlayerSheetValue.Expanded) {
+        // `visible &&` guards against intercepting system back on a route where this sheet is
+        // zero-sized/invisible (e.g. Settings) but was left Expanded before navigating away —
+        // without it, back would silently collapse the hidden sheet instead of letting normal
+        // navigation (e.g. popping out of Settings) happen. See `visible`'s doc comment above.
+        BackHandler(enabled = visible && draggableState.currentValue == PlayerSheetValue.Expanded) {
             scope.launch { draggableState.animateTo(PlayerSheetValue.Collapsed) }
         }
 

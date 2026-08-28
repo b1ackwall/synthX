@@ -1,8 +1,5 @@
 package com.v1per.synthx.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,11 +45,6 @@ import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextSecondary
 
-// Shared by both overlay AnimatedVisibility blocks below — instant cut, matching the
-// app-wide convention (the only animated transition anywhere is mini-player↔full-player).
-private val ChromeEnterTransition = EnterTransition.None
-private val ChromeExitTransition = ExitTransition.None
-
 @Composable
 fun BottomChromeOverlay(
     navController: NavController,
@@ -79,26 +71,34 @@ fun BottomChromeOverlay(
     // against the raw window while the nav measured against the inset-adjusted one. On any
     // device with a non-zero system nav bar, that mismatch let the sheet's growing bounds
     // and the nav's fixed bounds genuinely overlap instead of sitting cleanly stacked.
+    // Zero-sized (not removed from composition) when hidden — see the `hiddenModifier` doc
+    // comment on SynthXBottomNav's own `modifier` param and PlayerSheetSkeleton's `visible`
+    // param below for why: an AnimatedVisibility here (even with None transitions) fully
+    // disposes its content on hide, which used to destroy and recreate both the nav and the
+    // whole PlayerSheetSkeleton subtree — losing draggableState's expand/collapse position,
+    // QueueModeState's queue-mode toggle and scroll position, etc. — every time the user
+    // crossed into/out of a non-tab route (Settings, Library Management, Backups & Restore,
+    // Restore, Developer Settings, Issues). Confirmed root cause of that state loss. A
+    // `Modifier.size(0.dp)` ancestor instead forces both subtrees' measured size (and
+    // therefore their hit-test area) to zero while keeping every `remember` slot alive in
+    // place, since neither composable is ever removed from the tree.
+    val hiddenModifier = if (showBottomBar) Modifier else Modifier.size(0.dp)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .navigationBarsPadding(),
         contentAlignment = Alignment.BottomCenter,
     ) {
-        AnimatedVisibility(
-            visible = showBottomBar,
-            enter = ChromeEnterTransition,
-            exit = ChromeExitTransition,
-        ) {
-            SynthXBottomNav(
-                navController = navController,
-                currentRoute = currentRoute,
-                // Fall back to 0f when nothing is playing so a stale progress can't
-                // leave the nav slid off screen after the sheet is gone.
-                playerProgress = if (currentSong != null) playerProgress else 0f,
-                onSearchReselected = onSearchReselected,
-            )
-        }
+        SynthXBottomNav(
+            navController = navController,
+            currentRoute = currentRoute,
+            // Fall back to 0f when nothing is playing so a stale progress can't
+            // leave the nav slid off screen after the sheet is gone.
+            playerProgress = if (currentSong != null) playerProgress else 0f,
+            onSearchReselected = onSearchReselected,
+            modifier = hiddenModifier,
+        )
 
         // The player overlays everything as a sibling to the nav so it can expand upward
         // over the content — and, once expanded, over the nav area the sliding nav vacates.
@@ -106,44 +106,45 @@ fun BottomChromeOverlay(
         // above the nav. Sharing the same navigationBarsPadding()'d Box as the nav (rather
         // than being a separate top-level sibling) is what keeps their coordinate frames —
         // and therefore their bounds — in agreement at every progress value.
-        AnimatedVisibility(
-            visible = showBottomBar && currentSong != null,
-            enter = ChromeEnterTransition,
-            exit = ChromeExitTransition,
-        ) {
-            currentSong?.let { song ->
-                val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
-                val hasNext by playbackViewModel.hasNext.collectAsState()
-                val upcomingQueue by playbackViewModel.upcomingQueue.collectAsState()
-                val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
-                val repeatMode by playbackViewModel.repeatMode.collectAsState()
-                // Skeleton now renders mini content + expanded transport controls + full
-                // queue-mode list (reorder, tap-to-play, swipe-to-remove, shuffle/repeat,
-                // real MoreOptionsButton).
-                PlayerSheetSkeleton(
-                    song = song,
-                    isPlaying = isPlaying,
-                    isBuffering = isBuffering,
-                    currentPosition = currentPosition,
-                    duration = duration,
-                    onPlayPauseClick = playbackViewModel::togglePlayPause,
-                    onSeek = playbackViewModel::seekTo,
-                    onPreviousClick = playbackViewModel::previous,
-                    onNextClick = playbackViewModel::next,
-                    hasPrevious = hasPrevious,
-                    hasNext = hasNext,
-                    upcomingQueue = upcomingQueue,
-                    shuffleEnabled = shuffleEnabled,
-                    repeatMode = repeatMode,
-                    onShuffleClick = { playbackViewModel.setShuffleEnabled(!shuffleEnabled) },
-                    onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
-                    onQueueSongClick = playbackViewModel::playQueueItem,
-                    onQueueMove = playbackViewModel::moveQueueItem,
-                    onQueueRemove = playbackViewModel::removeQueueItem,
-                    onProgressChanged = onPlayerProgressChanged,
-                    collapsePlayerSignal = collapsePlayerSignal,
-                )
-            }
+        //
+        // Still gated on currentSong != null via this plain `let` (unchanged from before):
+        // with no song playing there is no player state worth preserving, so composing
+        // nothing here in that case is fine — the state-preservation concern above is only
+        // about showBottomBar, which is handled by hiddenModifier/visible below.
+        currentSong?.let { song ->
+            val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
+            val hasNext by playbackViewModel.hasNext.collectAsState()
+            val upcomingQueue by playbackViewModel.upcomingQueue.collectAsState()
+            val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
+            val repeatMode by playbackViewModel.repeatMode.collectAsState()
+            // Skeleton now renders mini content + expanded transport controls + full
+            // queue-mode list (reorder, tap-to-play, swipe-to-remove, shuffle/repeat,
+            // real MoreOptionsButton).
+            PlayerSheetSkeleton(
+                song = song,
+                isPlaying = isPlaying,
+                isBuffering = isBuffering,
+                currentPosition = currentPosition,
+                duration = duration,
+                onPlayPauseClick = playbackViewModel::togglePlayPause,
+                onSeek = playbackViewModel::seekTo,
+                onPreviousClick = playbackViewModel::previous,
+                onNextClick = playbackViewModel::next,
+                hasPrevious = hasPrevious,
+                hasNext = hasNext,
+                upcomingQueue = upcomingQueue,
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+                onShuffleClick = { playbackViewModel.setShuffleEnabled(!shuffleEnabled) },
+                onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
+                onQueueSongClick = playbackViewModel::playQueueItem,
+                onQueueMove = playbackViewModel::moveQueueItem,
+                onQueueRemove = playbackViewModel::removeQueueItem,
+                onProgressChanged = onPlayerProgressChanged,
+                collapsePlayerSignal = collapsePlayerSignal,
+                visible = showBottomBar,
+                modifier = hiddenModifier,
+            )
         }
     }
 }
@@ -158,6 +159,7 @@ private fun SynthXBottomNav(
     currentRoute: String?,
     playerProgress: Float = 0f,
     onSearchReselected: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val items = listOf(
         BottomNavItem(
@@ -197,7 +199,12 @@ private fun SynthXBottomNav(
     // was the previous, insufficient attempt.
     val collapseFraction = playerProgress.coerceIn(0f, 1f)
     Column(
-        modifier = Modifier
+        // `modifier` (the caller's hiddenModifier) goes first/outermost so a Modifier.size(0.dp)
+        // there forces the incoming constraints to 0x0 before any of this composable's own
+        // offset/height math runs — the later .height() below can only resolve within whatever
+        // max height it's handed, so it can't reintroduce a nonzero size once the caller has
+        // zeroed it.
+        modifier = modifier
             .offset(y = BottomNavHeight * collapseFraction)
             .height(BottomNavHeight * (1f - collapseFraction))
             .clipToBounds()
