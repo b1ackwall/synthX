@@ -55,8 +55,11 @@ fun Modifier.dragResistantClickable(
     .indication(interactionSource, indication)
     .semantics(mergeDescendants = true) {
         if (role != null) this.role = role
-        if (!enabled) disabled()
-        onClick(label = onClickLabel) { onClick(); true }
+        if (!enabled) {
+            disabled()
+        } else {
+            onClick(label = onClickLabel) { onClick(); true }
+        }
     }
     .pointerInput(interactionSource, enabled, onClick) {
         if (!enabled) return@pointerInput

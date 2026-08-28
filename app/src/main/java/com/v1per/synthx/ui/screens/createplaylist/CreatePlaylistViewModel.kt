@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,8 +27,10 @@ class CreatePlaylistViewModel(
     private val repository: SongRepository,
 ) : ViewModel() {
 
-    private val _groups = MutableStateFlow<List<PlaylistGroup>>(emptyList())
-    val groups: StateFlow<List<PlaylistGroup>> = _groups.asStateFlow()
+    // Groups-loading readiness, consumed by PlaylistRoutes' ReadinessCoverOverlay — kept
+    // separate from `error` below, which is about create-action failures, not load failures.
+    private val _uiState = MutableStateFlow<UiState<List<PlaylistGroup>>>(UiState.Loading)
+    val uiState: StateFlow<UiState<List<PlaylistGroup>>> = _uiState.asStateFlow()
 
     private val _created = MutableStateFlow(false)
     val created: StateFlow<Boolean> = _created.asStateFlow()
@@ -43,8 +46,10 @@ class CreatePlaylistViewModel(
     init {
         viewModelScope.launch {
             repository.getAllGroups()
-                .catch { _error.value = GENERIC_LOAD_ERROR }
-                .collect { _groups.value = it }
+                .catch { _uiState.value = UiState.Error(GENERIC_LOAD_ERROR) }
+                .collect { groups ->
+                    _uiState.value = if (groups.isEmpty()) UiState.Empty else UiState.Success(data = groups)
+                }
         }
     }
 

@@ -43,6 +43,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
+import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
@@ -60,7 +62,7 @@ fun CreatePlaylistScreen(
         factory = CreatePlaylistViewModel.factory(LocalContext.current),
     ),
 ) {
-    val groups by viewModel.groups.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     val created by viewModel.created.collectAsState()
     val error by viewModel.error.collectAsState()
     val isCreating by viewModel.isCreating.collectAsState()
@@ -108,15 +110,20 @@ fun CreatePlaylistScreen(
                 style = MaterialTheme.typography.labelLarge,
                 color = TextSecondary,
             )
-            if (groups.isEmpty()) {
-                Text(
+            when (val state = uiState) {
+                is UiState.Loading -> LoadingIndicator()
+                is UiState.Error -> Text(
+                    text = state.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Error,
+                )
+                is UiState.Empty -> Text(
                     text = stringResource(R.string.empty_no_groups),
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextTertiary,
                 )
-            } else {
-                LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                    items(groups, key = { it.id }) { group ->
+                is UiState.Success -> LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                    items(state.data, key = { it.id }) { group ->
                         val selected = group.id == selectedGroupId
                         Column {
                             Row(

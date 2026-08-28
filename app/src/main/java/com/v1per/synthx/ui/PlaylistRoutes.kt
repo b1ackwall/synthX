@@ -18,6 +18,7 @@ import com.v1per.synthx.ui.common.isReady
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.components.ReadinessCoverOverlay
 import com.v1per.synthx.ui.screens.createplaylist.CreatePlaylistScreen
+import com.v1per.synthx.ui.screens.createplaylist.CreatePlaylistViewModel
 import com.v1per.synthx.ui.screens.groupdetail.GroupDetailScreen
 import com.v1per.synthx.ui.screens.groupdetail.GroupDetailViewModel
 import com.v1per.synthx.ui.screens.playlistdetail.PlaylistDetailScreen
@@ -61,15 +62,22 @@ fun NavGraphBuilder.playlistRoutes(
     }
     composable(Screen.CreatePlaylist.route) {
         RouteContent(chromeBottomPadding) {
-            CreatePlaylistScreen(
-                topBar = {
-                    DetailTopBar(
-                        title = stringResource(R.string.screen_new_playlist),
-                        onBack = { navController.popBackStack() },
-                    )
-                },
-                onCreated = { navController.popBackStack() },
+            val createPlaylistViewModel = viewModel<CreatePlaylistViewModel>(
+                factory = CreatePlaylistViewModel.factory(LocalContext.current),
             )
+            val uiState by createPlaylistViewModel.uiState.collectAsState()
+            ReadinessCoverOverlay(isReady = uiState.isReady()) {
+                CreatePlaylistScreen(
+                    topBar = {
+                        DetailTopBar(
+                            title = stringResource(R.string.screen_new_playlist),
+                            onBack = { navController.popBackStack() },
+                        )
+                    },
+                    onCreated = { navController.popBackStack() },
+                    viewModel = createPlaylistViewModel,
+                )
+            }
         }
     }
     composable(
