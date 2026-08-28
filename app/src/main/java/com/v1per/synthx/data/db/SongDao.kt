@@ -170,6 +170,13 @@ interface SongDao {
     @Query("UPDATE songs SET is_missing = 1, missing_since = :missingSince WHERE id = :id")
     suspend fun markMissing(id: String, missingSince: Long)
 
+    // file_path carries a UNIQUE index, so a stale row being flagged missing (rather than
+    // deleted) must give up its path before a new row can claim it for the same on-disk
+    // file. Blanked to a per-id sentinel rather than "" — multiple stale rows can coexist
+    // over the life of the install, and "" would collide on the second one.
+    @Query("UPDATE songs SET file_path = 'stale://' || id WHERE id = :id")
+    suspend fun clearFilePathForRetag(id: String)
+
     @Query("UPDATE songs SET is_missing = 0, missing_since = NULL WHERE id = :id")
     suspend fun markFound(id: String)
 

@@ -206,14 +206,17 @@ class FolderScanner internal constructor(
                     continue
                 }
 
-                // Same path, different hash: the file content changed — treat as new.
-                // The replaced song's id is gone, so any playlist_songs rows referencing
-                // it cascade-delete silently (no SongRepositoryImpl mutation method runs
-                // here to trigger the usual scheduleExport() call) — request one explicitly
-                // so the exported JSON doesn't keep citing a deleted song id.
+                // Same path, different hash: the file content changed. The old row is
+                // flagged missing rather than deleted — playlist_songs (and everything
+                // else) cascade-deletes on songs.id, so a hard delete here would silently
+                // wipe the old row's playlist memberships and starred state. Its path is
+                // blanked so the new row can claim it (file_path is UNIQUE); its art is
+                // left alone since the row — and its legitimate ownership of that art —
+                // still exists. No SongRepositoryImpl mutation method runs here to trigger
+                // the usual scheduleExport() call, so request one explicitly.
                 val staleId = songDao.getSongByPath(path)?.let { stale ->
-                    deleteSongRowWithArtRepoint(songDao, albumDao, stale.id)
-                    pendingArtCleanup.add(stale.id)
+                    songDao.markMissing(stale.id, System.currentTimeMillis())
+                    songDao.clearFilePathForRetag(stale.id)
                     playlistExportManager.scheduleExport()
                     stale.id
                 }
