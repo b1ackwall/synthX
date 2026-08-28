@@ -3,18 +3,15 @@ package com.v1per.synthx.ui.screens.librarymanagement
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
-import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.components.SettingsDetailScaffold
 
 @Composable
 fun LibraryManagementScreen(
@@ -76,8 +73,7 @@ fun LibraryManagementScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Background)) {
-        topBar()
+    SettingsDetailScaffold(topBar = topBar) {
         LibraryManagementScreenContent(
             folderPath = folderUri?.let { FolderPathFormatter.format(context, it) },
             folderError = folderError,
@@ -118,7 +114,7 @@ internal fun LibraryManagementScreenContent(
     onIssuesClick: () -> Unit,
     onToggleDeleteSongs: (Boolean) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column {
         SectionHeader(title = stringResource(R.string.section_music_library))
         MusicFolderSection(
             folderPath = folderPath,

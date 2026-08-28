@@ -1,6 +1,5 @@
 package com.v1per.synthx.ui.screens.settings
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +25,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
+import com.v1per.synthx.ui.components.SettingsDetailScaffold
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
@@ -45,8 +45,7 @@ fun SettingsScreen(
     // one-ViewModel-per-screen wiring in place for the next setting that lands here.
     viewModel<SettingsViewModel>(factory = SettingsViewModel.Factory())
 
-    Column(modifier = Modifier.fillMaxSize().background(Background)) {
-        topBar()
+    SettingsDetailScaffold(topBar = topBar) {
         SettingsScreenContent(
             onLibraryManagementClick = onLibraryManagementClick,
             onBackupsAndRestoreClick = onBackupsAndRestoreClick,
@@ -61,7 +60,7 @@ private fun SettingsScreenContent(
     onBackupsAndRestoreClick: () -> Unit,
     onDeveloperSettingsClick: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column {
         SettingsRow(
             title = stringResource(R.string.settings_library_management),
             onClick = onLibraryManagementClick,
