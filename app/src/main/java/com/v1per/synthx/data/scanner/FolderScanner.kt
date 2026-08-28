@@ -1,21 +1,13 @@
 package com.v1per.synthx.data.scanner
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
-import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.data.db.AlbumDao
-import com.v1per.synthx.data.db.AlbumEntity
 import com.v1per.synthx.data.db.ArtistDao
-import com.v1per.synthx.data.db.ArtistEntity
 import com.v1per.synthx.data.db.SongArtistDao
-import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
-import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import androidx.room.withTransaction
 import com.v1per.synthx.data.backup.PlaylistExportManager
@@ -23,11 +15,6 @@ import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
-import com.v1per.synthx.data.repository.Artist
-import com.v1per.synthx.data.repository.Song
-import java.io.File
-import java.io.FileOutputStream
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -57,6 +44,13 @@ class FolderScanner internal constructor(
     private val playlistExportManager: PlaylistExportManager,
     private val scanBodyForTest: (suspend () -> ScanResult)? = null,
 ) {
+
+    /**
+     * Per-file metadata extraction and row writing. Constructed once and reused for every
+     * file — it holds no per-scan state. Its methods run inside the scan's own Room
+     * transaction; see [SongIngestor]'s transaction contract.
+     */
+    private val ingestor = SongIngestor(context, songDao, artistDao, albumDao, songArtistDao)
 
     /**
      * Scans [folderUri] and reconciles the library against it.
@@ -140,7 +134,7 @@ class FolderScanner internal constructor(
         // round-trips, and holding a Room transaction across them would block every other
         // writer for the duration. Enumeration only — these files are not ingested here.
         val reconcile = if (reconcileMissing) {
-            collectOtherRootPaths(otherRootUris, into = foundPaths)
+            collectOtherRootPaths(context, otherRootUris, into = foundPaths)
         } else {
             false
         }
@@ -202,7 +196,7 @@ class FolderScanner internal constructor(
                         // outside those ranges (or reuses the same padding) wouldn't touch
                         // them either. A cheap tag re-read catches that case without paying
                         // for a full metadata extraction + resolution on every untouched file.
-                        else -> if (retagIfChanged(file, existing)) {
+                        else -> if (ingestor.retagIfChanged(file, existing)) {
                             retagged++
                             updated++
                         } else {
@@ -224,7 +218,7 @@ class FolderScanner internal constructor(
                     stale.id
                 }
 
-                val newSong = insertNewSong(file, id, path)
+                val newSong = ingestor.insertNewSong(file, id, path)
                 // If the replaced song is the one currently loaded in the player, its
                 // in-memory Song (title/art) would otherwise go stale — see SongRemapEvents.
                 if (staleId != null) {
@@ -315,349 +309,11 @@ class FolderScanner internal constructor(
         newlyMissing
     }
 
-    /**
-     * Enumerates every [otherRootUri][otherRootUris] into [into], and returns whether
-     * missing-detection may proceed.
-     *
-     * Returns `false` — abort reconciliation — the moment any root can't be enumerated,
-     * without partially populating a decision the caller would then act on. Reachability is
-     * probed explicitly rather than inferred from the walk, because DocumentFile swallows
-     * every provider error: `listFiles()` catches its query exception and returns an empty
-     * array, and the metadata accessors return their default on failure. A revoked grant is
-     * therefore indistinguishable from an empty folder at the walk level, and reconciling
-     * against that silence is exactly how every song under the root gets flagged missing.
-     */
-    private suspend fun collectOtherRootPaths(
-        otherRootUris: List<Uri>,
-        into: MutableSet<String>,
-    ): Boolean {
-        for (uri in otherRootUris) {
-            currentCoroutineContext().ensureActive()
-
-            // The definitive revocation signal — a stored URI outlives its grant.
-            val hasReadGrant = context.contentResolver.persistedUriPermissions.any {
-                it.uri == uri && it.isReadPermission
-            }
-            if (!hasReadGrant) {
-                Log.w(TAG, "Skipping missing-detection: no read grant for configured root $uri")
-                return false
-            }
-
-            val otherRoot = runCatching { DocumentFile.fromTreeUri(context, uri) }.getOrNull()
-            // isDirectory is a real query, so it also catches a grant that exists but no
-            // longer resolves (deleted folder, ejected volume, provider error).
-            if (otherRoot == null || !otherRoot.isDirectory) {
-                Log.w(TAG, "Skipping missing-detection: configured root is unreachable — $uri")
-                return false
-            }
-
-            try {
-                collectAudioFiles(otherRoot).mapTo(into) { it.uri.toString() }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "Skipping missing-detection: failed to walk configured root $uri", e)
-                return false
-            }
-        }
-        return true
-    }
-
-    /**
-     * Pure enumeration — no hashing, no metadata, no DB access. Suspending only for the
-     * cancellation check: this now also runs against secondary roots before the transaction
-     * opens, where the per-file `ensureActive` in the ingest loop offers no cover, and a
-     * deep tree is thousands of binder round-trips with nothing else to interrupt it.
-     */
-    private suspend fun collectAudioFiles(dir: DocumentFile): List<DocumentFile> {
-        currentCoroutineContext().ensureActive()
-        val result = mutableListOf<DocumentFile>()
-        for (child in dir.listFiles()) {
-            when {
-                child.isDirectory -> result.addAll(collectAudioFiles(child))
-                child.name?.substringAfterLast('.', "")?.lowercase() in SUPPORTED_EXTENSIONS ->
-                    result.add(child)
-            }
-        }
-        return result
-    }
-
-    private suspend fun insertNewSong(file: DocumentFile, id: String, path: String): Song {
-        val retriever = MediaMetadataRetriever()
-        var rawTitle: String? = null
-        var rawArtist: String? = null
-        var rawAlbum: String? = null
-        var rawDuration: String? = null
-        var rawYear: String? = null
-        var rawTrackNumber: String? = null
-        var albumArtUri: String? = null
-        var albumArtFullUri: String? = null
-        try {
-            retriever.setDataSource(context, file.uri)
-            rawTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-            rawArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-            rawAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
-            rawDuration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-            rawYear = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
-            rawTrackNumber = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
-            val (compressedArtUri, fullArtUri) = extractAlbumArt(retriever, id)
-            albumArtUri = compressedArtUri
-            albumArtFullUri = fullArtUri
-        } catch (e: Exception) {
-            // Unreadable metadata — fall back to filename below, keep the song tracked
-        } finally {
-            retriever.release()
-        }
-
-        val title = rawTitle?.takeIf { it.isNotBlank() }
-            ?: file.name?.substringBeforeLast('.')
-            ?: "Unknown"
-        val year = rawYear?.trim()?.take(4)?.toIntOrNull()
-        // Track metadata is often "5/12" (track 5 of 12) — keep only the track part
-        val trackNumber = rawTrackNumber?.substringBefore("/")?.trim()?.toIntOrNull()
-
-        // Parsed once, up front: album resolution now needs the position-0 ("primary")
-        // artist to match against — see AlbumDao.getAlbumByTitleAndArtist — and that has
-        // to be known before the song row (and its song_artists rows) exist to join
-        // against. The per-artist loop below reuses this same list.
-        val rawArtistNames = splitArtists(rawArtist?.takeIf { it.isNotBlank() } ?: "Unknown Artist")
-            .distinctBy { it.lowercase() }
-        val primaryArtistNormalized = (rawArtistNames.firstOrNull() ?: "Unknown Artist")
-            .trim()
-            .lowercase()
-
-        val album = rawAlbum?.takeIf { it.isNotBlank() }?.trim()?.let { albumTitle ->
-            resolveAlbum(albumTitle, primaryArtistNormalized, year, albumArtUri)
-        }
-        val albumId = album?.id
-        val dateAdded = System.currentTimeMillis()
-
-        songDao.upsertSong(
-            SongEntity(
-                id = id,
-                title = title,
-                albumId = albumId,
-                duration = rawDuration?.toLongOrNull() ?: 0L,
-                filePath = path,
-                albumArtUri = albumArtUri,
-                albumArtFullUri = albumArtFullUri,
-                year = year,
-                trackNumber = trackNumber,
-                dateAdded = dateAdded,
-            )
-        )
-
-        songArtistDao.deleteSongArtists(id)
-        val artists = rawArtistNames.mapIndexed { index, name ->
-            val artist = resolveArtist(name)
-            songArtistDao.insertSongArtist(
-                SongArtistEntity(songId = id, artistId = artist.id, position = index)
-            )
-            Artist(id = artist.id, name = artist.name)
-        }
-
-        return Song(
-            id = id,
-            title = title,
-            artist = artists.joinToString(", ") { it.name }.ifEmpty { "Unknown Artist" },
-            album = album?.title ?: "Unknown Album",
-            duration = rawDuration?.toLongOrNull() ?: 0L,
-            filePath = path,
-            albumArtUri = albumArtUri,
-            albumArtFullUri = albumArtFullUri,
-            isMissing = false,
-            dateAdded = dateAdded,
-            albumId = albumId,
-            artists = artists,
-        )
-    }
-
-    /**
-     * The "unchanged" fast path's tag-drift check — same file identity (path + hash), but
-     * ID3 tags can be edited without touching the byte ranges [HashUtils] hashes, so the id
-     * alone can't prove the tags are still what's stored. Re-reads just the text tags (no
-     * embedded-art decode, no waveform/duration re-read) and only writes back — song row,
-     * and song_artists if the artist list changed — when something actually differs from
-     * what's stored. Returns whether it wrote anything, so the caller can count this file as
-     * updated rather than unchanged.
-     *
-     * Deliberately mirrors [insertNewSong]'s field derivation (same title/year/track
-     * fallbacks, same artist splitting, same album resolution) so a retag lands on exactly
-     * the row a fresh scan of the same file would have produced — but skips
-     * [extractAlbumArt] entirely: that decodes and rewrites a bitmap file, which is the kind
-     * of per-file cost this path exists to avoid paying when nothing changed.
-     */
-    private suspend fun retagIfChanged(file: DocumentFile, existing: SongEntity): Boolean {
-        val retriever = MediaMetadataRetriever()
-        val rawTitle: String?
-        val rawArtist: String?
-        val rawAlbum: String?
-        val rawYear: String?
-        val rawTrackNumber: String?
-        try {
-            retriever.setDataSource(context, file.uri)
-            rawTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-            rawArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-            rawAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
-            rawYear = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
-            rawTrackNumber = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
-        } catch (e: Exception) {
-            // Unreadable this pass — leave the stored row alone rather than falling back to
-            // filename/"Unknown Artist" and clobbering tags that were fine a moment ago.
-            return false
-        } finally {
-            retriever.release()
-        }
-
-        val title = rawTitle?.takeIf { it.isNotBlank() }
-            ?: file.name?.substringBeforeLast('.')
-            ?: "Unknown"
-        val year = rawYear?.trim()?.take(4)?.toIntOrNull()
-        val trackNumber = rawTrackNumber?.substringBefore("/")?.trim()?.toIntOrNull()
-
-        val rawArtistNames = splitArtists(rawArtist?.takeIf { it.isNotBlank() } ?: "Unknown Artist")
-            .distinctBy { it.lowercase() }
-        val primaryArtistNormalized = (rawArtistNames.firstOrNull() ?: "Unknown Artist")
-            .trim()
-            .lowercase()
-
-        // Indexed name lookups, same as a fresh scan resolves — inserts only happen if the
-        // tag edit genuinely introduced a new artist/album, not on every unchanged file.
-        val newArtistIds = rawArtistNames.map { resolveArtist(it).id }
-        val albumId = rawAlbum?.takeIf { it.isNotBlank() }?.trim()?.let { albumTitle ->
-            resolveAlbum(albumTitle, primaryArtistNormalized, year, existing.albumArtUri).id
-        }
-
-        val currentArtistIds = songDao.getSongArtistRefs(existing.id).map { it.artistId }
-        val artistsChanged = currentArtistIds != newArtistIds
-        val songChanged = existing.title != title ||
-            existing.year != year ||
-            existing.trackNumber != trackNumber ||
-            existing.albumId != albumId
-
-        if (!songChanged && !artistsChanged) return false
-
-        if (songChanged) {
-            songDao.upsertSong(
-                existing.copy(title = title, year = year, trackNumber = trackNumber, albumId = albumId)
-            )
-        }
-        if (artistsChanged) {
-            songArtistDao.deleteSongArtists(existing.id)
-            newArtistIds.forEachIndexed { index, artistId ->
-                songArtistDao.insertSongArtist(
-                    SongArtistEntity(songId = existing.id, artistId = artistId, position = index)
-                )
-            }
-        }
-        return true
-    }
-
-    private suspend fun resolveAlbum(
-        title: String,
-        primaryArtistNormalized: String,
-        year: Int?,
-        albumArtUri: String?,
-    ): AlbumEntity = albumDao.getOrInsertAlbum(title, primaryArtistNormalized, year, albumArtUri)
-
-    private suspend fun resolveArtist(name: String): ArtistEntity {
-        val normalized = name.trim().lowercase()
-        return artistDao.getOrInsertArtist(name.trim(), normalized)
-    }
-
-    private fun splitArtists(raw: String): List<String> {
-        var parts = listOf(raw)
-        for (delimiter in ARTIST_DELIMITERS) {
-            parts = parts.flatMap { it.split(delimiter, ignoreCase = true) }
-        }
-        return parts.map { it.trim() }.filter { it.isNotEmpty() }
-    }
-
-    /** Sniffs leading magic bytes to pick a file extension — never throws, defaults to "jpg". */
-    private fun sniffImageExtension(bytes: ByteArray): String {
-        return when {
-            bytes.size >= 8 &&
-                bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
-                bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() -> "png"
-            bytes.size >= 12 &&
-                bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() &&
-                bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte() &&
-                bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() &&
-                bytes[10] == 'B'.code.toByte() && bytes[11] == 'P'.code.toByte() -> "webp"
-            else -> "jpg"
-        }
-    }
-
-    private fun extractAlbumArt(retriever: MediaMetadataRetriever, songId: String): Pair<String?, String?> {
-        return try {
-            val artBytes = retriever.embeddedPicture ?: return null to null
-
-            val artDir = File(context.filesDir, "art").also { it.mkdirs() }
-
-            // Full-resolution copy — the untouched original bytes, no decode/re-encode, kept
-            // for the player sheet's full-width display.
-            val fullExt = sniffImageExtension(artBytes)
-            val fullArtFile = File(artDir, "art_full_${songId}.$fullExt")
-            FileOutputStream(fullArtFile).use { fos -> fos.write(artBytes) }
-            val fullArtUri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                fullArtFile,
-            ).toString()
-
-            val decoded = BitmapFactory.decodeByteArray(artBytes, 0, artBytes.size) ?: return null to fullArtUri
-
-            // Downscale only — never upscale art that's already smaller than the cap.
-            val longestSide = maxOf(decoded.width, decoded.height)
-            val bitmap = if (longestSide > MAX_ART_DIMENSION_PX) {
-                val scale = MAX_ART_DIMENSION_PX.toFloat() / longestSide
-                val scaled = Bitmap.createScaledBitmap(
-                    decoded,
-                    (decoded.width * scale).toInt().coerceAtLeast(1),
-                    (decoded.height * scale).toInt().coerceAtLeast(1),
-                    true,
-                )
-                decoded.recycle()
-                scaled
-            } else {
-                decoded
-            }
-
-            // Store in filesDir/art/ — permanent, survives cache clears. JPEG at quality 90 —
-            // lossless PNG at 100 was often larger than the embedded source for photographic
-            // covers; 90 is visually indistinguishable at the sizes this art is ever displayed
-            // at (up to full player-sheet width) while still compressing meaningfully smaller.
-            val artFile = File(artDir, "art_$songId.jpg")
-
-            FileOutputStream(artFile).use { fos ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos)
-            }
-            bitmap.recycle()
-
-            // Return content:// URI via FileProvider — safe across process boundaries
-            val compressedUri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                artFile,
-            ).toString()
-            compressedUri to fullArtUri
-        } catch (e: Exception) {
-            null to null
-        }
-    }
-
     companion object {
         private const val TAG = "SynthXScan"
 
-        /** Longest edge cap for stored album art — well above any on-screen display size. */
-        private const val MAX_ART_DIMENSION_PX = 1000
-
         /** Sentinel for both `onProgress` arguments while no file count is known yet. */
         const val PROGRESS_INDETERMINATE = -1
-
-        private val SUPPORTED_EXTENSIONS = setOf("mp3", "flac", "aac", "m4a", "wav", "ogg")
-
-        private val ARTIST_DELIMITERS = listOf(",")
     }
 }
 
