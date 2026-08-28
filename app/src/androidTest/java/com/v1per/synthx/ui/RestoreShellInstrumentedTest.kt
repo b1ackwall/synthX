@@ -46,7 +46,7 @@ class RestoreShellInstrumentedTest {
 
     @Before
     fun setUp() {
-        // Same order as PhaseBRestoreInstrumentedTest.setUp. WorkManager's manifest initializer
+        // Same order as PhaseBRestoreTestBase.setUp. WorkManager's manifest initializer
         // is removed for androidTest, and the shell reaches it through PlaylistExportManager, so
         // it has to be stood up explicitly or composing NormalShell takes the activity down.
         RestoreStartup.await()

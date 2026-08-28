@@ -1,0 +1,135 @@
+package com.v1per.synthx.data.backup
+
+import android.database.sqlite.SQLiteDatabase
+import android.net.Uri
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.v1per.synthx.data.db.SynthXDatabase
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * Phase B restore: source admission and validation, i.e. everything that decides whether a
+ * selected backup is eligible before the destructive transaction begins.
+ */
+@RunWith(AndroidJUnit4::class)
+class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
+
+    @Test fun trustedPhaseASourceAccepted() {
+        val source = newTrustedSource("accepted")
+        val metadata = metadata(source)
+        assertEquals(RestoreEligibility.TRUSTED_CURRENT, RestoreEligibility.assess(metadata, source.name))
+        assertEquals(SynthXDatabase.VERSION, BackupSnapshotValidator.validate(source, false).schema.userVersion)
+    }
+
+    @Test fun selectedSafDatabaseOpenedExactlyOnce() {
+        val source = newTrustedSource("read-once")
+        val stage = ownedFile("phaseb-read-once-stage.db")
+        val opens = AtomicInteger()
+        val digest = RestoreTransaction.copySafOnce(
+            context,
+            Uri.fromFile(source).toString(),
+            stage,
+            sourceOpener = RestoreSourceOpener { sourceContext, uri ->
+                opens.incrementAndGet()
+                sourceContext.contentResolver.openInputStream(Uri.parse(uri))
+            },
+        )
+        assertEquals(1, opens.get())
+        assertEquals(BackupHashing.hash(source), digest)
+    }
+
+    @Test fun sourceShaMismatchAbortsBeforeClose() = runBlocking {
+        createLive("state-a")
+        val source = newTrustedSource("state-b")
+        val bad = metadata(source).copy(sha256 = "0".repeat(64))
+        assertTrue(execute(source, bad).isFailure)
+        assertEquals("state-a", readMarker(liveFile()))
+        assertEquals(RestoreCoordinator.Mode.NORMAL, RestoreCoordinator.currentMode())
+    }
+
+    @Test fun corruptDatabaseRejected() {
+        val corrupt = ownedFile(validBackupName()).apply { writeText("not sqlite") }
+        expectFailure { BackupSnapshotValidator.validate(corrupt, true) }
+    }
+
+    @Test fun foreignSQLiteRejected() {
+        val foreign = ownedFile(validBackupName())
+        SQLiteDatabase.openOrCreateDatabase(foreign, null).use { it.execSQL("CREATE TABLE foreign_data(id INTEGER)") }
+        expectFailure { BackupSnapshotValidator.validate(foreign, true) }
+    }
+
+    @Test fun newerSchemaRejectedBeforeSourceOpen() = runBlocking {
+        createLive("state-a")
+        val source = newTrustedSource("state-b")
+        val opens = AtomicInteger()
+        val result = RestoreTransaction.execute(
+            context,
+            backupInfo(source),
+            metadata(source).copy(dbVersion = SynthXDatabase.VERSION + 1),
+            sourceOpener = RestoreSourceOpener { _, _ -> opens.incrementAndGet(); null },
+        )
+        assertTrue(result.isFailure)
+        assertEquals(0, opens.get())
+        assertEquals("state-a", readMarker(liveFile()))
+    }
+
+    @Test fun legacyBackupRejected() {
+        assertEquals(RestoreEligibility.LEGACY_OR_MALFORMED, RestoreEligibility.assess(null, validBackupName()))
+    }
+
+    @Test fun olderTrustedSchemaMigratesOffLive() {
+        createLive("state-a")
+        val olderName = "phaseb-v7-${UUID.randomUUID()}.db"
+        registeredDatabaseNames += olderName
+        migrationHelper.createDatabase(olderName, 7).close()
+        val older = context.getDatabasePath(olderName)
+        assertEquals(7, BackupSnapshotValidator.validate(older, true).schema.userVersion)
+        val isolated = SynthXDatabase.createStandalone(context, olderName)
+        try { isolated.openHelper.writableDatabase } finally { isolated.close() }
+        assertEquals("state-a", readMarker(liveFile()))
+    }
+
+    @Test fun migratedCandidateValidatesCurrentSchema() {
+        val olderName = "phaseb-v7-${UUID.randomUUID()}.db"
+        registeredDatabaseNames += olderName
+        migrationHelper.createDatabase(olderName, 7).close()
+        val isolated = SynthXDatabase.createStandalone(context, olderName)
+        try { isolated.openHelper.writableDatabase } finally { isolated.close() }
+        val result = BackupSnapshotValidator.validate(context.getDatabasePath(olderName), false)
+        assertEquals(SynthXDatabase.VERSION, result.schema.userVersion)
+    }
+
+    @Test fun freeSpaceFailureLeavesLiveUntouched() {
+        createLive("state-a")
+        expectFailure {
+            RestoreTransaction.ensureSpace(databaseDir, liveFile().length(), 4096, availableBytes = 0)
+        }
+        assertEquals("state-a", readMarker(liveFile()))
+    }
+
+    @Test fun fullCheckpointResultColumnsValidated() {
+        val file = newTrustedSource("checkpoint")
+        val result = RestoreTransaction.checkpointFileForTest(file)
+        assertEquals(0, result.busy)
+        assertTrue(result.provesStandaloneMain())
+        assertTrue(result.logFrames == result.checkpointedFrames || result.logFrames == -1)
+    }
+
+    @Test fun nonWalModeHandledWithDocumentedAccounting() {
+        val file = newTrustedSource("non-wal")
+        SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE).use {
+            it.rawQuery("PRAGMA journal_mode=DELETE", null).use { cursor -> assertTrue(cursor.moveToFirst()) }
+        }
+        val result = RestoreTransaction.checkpointFileForTest(file)
+        assertTrue(result.provesStandaloneMain())
+        assertTrue(
+            (result.logFrames == -1 && result.checkpointedFrames == -1) ||
+                result.logFrames == result.checkpointedFrames,
+        )
+    }
+}
