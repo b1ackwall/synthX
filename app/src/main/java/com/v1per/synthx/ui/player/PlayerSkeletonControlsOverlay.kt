@@ -79,6 +79,24 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * float-alpha and AnimatedVisibility's own composition-add/remove semantics, which would also
  * complicate the touch-shield gating below (an exiting `AnimatedVisibility` child stays
  * composed mid-animation, so a boolean gate on it wouldn't ever cleanly say "gone").
+ *
+ * The controls themselves (seek bar, transport row, queue button) are additionally wrapped in
+ * a plain `if (overlayVisibleAlpha > 0f)` below, for the same reason
+ * [PlayerSkeletonQueueContent] conditionally composes `QueueList` instead of just alpha-fading
+ * it (see that composable's doc comment): an always-composed control stays hit-testable at
+ * alpha 0, so a swipe landing in this overlay's screen region *after* it has fully faded out
+ * and settled hidden was reaching these controls' own (disabled-but-still-attached)
+ * `pointerInput` nodes first and never falling through to `QueueList` underneath, even though
+ * the controls were invisible and provably non-interactive. This does not reintroduce the
+ * `AnimatedVisibility` problem noted above — it is a plain conditional keyed directly off the
+ * same continuously-animated `overlayVisibleAlpha` this file already reads, not a second,
+ * independent enter/exit lifecycle, so it drops the controls out of composition only on the
+ * exact frame the fade-out animation actually reaches 0 (already fully invisible, at rest) and
+ * brings them back on the first frame the fade-in animation moves off 0 — never mid-fade, so
+ * the animation itself is untouched. `overlayControlsEnabled` below still separately gates
+ * interactivity at the existing >0.5f threshold while the controls are composed and fading, so
+ * behavior during the transition is unchanged; this only changes what happens once it's
+ * finished.
  */
 @Composable
 fun BoxScope.PlayerSkeletonControlsOverlay(
@@ -224,106 +242,114 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
             .padding(horizontal = Spacing.HorizontalPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        PlayerSeekBar(
-            currentPosition = currentPosition,
-            duration = duration,
-            onSeek = onSeek,
-            enabled = overlayControlsEnabled,
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val previousEnabled = overlayControlsEnabled && hasPrevious
-            val nextEnabled = overlayControlsEnabled && hasNext
-            Spacer(modifier = Modifier.weight(2f))
-            DragResistantIconButton(
-                onClick = onPreviousClick,
-                size = 72.dp,
-                enabled = previousEnabled,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.FastRewind,
-                    contentDescription = stringResource(R.string.cd_previous_track),
-                    tint = TextPrimary,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .alpha(if (previousEnabled) 1f else Alpha.Disabled),
-                )
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            DragResistantIconButton(
-                onClick = onPlayPauseClick,
-                size = 96.dp,
+        // See this file's top doc comment for why this is gated on the animated
+        // overlayVisibleAlpha itself rather than the raw overlayVisible boolean or a second
+        // AnimatedVisibility: it only drops these pointerInput-bearing controls out of
+        // composition once the fade-out has actually finished (alpha at rest at 0), never
+        // mid-fade, so this is invisible to the animation and only closes the dead-swipe
+        // window past that point.
+        if (overlayVisibleAlpha > 0f) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            PlayerSeekBar(
+                currentPosition = currentPosition,
+                duration = duration,
+                onSeek = onSeek,
                 enabled = overlayControlsEnabled,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (isBuffering) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(40.dp),
-                        color = TextPrimary,
-                        strokeWidth = 3.dp,
-                    )
-                } else {
+                val previousEnabled = overlayControlsEnabled && hasPrevious
+                val nextEnabled = overlayControlsEnabled && hasNext
+                Spacer(modifier = Modifier.weight(2f))
+                DragResistantIconButton(
+                    onClick = onPreviousClick,
+                    size = 72.dp,
+                    enabled = previousEnabled,
+                ) {
                     Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) {
-                            stringResource(R.string.cd_pause)
-                        } else {
-                            stringResource(R.string.cd_play)
-                        },
-                        tint = if (isPlaying) Accent else TextPrimary,
-                        modifier = Modifier.size(64.dp),
+                        imageVector = Icons.Filled.FastRewind,
+                        contentDescription = stringResource(R.string.cd_previous_track),
+                        tint = TextPrimary,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .alpha(if (previousEnabled) 1f else Alpha.Disabled),
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                DragResistantIconButton(
+                    onClick = onPlayPauseClick,
+                    size = 96.dp,
+                    enabled = overlayControlsEnabled,
+                ) {
+                    if (isBuffering) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(40.dp),
+                            color = TextPrimary,
+                            strokeWidth = 3.dp,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (isPlaying) {
+                                stringResource(R.string.cd_pause)
+                            } else {
+                                stringResource(R.string.cd_play)
+                            },
+                            tint = if (isPlaying) Accent else TextPrimary,
+                            modifier = Modifier.size(64.dp),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                DragResistantIconButton(
+                    onClick = onNextClick,
+                    size = 72.dp,
+                    enabled = nextEnabled,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.FastForward,
+                        contentDescription = stringResource(R.string.cd_next_track),
+                        tint = TextPrimary,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .alpha(if (nextEnabled) 1f else Alpha.Disabled),
+                    )
+                }
+                Spacer(modifier = Modifier.weight(2f))
+            }
+
+            // The overlay's only flexible gap — the remainder of ControlsOverlayHeight.
+            Spacer(modifier = Modifier.weight(1f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                // Toggles the queueProgress animation, reusing the exact Crossfade
+                // timing/easing tokens the old PlayerExpandedContent.kt used for its
+                // Player-mode/Queue-mode Crossfade. Same enabled gate now used by the
+                // transport buttons and PlayerSeekBar (overlayControlsEnabled). onClick is the
+                // remember-ed stable reference from PlayerSheetSkeleton, not an inline closure —
+                // see its doc comment for why.
+                DragResistantIconButton(
+                    onClick = onQueueClick,
+                    enabled = overlayControlsEnabled,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                        contentDescription = stringResource(R.string.cd_queue),
+                        tint = if (isQueueMode) TextPrimary else TextSecondary,
+                        modifier = Modifier.size(28.dp),
                     )
                 }
             }
-            Spacer(modifier = Modifier.weight(1f))
-            DragResistantIconButton(
-                onClick = onNextClick,
-                size = 72.dp,
-                enabled = nextEnabled,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.FastForward,
-                    contentDescription = stringResource(R.string.cd_next_track),
-                    tint = TextPrimary,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .alpha(if (nextEnabled) 1f else Alpha.Disabled),
-                )
-            }
-            Spacer(modifier = Modifier.weight(2f))
+
+            // Fixed bottom edge only — no navBarInset term, see ControlsOverlayHeight's
+            // doc comment (in PlayerSheetSkeleton.kt) for why.
+            Spacer(modifier = Modifier.height(Spacing.md))
         }
-
-        // The overlay's only flexible gap — the remainder of ControlsOverlayHeight.
-        Spacer(modifier = Modifier.weight(1f))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            // Toggles the queueProgress animation, reusing the exact Crossfade
-            // timing/easing tokens the old PlayerExpandedContent.kt used for its
-            // Player-mode/Queue-mode Crossfade. Same enabled gate now used by the
-            // transport buttons and PlayerSeekBar (overlayControlsEnabled). onClick is the
-            // remember-ed stable reference from PlayerSheetSkeleton, not an inline closure —
-            // see its doc comment for why.
-            DragResistantIconButton(
-                onClick = onQueueClick,
-                enabled = overlayControlsEnabled,
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                    contentDescription = stringResource(R.string.cd_queue),
-                    tint = if (isQueueMode) TextPrimary else TextSecondary,
-                    modifier = Modifier.size(28.dp),
-                )
-            }
-        }
-
-        // Fixed bottom edge only — no navBarInset term, see ControlsOverlayHeight's
-        // doc comment (in PlayerSheetSkeleton.kt) for why.
-        Spacer(modifier = Modifier.height(Spacing.md))
     }
 }
