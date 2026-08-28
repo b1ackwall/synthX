@@ -215,6 +215,10 @@ class ExoPlayerEngine(
     }
 
     override fun next() {
+        if (_repeatMode.value == RepeatMode.One) {
+            nextWindowIndexForRepeatOne()?.let { controller?.seekTo(it, /* positionMs = */ 0) }
+            return
+        }
         controller?.seekToNext()
     }
 

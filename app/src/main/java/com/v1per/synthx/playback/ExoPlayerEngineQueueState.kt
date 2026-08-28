@@ -135,6 +135,24 @@ internal fun ExoPlayerEngine.refreshUpcomingQueue() {
     upcomingTimelineIndices = indices
 }
 
+/**
+ * Target window for [ExoPlayerEngine.next] while Repeat One is active — media3's own
+ * `seekToNext()` treats Repeat One like Repeat Off and no-ops at the last window, so this
+ * mirrors [refreshUpcomingQueue]'s single-step `REPEAT_MODE_OFF` walk (shuffleModeEnabled
+ * forced `false` for the same reason documented there: native media3 shuffle isn't used, so
+ * the timeline is already in whatever order is actually live), wrapping to the first window
+ * when already at the last one.
+ */
+internal fun ExoPlayerEngine.nextWindowIndexForRepeatOne(): Int? {
+    val ctrl = controller ?: return null
+    val timeline = ctrl.currentTimeline
+    if (timeline.windowCount == 0) return null
+    val startIndex = ctrl.currentMediaItemIndex
+    if (startIndex == C.INDEX_UNSET) return null
+    val next = timeline.getNextWindowIndex(startIndex, Player.REPEAT_MODE_OFF, /* shuffleModeEnabled= */ false)
+    return if (next != C.INDEX_UNSET) next else timeline.getFirstWindowIndex(/* shuffleModeEnabled= */ false)
+}
+
 internal fun ExoPlayerEngine.currentSong(): Song? = _currentSongId.value?.let { songsById[it] }
 
 /**

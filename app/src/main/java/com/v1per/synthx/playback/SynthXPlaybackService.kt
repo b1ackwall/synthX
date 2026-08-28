@@ -34,6 +34,7 @@ class SynthXPlaybackService : MediaLibraryService() {
 
         player = ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
+            .setHandleAudioBecomingNoisy(true)
             .build()
 
         mediaLibrarySession = MediaLibrarySession.Builder(
