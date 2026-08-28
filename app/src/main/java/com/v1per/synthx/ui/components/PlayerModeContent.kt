@@ -16,6 +16,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -126,8 +129,24 @@ private fun NowPlayingTitleRow(
 @Composable
 internal fun MoreOptionsButton(song: Song, enabled: Boolean) {
     val songActions = LocalSongActions.current
+
+    // Stable-identity click handler, mirroring QueueModeState.onQueueClick's fix for the
+    // identical bug shape: DragResistantIconButton's dragResistantClickable keys its
+    // pointerInput on (interactionSource, enabled, onClick), so a fresh inline lambda here
+    // would restart the gesture coroutine every recomposition — and both call sites of this
+    // composable (PlayerSkeletonExpandedContent, PlayerSkeletonQueueContent) recompose every
+    // animation frame while their respective drag/crossfade is in flight, which was the
+    // confirmed root cause for the queue button. Built once via a no-key remember, reading
+    // song/songActions through rememberUpdatedState so it still acts on whichever song/
+    // songActions are current at invocation time despite being constructed only once.
+    val currentSong by rememberUpdatedState(song)
+    val currentSongActions by rememberUpdatedState(songActions)
+    val onClick = remember {
+        { currentSongActions.show(currentSong, null, SongActionSource.Player) }
+    }
+
     DragResistantIconButton(
-        onClick = { songActions.show(song, null, SongActionSource.Player) },
+        onClick = onClick,
         enabled = enabled,
     ) {
         Icon(
