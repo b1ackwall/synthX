@@ -32,6 +32,7 @@ import com.v1per.synthx.preferences.DeleteSongsGate
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -287,6 +288,11 @@ class SongActionsViewModel(
      */
     val removeFromStarredEnabled: StateFlow<Boolean> = _removeFromStarredEnabled.asStateFlow()
 
+    // The songId a launched lookup was resolving for, so a late result can tell it's no
+    // longer wanted even in the (should-be-impossible) case it runs after cancellation.
+    private var starredGateSongId: String? = null
+    private var starredGateJob: Job? = null
+
     /**
      * Resolves the gate above for the sheet's current target. [songId] is null whenever the
      * sheet is closed or was opened from anywhere but the Starred screen, which closes the
@@ -296,9 +302,18 @@ class SongActionsViewModel(
         // Closed first, then re-opened by the query result: the suspend call below lands a
         // frame or more later, and the row must not be tappable in the meantime.
         _removeFromStarredEnabled.value = false
+        // Cancel any lookup still in flight for a previous song — without this, an older
+        // song's isInAnyPlaylist result can land after a newer one's and clobber it.
+        starredGateJob?.cancel()
+        starredGateSongId = songId
         if (songId == null) return
-        viewModelScope.launch {
-            _removeFromStarredEnabled.value = repository.isInAnyPlaylist(songId)
+        starredGateJob = viewModelScope.launch {
+            val result = repository.isInAnyPlaylist(songId)
+            // Defense in depth on top of the cancellation above: only apply the result if
+            // this is still the song the gate was last asked to resolve.
+            if (starredGateSongId == songId) {
+                _removeFromStarredEnabled.value = result
+            }
         }
     }
 

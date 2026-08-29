@@ -53,6 +53,7 @@ private const val StatusMessageDisplayMs = 4_000L
 
 /** WorkManager tags every request with its worker's fully-qualified class name. */
 private val NEW_ARRIVALS_TAG: String = NewArrivalsScanWorker::class.java.name
+private val LIBRARY_SCAN_TAG: String = LibraryScanWorker::class.java.name
 
 /** Determinate when [total] is positive; otherwise the scan is in an uncounted phase. */
 data class ScanProgress(val current: Int, val total: Int) {
@@ -104,13 +105,16 @@ class LibraryManagementViewModel(
     // freshly constructed ViewModel observing a scan already in flight sees its real
     // state, not a default.
     //
-    // The unique name now carries a two-stage launch chain (verify → new arrivals), so it can
-    // hold more than one WorkInfo. New-arrivals infos are filtered out: that stage fails
-    // routinely and harmlessly ("No folder selected" until the folder is ever picked), and
-    // this row reports on the main-library passes only. Everything else is unchanged.
+    // The unique name is shared by three workers: LibraryScanWorker (the manual rescan this
+    // row reports on), VerifyLibraryWorker (a silent launch-time sweep with no intended UI),
+    // and NewArrivalsScanWorker (a silent launch-time worker, chained after Verify). Excluding
+    // only the new-arrivals tag isn't enough — it doesn't distinguish Verify's WorkInfo from
+    // LibraryScanWorker's, so an unpruned/concurrent Verify entry could get picked instead of
+    // the actual rescan. Matching on LibraryScanWorker's own tag is unambiguous regardless of
+    // how many other stages' WorkInfo happen to still be sitting under this unique name.
     private val workInfo: StateFlow<WorkInfo?> = workManager
         .getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
-        .map { infos -> infos.firstOrNull { NEW_ARRIVALS_TAG !in it.tags } }
+        .map { infos -> infos.firstOrNull { LIBRARY_SCAN_TAG in it.tags } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val isScanning: StateFlow<Boolean> = workInfo
