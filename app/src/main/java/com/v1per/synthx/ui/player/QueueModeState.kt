@@ -7,10 +7,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -35,9 +37,17 @@ class QueueModeState internal constructor(
     val queueListState: LazyListState,
     private val scope: CoroutineScope,
     private val overlayToggleThresholdPx: Float,
+    // Owned by rememberQueueModeState's rememberSaveable, not this class, so only this one
+    // boolean survives a configuration change — queueProgress/queueListState/scope are not
+    // meaningfully saveable (Animatable/LazyListState/CoroutineScope), and controlsVisible/
+    // the scroll-gesture bookkeeping below are transient gesture state not worth restoring.
+    private val isQueueModeState: MutableState<Boolean>,
 ) {
-    var isQueueMode: Boolean by mutableStateOf(false)
-        internal set
+    var isQueueMode: Boolean
+        get() = isQueueModeState.value
+        internal set(value) {
+            isQueueModeState.value = value
+        }
 
     var controlsVisible: Boolean by mutableStateOf(true)
         internal set
@@ -160,8 +170,12 @@ fun rememberQueueModeState(
     // in the QueueModeState class above for the full mechanism.
     val overlayToggleThresholdPx = with(density) { 28.dp.toPx() }
 
+    // The only piece of queue-mode state worth surviving a configuration change — see the
+    // isQueueModeState kdoc on QueueModeState above.
+    val isQueueModeState = rememberSaveable { mutableStateOf(false) }
+
     val state = remember {
-        QueueModeState(queueProgress, queueListState, scope, overlayToggleThresholdPx)
+        QueueModeState(queueProgress, queueListState, scope, overlayToggleThresholdPx, isQueueModeState)
     }
     state.onShuffleClick = onShuffleClick
 

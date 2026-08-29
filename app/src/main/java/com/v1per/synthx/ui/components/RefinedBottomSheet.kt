@@ -33,6 +33,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Hairline
@@ -120,9 +123,12 @@ fun rememberRefinedBottomSheetState(): RefinedBottomSheetState = remember { Refi
  *   of closed the way a pure decay animation can on a slow release.
  *
  * Accessibility: the scrim is reachable as a labeled dismiss target and system back closes the
- * sheet via [BackHandler], but this does *not* replicate `ModalBottomSheet`'s window-level focus
- * trapping — TalkBack can still navigate into content behind the scrim while the sheet is open,
- * since everything lives in one shared accessibility tree rather than a separate Dialog window.
+ * sheet via [BackHandler]. Since there's no separate Dialog window to give `ModalBottomSheet`'s
+ * focus-trapping for free, this sheet's content is grouped into one accessibility node via
+ * `Modifier.semantics { isTraversalGroup = true }` below, and callers are expected to pair the
+ * sheet's open/closed condition with [hiddenFromAccessibilityWhileSheetShown] on whatever they
+ * compose behind/alongside it (see that function's kdoc) so TalkBack can't wander into content
+ * behind the scrim while the sheet is open.
  */
 @Composable
 fun RefinedBottomSheet(
@@ -170,6 +176,9 @@ fun RefinedBottomSheet(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                // Groups the sheet's own nodes into one accessibility region distinct from
+                // whatever's behind it — see this composable's kdoc.
+                .semantics { isTraversalGroup = true }
                 .graphicsLayer {
                     translationY = sheetState.offsetY.value
                     alpha = sheetState.alpha.value
@@ -211,6 +220,20 @@ fun RefinedBottomSheet(
         }
     }
 }
+
+/**
+ * Removes this subtree from the accessibility tree entirely while [hidden] is true — pass the
+ * same condition that shows a [RefinedBottomSheet] to whatever's composed behind/alongside it,
+ * so TalkBack can't traverse into it while the sheet covers it. This is the documented Compose
+ * mechanism for excluding on-screen content from the semantics tree by hand (an empty
+ * [clearAndSetSemantics] block clears all descendant semantics — the Compose equivalent of the
+ * View system's `importantForAccessibility = NO_HIDE_DESCENDANTS`); a real Dialog/Popup window
+ * gets this for free by being a separate accessibility-focus root, which is exactly the behavior
+ * [RefinedBottomSheet] deliberately opts out of (see its kdoc) to avoid `ModalBottomSheet`'s
+ * app-wide touch-blocking, so it has to be reproduced by hand instead.
+ */
+fun Modifier.hiddenFromAccessibilityWhileSheetShown(hidden: Boolean): Modifier =
+    if (hidden) clearAndSetSemantics {} else this
 
 @Composable
 private fun RefinedSheetDragHandle() {

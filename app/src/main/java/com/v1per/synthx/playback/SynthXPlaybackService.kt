@@ -35,6 +35,9 @@ class SynthXPlaybackService : MediaLibraryService() {
         player = ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
+            // Local-file player only (no network audio sources anywhere in the app) — CPU
+            // wake lock is enough to keep decoding through screen-off/Doze, no wifi lock needed.
+            .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
 
         mediaLibrarySession = MediaLibrarySession.Builder(

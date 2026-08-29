@@ -1,6 +1,8 @@
 package com.v1per.synthx.ui.components
 
 import android.content.Context
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -11,8 +13,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -93,6 +98,7 @@ fun SongActionsHost(
         factory = SongActionsViewModel.Factory(context),
     )
     val playlists by viewModel.playlists.collectAsState()
+    val songs by viewModel.songs.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
     val removeFromStarredEnabled by viewModel.removeFromStarredEnabled.collectAsState()
 
@@ -118,21 +124,34 @@ fun SongActionsHost(
         }
     }
 
-    var target by remember { mutableStateOf<SongActionsTarget?>(null) }
+    // Only the identifying key survives a configuration change — the sheet's target Song
+    // isn't directly Saveable (it's a domain object, not Parcelable), so the full
+    // SongActionsTarget is re-resolved below from `songs` (already-warm, process-lifetime
+    // cached StateFlow — see SongRepositoryImpl.songsFlow) by id instead of being saved
+    // directly. If the song can no longer be found post-restore (e.g. deleted while the
+    // sheet was open across the config change) `target` below resolves to null and the
+    // sheet simply doesn't render, rather than crashing on a stale reference.
+    var targetKey by rememberSaveable(stateSaver = SongActionsTargetKeySaver) {
+        mutableStateOf<SongActionsTargetKey?>(null)
+    }
+    val target = targetKey?.let { key ->
+        songs.firstOrNull { it.id == key.songId }
+            ?.let { song -> SongActionsTarget(song, key.playlistId, key.source) }
+    }
     val sheetState = rememberRefinedBottomSheetState()
     val scope = rememberCoroutineScope()
 
     // Animate out, then drop from composition — clearing the flag first would snap it shut.
     fun dismiss(after: () -> Unit = {}) {
         scope.launch { sheetState.hide() }.invokeOnCompletion {
-            target = null
+            targetKey = null
             after()
         }
     }
 
     val controller = remember {
         SongActionsController { song, playlistId, source ->
-            target = SongActionsTarget(song, playlistId, source)
+            targetKey = SongActionsTargetKey(song.id, playlistId, source)
         }
     }
 
@@ -146,7 +165,15 @@ fun SongActionsHost(
     }
 
     CompositionLocalProvider(LocalSongActions provides controller) {
-        content()
+        // Excluded from TalkBack traversal while the sheet is open — see
+        // hiddenFromAccessibilityWhileSheetShown's kdoc in RefinedBottomSheet.kt.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .hiddenFromAccessibilityWhileSheetShown(hidden = target != null),
+        ) {
+            content()
+        }
     }
 
     target?.let { current ->
@@ -211,11 +238,39 @@ private data class SongActionsTarget(
     val source: SongActionSource,
 )
 
+/** [SongActionsTarget] reduced to primitives — what actually gets saved across config change. */
+private data class SongActionsTargetKey(
+    val songId: String,
+    val playlistId: String?,
+    val source: SongActionSource,
+)
+
+// Nullable Original (the sheet is usually closed) — an empty list is the null sentinel, since
+// a saved value can't itself be null.
+private val SongActionsTargetKeySaver: Saver<SongActionsTargetKey?, List<String?>> = Saver(
+    save = { value: SongActionsTargetKey? ->
+        value?.let { listOf(it.songId, it.playlistId, it.source.name) } ?: emptyList()
+    },
+    restore = { saved: List<String?> ->
+        saved.takeIf { it.isNotEmpty() }
+            ?.let { SongActionsTargetKey(it[0]!!, it[1], SongActionSource.valueOf(it[2]!!)) }
+    },
+)
+
 class SongActionsViewModel(
     private val repository: SongRepository,
 ) : ViewModel() {
 
     val playlists: StateFlow<ImmutableList<Playlist>> = repository.getAllPlaylists()
+        .map { it.toPersistentList() }
+        .catch { emit(persistentListOf()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), persistentListOf())
+
+    // Only consulted to re-resolve a saved SongActionsTargetKey's songId back into a Song
+    // after a configuration change (see SongActionsHost) — repository.getSongs() is itself
+    // an already-warm, process-lifetime cached StateFlow (SongRepositoryImpl.songsFlow), so
+    // this adds no extra query cost.
+    val songs: StateFlow<ImmutableList<Song>> = repository.getSongs()
         .map { it.toPersistentList() }
         .catch { emit(persistentListOf()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), persistentListOf())

@@ -45,6 +45,7 @@ import com.v1per.synthx.playback.QueuePromptEvent
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.QueuePromptDialog
+import com.v1per.synthx.ui.components.hiddenFromAccessibilityWhileSheetShown
 import com.v1per.synthx.ui.components.SongActionsHost
 import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
 import com.v1per.synthx.ui.screens.songs.SortBottomSheet
@@ -261,27 +262,35 @@ private fun NormalShell(navController: NavHostController) {
         onAddToQueue = playbackViewModel::addToQueue,
     ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        SynthXNavHost(
-            navController = navController,
-            playbackViewModel = playbackViewModel,
-            chromeBottomPadding = chromeBottomPadding,
-            searchReselectEvents = searchReselectEvents,
-            onShowSortSheet = { order, onOrderSelected ->
-                sortSheetTarget = SortSheetTarget(order, onOrderSelected)
-            },
-        )
+        // Excluded from TalkBack traversal while the sort sheet is open — see
+        // hiddenFromAccessibilityWhileSheetShown's kdoc in RefinedBottomSheet.kt.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .hiddenFromAccessibilityWhileSheetShown(hidden = sortSheetTarget != null),
+        ) {
+            SynthXNavHost(
+                navController = navController,
+                playbackViewModel = playbackViewModel,
+                chromeBottomPadding = chromeBottomPadding,
+                searchReselectEvents = searchReselectEvents,
+                onShowSortSheet = { order, onOrderSelected ->
+                    sortSheetTarget = SortSheetTarget(order, onOrderSelected)
+                },
+            )
 
-        BottomChromeOverlay(
-            navController = navController,
-            currentRoute = currentRoute,
-            showBottomBar = showBottomBar,
-            currentSong = currentSong,
-            playerProgress = playerProgress,
-            onPlayerProgressChanged = { playerProgress = it },
-            collapsePlayerSignal = collapsePlayerSignal,
-            playbackViewModel = playbackViewModel,
-            onSearchReselected = { searchReselectEvents.tryEmit(Unit) },
-        )
+            BottomChromeOverlay(
+                navController = navController,
+                currentRoute = currentRoute,
+                showBottomBar = showBottomBar,
+                currentSong = currentSong,
+                playerProgress = playerProgress,
+                onPlayerProgressChanged = { playerProgress = it },
+                collapsePlayerSignal = collapsePlayerSignal,
+                playbackViewModel = playbackViewModel,
+                onSearchReselected = { searchReselectEvents.tryEmit(Unit) },
+            )
+        }
 
         // Declared after BottomChromeOverlay (not nested inside SynthXNavHost) so it draws
         // above the bottom nav/player structurally — the same reason SongActionsHost's sheet
