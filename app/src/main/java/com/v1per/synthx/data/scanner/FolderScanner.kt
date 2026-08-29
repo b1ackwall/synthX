@@ -252,11 +252,13 @@ class FolderScanner internal constructor(
                 // blanked so the new row can claim it (file_path is UNIQUE); its art is
                 // left alone since the row — and its legitimate ownership of that art —
                 // still exists. No SongRepositoryImpl mutation method runs here to trigger
-                // the usual scheduleExport() call, so request one explicitly.
+                // the usual scheduleExport() call — one is requested after the transaction
+                // commits instead (see below), since scheduling it from in here risks the
+                // debounced export firing and reading the database before this transaction
+                // commits, capturing a stale pre-scan snapshot.
                 val staleId = songDao.getSongByPath(path)?.let { stale ->
                     songDao.markMissing(stale.id, System.currentTimeMillis())
                     songDao.clearFilePathForRetag(stale.id)
-                    playlistExportManager.scheduleExport()
                     hashMismatchFlagged++
                     stale.id
                 }
@@ -310,6 +312,15 @@ class FolderScanner internal constructor(
         // Only after the transaction commits — a file delete cannot be rolled back
         // alongside the DB the way the row deletes above can.
         pendingArtCleanup.forEach { deleteSongArtFile(context, it) }
+
+        // Only after the transaction commits — scheduleExport() is fire-and-forget and its
+        // debounced write can fire before an in-transaction call's changes are committed,
+        // capturing a stale pre-scan snapshot. Gated on hashMismatchFlagged since that's the
+        // only path this scan takes that doesn't already route through a SongRepositoryImpl
+        // mutation method (which schedules its own export on commit).
+        if (result.hashMismatchFlagged > 0) {
+            playlistExportManager.scheduleExport()
+        }
 
         Log.d(TAG, "Scan complete in ${System.currentTimeMillis() - scanStartMs}ms for $folderUri")
             result
