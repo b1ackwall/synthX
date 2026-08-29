@@ -65,12 +65,14 @@ class BackupManager(private val context: Context) {
      * @param cancelActiveScan pass `false` from inside [LibraryScanWorker]. The worker is itself the
      *   running work, so waiting for the unique work to reach a terminal state from within it would
      *   never return.
+     * @return on success, the database filename (e.g. "synthx_backup_...db") of the backup just
+     *   created — [BackupFileIdentity] itself stays internal, so only the filename crosses out.
      */
     suspend fun createBackup(
         tier: BackupTier,
         reason: String? = null,
         cancelActiveScan: Boolean = true,
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             RestoreStartup.await()
             RestoreCoordinator.withDbOperation {
@@ -87,7 +89,7 @@ class BackupManager(private val context: Context) {
      * [BackupReason.MIGRATION] selects [BackupSnapshotter.createForMigration], so this path never
      * obtains Room while the gate is still closed.
      */
-    internal suspend fun createPreMigrationBackup(): Result<Unit> = createBackup(
+    internal suspend fun createPreMigrationBackup(): Result<String> = createBackup(
         tier = BackupTier.Auto,
         reason = BackupReason.MIGRATION,
         cancelActiveScan = false,
@@ -97,7 +99,7 @@ class BackupManager(private val context: Context) {
         tier: BackupTier,
         reason: String?,
         cancelActiveScan: Boolean,
-    ) {
+    ): String {
         val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) }
             ?: throw BackupNotConfiguredException()
         val sourceFile = context.getDatabasePath(SynthXDatabase.DB_NAME)
@@ -110,7 +112,7 @@ class BackupManager(private val context: Context) {
         val stagingDirectory = File(context.noBackupFilesDir, STAGING_DIRECTORY)
         val snapshot = File(stagingDirectory, "snapshot-${UUID.randomUUID()}.partial.db")
 
-        try {
+        return try {
             val migrationSnapshot = reason == BackupReason.MIGRATION
             if (migrationSnapshot) {
                 BackupSnapshotter.createForMigration(sourceFile, snapshot)
@@ -153,6 +155,7 @@ class BackupManager(private val context: Context) {
             // policy so cleanup cannot turn a valid, published backup into a reported failure.
             runCatching { enforceRetention(tierDirectory, tier, published.identity) }
                 .onFailure { Log.w(TAG, "Backup retention skipped", it) }
+            identity.databaseFileName
         } finally {
             deleteLocalStage(snapshot)
         }

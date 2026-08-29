@@ -40,6 +40,7 @@ internal fun ManagementRow(
     subtitle: String? = null,
     trailingText: String? = null,
     enabled: Boolean = true,
+    subtitleMaxLines: Int = 1,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -72,8 +73,15 @@ internal fun ManagementRow(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    maxLines = subtitleMaxLines,
+                    // Ellipsis only makes sense when a real line cap can be hit. Int.MAX_VALUE
+                    // is the sentinel for "wrap without limit" (see RescanRow) — a message of
+                    // unbounded length must never truncate, so there is nothing to clip either.
+                    overflow = if (subtitleMaxLines == Int.MAX_VALUE) {
+                        TextOverflow.Clip
+                    } else {
+                        TextOverflow.Ellipsis
+                    },
                 )
             }
         }

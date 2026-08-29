@@ -173,6 +173,8 @@
     <string name="scan_progress_counted">Scanning… %1$d of %2$d</string>
     <string name="scan_cancelled">Scan cancelled</string>
     <string name="scan_status_done">Done — %1$d added, %2$d updated, %3$d missing</string>
+    <string name="scan_status_high_impact">This scan affected an unusually large number of items (%1$d). A safety backup was created: %2$s. Restore it from Backups &amp; Restore if needed.</string>
+    <string name="scan_status_backup_filename_unknown">the most recent Auto backup</string>
     <string name="scan_status_failed">Scan failed: %1$s</string>
     <string name="scan_status_unknown_error">unknown error</string>
     <string name="backup_status_backing_up">Backing up…</string>

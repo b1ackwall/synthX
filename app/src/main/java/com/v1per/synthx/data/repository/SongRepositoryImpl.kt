@@ -154,6 +154,9 @@ class SongRepositoryImpl(
     internal suspend fun verifyLibraryAlreadyAdmitted(configuredRootUris: List<Uri>): Int =
         folderScanner.verifyAlreadyAdmitted(configuredRootUris)
 
+    /** Total library size, for gauging a scan's impact as a percentage. */
+    internal suspend fun getSongCountAlreadyAdmitted(): Int = songDao.getSongCount()
+
     /**
      * Permanently removes a song. Its song_artists and playlist_songs rows go with it via
      * FK CASCADE — nothing here deletes them explicitly.

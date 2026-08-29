@@ -161,6 +161,10 @@ interface SongDao {
     @Query("SELECT * FROM songs")
     suspend fun getAllSongsOnce(): List<SongEntity>
 
+    /** Cheap total library size — used to compute a scan's impact as a percentage. */
+    @Query("SELECT COUNT(*) FROM songs")
+    suspend fun getSongCount(): Int
+
     // Deliberately unfiltered by is_missing, unlike getSongsWithDetailsForPlaylist — the
     // playlist export needs a missing song's last-known title/artist/filePath too, not just
     // the songs still playable.

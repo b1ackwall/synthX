@@ -33,7 +33,22 @@ data class ScanResult(
      * songs. Distinguishes that from a pass that ran and legitimately found [missing] == 0.
      */
     val missingReconciled: Boolean = true,
-)
+    /** Rows hard-deleted this scan — path-collision occupant eviction only (Site A). */
+    val deleted: Int = 0,
+    /**
+     * Rows flagged missing this scan because their path was reused by different content
+     * (Site B, hash-mismatch) — counted separately from [missing] (Site C's mass
+     * reconciliation flag) since they come from different triggers.
+     */
+    val hashMismatchFlagged: Int = 0,
+) {
+    /**
+     * Combined count of everything this scan changed destructively or flagged away:
+     * hard deletes plus both missing-flag mechanisms. Used to gauge whether a single
+     * scan pass affected an unusually large slice of the library.
+     */
+    val totalImpact: Int get() = deleted + hashMismatchFlagged + missing
+}
 
 class FolderScanner internal constructor(
     private val context: Context,
@@ -176,6 +191,8 @@ class FolderScanner internal constructor(
             var added = 0
             var updated = 0
             var unchanged = 0
+            var deleted = 0
+            var hashMismatchFlagged = 0
 
             for ((index, file) in audioFiles.withIndex()) {
                 // Cooperative cancellation: the per-file work below is mostly blocking
@@ -197,6 +214,7 @@ class FolderScanner internal constructor(
                             if (occupant != null && occupant.id != existing.id) {
                                 deleteSongRowWithArtRepoint(songDao, albumDao, occupant.id)
                                 pendingArtCleanup.add(occupant.id)
+                                deleted++
                             }
                             songDao.upsertSong(
                                 existing.copy(
@@ -239,6 +257,7 @@ class FolderScanner internal constructor(
                     songDao.markMissing(stale.id, System.currentTimeMillis())
                     songDao.clearFilePathForRetag(stale.id)
                     playlistExportManager.scheduleExport()
+                    hashMismatchFlagged++
                     stale.id
                 }
 
@@ -277,6 +296,8 @@ class FolderScanner internal constructor(
                 missing = missing,
                 unchanged = unchanged,
                 missingReconciled = reconcile,
+                deleted = deleted,
+                hashMismatchFlagged = hashMismatchFlagged,
             )
         }
         Log.d(

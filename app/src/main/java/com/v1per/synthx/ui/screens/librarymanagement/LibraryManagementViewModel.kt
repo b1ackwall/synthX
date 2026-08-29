@@ -174,12 +174,23 @@ class LibraryManagementViewModel(
         }
         WorkInfo.State.SUCCEEDED -> {
             val data = info.outputData
-            context.getString(
+            val doneMessage = context.getString(
                 R.string.scan_status_done,
                 data.getInt(LibraryScanWorker.KEY_ADDED, 0),
                 data.getInt(LibraryScanWorker.KEY_UPDATED, 0),
                 data.getInt(LibraryScanWorker.KEY_MISSING, 0),
             )
+            if (data.getBoolean(LibraryScanWorker.KEY_HIGH_IMPACT, false)) {
+                val highImpactMessage = context.getString(
+                    R.string.scan_status_high_impact,
+                    data.getInt(LibraryScanWorker.KEY_IMPACT_COUNT, 0),
+                    data.getString(LibraryScanWorker.KEY_BACKUP_FILENAME)
+                        ?: context.getString(R.string.scan_status_backup_filename_unknown),
+                )
+                "$doneMessage $highImpactMessage"
+            } else {
+                doneMessage
+            }
         }
         WorkInfo.State.FAILED -> context.getString(
             R.string.scan_status_failed,

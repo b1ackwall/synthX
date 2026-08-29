@@ -9,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequestBuilder
@@ -66,12 +67,14 @@ class LibraryScanWorker(
 
         // Snapshot before the scan mutates anything. cancelActiveScan = false is required:
         // this worker *is* the active scan, so the usual await-terminal-state guard would
-        // wait on itself forever.
-        BackupManager.create(applicationContext).createBackup(
+        // wait on itself forever. The filename is kept only so a later high-impact result
+        // can point the user at the exact backup that protects this scan's pre-scan state —
+        // it does not change when or whether this backup fires.
+        val preScanBackupFileName = BackupManager.create(applicationContext).createBackup(
             tier = BackupTier.Auto,
             reason = BackupReason.RESCAN,
             cancelActiveScan = false,
-        )
+        ).getOrNull()
 
         createNotificationChannel()
         setForeground(buildForegroundInfo(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE))
@@ -87,9 +90,10 @@ class LibraryScanWorker(
         val otherRoots = preferences.configuredAudioRootUris().filter { it != uri }
 
         return try {
+            var songCountAfterScan = 0
             val result = WorkerDatabaseAccess.run {
                 val repository = SongRepositoryImpl.create(applicationContext)
-                repository.scanLibraryAlreadyAdmitted(uri, otherRootUris = otherRoots) { current, total ->
+                val scanResult = repository.scanLibraryAlreadyAdmitted(uri, otherRootUris = otherRoots) { current, total ->
                 val percent = if (total > 0) current * 100 / total else PROGRESS_INDETERMINATE
                 if (percent != lastPercent) {
                     lastPercent = percent
@@ -97,6 +101,8 @@ class LibraryScanWorker(
                     setForeground(buildForegroundInfo(current, total))
                 }
                 }
+                songCountAfterScan = repository.getSongCountAlreadyAdmitted()
+                scanResult
             }
             if (!result.missingReconciled) {
                 // Not a scan failure — added/updated rows are all committed. Only the
@@ -105,14 +111,34 @@ class LibraryScanWorker(
                 // flagged every song under it. FolderScanner logs which root and why.
                 Log.w(TAG, "Scan completed without missing-detection — a configured root was unreachable")
             }
-            Result.success(
-                workDataOf(
-                    KEY_ADDED to result.added,
-                    KEY_UPDATED to result.updated,
-                    KEY_MISSING to result.missing,
-                    KEY_UNCHANGED to result.unchanged,
-                )
+
+            val outputData = workDataOf(
+                KEY_ADDED to result.added,
+                KEY_UPDATED to result.updated,
+                KEY_MISSING to result.missing,
+                KEY_UNCHANGED to result.unchanged,
             )
+            val isHighImpact = songCountAfterScan > 0 &&
+                (result.totalImpact * 100 > songCountAfterScan * HIGH_IMPACT_PERCENT_THRESHOLD ||
+                    result.totalImpact > HIGH_IMPACT_ABSOLUTE_FLOOR)
+            val finalOutputData = if (isHighImpact) {
+                Log.w(
+                    TAG,
+                    "Scan affected an unusually large portion of the library — " +
+                        "impact=${result.totalImpact} of $songCountAfterScan songs",
+                )
+                Data.Builder()
+                    .putAll(outputData)
+                    .putBoolean(KEY_HIGH_IMPACT, true)
+                    .putInt(KEY_IMPACT_COUNT, result.totalImpact)
+                    .apply {
+                        preScanBackupFileName?.let { putString(KEY_BACKUP_FILENAME, it) }
+                    }
+                    .build()
+            } else {
+                outputData
+            }
+            Result.success(finalOutputData)
         } catch (e: CancellationException) {
             // Let WorkManager see the cancellation — the Room transaction has already
             // rolled back, so the library is untouched.
@@ -175,6 +201,21 @@ class LibraryScanWorker(
         const val KEY_MISSING = "missing"
         const val KEY_UNCHANGED = "unchanged"
         const val KEY_ERROR = "error"
+
+        /** Present (and `true`) only when this scan's impact tripped the high-impact threshold. */
+        const val KEY_HIGH_IMPACT = "high_impact"
+        /** Total songs deleted/flagged-missing this scan — see [ScanResult.totalImpact]. */
+        const val KEY_IMPACT_COUNT = "impact_count"
+        /** Filename of the pre-scan Auto/RESCAN safety backup, so the user can find it. */
+        const val KEY_BACKUP_FILENAME = "backup_filename"
+
+        /**
+         * Tunable circuit-breaker thresholds for flagging a scan as high-impact — deliberately
+         * two independent checks so neither a huge library (percentage alone) nor a tiny one
+         * (absolute count alone) can dodge the guard. Either one tripping is enough.
+         */
+        private const val HIGH_IMPACT_PERCENT_THRESHOLD = 10 // percent of the library
+        private const val HIGH_IMPACT_ABSOLUTE_FLOOR = 25 // songs, regardless of library size
 
         const val GRANT_REVOKED_MESSAGE =
             "Access to your music folder has been revoked. Please select it again."

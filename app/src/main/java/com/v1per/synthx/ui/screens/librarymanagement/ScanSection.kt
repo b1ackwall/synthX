@@ -70,6 +70,9 @@ private fun RescanRow(
         title = stringResource(R.string.settings_rescan_library),
         subtitle = status,
         enabled = !isScanning,
+        // Unbounded: the high-impact status text's length varies with the backup filename
+        // and item count, so no fixed line count can be relied on to never truncate it.
+        subtitleMaxLines = Int.MAX_VALUE,
         onClick = onClick,
     )
 }
