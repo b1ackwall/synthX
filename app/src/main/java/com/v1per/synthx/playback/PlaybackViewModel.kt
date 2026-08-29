@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -123,6 +124,12 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
         }
     }
 
+    // Tracks the in-flight playQueue coroutine so a later tap can supersede an earlier
+    // one still doing artwork work. Without this, two rapid taps race controller.playQueue
+    // independently and whichever's async work (artwork I/O/decode) finishes last wins,
+    // regardless of which tap was actually most recent.
+    private var playQueueJob: Job? = null
+
     // Stays a plain fun so every UI call site keeps working — the engine's suspend
     // artwork work is launched into viewModelScope (Main), which is also the
     // dispatcher MediaController requires when the engine resumes.
@@ -130,7 +137,10 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
         // Set optimistically so the mini player appears on tap rather than after the
         // starting item's artwork has been decoded.
         _currentSong.value = songs.getOrNull(startIndex)
-        viewModelScope.launch { controller.playQueue(songs, startIndex) }
+        // Cancel any prior tap's still-running queue build first — only the most recent
+        // tap should ever be allowed to reach controller.playQueue's setMediaItems.
+        playQueueJob?.cancel()
+        playQueueJob = viewModelScope.launch { controller.playQueue(songs, startIndex) }
     }
 
     /**

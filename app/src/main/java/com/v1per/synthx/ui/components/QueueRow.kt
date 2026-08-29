@@ -88,6 +88,12 @@ private val SwipeVelocityThreshold = 1200.dp
  * [queue] is the authoritative upcoming list this row belongs to — read only by the
  * self-healing reset below, which needs to know whether [song] genuinely left the queue after
  * a confirmed dismissal.
+ *
+ * [enabled] never gates the `.anchoredDraggable(...)` modifier itself — this project's rule is
+ * to never gate anchoredDraggable's `enabled` on a dynamic condition, since that tears down and
+ * rebuilds the gesture node. Instead it's read by the swipe-settle watcher below: a disabled row
+ * still lets the swipe gesture run and settle, but snaps back instead of removing, since a
+ * disabled row's removal is deliberately a no-op one level up in [QueueList].
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -98,6 +104,7 @@ fun QueueRow(
     onRemove: () -> Unit,
     surfaceColor: Color,
     dragHandleModifier: Modifier,
+    enabled: Boolean = true,
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
 ) {
@@ -108,6 +115,10 @@ fun QueueRow(
     // QueueList hands every row a freshly-built closure over its current index on each
     // recomposition. rememberUpdatedState is what makes that watcher read the live one.
     val currentOnRemove = rememberUpdatedState(onRemove)
+    // Same frozen-closure hazard as onRemove above: the watcher effect is keyed on
+    // swipeState only, so it must read enabled through rememberUpdatedState rather than
+    // capturing whatever value was current when the effect block first launched.
+    val currentEnabled = rememberUpdatedState(enabled)
 
     val swipeState = remember {
         AnchoredDraggableState(
@@ -128,7 +139,18 @@ fun QueueRow(
     LaunchedEffect(swipeState) {
         snapshotFlow { swipeState.settledValue }
             .collect { settled ->
-                if (settled != QueueRowSwipe.Settled) currentOnRemove.value()
+                if (settled != QueueRowSwipe.Settled) {
+                    if (currentEnabled.value) {
+                        currentOnRemove.value()
+                    } else {
+                        // Disabled: the removal above would be a no-op at the QueueList
+                        // callback layer anyway, but without this the row would stay
+                        // visually parked off-screen with nothing left to reset it — the
+                        // queue-keyed self-heal below never re-fires because a blocked
+                        // removal never changes [queue]. Snap back here instead.
+                        swipeState.animateTo(QueueRowSwipe.Settled)
+                    }
+                }
             }
     }
 

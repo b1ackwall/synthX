@@ -55,7 +55,13 @@ fun QueueList(
     enabled: Boolean = true,
 ) {
     var localQueue by remember(queue) { mutableStateOf(queue) }
-    var dragStartIndex by remember { mutableStateOf(-1) }
+    // Identity, not a raw index: an arbitrarily long drag can straddle a queue mutation
+    // (e.g. auto-advance resetting localQueue via the remember(queue) key above), which
+    // would leave a captured index stale. Resolving both ends by song id against the live
+    // localQueue immediately before calling onMove mirrors onRemove's identity-based
+    // resolution below and the engine-level principle documented on
+    // PlaybackEngine.removeQueueItem.
+    var dragStartSongId by remember { mutableStateOf<String?>(null) }
 
     val reorderableState = rememberReorderableLazyListState(state) { from, to ->
         localQueue = localQueue.toMutableList().apply {
@@ -79,14 +85,26 @@ fun QueueList(
                         if (enabled && queueIndex != -1) onRemove(queueIndex)
                     },
                     surfaceColor = surfaceColor,
+                    enabled = enabled,
                     dragHandleModifier = Modifier.draggableHandle(
-                        onDragStarted = { dragStartIndex = index },
+                        onDragStarted = { dragStartSongId = song.id },
                         onDragStopped = {
+                            // Resolved fresh, by identity, against the live localQueue —
+                            // not the index captured at drag start, which may have gone
+                            // stale if the queue changed underneath an arbitrarily long
+                            // drag (e.g. playback auto-advancing).
+                            val startSongId = dragStartSongId
+                            val startIndex = startSongId
+                                ?.let { id -> localQueue.indexOfFirst { it.id == id } }
+                                ?: -1
                             val endIndex = localQueue.indexOfFirst { it.id == song.id }
-                            if (enabled && dragStartIndex != -1 && dragStartIndex != endIndex) {
-                                onMove(dragStartIndex, endIndex)
+                            // If the dragged song can no longer be found (e.g. removed
+                            // during the drag), there is nothing valid to move — drop the
+                            // reorder rather than call onMove with a -1 index.
+                            if (enabled && startIndex != -1 && endIndex != -1 && startIndex != endIndex) {
+                                onMove(startIndex, endIndex)
                             }
-                            dragStartIndex = -1
+                            dragStartSongId = null
                         },
                     ),
                     // Same onMove the drag gesture calls on drop — accessibility-action and
