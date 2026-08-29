@@ -202,7 +202,16 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
 
     fun previous() = controller.previous()
 
-    fun setShuffleEnabled(enabled: Boolean) = controller.setShuffleEnabled(enabled)
+    // Mirrors playQueueJob above: a large-queue reshuffle now dispatches its MediaItem
+    // build off Main (see ExoPlayerEngine.setShuffleEnabled), so a rapid second toggle can
+    // land before the first's off-main work finishes. Cancelling the prior job keeps only
+    // the most recent tap's result reaching the controller.
+    private var setShuffleEnabledJob: Job? = null
+
+    fun setShuffleEnabled(enabled: Boolean) {
+        setShuffleEnabledJob?.cancel()
+        setShuffleEnabledJob = viewModelScope.launch { controller.setShuffleEnabled(enabled) }
+    }
 
     fun setRepeatMode(mode: RepeatMode) = controller.setRepeatMode(mode)
 

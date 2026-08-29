@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -111,6 +112,13 @@ fun PlayerSkeletonQueueContent(
     val queueContentAlpha = expandedContentAlpha * queueProgressValue
     val queueContentEnabled = expandedContentEnabled && queueProgressValue > 0.5f
 
+    // Keyed on upcomingQueue only (not queueProgressValue) so this only re-runs when the
+    // queue's actual contents change — this composable itself re-executes every frame of
+    // the queue-mode/sheet-drag animation because queueProgressValue is a real parameter,
+    // and an inline .toPersistentList() here would otherwise reallocate/re-copy the whole
+    // list on every one of those frames for no reason.
+    val persistentUpcomingQueue = remember(upcomingQueue) { upcomingQueue.toPersistentList() }
+
     // Slide-up, matching PlayerSkeletonControlsOverlay's: this block rises
     // [ContentSlideDistance] into place as it fades in. Driven by [queueContentAlpha] — the
     // same product the .alpha() calls below use — so it responds to both axes that make this
@@ -182,7 +190,7 @@ fun PlayerSkeletonQueueContent(
 
         if (queueProgressValue > 0f) {
             QueueList(
-                queue = upcomingQueue.toPersistentList(),
+                queue = persistentUpcomingQueue,
                 onSongClick = onQueueSongClick,
                 onMove = onQueueMove,
                 onRemove = { index -> upcomingQueue.getOrNull(index)?.let { onQueueRemove(it.id) } },

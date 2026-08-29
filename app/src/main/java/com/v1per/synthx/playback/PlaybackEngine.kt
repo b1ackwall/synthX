@@ -91,7 +91,13 @@ interface PlaybackEngine {
      * falls back to restarting the current item when there is no previous one.
      */
     fun previous()
-    fun setShuffleEnabled(enabled: Boolean)
+
+    /**
+     * Suspend because a large-queue reshuffle builds a MediaItem per song (see
+     * [ExoPlayerEngine.setShuffleEnabled]'s implementation) — that work is dispatched off
+     * the main thread, with only the final controller calls requiring it back.
+     */
+    suspend fun setShuffleEnabled(enabled: Boolean)
     fun setRepeatMode(mode: RepeatMode)
 
     /** Inserts [song] directly after the current item. Always returns `true`. */

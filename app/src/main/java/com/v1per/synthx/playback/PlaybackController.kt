@@ -25,7 +25,7 @@ class PlaybackController(private val engine: PlaybackEngine) {
     fun persistPlaybackState() = engine.persistPlaybackState()
     fun next() = engine.next()
     fun previous() = engine.previous()
-    fun setShuffleEnabled(enabled: Boolean) = engine.setShuffleEnabled(enabled)
+    suspend fun setShuffleEnabled(enabled: Boolean) = engine.setShuffleEnabled(enabled)
     fun setRepeatMode(mode: RepeatMode) = engine.setRepeatMode(mode)
     fun playNext(song: Song): Boolean = engine.playNext(song)
     fun addToQueue(song: Song): Boolean = engine.addToQueue(song)

@@ -226,7 +226,7 @@ class ExoPlayerEngine(
         controller?.seekToPrevious()
     }
 
-    override fun setShuffleEnabled(enabled: Boolean) = setShuffleEnabledInternal(enabled)
+    override suspend fun setShuffleEnabled(enabled: Boolean) = setShuffleEnabledInternal(enabled)
 
     override fun setRepeatMode(mode: RepeatMode) {
         controller?.repeatMode = mode.toPlayerRepeatMode()

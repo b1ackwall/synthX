@@ -34,8 +34,13 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
     // single note plays. The rest are filled in by prefetchArtwork() as they approach.
     val startArtwork = buildArtworkData(songs[start])
 
-    val mediaItems = songs.mapIndexed { index, song ->
-        buildMediaItem(song, if (index == start) startArtwork else null)
+    // Building a MediaItem per song is pure CPU work (Uri.parse + builder calls, no I/O) —
+    // dispatched off Main so a large queue doesn't block the UI thread just to construct
+    // the list setMediaItems below will consume.
+    val mediaItems = withContext(Dispatchers.Default) {
+        songs.mapIndexed { index, song ->
+            buildMediaItem(song, if (index == start) startArtwork else null)
+        }
     }
 
     // MediaController is main-thread-only and the hops above may have moved us off it
@@ -72,8 +77,10 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     // toggle last session), so it needs its own read, not a recomputation.
     val restoredBaseline = persistence.loadBaselineQueue()
 
-    val mediaItems = restored.songs.map { song ->
-        buildMediaItem(song, if (song.id == startSong.id) startArtwork else null)
+    val mediaItems = withContext(Dispatchers.Default) {
+        restored.songs.map { song ->
+            buildMediaItem(song, if (song.id == startSong.id) startArtwork else null)
+        }
     }
 
     withContext(Dispatchers.Main.immediate) {
@@ -129,7 +136,7 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
  * becomes the new baseline (see [QueueBaselineManager.computeShuffleTarget]/
  * [QueueBaselineManager.computeUnshuffleTarget]).
  */
-internal fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean) {
+internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean) {
     if (enabled == _shuffleEnabled.value) return
     val ctrl = controller ?: return
     val current = currentSong() ?: return
@@ -167,22 +174,29 @@ internal fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean) {
  * `applyReorderViaMoves` exists to avoid — but capturing [current]'s position and re-seeking
  * to its new index trades that brief interruption for avoiding the OOM the move-based
  * rebuild causes at this scale. Artwork is intentionally left out of the rebuilt
- * [MediaItem]s (unlike [ExoPlayerEngine.playQueueInternal]'s synchronous start-item fetch)
- * since this path is not suspend; clearing [ExoPlayerEngine.artworkLoadedIds] means the
- * caller's [onQueueStructureChanged] -> `prefetchArtwork()` picks it back up asynchronously.
+ * [MediaItem]s (unlike [ExoPlayerEngine.playQueueInternal]'s synchronous start-item fetch);
+ * clearing [ExoPlayerEngine.artworkLoadedIds] means the caller's [onQueueStructureChanged]
+ * -> `prefetchArtwork()` picks it back up asynchronously. The MediaItem build itself runs on
+ * [Dispatchers.Default] — this is the branch this codepath exists for (queues large enough
+ * to OOM the move-based rebuild), so it's also large enough for bulk MediaItem construction
+ * to be worth moving off Main; only the final `setMediaItems`/`prepare` call needs Main.
  */
-internal fun ExoPlayerEngine.applyReorderViaSetMediaItems(
+internal suspend fun ExoPlayerEngine.applyReorderViaSetMediaItems(
     ctrl: MediaController,
     target: List<Song>,
     current: Song,
 ) {
     val positionMs = ctrl.currentPosition
     val startIndex = target.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
-    val mediaItems = target.map { song -> buildMediaItem(song, artworkData = null) }
+    val mediaItems = withContext(Dispatchers.Default) {
+        target.map { song -> buildMediaItem(song, artworkData = null) }
+    }
 
-    artworkLoadedIds.clear()
-    ctrl.setMediaItems(mediaItems, startIndex, positionMs)
-    ctrl.prepare()
+    withContext(Dispatchers.Main.immediate) {
+        artworkLoadedIds.clear()
+        ctrl.setMediaItems(mediaItems, startIndex, positionMs)
+        ctrl.prepare()
+    }
 }
 
 /**
