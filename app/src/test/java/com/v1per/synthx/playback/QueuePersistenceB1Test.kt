@@ -37,7 +37,7 @@ class QueuePersistenceB1Test {
         override fun getSongsForArtist(artistId: String): Flow<List<Song>> = emptyFlow(); override fun getAlbums(): Flow<List<Album>> = emptyFlow()
         override fun getSongsForAlbum(albumId: String): Flow<List<Song>> = emptyFlow()
         override suspend fun scanLibrary(folderUri: Uri, reconcileMissing: Boolean, otherRootUris: List<Uri>, onProgress: suspend (Int, Int) -> Unit) = ScanResult(0,0,0,0)
-        override suspend fun verifyLibrary() = 0; override fun getMissingSongs(): Flow<List<MissingSongInfo>> = emptyFlow(); override fun getMissingSongCount(): Flow<Int> = emptyFlow()
+        override suspend fun verifyLibrary(configuredRootUris: List<Uri>) = 0; override fun getMissingSongs(): Flow<List<MissingSongInfo>> = emptyFlow(); override fun getMissingSongCount(): Flow<Int> = emptyFlow()
         override suspend fun deleteSong(id: String) {}; override fun getStarredSongs(): Flow<List<Song>> = emptyFlow(); override fun getStarredSongCount(): Flow<Int> = emptyFlow()
         override fun getRecentSongs(limit: Int): Flow<List<Song>> = emptyFlow()
         override suspend fun dismissFromStarred(songId: String) {}; override suspend fun isInAnyPlaylist(songId: String) = false; override suspend fun removeOrganizedFromStarred() = 0

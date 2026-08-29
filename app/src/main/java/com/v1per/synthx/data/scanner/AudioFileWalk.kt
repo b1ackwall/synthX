@@ -13,16 +13,36 @@ private const val TAG = "SynthXScan"
 private val SUPPORTED_EXTENSIONS = setOf("mp3", "flac", "aac", "m4a", "wav", "ogg")
 
 /**
+ * Reachability precondition for a configured SAF root: is [uri] still granted, and does it
+ * resolve to a real directory right now? Returns the resolved [DocumentFile] on success, or
+ * `null` if either check fails.
+ *
+ * Reachability is probed explicitly rather than inferred from a walk, because DocumentFile
+ * swallows every provider error: `listFiles()` catches its query exception and returns an
+ * empty array, and the metadata accessors return their default on failure. A revoked grant,
+ * an ejected volume, or a transient provider hiccup are therefore indistinguishable from a
+ * genuinely empty folder at the walk level, and trusting that silence is exactly how every
+ * song under the root gets flagged missing.
+ */
+internal fun isRootReachable(context: Context, uri: Uri): DocumentFile? {
+    // The definitive revocation signal — a stored URI outlives its grant.
+    val hasReadGrant = context.contentResolver.persistedUriPermissions.any {
+        it.uri == uri && it.isReadPermission
+    }
+    if (!hasReadGrant) return null
+
+    val root = runCatching { DocumentFile.fromTreeUri(context, uri) }.getOrNull()
+    // isDirectory is a real query, so it also catches a grant that exists but no longer
+    // resolves (deleted folder, ejected volume, provider error).
+    return root?.takeIf { it.isDirectory }
+}
+
+/**
  * Enumerates every [otherRootUri][otherRootUris] into [into], and returns whether
  * missing-detection may proceed.
  *
  * Returns `false` — abort reconciliation — the moment any root can't be enumerated,
- * without partially populating a decision the caller would then act on. Reachability is
- * probed explicitly rather than inferred from the walk, because DocumentFile swallows
- * every provider error: `listFiles()` catches its query exception and returns an empty
- * array, and the metadata accessors return their default on failure. A revoked grant is
- * therefore indistinguishable from an empty folder at the walk level, and reconciling
- * against that silence is exactly how every song under the root gets flagged missing.
+ * without partially populating a decision the caller would then act on.
  */
 internal suspend fun collectOtherRootPaths(
     context: Context,
@@ -32,19 +52,8 @@ internal suspend fun collectOtherRootPaths(
     for (uri in otherRootUris) {
         currentCoroutineContext().ensureActive()
 
-        // The definitive revocation signal — a stored URI outlives its grant.
-        val hasReadGrant = context.contentResolver.persistedUriPermissions.any {
-            it.uri == uri && it.isReadPermission
-        }
-        if (!hasReadGrant) {
-            Log.w(TAG, "Skipping missing-detection: no read grant for configured root $uri")
-            return false
-        }
-
-        val otherRoot = runCatching { DocumentFile.fromTreeUri(context, uri) }.getOrNull()
-        // isDirectory is a real query, so it also catches a grant that exists but no
-        // longer resolves (deleted folder, ejected volume, provider error).
-        if (otherRoot == null || !otherRoot.isDirectory) {
+        val otherRoot = isRootReachable(context, uri)
+        if (otherRoot == null) {
             Log.w(TAG, "Skipping missing-detection: configured root is unreachable — $uri")
             return false
         }

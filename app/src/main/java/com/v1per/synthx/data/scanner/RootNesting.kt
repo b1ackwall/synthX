@@ -92,4 +92,27 @@ internal object RootNesting {
     private fun treeDocumentUri(uri: Uri): Uri? = runCatching {
         DocumentsContract.buildDocumentUriUsingTree(uri, DocumentsContract.getTreeDocumentId(uri))
     }.getOrNull()
+
+    /**
+     * Whether [documentUri] — a stored song `file_path`, itself a `/tree/X/document/Y` URI
+     * produced by a walk under *some* configured root — falls under [rootUri]. Same layered
+     * approach as [detect], cheapest and most certain first, reused here to map a song back
+     * to the root that owns it (e.g. so a launch-time verify pass can skip songs under a
+     * root that failed its reachability check rather than probing them individually).
+     */
+    suspend fun isUnderRoot(context: Context, documentUri: Uri, rootUri: Uri): Boolean =
+        withContext(Dispatchers.IO) {
+            if (documentUri.authority != rootUri.authority) return@withContext false
+
+            val rootTreeId = treeDocumentId(rootUri) ?: return@withContext false
+            val songDocId = runCatching { DocumentsContract.getDocumentId(documentUri) }
+                .getOrNull() ?: return@withContext false
+
+            if (songDocId == rootTreeId || isPathPrefix(rootTreeId, songDocId)) {
+                return@withContext true
+            }
+
+            val rootDoc = treeDocumentUri(rootUri) ?: return@withContext false
+            isDescendant(context, parent = rootDoc, child = documentUri)
+        }
 }

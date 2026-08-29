@@ -15,6 +15,7 @@ import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -115,25 +116,45 @@ class FolderScanner internal constructor(
             .listFiles { file -> file.name.startsWith("art_") && file.name.endsWith(".png") }
             ?.forEach { it.delete() }
 
-        val root = DocumentFile.fromTreeUri(context, folderUri)
+        // Reachability precondition on the primary root itself — same check applied to
+        // every *other* configured root by collectOtherRootPaths. Without it, a revoked
+        // grant / ejected volume / transient provider error is indistinguishable from a
+        // genuinely empty root: listFiles() swallows the provider error and returns an
+        // empty array, so an unreachable primary root would otherwise walk as "found
+        // nothing" and flag the entire library missing in the reconciliation pass below.
+        val root = isRootReachable(context, folderUri)
             ?: return@withContext ScanResult(
                 added = 0,
                 updated = 0,
                 missing = 0,
                 unchanged = 0,
                 missingReconciled = false,
-            )
+            ).also {
+                Log.w(TAG, "Skipping scan: primary root is unreachable — $folderUri")
+            }
 
         // File-system walk stays outside the transaction — it is the slowest phase and
         // touches no DB state.
         val walkStartMs = System.currentTimeMillis()
-        val audioFiles = collectAudioFiles(root)
+        var primaryWalkOk = true
+        val audioFiles = try {
+            collectAudioFiles(root)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Same all-or-nothing handling as collectOtherRootPaths: a mid-walk provider
+            // failure gets no partial credit — treat it as nothing found rather than
+            // reconciling against whatever happened to be collected before it broke.
+            Log.w(TAG, "Skipping missing-detection: failed to walk primary root $folderUri", e)
+            primaryWalkOk = false
+            emptyList()
+        }
         val foundPaths = audioFiles.mapTo(mutableSetOf()) { it.uri.toString() }
 
         // Secondary roots, also before the transaction opens: each is hundreds of binder
         // round-trips, and holding a Room transaction across them would block every other
         // writer for the duration. Enumeration only — these files are not ingested here.
-        val reconcile = if (reconcileMissing) {
+        val reconcile = if (reconcileMissing && primaryWalkOk) {
             collectOtherRootPaths(context, otherRootUris, into = foundPaths)
         } else {
             false
@@ -284,23 +305,42 @@ class FolderScanner internal constructor(
      * already flagged missing — un-flagging is [scan]'s job, since only a real scan can
      * confirm the file's content still matches the row's identity hash.
      *
+     * [configuredRootUris] are every currently configured audio root (primary + any
+     * others). Each is probed for reachability exactly once before any per-song check
+     * runs — a per-file `exists()` probe can't tell "the whole tree is unreachable right
+     * now" from "this one file is gone", so a song under a root that fails its
+     * reachability check is skipped entirely rather than risking a false missing-flag.
+     *
      * @return the number of songs newly flagged missing by this pass.
      */
-    suspend fun verify(): Int = RestoreCoordinator.withDbOperation {
-        verifyAlreadyAdmitted()
+    suspend fun verify(configuredRootUris: List<Uri>): Int = RestoreCoordinator.withDbOperation {
+        verifyAlreadyAdmitted(configuredRootUris)
     }
 
     /** Caller already owns admission for the complete verification sweep. */
-    internal suspend fun verifyAlreadyAdmitted(): Int = withContext(Dispatchers.IO) {
+    internal suspend fun verifyAlreadyAdmitted(configuredRootUris: List<Uri>): Int = withContext(Dispatchers.IO) {
+        val reachableRoots = configuredRootUris.filter { isRootReachable(context, it) != null }
+
         var newlyMissing = 0
         for (song in songDao.getAllSongsOnce()) {
             currentCoroutineContext().ensureActive()
             if (song.isMissing) continue // already flagged — nothing this pass can add
 
+            // A song whose path doesn't resolve to any currently-reachable root — either
+            // the root it lives under is unreachable, or its stored path is unparseable —
+            // is left untouched this pass rather than treated as gone. Unparseable used to
+            // be treated as "gone" here; that was the same unreachable-vs-deleted
+            // conflation this whole pass now exists to avoid, so it's folded into the same
+            // "can't tell, don't touch" handling.
+            val songUri = runCatching { Uri.parse(song.filePath) }.getOrNull() ?: continue
+            val underReachableRoot = reachableRoots.any { root ->
+                RootNesting.isUnderRoot(context, songUri, root)
+            }
+            if (!underReachableRoot) continue
+
             val exists = try {
-                DocumentFile.fromSingleUri(context, Uri.parse(song.filePath))?.exists() == true
+                DocumentFile.fromSingleUri(context, songUri)?.exists() == true
             } catch (e: Exception) {
-                // Unparseable or revoked URI — treat as gone, same as a failed probe
                 false
             }
 

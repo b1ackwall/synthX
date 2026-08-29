@@ -148,9 +148,11 @@ class SongRepositoryImpl(
         onProgress,
     )
 
-    override suspend fun verifyLibrary(): Int = dbOperation { folderScanner.verifyAlreadyAdmitted() }
+    override suspend fun verifyLibrary(configuredRootUris: List<Uri>): Int =
+        dbOperation { folderScanner.verifyAlreadyAdmitted(configuredRootUris) }
 
-    internal suspend fun verifyLibraryAlreadyAdmitted(): Int = folderScanner.verifyAlreadyAdmitted()
+    internal suspend fun verifyLibraryAlreadyAdmitted(configuredRootUris: List<Uri>): Int =
+        folderScanner.verifyAlreadyAdmitted(configuredRootUris)
 
     /**
      * Permanently removes a song. Its song_artists and playlist_songs rows go with it via

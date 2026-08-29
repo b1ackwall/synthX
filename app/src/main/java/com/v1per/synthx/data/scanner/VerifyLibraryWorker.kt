@@ -11,6 +11,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.backup.WorkerDatabaseAccess
+import com.v1per.synthx.preferences.PreferencesManager
 
 /**
  * Launch-time "is anything gone" sweep — a cheap existence check against songs already
@@ -31,9 +32,11 @@ class VerifyLibraryWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
+        val configuredRootUris = PreferencesManager(applicationContext).configuredAudioRootUris()
         return try {
             val newlyMissing = WorkerDatabaseAccess.run {
-                SongRepositoryImpl.create(applicationContext).verifyLibraryAlreadyAdmitted()
+                SongRepositoryImpl.create(applicationContext)
+                    .verifyLibraryAlreadyAdmitted(configuredRootUris)
             }
             Log.d(TAG, "Launch verify complete: $newlyMissing newly missing")
             Result.success()

@@ -25,8 +25,15 @@ interface SongRepository {
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
     ): ScanResult
 
-    /** Lightweight existence check over every stored song. Returns the count newly flagged missing. */
-    suspend fun verifyLibrary(): Int
+    /**
+     * Lightweight existence check over every stored song. Returns the count newly flagged
+     * missing.
+     * @param configuredRootUris every currently configured audio root (primary + others).
+     *   A song under a root that fails its reachability check is left untouched this pass
+     *   rather than risking a false missing-flag — see
+     *   [com.v1per.synthx.data.scanner.FolderScanner.verify].
+     */
+    suspend fun verifyLibrary(configuredRootUris: List<Uri>): Int
 
     // Issues — songs flagged is_missing
     fun getMissingSongs(): Flow<List<MissingSongInfo>>
