@@ -171,15 +171,22 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
      * Keep: the customised queue survives untouched, the tapped song is spliced in right
      * after the current item and jumped to, so what the user queued up plays after it. The
      * list the song was tapped from is deliberately discarded — only the song matters here.
+     *
+     * Same dedup as [playNext]/[addToQueue]: returns `false` without touching the
+     * controller when [song] is already the current song or already sits in
+     * [upcomingQueue]. Dedup only applies once there's an existing queue to be a
+     * duplicate of, matching the [hasActivePlayback] gating on the other two methods.
      */
-    fun keepQueueAndPlayNext(song: Song) {
+    fun keepQueueAndPlayNext(song: Song): Boolean {
         // The queue can have ended between the prompt being raised and answered.
         if (!hasActivePlayback()) {
             playQueue(listOf(song), 0)
-            return
+            return true
         }
+        if (isAlreadyQueued(song.id)) return false
         controller.playNext(song)
         controller.next()
+        return true
     }
 
     /** Clear: the ordinary fresh-queue path, discarding whatever the user had queued. */

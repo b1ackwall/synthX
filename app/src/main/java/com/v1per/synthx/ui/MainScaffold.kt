@@ -322,7 +322,16 @@ private fun NormalShell(navController: NavHostController) {
         queuePrompt?.let { prompt ->
             QueuePromptDialog(
                 onKeep = {
-                    playbackViewModel.keepQueueAndPlayNext(prompt.tappedSong)
+                    // Same confirmation strings SongActionsHost already shows for the
+                    // ordinary Play Next action — reused rather than duplicated so the
+                    // duplicate-queue message reads identically everywhere it appears.
+                    val added = playbackViewModel.keepQueueAndPlayNext(prompt.tappedSong)
+                    val message = if (added) {
+                        context.getString(R.string.actions_playing_next)
+                    } else {
+                        context.getString(R.string.actions_already_playing_next)
+                    }
+                    scope.launch { snackbarHostState.showSnackbar(message) }
                     queuePrompt = null
                 },
                 onClear = {

@@ -57,11 +57,19 @@ fun QueueList(
     var localQueue by remember(queue) { mutableStateOf(queue) }
     // Identity, not a raw index: an arbitrarily long drag can straddle a queue mutation
     // (e.g. auto-advance resetting localQueue via the remember(queue) key above), which
-    // would leave a captured index stale. Resolving both ends by song id against the live
-    // localQueue immediately before calling onMove mirrors onRemove's identity-based
-    // resolution below and the engine-level principle documented on
+    // would leave a captured index stale. Resolving the end position by song id against
+    // the live localQueue immediately before calling onMove mirrors onRemove's
+    // identity-based resolution below and the engine-level principle documented on
     // PlaybackEngine.removeQueueItem.
     var dragStartSongId by remember { mutableStateOf<String?>(null) }
+    // The "before" list, snapshotted the instant the drag begins — a cheap reference copy
+    // (localQueue is a PersistentList). Needed because localQueue is already live-reordered
+    // by reorderableState's onMove callback below as the drag happens, so by drop time it
+    // is the song's *final* position for every lookup, not its starting one. Resolving
+    // start against this snapshot and end against the live localQueue is what makes the
+    // two indices genuinely different for a real reorder, instead of both resolving the
+    // same dragged song's identity against the same (already-reordered) list.
+    var dragStartQueueSnapshot by remember { mutableStateOf<ImmutableList<Song>?>(null) }
 
     val reorderableState = rememberReorderableLazyListState(state) { from, to ->
         localQueue = localQueue.toMutableList().apply {
@@ -87,24 +95,50 @@ fun QueueList(
                     surfaceColor = surfaceColor,
                     enabled = enabled,
                     dragHandleModifier = Modifier.draggableHandle(
-                        onDragStarted = { dragStartSongId = song.id },
+                        onDragStarted = {
+                            dragStartSongId = song.id
+                            dragStartQueueSnapshot = localQueue
+                        },
                         onDragStopped = {
-                            // Resolved fresh, by identity, against the live localQueue —
-                            // not the index captured at drag start, which may have gone
-                            // stale if the queue changed underneath an arbitrarily long
-                            // drag (e.g. playback auto-advancing).
+                            // Start resolved against the snapshot taken before any live
+                            // drag-reordering happened — the song's genuine original
+                            // position. End resolved against the current, already
+                            // live-reordered localQueue — its final resting position. Two
+                            // different lists, so a real reorder yields two different
+                            // indices (see the field doc comments above for why resolving
+                            // both against the same live list, as the previous fix did,
+                            // made them always equal).
                             val startSongId = dragStartSongId
-                            val startIndex = startSongId
+                            val beforeQueue = dragStartQueueSnapshot
+                            val startIndex = if (startSongId != null && beforeQueue != null) {
+                                beforeQueue.indexOfFirst { it.id == startSongId }
+                            } else {
+                                -1
+                            }
+                            val endIndex = startSongId
                                 ?.let { id -> localQueue.indexOfFirst { it.id == id } }
                                 ?: -1
-                            val endIndex = localQueue.indexOfFirst { it.id == song.id }
-                            // If the dragged song can no longer be found (e.g. removed
-                            // during the drag), there is nothing valid to move — drop the
-                            // reorder rather than call onMove with a -1 index.
-                            if (enabled && startIndex != -1 && endIndex != -1 && startIndex != endIndex) {
+                            // If the dragged song can no longer be found in either list
+                            // (e.g. removed during the drag), there is nothing valid to
+                            // move — drop the reorder rather than call onMove with a -1
+                            // index.
+                            //
+                            // Same song set, different order, required: if the queue was
+                            // externally mutated mid-drag (e.g. auto-advance resetting
+                            // localQueue to a wholly different list via the remember(queue)
+                            // key above), beforeQueue and localQueue are two unrelated
+                            // lists — indices resolved against one don't mean anything
+                            // relative to the other, even if both individually resolve to
+                            // a non-(-1) value. Comparing id sets (order-independent) is
+                            // the cheapest way to detect that without diffing positions.
+                            val sameQueue = beforeQueue != null &&
+                                beforeQueue.mapTo(mutableSetOf()) { it.id } ==
+                                localQueue.mapTo(mutableSetOf()) { it.id }
+                            if (enabled && sameQueue && startIndex != -1 && endIndex != -1 && startIndex != endIndex) {
                                 onMove(startIndex, endIndex)
                             }
                             dragStartSongId = null
+                            dragStartQueueSnapshot = null
                         },
                     ),
                     // Same onMove the drag gesture calls on drop — accessibility-action and

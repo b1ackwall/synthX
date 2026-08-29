@@ -41,6 +41,13 @@ data class ScanResult(
      * reconciliation flag) since they come from different triggers.
      */
     val hashMismatchFlagged: Int = 0,
+    /**
+     * Files skipped this scan because no identity hash could be computed for them —
+     * the head read failed, or the tail read failed even after [HashUtils]'s internal
+     * retry. Distinct from [missing]: these files were seen on disk but couldn't be
+     * read, so they are left untouched in the library rather than flagged missing.
+     */
+    val errors: Int = 0,
 ) {
     /**
      * Combined count of everything this scan changed destructively or flagged away:
@@ -193,6 +200,7 @@ class FolderScanner internal constructor(
             var unchanged = 0
             var deleted = 0
             var hashMismatchFlagged = 0
+            var errors = 0
 
             for ((index, file) in audioFiles.withIndex()) {
                 // Cooperative cancellation: the per-file work below is mostly blocking
@@ -202,7 +210,11 @@ class FolderScanner internal constructor(
 
                 val path = file.uri.toString()
                 // Unreadable file: no identity, nothing we can safely store
-                val id = HashUtils.computeSongId(file, context) ?: continue
+                val id = HashUtils.computeSongId(file, context)
+                if (id == null) {
+                    errors++
+                    continue
+                }
 
                 val existing = songDao.getSongById(id)
                 if (existing != null) {
@@ -300,6 +312,7 @@ class FolderScanner internal constructor(
                 missingReconciled = reconcile,
                 deleted = deleted,
                 hashMismatchFlagged = hashMismatchFlagged,
+                errors = errors,
             )
         }
         Log.d(
