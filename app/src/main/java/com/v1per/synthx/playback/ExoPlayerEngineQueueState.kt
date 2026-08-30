@@ -38,7 +38,29 @@ internal fun ExoPlayerEngine.onQueueReordered() {
 }
 
 internal fun ExoPlayerEngine.persistQueue() {
-    persistence.saveQueue(_queue.value)
+    val ctrl = controller
+    val index = ctrl?.currentMediaItemIndex?.takeIf { it != C.INDEX_UNSET } ?: -1
+    val positionMs = ctrl?.currentPosition ?: 0L
+    persistence.saveQueueState(_queue.value.map { it.id }, index, positionMs)
+}
+
+/**
+ * Rehydrates [ExoPlayerEngine.songsById] from the live player timeline when reconnecting to a
+ * service that was already running — process was killed, foreground service survived. Neither
+ * [playQueueInternal] nor [restoreSavedQueueInternal] runs in this path (the latter explicitly
+ * no-ops once the timeline already has media items), so without this, `songsById` stays empty
+ * and [refreshQueue] would rebuild an empty `_queue` against a timeline that is actually full —
+ * see the connect callback in `ExoPlayerEngine.kt` for where this is called, and why it has to
+ * run before [refreshQueue].
+ */
+internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController) {
+    val timeline = ctrl.currentTimeline
+    if (timeline.windowCount == 0) return
+    val window = Timeline.Window()
+    val ids = (0 until timeline.windowCount)
+        .map { timeline.getWindow(it, window).mediaItem.mediaId }
+        .distinct()
+    persistence.resolveSongs(ids).forEach { songsById[it.id] = it }
 }
 
 /**

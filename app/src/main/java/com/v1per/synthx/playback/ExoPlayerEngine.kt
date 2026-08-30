@@ -181,22 +181,36 @@ class ExoPlayerEngine(
     init {
         controllerFuture.addListener(
             {
-                try {
-                    val ctrl = controllerFuture.get()
-                    controller = ctrl
-                    ctrl.addListener(listener)
-                    // Adopt whatever repeat state the session already holds (a service
-                    // that outlived the previous MediaController keeps its timeline).
-                    // Shuffle has no media3-side state to adopt any more — restoreSavedQueue
-                    // (or a fresh playQueue) is what seeds _shuffleEnabled now.
-                    _repeatMode.value = ctrl.repeatMode.toRepeatMode()
-                    refreshQueue()
-                    refreshUpcomingQueue()
-                    refreshNavigationState()
-                    controllerReady.complete(true)
-                } catch (_: Exception) {
-                    // Service connection failed — playback methods will be no-ops until retry
-                    controllerReady.complete(false)
+                // A suspend hop is needed here (see adoptRunningTimeline) when reconnecting
+                // to a still-running service, so this is a coroutine launch rather than the
+                // plain synchronous body it used to be — engineScope's Main.immediate
+                // dispatcher keeps `controller` assignment and controllerReady.complete on
+                // the main thread either way.
+                engineScope.launch {
+                    try {
+                        val ctrl = controllerFuture.get()
+                        controller = ctrl
+                        ctrl.addListener(listener)
+                        // Adopt whatever repeat state the session already holds (a service
+                        // that outlived the previous MediaController keeps its timeline).
+                        // Shuffle has no media3-side state to adopt any more — restoreSavedQueue
+                        // (or a fresh playQueue) is what seeds _shuffleEnabled now.
+                        _repeatMode.value = ctrl.repeatMode.toRepeatMode()
+                        if (ctrl.mediaItemCount > 0 && songsById.isEmpty()) {
+                            // Reconnecting to a still-running service: songsById is otherwise
+                            // only populated by playQueueInternal/restoreSavedQueueInternal,
+                            // neither of which runs here — must happen before refreshQueue()
+                            // below or _queue ends up empty against a full live timeline.
+                            adoptRunningTimeline(ctrl)
+                        }
+                        refreshQueue()
+                        refreshUpcomingQueue()
+                        refreshNavigationState()
+                        controllerReady.complete(true)
+                    } catch (_: Exception) {
+                        // Service connection failed — playback methods will be no-ops until retry
+                        controllerReady.complete(false)
+                    }
                 }
             },
             ContextCompat.getMainExecutor(context),
@@ -211,7 +225,7 @@ class ExoPlayerEngine(
         val ctrl = controller ?: return
         val index = ctrl.currentMediaItemIndex
         if (index == C.INDEX_UNSET || ctrl.mediaItemCount == 0) return
-        persistence.savePlaybackState(index, ctrl.currentPosition)
+        persistence.saveQueueState(_queue.value.map { it.id }, index, ctrl.currentPosition)
     }
 
     override fun next() {

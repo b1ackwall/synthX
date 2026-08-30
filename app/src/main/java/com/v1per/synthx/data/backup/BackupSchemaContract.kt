@@ -85,6 +85,14 @@ internal object BackupSchemaContracts {
             expectedTables = coreTables + setOf("queue_items", "queue_baseline_items"),
             hasMigrationPathToCurrent = true,
         ),
+        // 9_10 adds the single-row playback_cursor table (see PlaybackCursorEntity).
+        BackupSchemaContract(
+            userVersion = 10,
+            roomIdentityHash = "c85bf027c170ecf49cdb8ed79e908aad",
+            expectedTables = coreTables +
+                setOf("queue_items", "queue_baseline_items", "playback_cursor"),
+            hasMigrationPathToCurrent = true,
+        ),
     ).associateBy { it.userVersion }
 
     val current: BackupSchemaContract

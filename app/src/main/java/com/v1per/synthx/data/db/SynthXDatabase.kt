@@ -20,8 +20,9 @@ import com.v1per.synthx.data.backup.RestoreStartup
         PlaylistSongEntity::class,
         QueueItemEntity::class,
         BaselineQueueItemEntity::class,
+        PlaybackCursorEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -35,7 +36,7 @@ abstract class SynthXDatabase : RoomDatabase() {
 
     companion object {
         /** Must track the `version` in the @Database annotation above. */
-        const val VERSION = 9
+        const val VERSION = 10
 
         const val DB_NAME = "synthx.db"
 
@@ -228,6 +229,25 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        // Adds the single-row playback_cursor table (see PlaybackCursorEntity's kdoc) so the
+        // resume cursor can be committed in the same transaction as queue_items instead of
+        // living independently in SharedPreferences. Purely additive, same shape as 4_5/5_6:
+        // nothing to migrate into a brand-new table.
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS playback_cursor (
+                        id INTEGER NOT NULL,
+                        queue_index INTEGER NOT NULL,
+                        position_ms INTEGER NOT NULL,
+                        PRIMARY KEY(id)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         /**
          * The canonical migration chain, in order. Single source of truth for every Room
          * builder in this file — the live singleton in [getOrCreate] and the offline
@@ -236,7 +256,7 @@ abstract class SynthXDatabase : RoomDatabase() {
          */
         internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-            MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+            MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
         )
 
         fun getInstance(context: Context): SynthXDatabase {

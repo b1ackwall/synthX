@@ -73,7 +73,11 @@ class SynthXPlaybackService : MediaLibraryService() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         val index = player.currentMediaItemIndex
         if (index != C.INDEX_UNSET && player.mediaItemCount > 0) {
-            QueuePersistence.create(this).savePlaybackState(index, player.currentPosition)
+            // Read directly off the live player rather than any engine-side cache — this is
+            // the actual live timeline, so it's the most correct snapshot to commit alongside
+            // the cursor (see QueuePersistence.saveQueueState).
+            val songIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }
+            QueuePersistence.create(this).saveQueueState(songIds, index, player.currentPosition)
         }
         releasePlayback()
         stopSelf()

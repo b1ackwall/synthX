@@ -2,6 +2,7 @@ package com.v1per.synthx.data.repository
 
 import android.content.Context
 import android.net.Uri
+import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
@@ -347,6 +348,14 @@ class SongRepositoryImpl(
         playlistExportManager.scheduleExport()
     }
 
+    override suspend fun getSongsByIds(ids: List<String>): List<Song> = dbOperation { withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext emptyList()
+        val details = songDao.getSongsWithDetailsByIds(ids)
+        val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+            .groupBy { it.songId }
+        details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+    } }
+
     override suspend fun getQueueSongs(): List<Song> = dbOperation { withContext(Dispatchers.IO) {
         val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
         queueDao.getQueueItems().map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
@@ -356,12 +365,31 @@ class SongRepositoryImpl(
         queueDao.getQueueSongIds()
     } }
 
+    override suspend fun getQueueSongIdsAndCursor(): Pair<List<String>, QueueCursor?> =
+        dbOperation { withContext(Dispatchers.IO) {
+            val (ids, cursor) = queueDao.getQueueAndCursor()
+            ids to cursor?.let { QueueCursor(index = it.queueIndex, positionMs = it.positionMs) }
+        } }
+
     override suspend fun setQueueSongs(songIds: List<String>) = dbOperation { withContext(Dispatchers.IO) {
         queueDao.replaceQueue(songIds)
     } }
 
-    override suspend fun setQueueSongsAlreadyAdmitted(songIds: List<String>) = withContext(Dispatchers.IO) {
-        queueDao.replaceQueue(songIds)
+    override suspend fun setQueueStateAlreadyAdmitted(
+        songIds: List<String>,
+        queueIndex: Int,
+        positionMs: Long,
+    ) = withContext(Dispatchers.IO) {
+        queueDao.replaceQueueAndCursor(songIds, queueIndex, positionMs)
+        // P6.3: the one place both sides are now guaranteed to have landed together —
+        // a violation here means replaceQueueAndCursor's transaction itself is broken,
+        // never a legitimate runtime state, so this must never silently pass in debug.
+        if (BuildConfig.DEBUG) {
+            check(queueIndex < 0 || queueIndex < songIds.size) {
+                "Playback cursor invariant violated: queueIndex=$queueIndex not in bounds " +
+                    "of ${songIds.size} just-persisted queue items"
+            }
+        }
     }
 
     override suspend fun getBaselineQueueSongs(): List<Song> = dbOperation { withContext(Dispatchers.IO) {

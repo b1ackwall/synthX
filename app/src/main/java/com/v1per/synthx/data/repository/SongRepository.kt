@@ -98,6 +98,11 @@ interface SongRepository {
     suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean
     suspend fun removeSongFromPlaylist(playlistId: String, songId: String)
 
+    /** Resolves arbitrary song ids to [Song]s — used to rehydrate a live player timeline back
+     *  into domain objects when no in-memory cache already has them (e.g. reconnecting to a
+     *  still-running playback service). Order is not preserved; callers key off [Song.id]. */
+    suspend fun getSongsByIds(ids: List<String>): List<Song>
+
     // Playback queue — persisted so it survives a restart
 
     /** The saved queue, resolved to songs. Shorter than [getQueueSongIds] when songs went away. */
@@ -105,6 +110,13 @@ interface SongRepository {
 
     /** The saved queue as raw ids, including entries that no longer resolve to a playable song. */
     suspend fun getQueueSongIds(): List<String>
+
+    /**
+     * The saved queue ids and resume cursor, read as one consistent snapshot (see
+     * [QueueCursor]) — the read-side counterpart of [AdmittedQueuePersistenceRepository]'s
+     * atomic write.
+     */
+    suspend fun getQueueSongIdsAndCursor(): Pair<List<String>, QueueCursor?>
 
     /** Overwrites the saved queue with [songIds], in order. */
     suspend fun setQueueSongs(songIds: List<String>)
@@ -122,8 +134,15 @@ interface SongRepository {
     suspend fun setBaselineQueueSongs(songIds: List<String>)
 }
 
+/** The saved resume position: a raw index into the queue as persisted alongside it, and the
+ *  playback position within that item. See PlaybackCursorEntity's kdoc for why these two are
+ *  never written independently of the queue structure any more. */
+data class QueueCursor(val index: Int, val positionMs: Long)
+
 /** Internal queue-only contract: the caller already owns a RestoreCoordinator operation permit. */
 internal interface AdmittedQueuePersistenceRepository {
-    suspend fun setQueueSongsAlreadyAdmitted(songIds: List<String>)
+    /** Replaces the queue structure and the resume cursor in one atomic commit — see
+     *  [com.v1per.synthx.data.db.QueueDao.replaceQueueAndCursor]. */
+    suspend fun setQueueStateAlreadyAdmitted(songIds: List<String>, queueIndex: Int, positionMs: Long)
     suspend fun setBaselineQueueSongsAlreadyAdmitted(songIds: List<String>)
 }

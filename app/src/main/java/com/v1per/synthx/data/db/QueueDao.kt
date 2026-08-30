@@ -49,6 +49,36 @@ interface QueueDao {
         )
     }
 
+    // --- cursor (see PlaybackCursorEntity's kdoc) ---
+
+    @Query("SELECT * FROM playback_cursor WHERE id = 0")
+    suspend fun getCursor(): PlaybackCursorEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCursor(cursor: PlaybackCursorEntity)
+
+    /**
+     * The atomic write this table pair exists for: queue structure and cursor land in the
+     * same transaction, so a process death can never leave one persisted without the other.
+     * [queueIndex] is the raw timeline index the caller wants to resume from; it always
+     * describes a position within [songIds] as written here, in the same commit.
+     */
+    @Transaction
+    suspend fun replaceQueueAndCursor(songIds: List<String>, queueIndex: Int, positionMs: Long) {
+        clearQueue()
+        insertQueueItems(
+            songIds.mapIndexed { index, songId ->
+                QueueItemEntity(position = index, songId = songId)
+            }
+        )
+        upsertCursor(PlaybackCursorEntity(queueIndex = queueIndex, positionMs = positionMs))
+    }
+
+    /** Reads queue ids and cursor as one consistent snapshot, rather than two separate queries. */
+    @Transaction
+    suspend fun getQueueAndCursor(): Pair<List<String>, PlaybackCursorEntity?> =
+        getQueueSongIds() to getCursor()
+
     // --- baseline order (mirrors queue_items above; see BaselineQueueItemEntity's kdoc) ---
 
     @Transaction

@@ -171,6 +171,11 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE id IN (:ids)")
     suspend fun getSongsByIds(ids: List<String>): List<SongEntity>
 
+    /** Same id-set lookup as [getSongsByIds], joined to album/artist details for domain mapping. */
+    @Transaction
+    @Query("SELECT * FROM songs WHERE id IN (:ids)")
+    suspend fun getSongsWithDetailsByIds(ids: List<String>): List<SongWithDetails>
+
     @Query("UPDATE songs SET is_missing = 1, missing_since = :missingSince WHERE id = :id")
     suspend fun markMissing(id: String, missingSince: Long)
 

@@ -54,16 +54,6 @@ class PreferencesManager(context: Context) {
         get() = prefs.getInt(KEY_REPEAT_MODE, 0)
         set(value) = prefs.edit().putInt(KEY_REPEAT_MODE, value).apply()
 
-    /** Index into the persisted queue of the item that was playing. -1 means none. */
-    var currentQueueIndex: Int
-        get() = prefs.getInt(KEY_CURRENT_QUEUE_INDEX, -1)
-        set(value) = prefs.edit().putInt(KEY_CURRENT_QUEUE_INDEX, value).apply()
-
-    /** Playback position within the item at [currentQueueIndex]. */
-    var currentPositionMs: Long
-        get() = prefs.getLong(KEY_CURRENT_POSITION_MS, 0L)
-        set(value) = prefs.edit().putLong(KEY_CURRENT_POSITION_MS, value).apply()
-
     companion object {
         private const val PREFS_NAME = "synthx_prefs"
         const val KEY_MUSIC_FOLDER_URI = "music_folder_uri"
@@ -72,7 +62,5 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_DAILY_BACKUP = "last_daily_backup"
         private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
         private const val KEY_REPEAT_MODE = "repeat_mode"
-        private const val KEY_CURRENT_QUEUE_INDEX = "current_queue_index"
-        private const val KEY_CURRENT_POSITION_MS = "current_position_ms"
     }
 }

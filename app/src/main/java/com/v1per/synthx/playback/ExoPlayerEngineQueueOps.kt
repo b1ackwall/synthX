@@ -119,8 +119,7 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
                 "Restored ${restored.songs.size} queue items, " +
                     "${restored.droppedCount} no longer available",
             )
-            persistQueue()
-            persistence.savePlaybackState(restored.startIndex, restored.positionMs)
+            persistence.saveQueueState(_queue.value.map { it.id }, restored.startIndex, restored.positionMs)
         }
         prefetchArtwork()
     }

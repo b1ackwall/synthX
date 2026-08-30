@@ -2,10 +2,12 @@ package com.v1per.synthx.playback
 
 import android.content.Context
 import android.util.Log
+import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.repository.AdmittedQueuePersistenceRepository
+import com.v1per.synthx.data.repository.QueueCursor
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.CoroutineScope
@@ -17,8 +19,9 @@ import kotlinx.coroutines.Job
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Everything the playback engine needs to survive a process death: the queue structure in
- * `queue_items`, and shuffle / repeat / index / position in SharedPreferences.
+ * Everything the playback engine needs to survive a process death: the queue structure and
+ * resume cursor (index/position) together in Room — see [saveQueueState] — plus shuffle/repeat
+ * in SharedPreferences.
  *
  * Kept out of [ExoPlayerEngine] so the engine stays a media3 adapter rather than growing a
  * second job. Writes are fire-and-forget from the caller's perspective: the engine mutates
@@ -66,8 +69,14 @@ class QueuePersistence(
         val droppedCount: Int,
     )
 
-    fun saveQueue(songs: List<Song>) {
-        val ids = songs.map { it.id }
+    /**
+     * Replaces the saved queue AND the resume cursor in one atomic commit — this is the only
+     * write path for either, precisely so the two can never land independently. [songIds] is
+     * the full queue structure at the moment of the call, [index]/[positionMs] the cursor
+     * within it; every caller (a queue mutation, a pause, an app-backgrounded event, or a
+     * restore rewrite) already has both in hand, so there is no case where only one is known.
+     */
+    fun saveQueueState(songIds: List<String>, index: Int, positionMs: Long) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
             if (!acceptingWrites) { permit.release(); return }
@@ -76,9 +85,9 @@ class QueuePersistence(
                     require(repository is AdmittedQueuePersistenceRepository) {
                         "Queue persistence requires an already-admitted repository"
                     }
-                    repository.setQueueSongsAlreadyAdmitted(ids)
+                    repository.setQueueStateAlreadyAdmitted(songIds, index, positionMs)
                 } catch (e: Exception) {
-                    runCatching { Log.w(TAG, "Queue save failed: ${e.message}") }
+                    runCatching { Log.w(TAG, "Queue state save failed: ${e.message}") }
                 } finally {
                     permit.release()
                 }
@@ -88,8 +97,24 @@ class QueuePersistence(
     }
 
     /**
+     * Resolves ids from a live player timeline back into [Song]s — used when reconnecting to
+     * a still-running playback service, where no in-memory cache already holds them. Returns
+     * an empty list on failure rather than throwing, matching [loadQueue]'s failure shape:
+     * the caller treats "nothing resolved" the same as "nothing to resolve."
+     */
+    suspend fun resolveSongs(ids: List<String>): List<Song> {
+        if (ids.isEmpty()) return emptyList()
+        return try {
+            repository.getSongsByIds(ids)
+        } catch (e: Exception) {
+            Log.w(TAG, "Timeline song resolution failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
      * Persists the baseline order — see [BaselineQueueItemEntity][com.v1per.synthx.data.db.BaselineQueueItemEntity]'s
-     * kdoc for what this represents. Same fire-and-forget shape as [saveQueue]; callers
+     * kdoc for what this represents. Same fire-and-forget shape as [saveQueueState]; callers
      * decide when a baseline mutation is worth persisting, this just writes it.
      */
     fun saveBaselineQueue(songs: List<Song>) {
@@ -113,11 +138,6 @@ class QueuePersistence(
         }
     }
 
-    fun savePlaybackState(index: Int, positionMs: Long) {
-        requirePreferences().currentQueueIndex = index
-        requirePreferences().currentPositionMs = positionMs
-    }
-
     var shuffleEnabled: Boolean
         get() = requirePreferences().shuffleEnabled
         set(value) { requirePreferences().shuffleEnabled = value }
@@ -133,8 +153,8 @@ class QueuePersistence(
      * so dropped entries shift the queue without shifting what resumes.
      */
     suspend fun loadQueue(): RestoredQueue? {
-        val savedIds = try {
-            repository.getQueueSongIds()
+        val (savedIds, cursor) = try {
+            repository.getQueueSongIdsAndCursor()
         } catch (e: Exception) {
             Log.w(TAG, "Queue load failed: ${e.message}")
             return null
@@ -147,7 +167,17 @@ class QueuePersistence(
             return null
         }
 
-        val savedIndex = requirePreferences().currentQueueIndex
+        val savedIndex = cursor?.index ?: -1
+        // P6.3: savedIndex and savedIds were read from the same transaction (see
+        // QueueDao.getQueueAndCursor), so a cursor genuinely out of bounds here means the
+        // atomic-write invariant itself broke, not a normal drift case — those are handled
+        // below via savedId/resolvedIndex instead. Never silently pass in debug.
+        if (BuildConfig.DEBUG) {
+            check(savedIndex < 0 || savedIndex < savedIds.size) {
+                "Persisted cursor ($savedIndex) out of bounds for persisted queue " +
+                    "(${savedIds.size} items) — atomic write invariant violated"
+            }
+        }
         val savedId = savedIds.getOrNull(savedIndex)
         val resolvedIndex = songs.indexOfFirst { it.id == savedId }
 
@@ -156,7 +186,7 @@ class QueuePersistence(
             // The song that was playing is gone: resume from the top of what is left
             // rather than from an index that now means a different song.
             startIndex = if (resolvedIndex >= 0) resolvedIndex else 0,
-            positionMs = if (resolvedIndex >= 0) requirePreferences().currentPositionMs else 0L,
+            positionMs = if (resolvedIndex >= 0) (cursor?.positionMs ?: 0L) else 0L,
             droppedCount = savedIds.size - songs.size,
         )
     }
