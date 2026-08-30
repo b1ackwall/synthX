@@ -105,10 +105,18 @@ class BackupPrimitivesTest {
     fun `schema contracts resolve current and known migration versions`() {
         val current = assertNotNull(BackupSchemaContracts.forVersion(SynthXDatabase.VERSION))
         assertEquals(current, BackupSchemaContracts.current)
-        assertEquals("956df3c0e8aa04390ba812529e813c94", current.roomIdentityHash)
+        // Pinned literal, not sourced from BackupSchemaContracts.current itself — the whole
+        // point of this assertion is to catch an accidental hash edit/typo in
+        // BackupSchemaContract.kt, which a self-referential comparison could never catch.
+        // Update this to the new version's exported app/schemas/.../<N>.json identityHash on
+        // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist) — this
+        // literal going stale (previously pinned to v9's hash while VERSION had moved to 11)
+        // is exactly the bug this comment exists to prevent from recurring silently.
+        assertEquals("9c2e0a9da22d73e56293b497277fef53", current.roomIdentityHash)
         assertTrue("songs" in current.expectedTables)
         assertTrue("queue_items" in current.expectedTables)
         assertTrue("queue_baseline_items" in current.expectedTables)
+        assertTrue("playback_cursor" in current.expectedTables)
 
         // A trusted v8 backup is still a valid *source* to migrate forward from — the
         // contract map must keep describing it, not just the current version.

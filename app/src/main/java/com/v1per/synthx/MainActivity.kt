@@ -8,6 +8,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
@@ -24,6 +29,8 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.DatabaseStartupGate
+import com.v1per.synthx.data.backup.MigrationInvariantFailedException
+import com.v1per.synthx.data.backup.MigrationRecoveryAction
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.UnsupportedLiveDatabaseVersionException
 import com.v1per.synthx.data.scanner.LibraryScanWorker
@@ -73,6 +80,8 @@ class MainActivity : ComponentActivity() {
                     when {
                         RestoreCoordinator.current() != RestoreCoordinator.Terminal.NORMAL ->
                             RestoreTerminalContent(RestoreCoordinator.current())
+                        startupFailure is MigrationInvariantFailedException ->
+                            MigrationRecoveryContent(applicationContext = applicationContext)
                         startupFailure != null -> DatabaseStartupFailureContent(
                             error = startupFailure,
                             onRetry = ::resolveDatabaseStartup,
@@ -194,7 +203,7 @@ private fun DatabaseStartupFailureContent(
             "database remains unopened. Install a compatible synthX version to continue."
     } else {
         "synthX could not complete the required database safety maintenance. The database " +
-            "remains unopened. Check backup-folder access and retry.\n\n${error.message.orEmpty()}"
+            "remains unopened.\n\n${error.message.orEmpty()}"
     }
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         AlertDialog(
@@ -202,6 +211,51 @@ private fun DatabaseStartupFailureContent(
             title = { Text("Database startup paused") },
             text = { Text(message) },
             confirmButton = { TextButton(onClick = onRetry) { Text("Retry") } },
+        )
+    }
+}
+
+/**
+ * Shown when a migration ran but failed [com.v1per.synthx.data.backup.MigrationInvariantCheck]
+ * (N6 + P2.3's locked recovery-offer decision). Unlike [DatabaseStartupFailureContent]'s bare
+ * Retry — which would just re-hit the same pending-recovery flag forever, see
+ * [DatabaseStartupController.hasPendingMigrationRecovery] — this offers the one action that can
+ * actually resolve it: restoring the internal pre-migration snapshot taken just before the
+ * migration ran, then restarting so the whole attempt can be retried from a clean process.
+ */
+@Composable
+private fun MigrationRecoveryContent(applicationContext: android.content.Context) {
+    val scope = rememberCoroutineScope()
+    var isRestoring by remember { mutableStateOf(false) }
+    var restoreError by remember { mutableStateOf<String?>(null) }
+
+    val message = "synthX updated its database, but a post-migration safety check failed. " +
+        "Normal use is disabled to protect your library.\n\n" +
+        "Your library can be restored to its state from just before this update attempt. " +
+        "After restoring, close and reopen synthX to try again." +
+        (restoreError?.let { "\n\nLast attempt failed: $it" } ?: "")
+
+    Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Database update needs recovery") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(
+                    enabled = !isRestoring,
+                    onClick = {
+                        isRestoring = true
+                        scope.launch(Dispatchers.IO) {
+                            MigrationRecoveryAction.restoreFromInternalSnapshot(applicationContext)
+                                .onSuccess { exitProcess(0) }
+                                .onFailure { error ->
+                                    restoreError = error.message ?: error.toString()
+                                    isRestoring = false
+                                }
+                        }
+                    },
+                ) { Text(if (isRestoring) "Restoring…" else "Restore and restart") }
+            },
         )
     }
 }

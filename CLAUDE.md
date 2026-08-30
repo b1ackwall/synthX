@@ -34,7 +34,7 @@ Top-level packages under app/src/main/java/com/v1per/synthx/:
 
 - MainActivity.kt, SynthXApplication.kt
 - data/backup/ - BackupManager, RestoreCoordinator, RestoreTransaction, DatabaseStartupGate, RepositoryDbFlow/RepositoryDbOperation (see Architecture section - do not bypass these)
-- data/db/ - Room entities, DAOs, SynthXDatabase (v9, see Architecture)
+- data/db/ - Room entities, DAOs, SynthXDatabase (v11, see Architecture)
 - data/playlistseed/ - PlaylistSeedBootstrapper (default playlist seeding from assets/playlist_seed_manifest_v1.json)
 - data/repository/ - domain models + SongRepository/SongRepositoryImpl
 - data/scanner/ - FolderScanner, HashUtils (SHA-256 fingerprinting)
@@ -61,8 +61,9 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
   dependency graph, typically via SongRepositoryImpl.create(context) →
   SynthXDatabase.getInstance(context).
   There is intentionally no di/ package — do not add one unless explicitly instructed.
-- Room DB, version 9. Entities: songs (incl. album_art_full_uri, in_inbox), artists, albums,
-  song_artists, playlist_groups, playlists, playlist_songs, queue_items, queue_baseline_items.
+- Room DB, version 11. Entities: songs (incl. album_art_full_uri, in_inbox), artists, albums,
+  song_artists, playlist_groups, playlists, playlist_songs, queue_items, queue_baseline_items,
+  playback_cursor (single-row resume cursor + shuffle/repeat mode, see PlaybackCursorEntity).
   (listen_history was dropped in an earlier version, replaced by queue_items/queue_baseline_items.)
 - ALL_MIGRATIONS in SynthXDatabase.kt is the single canonical migration chain — both the
   normal Room builder and createStandalone() (used for offline restore-candidate validation)
@@ -80,8 +81,35 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
 - BackupSchemaContracts (data/backup/BackupSchemaContract.kt) must have an entry for
   every schema version — current database version must always resolve via
   BackupSchemaContracts.current, or backup creation, safety snapshots, and restore
-  validation all break. When bumping SynthXDatabase's version, add the new migration
-  to ALL_MIGRATIONS and a new contract entry in the same change.
+  validation all break. Bumping SynthXDatabase's version is a checklist, not a single
+  edit — do all of the following in the same change:
+    1. Bump SynthXDatabase.VERSION (and the @Database(version = ...) annotation).
+    2. Add the new migration to ALL_MIGRATIONS (see above — never a separate list).
+    3. Add the corresponding BackupSchemaContracts entry: the new userVersion, the Room
+       identity hash copied from the freshly exported app/schemas/.../<N>.json, and the
+       updated expectedTables set.
+    4. Add a MigrationTestHelper-based test for the new leg — Migration{N}To{N+1}Test.kt,
+       following Migration8To9Test.kt's pattern (seed the old schema, run the single
+       migration, validate the new schema, assert real pre/post data survives — not
+       just that the migration object exists).
+    5. Confirm MigrationFullChainTest and MigrationCompletenessTest (app/src/androidTest
+       and app/src/test under data/db) still pass. Note: MigrationCompletenessTest's
+       "a dedicated test file exists" check only enforces this from version 8 onward —
+       a deliberate scoping decision (versions 1-7 predate that convention and were not
+       retroactively backfilled) — so it will not catch a missing file for an
+       already-old leg, only for the new one you just added.
+    6. Never write a destructive migration (one that deletes or overwrites existing data
+       with no backfill path) unless there is a genuinely unavoidable reason — see the
+       note above ALL_MIGRATIONS in SynthXDatabase.kt. Treat it as an exceptional,
+       carefully reviewed decision, not routine practice: every migration since
+       MIGRATION_4_5 has been additive-only, and this app now holds years of hand-curated
+       user data with no external backup of future changes.
+    Also grep for tests that hardcode the *current* schema's Room identity hash as a
+    literal (e.g. BackupPrimitivesTest's "schema contracts resolve current and known
+    migration versions", BackupSnapshotInstrumentedTest's
+    "productionSchemaSnapshotPassesFullLocalValidation") and update them too — those
+    literals go stale on every version bump exactly like a skipped BackupSchemaContracts
+    entry would, and neither MigrationFullChainTest nor MigrationCompletenessTest catches it.
 - SHA-256 song fingerprinting: first 64KB + last 64KB + file size (via HashUtils.kt).
 - Compose compiler reports are enabled (`composeCompiler { reportsDestination }` in
   app/build.gradle.kts) — regenerate via a fresh `compileDebugKotlin`; reports land in

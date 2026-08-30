@@ -2,7 +2,9 @@ package com.v1per.synthx.data.backup
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.util.Log
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -86,7 +88,11 @@ internal class DatabaseStartupController(
     private val currentVersion: Int,
     private val awaitRestoreNormal: suspend () -> Unit,
     private val inspectLiveVersion: suspend () -> LiveDatabaseVersion,
-    private val createPreMigrationBackup: suspend (fromVersion: Int) -> Unit,
+    private val performMigration: suspend (fromVersion: Int) -> Unit,
+    /** True while a previous migration's [MigrationInvariantCheck] failure hasn't been recovered. */
+    private val hasPendingMigrationRecovery: suspend () -> Boolean = { false },
+    /** Fired once per process, the first time this attempt reaches readiness. */
+    private val onReady: suspend () -> Unit = {},
 ) {
     private val lock = Any()
     @Volatile private var ready = false
@@ -111,6 +117,15 @@ internal class DatabaseStartupController(
             val outcome = withContext(NonCancellable) {
                 runCatching {
                     awaitRestoreNormal()
+                    // Checked before re-deriving anything from the live file's own user_version:
+                    // a migration that failed its post-migration check already left the file
+                    // reading as "current" — decide() alone would wrongly call that fine.
+                    if (hasPendingMigrationRecovery()) {
+                        throw MigrationInvariantFailedException(
+                            "A previous migration failed its post-migration safety check and " +
+                                "has not been recovered yet"
+                        )
+                    }
                     when (val decision = DatabaseVersionPolicy.decide(
                         inspectLiveVersion(),
                         currentVersion,
@@ -118,13 +133,14 @@ internal class DatabaseStartupController(
                         DatabaseVersionDecision.FreshDatabase,
                         DatabaseVersionDecision.CurrentDatabase -> Unit
                         is DatabaseVersionDecision.BackupBeforeMigration ->
-                            createPreMigrationBackup(decision.fromVersion)
+                            performMigration(decision.fromVersion)
                         is DatabaseVersionDecision.UnsupportedNewerDatabase ->
                             throw UnsupportedLiveDatabaseVersionException(
                                 decision.actualVersion,
                                 currentVersion,
                             )
                     }
+                    onReady()
                 }
             }
 
@@ -157,6 +173,7 @@ internal class DatabaseStartupController(
 
 /** One authoritative process-wide permission boundary for opening the live Room database. */
 internal object DatabaseStartupGate {
+    private const val TAG = "DatabaseStartupGate"
     private val lock = Any()
     @Volatile private var controller: DatabaseStartupController? = null
 
@@ -190,10 +207,51 @@ internal object DatabaseStartupGate {
                 LiveDatabaseVersionReader.read(context.getDatabasePath(SynthXDatabase.DB_NAME))
             }
         },
-        createPreMigrationBackup = { _ ->
-            BackupManager.create(context).createPreMigrationBackup().getOrThrow()
+        hasPendingMigrationRecovery = {
+            withContext(Dispatchers.IO) {
+                PreferencesManager(context).migrationInvariantFailurePending
+            }
+        },
+        performMigration = { fromVersion ->
+            withContext(Dispatchers.IO) { performProductionMigration(context, fromVersion) }
+        },
+        onReady = {
+            withContext(Dispatchers.IO) { MigrationSnapshotStore.recordSuccessfulLaunch(context) }
         },
     )
+
+    /**
+     * The gate's single production migration path (fixes data 2.1 / P2.1 / N6 / P2.3):
+     *  1. An unconditional internal snapshot — required. Its failure is a genuine storage
+     *     problem, not a SAF misconfiguration, and correctly fails the gate closed; there is no
+     *     safety net to protect the migration otherwise.
+     *  2. A best-effort SAF backup — an extra copy in the user's normal backup folder if one
+     *     happens to be configured and reachable. Its failure must never block startup: the
+     *     internal snapshot above is what actually protects the migration now, so a missing or
+     *     broken SAF grant can no longer produce the data 2.1 lockout.
+     *  3. The migration itself, forced to run now (inside the gate, before any repository or
+     *     ViewModel can touch Room) and immediately validated. A failure here means recovery is
+     *     offered from the internal snapshot, never a silent continue or an uncaught crash later.
+     */
+    private suspend fun performProductionMigration(context: Context, fromVersion: Int) {
+        val toVersion = SynthXDatabase.VERSION
+        MigrationSnapshotStore.createSnapshot(context, fromVersion, toVersion)
+
+        runCatching { BackupManager.create(context).createPreMigrationBackup().getOrThrow() }
+            .onFailure { Log.w(TAG, "Best-effort SAF pre-migration backup failed", it) }
+
+        try {
+            val database = SynthXDatabase.getInstanceForMigrationGate(context)
+            database.openHelper.writableDatabase // forces Room's migration to run now
+            MigrationInvariantCheck.verify(database, toVersion)
+        } catch (error: Exception) {
+            PreferencesManager(context).migrationInvariantFailurePending = true
+            throw MigrationInvariantFailedException(
+                "Migration to version $toVersion failed its post-migration safety check",
+                error,
+            )
+        }
+    }
 
     /** Instrumentation isolation only; production never replaces the process gate. */
     internal fun installForTest(value: DatabaseStartupController) {
@@ -206,7 +264,7 @@ internal object DatabaseStartupGate {
             currentVersion = SynthXDatabase.VERSION,
             awaitRestoreNormal = {},
             inspectLiveVersion = { LiveDatabaseVersion.Missing },
-            createPreMigrationBackup = {},
+            performMigration = {},
         ).also(DatabaseStartupController::markReadyForTest)
         installForTest(forced)
     }

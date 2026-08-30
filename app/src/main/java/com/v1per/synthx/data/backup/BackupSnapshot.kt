@@ -111,10 +111,11 @@ internal object BackupSnapshotValidator {
                 null,
                 SQLiteDatabase.OPEN_READONLY,
             ).use { database ->
-                validateIntegrity(database)
-                validateForeignKeys(database)
+                val query: (String) -> Cursor = { sql -> database.rawQuery(sql, null) }
+                validateIntegrity(query)
+                validateForeignKeys(query)
 
-                val userVersion = database.singleInt("PRAGMA user_version")
+                val userVersion = singleInt(query, "PRAGMA user_version")
                 val schema = BackupSchemaContracts.forVersion(userVersion)
                     ?: throw BackupSnapshotException(
                         "Snapshot uses unknown synthX database version $userVersion"
@@ -133,8 +134,8 @@ internal object BackupSnapshotValidator {
                     )
                 }
 
-                validateRoomIdentity(database, schema)
-                validateExpectedTables(database, schema)
+                validateRoomIdentity(query, schema)
+                validateExpectedTables(query, schema)
                 return ValidatedBackupSnapshot(snapshot, schema)
             }
         } catch (error: BackupSnapshotException) {
@@ -144,8 +145,29 @@ internal object BackupSnapshotValidator {
         }
     }
 
-    private fun validateIntegrity(database: SQLiteDatabase) {
-        database.rawQuery("PRAGMA integrity_check", null).use { cursor ->
+    /**
+     * The same integrity/foreign-key/identity/table checks as [validate], run directly against
+     * the live, already-open Room database instead of a standalone snapshot file. Used
+     * immediately after a migration runs (see MigrationInvariantCheck) — there is no snapshot
+     * file to open here, and opening a second framework connection to the live WAL is
+     * unnecessary when Room's own connection can answer the same PRAGMAs.
+     */
+    fun validateLive(database: SupportSQLiteDatabase, schema: BackupSchemaContract) {
+        try {
+            val query: (String) -> Cursor = { sql -> database.query(sql) }
+            validateIntegrity(query)
+            validateForeignKeys(query)
+            validateRoomIdentity(query, schema)
+            validateExpectedTables(query, schema)
+        } catch (error: BackupSnapshotException) {
+            throw error
+        } catch (error: Exception) {
+            throw BackupSnapshotException("Live post-migration validation failed", error)
+        }
+    }
+
+    private fun validateIntegrity(query: (String) -> Cursor) {
+        query("PRAGMA integrity_check").use { cursor ->
             val valid = cursor.moveToFirst() &&
                 cursor.columnCount > 0 &&
                 cursor.getString(0) == "ok" &&
@@ -154,8 +176,8 @@ internal object BackupSnapshotValidator {
         }
     }
 
-    private fun validateForeignKeys(database: SQLiteDatabase) {
-        database.rawQuery("PRAGMA foreign_key_check", null).use { cursor ->
+    private fun validateForeignKeys(query: (String) -> Cursor) {
+        query("PRAGMA foreign_key_check").use { cursor ->
             if (cursor.moveToFirst()) {
                 throw BackupSnapshotException("Snapshot failed SQLite foreign_key_check")
             }
@@ -163,17 +185,16 @@ internal object BackupSnapshotValidator {
     }
 
     private fun validateRoomIdentity(
-        database: SQLiteDatabase,
+        query: (String) -> Cursor,
         schema: BackupSchemaContract,
     ) {
-        val tables = database.tableNames()
+        val tables = tableNames(query)
         if (ROOM_MASTER_TABLE !in tables) {
             throw BackupSnapshotException("Snapshot is missing Room identity table")
         }
 
-        val identity = database.rawQuery(
+        val identity = query(
             "SELECT identity_hash FROM room_master_table WHERE id = 42 LIMIT 1",
-            null,
         ).use { cursor ->
             if (cursor.moveToFirst()) cursor.getString(0) else null
         }
@@ -185,10 +206,10 @@ internal object BackupSnapshotValidator {
     }
 
     private fun validateExpectedTables(
-        database: SQLiteDatabase,
+        query: (String) -> Cursor,
         schema: BackupSchemaContract,
     ) {
-        val actual = database.tableNames()
+        val actual = tableNames(query)
         val missing = schema.expectedTables - actual
         if (missing.isNotEmpty()) {
             throw BackupSnapshotException(
@@ -197,16 +218,16 @@ internal object BackupSnapshotValidator {
         }
     }
 
-    private fun SQLiteDatabase.singleInt(sql: String): Int =
-        rawQuery(sql, null).use { cursor ->
+    private fun singleInt(query: (String) -> Cursor, sql: String): Int =
+        query(sql).use { cursor ->
             if (!cursor.moveToFirst() || cursor.columnCount < 1) {
                 throw BackupSnapshotException("Snapshot did not return a value for $sql")
             }
             cursor.getInt(0)
         }
 
-    private fun SQLiteDatabase.tableNames(): Set<String> =
-        rawQuery("SELECT name FROM sqlite_master WHERE type = 'table'", null).use { cursor ->
+    private fun tableNames(query: (String) -> Cursor): Set<String> =
+        query("SELECT name FROM sqlite_master WHERE type = 'table'").use { cursor ->
             buildSet {
                 while (cursor.moveToNext()) add(cursor.getString(0))
             }

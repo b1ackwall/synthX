@@ -24,6 +24,14 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+// NOTE (Part 1 rename): DatabaseStartupController's `createPreMigrationBackup` parameter became
+// `performMigration` when the gate stopped requiring a successful SAF backup and started requiring
+// an unconditional internal snapshot + best-effort SAF backup + the migration itself + a
+// post-migration invariant check (see DatabaseStartupGate.kt's performProductionMigration). Every
+// test below drives the generic controller through an injected fake for that callback — none of
+// them modeled SAF specifically or asserted "no SAF folder configured" as a permanent, correct
+// lockout, so no test's *intent* changed here, only the callback's name and the tests'/variables'
+// wording (updated below for accuracy: "backup" -> "migration" throughout).
 @RunWith(AndroidJUnit4::class)
 class DatabaseStartupGateInstrumentedTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
@@ -61,12 +69,12 @@ class DatabaseStartupGateInstrumentedTest {
 
     @Test
     fun directLiveRoomFactoryFailsClosedBeforeGateAndWorksAfterReady() = runBlocking {
-        val backups = AtomicInteger()
+        val migrations = AtomicInteger()
         val controller = DatabaseStartupController(
             currentVersion = SynthXDatabase.VERSION,
             awaitRestoreNormal = { RestoreStartup.requireNormal() },
             inspectLiveVersion = { LiveDatabaseVersionReader.read(live) },
-            createPreMigrationBackup = { backups.incrementAndGet() },
+            performMigration = { migrations.incrementAndGet() },
         )
         DatabaseStartupGate.installForTest(controller)
 
@@ -81,18 +89,18 @@ class DatabaseStartupGateInstrumentedTest {
             LiveDatabaseVersion.Present(SynthXDatabase.VERSION),
             LiveDatabaseVersionReader.read(live),
         )
-        assertEquals(0, backups.get())
+        assertEquals(0, migrations.get())
     }
 
     @Test
-    fun workerFirstOlderDatabaseCannotMigrateUntilSharedBackupSucceeds() = runBlocking {
+    fun workerFirstOlderDatabaseCannotMigrateUntilSharedMigrationSucceeds() = runBlocking {
         migrationHelper.createDatabase(SynthXDatabase.DB_NAME, 7).close()
         assertEquals(LiveDatabaseVersion.Present(7), LiveDatabaseVersionReader.read(live))
 
-        val backupStarted = CompletableDeferred<Unit>()
-        val releaseBackup = CompletableDeferred<Unit>()
+        val migrationStarted = CompletableDeferred<Unit>()
+        val releaseMigration = CompletableDeferred<Unit>()
         val inspections = AtomicInteger()
-        val backups = AtomicInteger()
+        val migrations = AtomicInteger()
         val order = mutableListOf<String>()
         val controller = DatabaseStartupController(
             currentVersion = SynthXDatabase.VERSION,
@@ -102,13 +110,13 @@ class DatabaseStartupGateInstrumentedTest {
                 order += "inspect"
                 LiveDatabaseVersionReader.read(live)
             },
-            createPreMigrationBackup = { fromVersion ->
+            performMigration = { fromVersion ->
                 assertEquals(7, fromVersion)
-                backups.incrementAndGet()
-                order += "backup-start"
-                backupStarted.complete(Unit)
-                releaseBackup.await()
-                order += "backup-success"
+                migrations.incrementAndGet()
+                order += "migration-start"
+                migrationStarted.complete(Unit)
+                releaseMigration.await()
+                order += "migration-success"
             },
         )
         DatabaseStartupGate.installForTest(controller)
@@ -120,25 +128,25 @@ class DatabaseStartupGateInstrumentedTest {
                 order += "room-open"
             }
         }
-        backupStarted.await()
+        migrationStarted.await()
 
         assertFalse(worker.isCompleted)
         assertFalse(controller.isReady())
         assertEquals(1, inspections.get())
-        assertEquals(1, backups.get())
+        assertEquals(1, migrations.get())
         expectFailure { SynthXDatabase.getInstance(context) }
         assertEquals(
-            "The live schema changed before the pre-migration backup succeeded",
+            "The live schema changed before the pre-migration snapshot succeeded",
             LiveDatabaseVersion.Present(7),
             LiveDatabaseVersionReader.read(live),
         )
 
-        releaseBackup.complete(Unit)
+        releaseMigration.complete(Unit)
         worker.await()
 
         assertTrue(controller.isReady())
         assertEquals(
-            listOf("inspect", "backup-start", "backup-success", "room-open"),
+            listOf("inspect", "migration-start", "migration-success", "room-open"),
             order,
         )
         assertEquals(
@@ -148,16 +156,16 @@ class DatabaseStartupGateInstrumentedTest {
     }
 
     @Test
-    fun failedRequiredBackupLeavesOlderFileUnmigratedAndRetryable() = runBlocking {
+    fun failedRequiredMigrationLeavesOlderFileUnmigratedAndRetryable() = runBlocking {
         migrationHelper.createDatabase(SynthXDatabase.DB_NAME, 7).close()
-        val backupAttempts = AtomicInteger()
+        val migrationAttempts = AtomicInteger()
         val controller = DatabaseStartupController(
             currentVersion = SynthXDatabase.VERSION,
             awaitRestoreNormal = { RestoreStartup.requireNormal() },
             inspectLiveVersion = { LiveDatabaseVersionReader.read(live) },
-            createPreMigrationBackup = {
-                if (backupAttempts.incrementAndGet() == 1) {
-                    error("injected pre-migration backup failure")
+            performMigration = {
+                if (migrationAttempts.incrementAndGet() == 1) {
+                    error("injected pre-migration failure")
                 }
             },
         )
@@ -167,11 +175,11 @@ class DatabaseStartupGateInstrumentedTest {
         assertFalse(controller.isReady())
         expectFailure { SynthXDatabase.getInstance(context) }
         assertEquals(LiveDatabaseVersion.Present(7), LiveDatabaseVersionReader.read(live))
-        assertEquals(1, backupAttempts.get())
+        assertEquals(1, migrationAttempts.get())
 
         controller.awaitReady()
         assertTrue(controller.isReady())
-        assertEquals(2, backupAttempts.get())
+        assertEquals(2, migrationAttempts.get())
         SynthXDatabase.getInstance(context).openHelper.writableDatabase
         assertEquals(
             LiveDatabaseVersion.Present(SynthXDatabase.VERSION),
@@ -180,7 +188,7 @@ class DatabaseStartupGateInstrumentedTest {
     }
 
     @Test
-    fun currentV8WorkerPathOpensNormallyWithoutMigrationBackup() = runBlocking {
+    fun currentV8WorkerPathOpensNormallyWithoutMigration() = runBlocking {
         DatabaseStartupGate.markReadyForTest()
         SynthXDatabase.getInstance(context).openHelper.writableDatabase
         SynthXDatabase.closeInstance()
@@ -189,12 +197,12 @@ class DatabaseStartupGateInstrumentedTest {
             LiveDatabaseVersionReader.read(live),
         )
 
-        val backups = AtomicInteger()
+        val migrations = AtomicInteger()
         val controller = DatabaseStartupController(
             currentVersion = SynthXDatabase.VERSION,
             awaitRestoreNormal = { RestoreStartup.requireNormal() },
             inspectLiveVersion = { LiveDatabaseVersionReader.read(live) },
-            createPreMigrationBackup = { backups.incrementAndGet() },
+            performMigration = { migrations.incrementAndGet() },
         )
         DatabaseStartupGate.installForTest(controller)
 
@@ -203,7 +211,7 @@ class DatabaseStartupGateInstrumentedTest {
         }
 
         assertTrue(controller.isReady())
-        assertEquals(0, backups.get())
+        assertEquals(0, migrations.get())
     }
 
     @Test
@@ -219,14 +227,14 @@ class DatabaseStartupGateInstrumentedTest {
     }
 
     @Test
-    fun restoreTerminalStatesPreventInspectionBackupAndRoom() = runBlocking {
+    fun restoreTerminalStatesPreventInspectionMigrationAndRoom() = runBlocking {
         for (terminal in listOf("RESTART_REQUIRED", "EMERGENCY")) {
             when (terminal) {
                 "RESTART_REQUIRED" -> RestoreCoordinator.markRestartRequired(false)
                 "EMERGENCY" -> RestoreCoordinator.markEmergency("c1-test")
             }
             val inspections = AtomicInteger()
-            val backups = AtomicInteger()
+            val migrations = AtomicInteger()
             val controller = DatabaseStartupController(
                 currentVersion = SynthXDatabase.VERSION,
                 awaitRestoreNormal = { RestoreStartup.requireNormal() },
@@ -234,7 +242,7 @@ class DatabaseStartupGateInstrumentedTest {
                     inspections.incrementAndGet()
                     LiveDatabaseVersion.Missing
                 },
-                createPreMigrationBackup = { backups.incrementAndGet() },
+                performMigration = { migrations.incrementAndGet() },
             )
             DatabaseStartupGate.installForTest(controller)
 
@@ -242,10 +250,39 @@ class DatabaseStartupGateInstrumentedTest {
             expectFailure { SynthXDatabase.getInstance(context) }
             assertFalse(controller.isReady())
             assertEquals(0, inspections.get())
-            assertEquals(0, backups.get())
+            assertEquals(0, migrations.get())
             assertFalse(live.exists())
             RestoreCoordinator.resetForTest()
         }
+    }
+
+    @Test
+    fun pendingMigrationRecoveryBlocksRoomEvenWhenLiveFileReadsAsCurrent() = runBlocking {
+        // Simulates the real scenario this flag exists for: a migration already ran (the live
+        // file is at VERSION) but failed its post-migration invariant check, so decide() alone
+        // would otherwise wrongly treat the database as fine on the next attempt.
+        DatabaseStartupGate.markReadyForTest()
+        SynthXDatabase.getInstance(context).openHelper.writableDatabase
+        SynthXDatabase.closeInstance()
+        DatabaseStartupGate.resetForTest(context)
+
+        val inspections = AtomicInteger()
+        val controller = DatabaseStartupController(
+            currentVersion = SynthXDatabase.VERSION,
+            awaitRestoreNormal = { RestoreStartup.requireNormal() },
+            inspectLiveVersion = {
+                inspections.incrementAndGet()
+                LiveDatabaseVersionReader.read(live)
+            },
+            performMigration = {},
+            hasPendingMigrationRecovery = { true },
+        )
+        DatabaseStartupGate.installForTest(controller)
+
+        expectSuspendFailure { controller.awaitReady() }
+        assertFalse(controller.isReady())
+        expectFailure { SynthXDatabase.getInstance(context) }
+        assertEquals(0, inspections.get())
     }
 
     private fun deleteLiveSet() {

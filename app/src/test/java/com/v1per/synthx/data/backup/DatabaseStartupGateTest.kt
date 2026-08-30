@@ -72,12 +72,25 @@ class DatabaseStartupGateTest {
         assertIs<DatabaseVersionDecision.CurrentDatabase>(decision)
     }
 
-    @Test fun twentyConcurrentCallersShareInspectionAndBackupAndOpenAfterSuccess() = runTest {
-        val backupStarted = CompletableDeferred<Unit>()
-        val releaseBackup = CompletableDeferred<Unit>()
+    // NOTE (Part 1 rename): DatabaseStartupController's `createPreMigrationBackup` parameter
+    // became `performMigration` when the gate stopped requiring a successful SAF backup and
+    // started requiring an unconditional internal snapshot + best-effort SAF backup + the
+    // migration itself + a post-migration invariant check (see DatabaseStartupGate.kt's
+    // performProductionMigration). At this generic-controller level none of the tests below ever
+    // modeled SAF specifically — they exercise the controller's single-flight/retry state machine
+    // against an abstract "the thing that must succeed before Room opens" callback, so that intent
+    // is unchanged; only the callback's name (and these tests' variable/test names, updated below
+    // for accuracy) changed. Confirmed while doing this repair: none of these tests asserted the
+    // old SAF-lockout (data 2.1) as correct/desired behavior — that bug lived entirely in
+    // production wiring (BackupManager/DatabaseStartupGate.productionController) that no test here
+    // ever exercised, so no test's *intent* needed to change, only its terminology.
+
+    @Test fun twentyConcurrentCallersShareInspectionAndMigrationAndOpenAfterSuccess() = runTest {
+        val migrationStarted = CompletableDeferred<Unit>()
+        val releaseMigration = CompletableDeferred<Unit>()
         var restoreAwaits = 0
         var inspections = 0
-        var backups = 0
+        var migrations = 0
         var roomOpens = 0
         val controller = DatabaseStartupController(
             currentVersion = 8,
@@ -86,10 +99,10 @@ class DatabaseStartupGateTest {
                 inspections++
                 LiveDatabaseVersion.Present(7)
             },
-            createPreMigrationBackup = {
-                backups++
-                backupStarted.complete(Unit)
-                releaseBackup.await()
+            performMigration = {
+                migrations++
+                migrationStarted.complete(Unit)
+                releaseMigration.await()
             },
         )
 
@@ -99,25 +112,25 @@ class DatabaseStartupGateTest {
                 roomOpens++
             }
         }
-        backupStarted.await()
+        migrationStarted.await()
         repeat(20) { yield() }
 
         assertEquals(1, restoreAwaits)
         assertEquals(1, inspections)
-        assertEquals(1, backups)
+        assertEquals(1, migrations)
         assertEquals(0, roomOpens)
         assertFalse(controller.isReady())
 
-        releaseBackup.complete(Unit)
+        releaseMigration.complete(Unit)
         callers.awaitAll()
         assertEquals(20, roomOpens)
         assertTrue(controller.isReady())
         controller.requireReady()
     }
 
-    @Test fun backupFailureKeepsGateClosedAndNextCallRetries() = runTest {
+    @Test fun migrationFailureKeepsGateClosedAndNextCallRetries() = runTest {
         var inspections = 0
-        var backupAttempts = 0
+        var migrationAttempts = 0
         var roomOpens = 0
         val controller = DatabaseStartupController(
             currentVersion = 8,
@@ -126,9 +139,9 @@ class DatabaseStartupGateTest {
                 inspections++
                 LiveDatabaseVersion.Present(7)
             },
-            createPreMigrationBackup = {
-                backupAttempts++
-                if (backupAttempts == 1) error("injected publication failure")
+            performMigration = {
+                migrationAttempts++
+                if (migrationAttempts == 1) error("injected migration failure")
             },
         )
 
@@ -139,47 +152,47 @@ class DatabaseStartupGateTest {
         assertFalse(controller.isReady())
         assertFailsWith<IllegalStateException> { controller.requireReady() }
         assertEquals(0, roomOpens)
-        assertEquals(1, backupAttempts)
+        assertEquals(1, migrationAttempts)
         assertEquals(1, inspections)
 
         controller.awaitReady()
         roomOpens++
         assertTrue(controller.isReady())
         assertEquals(1, roomOpens)
-        assertEquals(2, backupAttempts)
+        assertEquals(2, migrationAttempts)
         assertEquals(2, inspections)
     }
 
-    @Test fun currentV8NormalStartupAllowsRoomWithoutBackup() = runTest {
-        var backups = 0
+    @Test fun currentV8NormalStartupAllowsRoomWithoutMigration() = runTest {
+        var migrations = 0
         val controller = DatabaseStartupController(
             currentVersion = 8,
             awaitRestoreNormal = {},
             inspectLiveVersion = { LiveDatabaseVersion.Present(8) },
-            createPreMigrationBackup = { backups++ },
+            performMigration = { migrations++ },
         )
 
         controller.awaitReady()
 
         assertTrue(controller.isReady())
-        assertEquals(0, backups)
+        assertEquals(0, migrations)
     }
 
-    @Test fun newerDatabaseFailsClosedWithoutBackup() = runTest {
-        var backups = 0
+    @Test fun newerDatabaseFailsClosedWithoutMigration() = runTest {
+        var migrations = 0
         val controller = DatabaseStartupController(
             currentVersion = 8,
             awaitRestoreNormal = {},
             inspectLiveVersion = { LiveDatabaseVersion.Present(9) },
-            createPreMigrationBackup = { backups++ },
+            performMigration = { migrations++ },
         )
 
         assertFailsWith<UnsupportedLiveDatabaseVersionException> { controller.awaitReady() }
         assertFalse(controller.isReady())
-        assertEquals(0, backups)
+        assertEquals(0, migrations)
     }
 
-    @Test fun restoreNormalAlwaysPrecedesInspectionAndBackup() = runTest {
+    @Test fun restoreNormalAlwaysPrecedesInspectionAndMigration() = runTest {
         val order = mutableListOf<String>()
         val controller = DatabaseStartupController(
             currentVersion = 8,
@@ -188,25 +201,81 @@ class DatabaseStartupGateTest {
                 order += "inspect"
                 LiveDatabaseVersion.Present(7)
             },
-            createPreMigrationBackup = { order += "backup" },
+            performMigration = { order += "migration" },
         )
 
         controller.awaitReady()
 
-        assertEquals(listOf("restore", "inspect", "backup"), order)
+        assertEquals(listOf("restore", "inspect", "migration"), order)
     }
 
-    @Test fun restartRequiredRestoreStatePreventsInspectionBackupAndRoom() = runTest {
+    @Test fun restartRequiredRestoreStatePreventsInspectionMigrationAndRoom() = runTest {
         assertRestoreBlockStopsGate("RESTART_REQUIRED")
     }
 
-    @Test fun emergencyRestoreStatePreventsInspectionBackupAndRoom() = runTest {
+    @Test fun emergencyRestoreStatePreventsInspectionMigrationAndRoom() = runTest {
         assertRestoreBlockStopsGate("EMERGENCY")
+    }
+
+    // --------------------------------------------------- Part 1 additions: pending recovery + onReady
+
+    @Test fun pendingMigrationRecoveryBlocksReadinessBeforeInspectingLiveVersion() = runTest {
+        var inspections = 0
+        var migrations = 0
+        val controller = DatabaseStartupController(
+            currentVersion = 8,
+            awaitRestoreNormal = {},
+            inspectLiveVersion = {
+                inspections++
+                LiveDatabaseVersion.Present(8)
+            },
+            performMigration = { migrations++ },
+            hasPendingMigrationRecovery = { true },
+        )
+
+        assertFailsWith<MigrationInvariantFailedException> { controller.awaitReady() }
+        assertFalse(controller.isReady())
+        // The live file may already read as "current" post-migration — the pending-recovery
+        // check must short-circuit before decide() ever gets a chance to call that "fine".
+        assertEquals(0, inspections)
+        assertEquals(0, migrations)
+    }
+
+    @Test fun onReadyFiresExactlyOnceAfterSuccessfulMigration() = runTest {
+        var onReadyCalls = 0
+        val controller = DatabaseStartupController(
+            currentVersion = 8,
+            awaitRestoreNormal = {},
+            inspectLiveVersion = { LiveDatabaseVersion.Present(7) },
+            performMigration = {},
+            onReady = { onReadyCalls++ },
+        )
+
+        controller.awaitReady()
+        assertEquals(1, onReadyCalls)
+
+        // A second call on an already-ready controller must not re-fire onReady.
+        controller.awaitReady()
+        assertEquals(1, onReadyCalls)
+    }
+
+    @Test fun onReadyNeverFiresWhenMigrationFails() = runTest {
+        var onReadyCalls = 0
+        val controller = DatabaseStartupController(
+            currentVersion = 8,
+            awaitRestoreNormal = {},
+            inspectLiveVersion = { LiveDatabaseVersion.Present(7) },
+            performMigration = { error("injected migration failure") },
+            onReady = { onReadyCalls++ },
+        )
+
+        assertFailsWith<IllegalStateException> { controller.awaitReady() }
+        assertEquals(0, onReadyCalls)
     }
 
     private suspend fun assertRestoreBlockStopsGate(state: String) {
         var inspections = 0
-        var backups = 0
+        var migrations = 0
         var roomOpens = 0
         val controller = DatabaseStartupController(
             currentVersion = 8,
@@ -215,7 +284,7 @@ class DatabaseStartupGateTest {
                 inspections++
                 LiveDatabaseVersion.Present(7)
             },
-            createPreMigrationBackup = { backups++ },
+            performMigration = { migrations++ },
         )
 
         assertFailsWith<IllegalStateException> {
@@ -224,7 +293,7 @@ class DatabaseStartupGateTest {
         }
         assertFalse(controller.isReady())
         assertEquals(0, inspections)
-        assertEquals(0, backups)
+        assertEquals(0, migrations)
         assertEquals(0, roomOpens)
     }
 }

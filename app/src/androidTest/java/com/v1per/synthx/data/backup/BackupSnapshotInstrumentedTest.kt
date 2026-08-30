@@ -120,8 +120,19 @@ class BackupSnapshotInstrumentedTest {
         val validated = BackupSnapshotValidator.validate(staged, migrationSnapshot = false)
 
         assertEquals(SynthXDatabase.VERSION, validated.schema.userVersion)
-        assertEquals("956df3c0e8aa04390ba812529e813c94", validated.schema.roomIdentityHash)
-        assertTrue(validated.schema.expectedTables.containsAll(setOf("songs", "queue_items")))
+        // Pinned literal, not sourced from validated.schema itself — this independently
+        // confirms BackupSchemaContracts' current entry matches the real Room-computed
+        // identity hash for a freshly built database, not just internal self-consistency.
+        // Update this to the new version's exported app/schemas/.../<N>.json identityHash on
+        // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist) — this
+        // literal previously went stale (pinned to v9's hash while VERSION had moved to 11)
+        // without being caught, which is exactly what this comment exists to prevent.
+        assertEquals("9c2e0a9da22d73e56293b497277fef53", validated.schema.roomIdentityHash)
+        assertTrue(
+            validated.schema.expectedTables.containsAll(
+                setOf("songs", "queue_items", "queue_baseline_items", "playback_cursor"),
+            ),
+        )
     }
 
     @Test

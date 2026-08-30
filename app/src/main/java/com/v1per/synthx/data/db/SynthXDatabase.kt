@@ -270,6 +270,16 @@ abstract class SynthXDatabase : RoomDatabase() {
          * builder in this file — the live singleton in [getOrCreate] and the offline
          * restore candidate in [createStandalone] must migrate identically, so neither
          * builds its own list. Append new migrations here and nowhere else.
+         *
+         * MIGRATION_2_3 and MIGRATION_3_4 are the only destructive migrations in this app's
+         * history — each wiped song-derived data for a hash-strategy/artist-splitting change,
+         * before this app held any real user data. Every migration since MIGRATION_4_5 has
+         * been additive-only, and that must stay the default going forward: this app now
+         * manages a 2000+ song, 68-playlist library built from years of hand curation, with
+         * no external backup of future changes beyond what this app itself provides. A
+         * migration that deletes or overwrites existing data with no backfill path is an
+         * exceptional, deliberately and carefully reviewed decision — never routine practice.
+         * See CLAUDE.md's Architecture section for the full pre-migration checklist.
          */
         internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
@@ -280,6 +290,17 @@ abstract class SynthXDatabase : RoomDatabase() {
             // Fail closed synchronously. Callers must asynchronously await DatabaseStartupGate;
             // this factory never blocks a main thread on SAF and never opens Room prematurely.
             DatabaseStartupGate.requireReady()
+            RestoreStartup.requireNormal()
+            return getOrCreate(context)
+        }
+
+        /**
+         * The startup gate's own access, used to force a pending migration to actually run (and
+         * be validated) before [DatabaseStartupGate] grants process-wide readiness. Deliberately
+         * skips [DatabaseStartupGate.requireReady] — calling it here, from inside the gate that
+         * readiness depends on, would always throw.
+         */
+        internal fun getInstanceForMigrationGate(context: Context): SynthXDatabase {
             RestoreStartup.requireNormal()
             return getOrCreate(context)
         }

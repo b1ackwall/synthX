@@ -44,11 +44,42 @@ class PreferencesManager(context: Context) {
         get() = prefs.getLong(KEY_LAST_DAILY_BACKUP, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_DAILY_BACKUP, value).apply()
 
+    // --------------------------------------------------- migration safety (see MigrationSnapshotStore)
+
+    /** The database version the current internal pre-migration snapshot was captured from. -1 = none. */
+    var migrationSnapshotFromVersion: Int
+        get() = prefs.getInt(KEY_MIGRATION_SNAPSHOT_FROM_VERSION, -1)
+        set(value) = prefs.edit().putInt(KEY_MIGRATION_SNAPSHOT_FROM_VERSION, value).apply()
+
+    /** The database version the current internal pre-migration snapshot protects. -1 = none. */
+    var migrationSnapshotForVersion: Int
+        get() = prefs.getInt(KEY_MIGRATION_SNAPSHOT_FOR_VERSION, -1)
+        set(value) = prefs.edit().putInt(KEY_MIGRATION_SNAPSHOT_FOR_VERSION, value).apply()
+
+    /** Successful launches counted at [migrationSnapshotForVersion] since the snapshot was taken. */
+    var migrationSnapshotConfirmedLaunches: Int
+        get() = prefs.getInt(KEY_MIGRATION_SNAPSHOT_LAUNCHES, 0)
+        set(value) = prefs.edit().putInt(KEY_MIGRATION_SNAPSHOT_LAUNCHES, value).apply()
+
+    /**
+     * Set the moment a post-migration invariant check fails; cleared only once the internal
+     * snapshot has been restored. While true, the startup gate refuses readiness regardless of
+     * what the live database's own `user_version` reports (it may already read as "current" —
+     * the migration ran, it just failed validation).
+     */
+    var migrationInvariantFailurePending: Boolean
+        get() = prefs.getBoolean(KEY_MIGRATION_INVARIANT_FAILURE_PENDING, false)
+        set(value) = prefs.edit().putBoolean(KEY_MIGRATION_INVARIANT_FAILURE_PENDING, value).apply()
+
     companion object {
         private const val PREFS_NAME = "synthx_prefs"
         const val KEY_MUSIC_FOLDER_URI = "music_folder_uri"
         private const val KEY_BACKUP_FOLDER_URI = "backup_folder_uri"
         private const val KEY_NEW_ARRIVALS_FOLDER_URI = "new_arrivals_folder_uri"
         private const val KEY_LAST_DAILY_BACKUP = "last_daily_backup"
+        private const val KEY_MIGRATION_SNAPSHOT_FROM_VERSION = "migration_snapshot_from_version"
+        private const val KEY_MIGRATION_SNAPSHOT_FOR_VERSION = "migration_snapshot_for_version"
+        private const val KEY_MIGRATION_SNAPSHOT_LAUNCHES = "migration_snapshot_confirmed_launches"
+        private const val KEY_MIGRATION_INVARIANT_FAILURE_PENDING = "migration_invariant_failure_pending"
     }
 }
