@@ -97,6 +97,34 @@ class QueuePersistence(
     }
 
     /**
+     * Cursor-only write — leaves the persisted queue structure untouched. Meant for call sites
+     * where only the resume position moved and the queue itself is known not to have changed
+     * (a track transition during ordinary playback), so as not to re-persist the whole queue
+     * every few minutes for no reason. Goes through the same serialized [writeQueue] consumer
+     * as [saveQueueState], so a cursor-only write and a full write can never race each other or
+     * land out of order.
+     */
+    fun updateCursor(index: Int, positionMs: Long) {
+        val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
+        synchronized(admissionLock) {
+            if (!acceptingWrites) { permit.release(); return }
+            val accepted = writeQueue.trySend {
+                try {
+                    require(repository is AdmittedQueuePersistenceRepository) {
+                        "Queue persistence requires an already-admitted repository"
+                    }
+                    repository.setCursorAlreadyAdmitted(index, positionMs)
+                } catch (e: Exception) {
+                    runCatching { Log.w(TAG, "Cursor update failed: ${e.message}") }
+                } finally {
+                    permit.release()
+                }
+            }
+            if (accepted.isFailure) permit.release()
+        }
+    }
+
+    /**
      * Resolves ids from a live player timeline back into [Song]s — used when reconnecting to
      * a still-running playback service, where no in-memory cache already holds them. Returns
      * an empty list on failure rather than throwing, matching [loadQueue]'s failure shape:

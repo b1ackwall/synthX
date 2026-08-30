@@ -1,5 +1,6 @@
 package com.v1per.synthx.playback
 
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -31,6 +32,22 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
         refreshUpcomingQueue()
         refreshNavigationState()
         prefetchArtwork()
+        // Lightweight cursor-only persistence for the track-transition case (data 2.2):
+        // pause/onStop/onTaskRemoved are the only *full* writes, and none of them repeat
+        // during extended, uninterrupted background/notification-controlled playback — so
+        // without this, the durable resume point can go arbitrarily stale as playback
+        // auto-advances through many tracks unattended. Fires in-app regardless of whether
+        // the Activity is foregrounded: the MediaController mirrors session state from the
+        // service, so this callback still lands even when the app is backgrounded. Reads
+        // currentPosition rather than hardcoding 0 — media3 already reports the position
+        // within the new window at the moment this fires, so this is exact rather than
+        // assuming a fresh track always starts at zero (e.g. Repeat One's own seek).
+        controller?.let { ctrl ->
+            val index = ctrl.currentMediaItemIndex
+            if (index != C.INDEX_UNSET) {
+                persistence.updateCursor(index, ctrl.currentPosition)
+            }
+        }
     }
 
     override fun onRepeatModeChanged(repeatMode: Int) {

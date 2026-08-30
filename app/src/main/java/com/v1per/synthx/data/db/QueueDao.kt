@@ -58,6 +58,16 @@ interface QueueDao {
     suspend fun upsertCursor(cursor: PlaybackCursorEntity)
 
     /**
+     * Cursor-only update — leaves `queue_items` completely untouched. For call sites where the
+     * queue structure hasn't changed and rewriting it would be pure waste (e.g. a track
+     * transition during ordinary playback), as opposed to [replaceQueueAndCursor], which is for
+     * call sites where the structure itself might also need to be (re)confirmed.
+     */
+    suspend fun updateCursor(queueIndex: Int, positionMs: Long) {
+        upsertCursor(PlaybackCursorEntity(queueIndex = queueIndex, positionMs = positionMs))
+    }
+
+    /**
      * The atomic write this table pair exists for: queue structure and cursor land in the
      * same transaction, so a process death can never leave one persisted without the other.
      * [queueIndex] is the raw timeline index the caller wants to resume from; it always

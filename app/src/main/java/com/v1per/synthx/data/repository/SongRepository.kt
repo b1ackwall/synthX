@@ -144,5 +144,9 @@ internal interface AdmittedQueuePersistenceRepository {
     /** Replaces the queue structure and the resume cursor in one atomic commit — see
      *  [com.v1per.synthx.data.db.QueueDao.replaceQueueAndCursor]. */
     suspend fun setQueueStateAlreadyAdmitted(songIds: List<String>, queueIndex: Int, positionMs: Long)
+
+    /** Cursor-only counterpart of [setQueueStateAlreadyAdmitted] — see
+     *  [com.v1per.synthx.data.db.QueueDao.updateCursor]. Does not touch the persisted queue. */
+    suspend fun setCursorAlreadyAdmitted(queueIndex: Int, positionMs: Long)
     suspend fun setBaselineQueueSongsAlreadyAdmitted(songIds: List<String>)
 }

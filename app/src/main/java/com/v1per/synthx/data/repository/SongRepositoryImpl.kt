@@ -392,6 +392,13 @@ class SongRepositoryImpl(
         }
     }
 
+    override suspend fun setCursorAlreadyAdmitted(
+        queueIndex: Int,
+        positionMs: Long,
+    ) = withContext(Dispatchers.IO) {
+        queueDao.updateCursor(queueIndex, positionMs)
+    }
+
     override suspend fun getBaselineQueueSongs(): List<Song> = dbOperation { withContext(Dispatchers.IO) {
         val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
         queueDao.getBaselineQueueItems().map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
