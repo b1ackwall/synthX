@@ -284,20 +284,25 @@ class ExoPlayerEngine(
     }
 
     override fun release() {
-        releaseInternal(releasePersistence = true)
+        releaseInternal()
     }
 
     /** Stops playback without cancelling accepted FIFO writes; restore drains those next. */
     private fun releaseForRestore() {
-        releaseInternal(releasePersistence = false)
+        releaseInternal()
     }
 
-    private fun releaseInternal(releasePersistence: Boolean) {
+    // [persistence] is an app-process singleton (see QueuePersistence.create) shared with
+    // whichever other component (another engine instance recreated after this one, or the
+    // playback service's onTaskRemoved) still needs to enqueue writes — it must never be
+    // released here just because this one engine instance is tearing down. It is only ever
+    // permanently closed via QueuePersistence.quiesceAllForRestore(), called from restore's
+    // own machinery ahead of the restart-required terminal state.
+    private fun releaseInternal() {
         artworkJob?.cancel()
         engineScope.cancel()
         // Unblocks a restore still waiting on a connection that will now never land.
         controllerReady.complete(false)
-        if (releasePersistence) persistence.release()
         controller?.removeListener(listener)
         MediaController.releaseFuture(controllerFuture)
         // Cleared so the `controller?.` guards in the playback methods actually

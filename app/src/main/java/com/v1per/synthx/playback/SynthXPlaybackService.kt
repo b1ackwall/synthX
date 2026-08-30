@@ -76,6 +76,12 @@ class SynthXPlaybackService : MediaLibraryService() {
             // Read directly off the live player rather than any engine-side cache — this is
             // the actual live timeline, so it's the most correct snapshot to commit alongside
             // the cursor (see QueuePersistence.saveQueueState).
+            //
+            // QueuePersistence.create() is an app-process singleton (see its own kdoc), so
+            // this is the SAME instance/writer any live ExoPlayerEngine already holds — not a
+            // second, independently-ordered writer racing it. Without that, a still-draining
+            // write from the engine's instance (e.g. a recent updateCursor) could land after
+            // this fresher save and silently overwrite it (see general 6.7).
             val songIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }
             QueuePersistence.create(this).saveQueueState(songIds, index, player.currentPosition)
         }

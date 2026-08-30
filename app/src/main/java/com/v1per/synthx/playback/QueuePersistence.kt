@@ -34,6 +34,14 @@ import java.util.concurrent.ConcurrentHashMap
  * next mutation re-persists the correct state anyway) but is wrong if the process dies in
  * the exact window between two writes landing out of order. [writeQueue] plus the single
  * consumer in [init] forces every write to execute strictly in call order instead.
+ *
+ * That ordering guarantee only holds within one instance, so [create] hands out a single
+ * app-process singleton rather than letting each caller build its own — otherwise a
+ * ViewModel-owned [ExoPlayerEngine] and, say, the playback service reacting to a lifecycle
+ * event could each get their own [writeQueue]/writer pair with no ordering between the two,
+ * and a stale write from one could silently overwrite a fresher write from the other (see
+ * general 6.7). The plain constructor stays public for tests that deliberately want isolated,
+ * independently-draining instances.
  */
 class QueuePersistence(
     private val repository: SongRepository,
@@ -288,6 +296,13 @@ class QueuePersistence(
         instances.remove(this)
     }
 
+    /**
+     * Permanently stops admission on THIS instance. Not called on ordinary engine/ViewModel
+     * teardown any more — [create] hands out a shared app-process singleton now, so no single
+     * owner tearing down should close it out from under whichever other component still holds
+     * a reference. Kept for tests that construct a [QueuePersistence] directly and want to
+     * exercise the closed-admission path in isolation.
+     */
     fun release() {
         synchronized(admissionLock) {
             acceptingWrites = false
@@ -301,15 +316,30 @@ class QueuePersistence(
         private const val TAG = "SynthXQueue"
         private val instances = ConcurrentHashMap.newKeySet<QueuePersistence>()
 
+        @Volatile private var INSTANCE: QueuePersistence? = null
+
         /** Called by restore after admission is closed and before Room's close boundary. */
         suspend fun quiesceAllForRestore() {
             instances.toList().forEach { it.quiesceForRestore() }
         }
 
-        // Manual DI entry point, matching SongRepositoryImpl.create
+        // Manual DI entry point, matching SongRepositoryImpl.create's singleton pattern — a
+        // true app-process singleton so there is exactly one writeQueue/writer for the whole
+        // process, regardless of which component (a ViewModel-owned engine, or the playback
+        // service reacting to onTaskRemoved) asks for it. Without this, two independent
+        // instances could each accept writes with no ordering guarantee between them (see
+        // general 6.7): the service used to build its own ad-hoc instance in onTaskRemoved,
+        // which could race a still-draining write from the engine's own instance and silently
+        // lose the fresher state. Like SongRepositoryImpl's own singleton, this is not
+        // invalidated on restore — restore's terminal mode already requires a process restart,
+        // which is what rebuilds it.
         fun create(context: Context): QueuePersistence {
-            val appContext = context.applicationContext
-            return QueuePersistence(repository = SongRepositoryImpl.create(appContext))
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: run {
+                    val appContext = context.applicationContext
+                    QueuePersistence(repository = SongRepositoryImpl.create(appContext)).also { INSTANCE = it }
+                }
+            }
         }
 
         internal fun activeInstanceCountForTest(): Int = instances.size
