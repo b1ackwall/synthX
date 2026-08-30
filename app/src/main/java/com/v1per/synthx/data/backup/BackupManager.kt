@@ -80,6 +80,11 @@ class BackupManager(private val context: Context) {
                     createBackupLocked(tier, reason, cancelActiveScan)
                 }
             }
+        }.also { result ->
+            // N13: every tier/reason funnels through this one function, so recording the
+            // outcome here — success or failure — is what makes it true for all of them at
+            // once, rather than something each of the six call sites has to remember to do.
+            BackupOutcomeStore.recordBackupOutcome(context, tier, reason, result)
         }
     }
 
@@ -209,6 +214,37 @@ class BackupManager(private val context: Context) {
                     )
                 }
         }.sortedByDescending { it.timestamp }
+    }
+
+    // ------------------------------------------------------------ verification (P3.2)
+
+    /**
+     * Re-validates the most recent successful backup's actual file — integrity_check,
+     * foreign_key_check, Room identity hash, expected tables, via the same
+     * [BackupSnapshotValidator] every backup is validated with at write time — catching
+     * corruption a healthy write wouldn't have (bit rot, a provider that silently truncated
+     * the file after publish, etc.). A no-op success if there is no backup yet: nothing to
+     * verify is not a verification failure.
+     *
+     * Called from [com.v1per.synthx.MainActivity]'s existing once-per-day gate rather than a
+     * second, uncoordinated timer — see `backupDailyIfDue`.
+     */
+    suspend fun verifyMostRecentBackup(): Result<Unit> = withContext(Dispatchers.IO) {
+        val result = runCatching {
+            val backup = listBackups().firstOrNull() ?: return@runCatching
+            val stagingDirectory = File(context.noBackupFilesDir, STAGING_DIRECTORY)
+            if (!stagingDirectory.exists()) stagingDirectory.mkdirs()
+            val copy = File(stagingDirectory, "verify-${UUID.randomUUID()}.db")
+            try {
+                RestoreTransaction.copySafOnce(context, backup.databaseUri.toString(), copy)
+                BackupSnapshotValidator.validate(copy, migrationSnapshot = false)
+            } finally {
+                copy.delete()
+            }
+            Unit
+        }
+        BackupOutcomeStore.recordVerificationOutcome(context, result)
+        result
     }
 
     // --------------------------------------------------------------- restore

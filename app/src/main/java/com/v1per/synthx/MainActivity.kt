@@ -191,6 +191,12 @@ class MainActivity : ComponentActivity() {
         backupManager.createBackup(BackupTier.Daily)
             .onSuccess { preferences.lastDailyBackupTimestamp = now }
             .onFailure { e -> Log.w(TAG, "Daily backup skipped: ${e.message}") }
+
+        // P3.2: piggybacks on this same once-per-day gate rather than a second, uncoordinated
+        // timer — re-validates the most recent successful backup file itself (not just today's
+        // write), catching corruption a healthy write at the time wouldn't have caught.
+        backupManager.verifyMostRecentBackup()
+            .onFailure { e -> Log.w(TAG, "Backup verification failed: ${e.message}") }
     }
 
     private companion object {

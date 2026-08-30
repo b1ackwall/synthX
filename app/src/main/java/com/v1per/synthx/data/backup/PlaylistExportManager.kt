@@ -64,8 +64,15 @@ class PlaylistExportManager(
     private fun observeRequests() {
         scope.launch {
             requests.debounce(DEBOUNCE_MS).collect {
-                runCatching { writeExport() }
-                    .onFailure { e -> Log.w(TAG, "Playlist export skipped: ${e.message}") }
+                // No folder configured is a no-op, same as writeExport's own early return —
+                // not an attempt worth recording, since nothing was attempted.
+                if (preferences.backupFolderUri == null) return@collect
+
+                val result = runCatching { writeExport() }
+                result.onFailure { e -> Log.w(TAG, "Playlist export skipped: ${e.message}") }
+                // N13: writeExport() is the single choke point every export request funnels
+                // through (scheduleExport only enqueues), so recording here covers all of them.
+                BackupOutcomeStore.recordExportOutcome(context, result)
             }
         }
     }

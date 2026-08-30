@@ -26,6 +26,10 @@ fun BackupsAndRestoreScreen(
     val backupFolderUri by viewModel.backupFolderUri.collectAsState()
     val backupFolderError by viewModel.backupFolderError.collectAsState()
     val backupStatus by viewModel.backupStatus.collectAsState()
+    val backupHealth by viewModel.backupHealth.collectAsState()
+    val exportHealth by viewModel.exportHealth.collectAsState()
+    val verificationFailure by viewModel.verificationFailure.collectAsState()
+    val destructiveActionCount by viewModel.destructiveActionCount.collectAsState()
     val permissionDeniedMessage = stringResource(R.string.error_folder_permission_denied)
 
     val backupFolderPicker = rememberLauncherForActivityResult(
@@ -50,6 +54,10 @@ fun BackupsAndRestoreScreen(
             backupFolderPath = backupFolderUri?.let { FolderPathFormatter.format(context, it) },
             backupFolderError = backupFolderError,
             backupStatus = backupStatus,
+            backupHealth = backupHealth,
+            exportHealth = exportHealth,
+            verificationFailure = verificationFailure,
+            destructiveActionCount = destructiveActionCount,
             onPickBackupFolder = { backupFolderPicker.launch(null) },
             onBackupNow = viewModel::createManualBackup,
             onRestoreClick = onRestoreClick,
@@ -62,6 +70,10 @@ internal fun BackupsAndRestoreScreenContent(
     backupFolderPath: String?,
     backupFolderError: String?,
     backupStatus: String?,
+    backupHealth: BackupHealthState = BackupHealthState.Unknown,
+    exportHealth: ExportHealthState = ExportHealthState.Unknown,
+    verificationFailure: VerificationFailure? = null,
+    destructiveActionCount: Int = 0,
     onPickBackupFolder: () -> Unit,
     onBackupNow: () -> Unit,
     onRestoreClick: () -> Unit,
@@ -71,6 +83,10 @@ internal fun BackupsAndRestoreScreenContent(
             backupFolderPath = backupFolderPath,
             backupFolderError = backupFolderError,
             backupStatus = backupStatus,
+            backupHealth = backupHealth,
+            exportHealth = exportHealth,
+            verificationFailure = verificationFailure,
+            destructiveActionCount = destructiveActionCount,
             onPickBackupFolder = onPickBackupFolder,
             onBackupNow = onBackupNow,
             onRestoreClick = onRestoreClick,

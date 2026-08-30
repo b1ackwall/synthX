@@ -185,6 +185,13 @@
     <string name="error_backup_folder_nested">Backup folder can\'t be the same as, or inside, your music folder. Pick a separate folder.</string>
     <string name="error_backup_folder_grant_lost">synthX no longer has write access to your backup folder. Reselect it below.</string>
     <string name="backup_folder_needs_attention">Backup folder needs attention</string>
+    <string name="backup_health_succeeded">Last backup: %1$s (%2$s)</string>
+    <string name="backup_health_failed">Last backup attempt failed %1$s: %2$s</string>
+    <string name="backup_health_unknown">No backup has been created yet</string>
+    <string name="backup_verification_failed">Most recent backup failed a health check %1$s: %2$s</string>
+    <string name="export_health_succeeded">Last playlist export: %1$s</string>
+    <string name="export_health_failed">Last playlist export failed %1$s: %2$s</string>
+    <string name="destructive_action_warning">%1$d destructive action(s) since your last successful backup</string>
 
     <!-- Playback -->
     <string name="playback_error_failed">Couldn\'t play %1$s</string>

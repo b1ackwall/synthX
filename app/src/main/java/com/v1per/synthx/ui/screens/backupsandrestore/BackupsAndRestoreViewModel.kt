@@ -7,17 +7,42 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupFolderHealth
+import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupManager
+import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.scanner.RootNesting
+import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 private const val StatusMessageDisplayMs = 4_000L
+
+/** N13/P3.1: whichever of "last successful backup" or "a more recent failed attempt" is current. */
+sealed interface BackupHealthState {
+    data object Unknown : BackupHealthState
+    data class Succeeded(val timestamp: Long, val tier: BackupTier) : BackupHealthState
+    data class Failed(val timestamp: Long, val message: String?) : BackupHealthState
+}
+
+/** N13/P3.1: the equivalent state for the playlist export sidecar. */
+sealed interface ExportHealthState {
+    data object Unknown : ExportHealthState
+    data class Succeeded(val timestamp: Long) : ExportHealthState
+    data class Failed(val timestamp: Long, val message: String?) : ExportHealthState
+}
+
+/** P3.2: only surfaced when the most recent known-good backup fails re-validation — a distinct
+ * failure mode from a backup attempt itself failing, so it is not folded into [BackupHealthState]. */
+data class VerificationFailure(val timestamp: Long, val message: String?)
 
 class BackupsAndRestoreViewModel(
     private val context: Context,
@@ -36,7 +61,45 @@ class BackupsAndRestoreViewModel(
     private val _backupStatus = MutableStateFlow<String?>(null)
     val backupStatus: StateFlow<String?> = _backupStatus.asStateFlow()
 
+    private val _lastSuccessfulBackup = MutableStateFlow<BackupInfo?>(null)
+
+    /** N13/P3.1: last successful backup, unless a failed attempt happened more recently. */
+    val backupHealth: StateFlow<BackupHealthState> = combine(
+        _lastSuccessfulBackup,
+        BackupOutcomeStore.lastBackupOutcome,
+    ) { success, outcome ->
+        when {
+            outcome != null && !outcome.succeeded && (success == null || outcome.timestamp > success.timestamp) ->
+                BackupHealthState.Failed(outcome.timestamp, outcome.failureMessage)
+            success != null -> BackupHealthState.Succeeded(success.timestamp, success.tier)
+            else -> BackupHealthState.Unknown
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BackupHealthState.Unknown)
+
+    /** N13/P3.1: last playlist-export attempt outcome. */
+    val exportHealth: StateFlow<ExportHealthState> = BackupOutcomeStore.lastExportOutcome
+        .map { outcome ->
+            when {
+                outcome == null -> ExportHealthState.Unknown
+                outcome.succeeded -> ExportHealthState.Succeeded(outcome.timestamp)
+                else -> ExportHealthState.Failed(outcome.timestamp, outcome.failureMessage)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ExportHealthState.Unknown)
+
+    /** P3.2: non-null only when the most recent known-good backup failed re-validation. */
+    val verificationFailure: StateFlow<VerificationFailure?> = BackupOutcomeStore.lastVerificationOutcome
+        .map { outcome -> outcome?.takeIf { !it.succeeded }?.let { VerificationFailure(it.timestamp, it.failureMessage) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** P3.3: delete-song/delete-playlist mutations since the last successful backup. */
+    val destructiveActionCount: StateFlow<Int> = DestructiveActionTracker.count
+
     init {
+        viewModelScope.launch {
+            _lastSuccessfulBackup.value = runCatching { backupManager.listBackups().firstOrNull() }
+                .getOrNull()
+        }
         // Re-validate on every screen entry (P7.3) — a fresh ViewModel is constructed each
         // time this screen is opened, so this doubles as "check whenever the user looks."
         // Persistent (not showTemporarily): a broken folder should stay visible until the
@@ -116,6 +179,10 @@ class BackupsAndRestoreViewModel(
         viewModelScope.launch {
             _backupStatus.value = context.getString(R.string.backup_status_backing_up)
             val result = backupManager.createBackup(BackupTier.Manual)
+            result.onSuccess {
+                _lastSuccessfulBackup.value = runCatching { backupManager.listBackups().firstOrNull() }
+                    .getOrNull()
+            }
             _backupStatus.showTemporarily(
                 result.fold(
                     onSuccess = { context.getString(R.string.backup_status_created) },

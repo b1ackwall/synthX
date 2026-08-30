@@ -24,6 +24,7 @@ import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.ScanResult
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.preferences.DestructiveActionTracker
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -177,6 +178,7 @@ class SongRepositoryImpl(
         }
 
         deleteSongArtFile(context, id)
+        DestructiveActionTracker.recordDestructiveAction(context)
         Unit
     } }
 
@@ -312,6 +314,7 @@ class SongRepositoryImpl(
         backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_PLAYLIST)
         playlistDao.deletePlaylist(id)
         playlistExportManager.scheduleExport()
+        DestructiveActionTracker.recordDestructiveAction(context)
     }
 
     // Joins straight to playlist_songs (position order, is_missing filter) rather than
