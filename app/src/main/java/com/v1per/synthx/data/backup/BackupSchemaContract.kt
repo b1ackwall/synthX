@@ -93,6 +93,15 @@ internal object BackupSchemaContracts {
                 setOf("queue_items", "queue_baseline_items", "playback_cursor"),
             hasMigrationPathToCurrent = true,
         ),
+        // 10_11 adds shuffle_enabled/repeat_mode to playback_cursor (see data 2.4) — managed
+        // table set is unchanged from 10, only the Room identity hash moves.
+        BackupSchemaContract(
+            userVersion = 11,
+            roomIdentityHash = "9c2e0a9da22d73e56293b497277fef53",
+            expectedTables = coreTables +
+                setOf("queue_items", "queue_baseline_items", "playback_cursor"),
+            hasMigrationPathToCurrent = true,
+        ),
     ).associateBy { it.userVersion }
 
     val current: BackupSchemaContract

@@ -368,7 +368,14 @@ class SongRepositoryImpl(
     override suspend fun getQueueSongIdsAndCursor(): Pair<List<String>, QueueCursor?> =
         dbOperation { withContext(Dispatchers.IO) {
             val (ids, cursor) = queueDao.getQueueAndCursor()
-            ids to cursor?.let { QueueCursor(index = it.queueIndex, positionMs = it.positionMs) }
+            ids to cursor?.let {
+                QueueCursor(
+                    index = it.queueIndex,
+                    positionMs = it.positionMs,
+                    shuffleEnabled = it.shuffleEnabled,
+                    repeatMode = it.repeatMode,
+                )
+            }
         } }
 
     override suspend fun setQueueSongs(songIds: List<String>) = dbOperation { withContext(Dispatchers.IO) {
@@ -397,6 +404,14 @@ class SongRepositoryImpl(
         positionMs: Long,
     ) = withContext(Dispatchers.IO) {
         queueDao.updateCursor(queueIndex, positionMs)
+    }
+
+    override suspend fun setShuffleEnabledAlreadyAdmitted(enabled: Boolean) = withContext(Dispatchers.IO) {
+        queueDao.updateShuffleEnabled(enabled)
+    }
+
+    override suspend fun setRepeatModeAlreadyAdmitted(mode: Int) = withContext(Dispatchers.IO) {
+        queueDao.updateRepeatMode(mode)
     }
 
     override suspend fun getBaselineQueueSongs(): List<Song> = dbOperation { withContext(Dispatchers.IO) {

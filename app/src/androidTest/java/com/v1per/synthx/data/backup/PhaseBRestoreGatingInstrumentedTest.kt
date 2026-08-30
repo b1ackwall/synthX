@@ -45,7 +45,7 @@ class PhaseBRestoreGatingInstrumentedTest : PhaseBRestoreTestBase() {
     @Test fun repositoryAndQueueCannotWriteAfterClose() = runBlocking {
         createLive("state-a")
         val repository = SongRepositoryImpl.create(context)
-        val queue = QueuePersistence(repository, null)
+        val queue = QueuePersistence(repository)
         RestoreCoordinator.markClosed()
         expectSuspendFailure { repository.isInAnyPlaylist("missing") }
         queue.saveQueueState(emptyList(), -1, 0L)

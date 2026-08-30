@@ -89,6 +89,35 @@ interface QueueDao {
     suspend fun getQueueAndCursor(): Pair<List<String>, PlaybackCursorEntity?> =
         getQueueSongIds() to getCursor()
 
+    @Query("UPDATE playback_cursor SET shuffle_enabled = :enabled WHERE id = 0")
+    suspend fun updateShuffleEnabledRaw(enabled: Boolean): Int
+
+    @Query("UPDATE playback_cursor SET repeat_mode = :mode WHERE id = 0")
+    suspend fun updateRepeatModeRaw(mode: Int): Int
+
+    /**
+     * Shuffle-only mode write — leaves `queue_index`/`position_ms` (and `repeat_mode`)
+     * untouched. A shuffle toggle doesn't coincide with a cursor or queue-structure change,
+     * so this is its own narrow update rather than routed through [replaceQueueAndCursor] or
+     * [updateCursor]. Falls back to inserting a fresh row only when no cursor exists yet
+     * (shuffle toggled before anything was ever persisted) — the common case is a plain
+     * UPDATE against the row [replaceQueueAndCursor]/[updateCursor] already maintain.
+     */
+    @Transaction
+    suspend fun updateShuffleEnabled(enabled: Boolean) {
+        if (updateShuffleEnabledRaw(enabled) == 0) {
+            upsertCursor(PlaybackCursorEntity(queueIndex = -1, positionMs = 0L, shuffleEnabled = enabled))
+        }
+    }
+
+    /** Repeat-mode counterpart of [updateShuffleEnabled] — same narrow-update shape. */
+    @Transaction
+    suspend fun updateRepeatMode(mode: Int) {
+        if (updateRepeatModeRaw(mode) == 0) {
+            upsertCursor(PlaybackCursorEntity(queueIndex = -1, positionMs = 0L, repeatMode = mode))
+        }
+    }
+
     // --- baseline order (mirrors queue_items above; see BaselineQueueItemEntity's kdoc) ---
 
     @Transaction

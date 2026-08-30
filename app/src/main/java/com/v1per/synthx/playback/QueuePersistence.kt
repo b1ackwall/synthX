@@ -9,7 +9,6 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.repository.AdmittedQueuePersistenceRepository
 import com.v1per.synthx.data.repository.QueueCursor
 import com.v1per.synthx.data.backup.RestoreCoordinator
-import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,9 +18,11 @@ import kotlinx.coroutines.Job
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Everything the playback engine needs to survive a process death: the queue structure and
- * resume cursor (index/position) together in Room — see [saveQueueState] — plus shuffle/repeat
- * in SharedPreferences.
+ * Everything the playback engine needs to survive a process death: the queue structure,
+ * resume cursor (index/position), and shuffle/repeat mode, all together in Room — see
+ * [saveQueueState] — so a restore's whole-database-file swap carries every one of them
+ * atomically (see data 2.4; shuffle/repeat previously lived in SharedPreferences, which a
+ * restore never touches).
  *
  * Kept out of [ExoPlayerEngine] so the engine stays a media3 adapter rather than growing a
  * second job. Writes are fire-and-forget from the caller's perspective: the engine mutates
@@ -36,7 +37,6 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class QueuePersistence(
     private val repository: SongRepository,
-    private val preferences: PreferencesManager?,
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -67,6 +67,8 @@ class QueuePersistence(
         val startIndex: Int,
         val positionMs: Long,
         val droppedCount: Int,
+        val shuffleEnabled: Boolean,
+        val repeatMode: Int,
     )
 
     /**
@@ -166,14 +168,52 @@ class QueuePersistence(
         }
     }
 
-    var shuffleEnabled: Boolean
-        get() = requirePreferences().shuffleEnabled
-        set(value) { requirePreferences().shuffleEnabled = value }
+    /**
+     * Shuffle-only write — leaves the persisted queue/cursor untouched. A shuffle toggle
+     * doesn't coincide with either changing, so this is its own narrow write rather than
+     * folded into [saveQueueState] or [updateCursor]; going through the same [writeQueue]
+     * consumer as those two still keeps every write serialized in call order.
+     */
+    fun updateShuffleEnabled(enabled: Boolean) {
+        val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
+        synchronized(admissionLock) {
+            if (!acceptingWrites) { permit.release(); return }
+            val accepted = writeQueue.trySend {
+                try {
+                    require(repository is AdmittedQueuePersistenceRepository) {
+                        "Queue persistence requires an already-admitted repository"
+                    }
+                    repository.setShuffleEnabledAlreadyAdmitted(enabled)
+                } catch (e: Exception) {
+                    runCatching { Log.w(TAG, "Shuffle mode update failed: ${e.message}") }
+                } finally {
+                    permit.release()
+                }
+            }
+            if (accepted.isFailure) permit.release()
+        }
+    }
 
-    /** media3's Player.REPEAT_MODE_* int, stored raw so no mapping is needed at either end. */
-    var repeatMode: Int
-        get() = requirePreferences().repeatMode
-        set(value) { requirePreferences().repeatMode = value }
+    /** Repeat-mode counterpart of [updateShuffleEnabled] — same narrow-write shape. */
+    fun updateRepeatMode(mode: Int) {
+        val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
+        synchronized(admissionLock) {
+            if (!acceptingWrites) { permit.release(); return }
+            val accepted = writeQueue.trySend {
+                try {
+                    require(repository is AdmittedQueuePersistenceRepository) {
+                        "Queue persistence requires an already-admitted repository"
+                    }
+                    repository.setRepeatModeAlreadyAdmitted(mode)
+                } catch (e: Exception) {
+                    runCatching { Log.w(TAG, "Repeat mode update failed: ${e.message}") }
+                } finally {
+                    permit.release()
+                }
+            }
+            if (accepted.isFailure) permit.release()
+        }
+    }
 
     /**
      * Null when there is nothing to restore: a fresh install, or a saved queue whose songs
@@ -216,6 +256,8 @@ class QueuePersistence(
             startIndex = if (resolvedIndex >= 0) resolvedIndex else 0,
             positionMs = if (resolvedIndex >= 0) (cursor?.positionMs ?: 0L) else 0L,
             droppedCount = savedIds.size - songs.size,
+            shuffleEnabled = cursor?.shuffleEnabled ?: false,
+            repeatMode = cursor?.repeatMode ?: 0,
         )
     }
 
@@ -267,15 +309,9 @@ class QueuePersistence(
         // Manual DI entry point, matching SongRepositoryImpl.create
         fun create(context: Context): QueuePersistence {
             val appContext = context.applicationContext
-            return QueuePersistence(
-                repository = SongRepositoryImpl.create(appContext),
-                preferences = PreferencesManager(appContext),
-            )
+            return QueuePersistence(repository = SongRepositoryImpl.create(appContext))
         }
 
         internal fun activeInstanceCountForTest(): Int = instances.size
     }
-
-    private fun requirePreferences(): PreferencesManager =
-        requireNotNull(preferences) { "Playback preferences are unavailable" }
 }

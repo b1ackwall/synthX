@@ -44,23 +44,11 @@ class PreferencesManager(context: Context) {
         get() = prefs.getLong(KEY_LAST_DAILY_BACKUP, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_DAILY_BACKUP, value).apply()
 
-    /** Queue shuffle state, restored on launch alongside the queue itself. */
-    var shuffleEnabled: Boolean
-        get() = prefs.getBoolean(KEY_SHUFFLE_ENABLED, false)
-        set(value) = prefs.edit().putBoolean(KEY_SHUFFLE_ENABLED, value).apply()
-
-    /** Stored as media3's Player.REPEAT_MODE_* int; 0 (REPEAT_MODE_OFF) is the default. */
-    var repeatMode: Int
-        get() = prefs.getInt(KEY_REPEAT_MODE, 0)
-        set(value) = prefs.edit().putInt(KEY_REPEAT_MODE, value).apply()
-
     companion object {
         private const val PREFS_NAME = "synthx_prefs"
         const val KEY_MUSIC_FOLDER_URI = "music_folder_uri"
         private const val KEY_BACKUP_FOLDER_URI = "backup_folder_uri"
         private const val KEY_NEW_ARRIVALS_FOLDER_URI = "new_arrivals_folder_uri"
         private const val KEY_LAST_DAILY_BACKUP = "last_daily_backup"
-        private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
-        private const val KEY_REPEAT_MODE = "repeat_mode"
     }
 }

@@ -52,7 +52,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
 
     override fun onRepeatModeChanged(repeatMode: Int) {
         _repeatMode.value = repeatMode.toRepeatMode()
-        persistence.repeatMode = repeatMode
+        persistence.updateRepeatMode(repeatMode)
         prefetchArtwork()
         refreshNavigationState()
     }

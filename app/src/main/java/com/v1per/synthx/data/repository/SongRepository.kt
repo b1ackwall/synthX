@@ -135,9 +135,10 @@ interface SongRepository {
 }
 
 /** The saved resume position: a raw index into the queue as persisted alongside it, and the
- *  playback position within that item. See PlaybackCursorEntity's kdoc for why these two are
- *  never written independently of the queue structure any more. */
-data class QueueCursor(val index: Int, val positionMs: Long)
+ *  playback position within that item, plus the shuffle/repeat mode the queue was in. See
+ *  PlaybackCursorEntity's kdoc for why none of these are written independently of the queue
+ *  structure any more. */
+data class QueueCursor(val index: Int, val positionMs: Long, val shuffleEnabled: Boolean, val repeatMode: Int)
 
 /** Internal queue-only contract: the caller already owns a RestoreCoordinator operation permit. */
 internal interface AdmittedQueuePersistenceRepository {
@@ -149,4 +150,10 @@ internal interface AdmittedQueuePersistenceRepository {
      *  [com.v1per.synthx.data.db.QueueDao.updateCursor]. Does not touch the persisted queue. */
     suspend fun setCursorAlreadyAdmitted(queueIndex: Int, positionMs: Long)
     suspend fun setBaselineQueueSongsAlreadyAdmitted(songIds: List<String>)
+
+    /** Narrow shuffle-mode write — see [com.v1per.synthx.data.db.QueueDao.updateShuffleEnabled]. */
+    suspend fun setShuffleEnabledAlreadyAdmitted(enabled: Boolean)
+
+    /** Narrow repeat-mode write — see [com.v1per.synthx.data.db.QueueDao.updateRepeatMode]. */
+    suspend fun setRepeatModeAlreadyAdmitted(mode: Int)
 }

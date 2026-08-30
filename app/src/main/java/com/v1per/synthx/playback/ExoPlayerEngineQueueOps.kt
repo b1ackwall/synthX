@@ -96,14 +96,14 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
         artworkLoadedIds.add(startSong.id)
 
         ctrl.setMediaItems(mediaItems, restored.startIndex, restored.positionMs)
-        ctrl.repeatMode = persistence.repeatMode
+        ctrl.repeatMode = restored.repeatMode
         ctrl.prepare()
 
         baselineManager.restore(restoredBaseline)
         // Plain field set — no media3 involvement, no rebuild. The active queue just
         // loaded from queue_items already reflects whatever order (shuffled or not)
         // was live when the app last closed, so there is nothing to reconstruct.
-        _shuffleEnabled.value = persistence.shuffleEnabled
+        _shuffleEnabled.value = restored.shuffleEnabled
 
         // Not routed through onQueueStructureChanged: the persist below is conditional,
         // and a restored queue counts as pristine — the customisation flag is session
@@ -162,7 +162,7 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
     }
 
     _shuffleEnabled.value = enabled
-    persistence.shuffleEnabled = enabled
+    persistence.updateShuffleEnabled(enabled)
     onQueueReordered()
 }
 
