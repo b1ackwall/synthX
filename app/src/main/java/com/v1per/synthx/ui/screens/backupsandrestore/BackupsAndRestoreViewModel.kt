@@ -6,8 +6,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.R
+import com.v1per.synthx.data.backup.BackupFolderHealth
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupTier
+import com.v1per.synthx.data.scanner.RootNesting
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +36,26 @@ class BackupsAndRestoreViewModel(
     private val _backupStatus = MutableStateFlow<String?>(null)
     val backupStatus: StateFlow<String?> = _backupStatus.asStateFlow()
 
+    init {
+        // Re-validate on every screen entry (P7.3) — a fresh ViewModel is constructed each
+        // time this screen is opened, so this doubles as "check whenever the user looks."
+        // Persistent (not showTemporarily): a broken folder should stay visible until the
+        // user fixes it, not vanish after 4s while nothing has actually changed.
+        preferencesManager.backupFolderUri?.let { Uri.parse(it) }?.let { uri ->
+            viewModelScope.launch {
+                when (BackupFolderHealth.check(context, backupManager, uri)) {
+                    BackupFolderHealth.Result.Healthy -> Unit
+                    BackupFolderHealth.Result.GrantLost ->
+                        _backupFolderError.value =
+                            context.getString(R.string.error_backup_folder_grant_lost)
+                    BackupFolderHealth.Result.Unwritable ->
+                        _backupFolderError.value =
+                            context.getString(R.string.backup_status_folder_create_failed)
+                }
+            }
+        }
+    }
+
     private fun MutableStateFlow<String?>.showTemporarily(message: String?) {
         value = message
         viewModelScope.launch {
@@ -46,22 +68,49 @@ class BackupsAndRestoreViewModel(
         _backupFolderError.value = message
     }
 
+    /**
+     * Validates before persisting anything (data 2.5): a folder that fails nesting or
+     * structure validation, or throws, must never reach [PreferencesManager.backupFolderUri].
+     * The whole body runs inside this one coroutine's own try/catch (general 7.4) — nothing
+     * here is left to a scope that outlives the picker callback's own (now-closed) catch.
+     */
     fun saveBackupFolder(uri: Uri) {
-        preferencesManager.backupFolderUri = uri.toString()
-        _backupFolderUri.value = uri
-        _backupFolderError.value = null
         viewModelScope.launch {
-            val created = backupManager.ensureFolderStructure(uri)
-            if (created) {
-                _backupFolderError.value = null
-                _backupStatus.value = null
-            } else {
-                _backupFolderError.showTemporarily(
-                    context.getString(R.string.backup_status_folder_create_failed)
-                )
-            }
+            runCatching {
+                val nestsAudioRoot = preferencesManager.configuredAudioRootUris().any { audioRoot ->
+                    RootNesting.detect(context, uri, audioRoot).isConflict
+                }
+                if (nestsAudioRoot) {
+                    return@runCatching Outcome.NESTED
+                }
+                if (backupManager.ensureFolderStructure(uri)) Outcome.OK else Outcome.UNUSABLE
+            }.fold(
+                onSuccess = { outcome ->
+                    when (outcome) {
+                        Outcome.OK -> {
+                            preferencesManager.backupFolderUri = uri.toString()
+                            _backupFolderUri.value = uri
+                            _backupFolderError.value = null
+                            _backupStatus.value = null
+                        }
+                        Outcome.NESTED -> _backupFolderError.showTemporarily(
+                            context.getString(R.string.error_backup_folder_nested)
+                        )
+                        Outcome.UNUSABLE -> _backupFolderError.showTemporarily(
+                            context.getString(R.string.backup_status_folder_create_failed)
+                        )
+                    }
+                },
+                onFailure = {
+                    _backupFolderError.showTemporarily(
+                        context.getString(R.string.backup_status_folder_check_failed)
+                    )
+                },
+            )
         }
     }
+
+    private enum class Outcome { OK, NESTED, UNUSABLE }
 
     fun createManualBackup() {
         viewModelScope.launch {

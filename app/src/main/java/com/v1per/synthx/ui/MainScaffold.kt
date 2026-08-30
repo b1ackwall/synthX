@@ -2,13 +2,16 @@ package com.v1per.synthx.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -37,6 +40,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.v1per.synthx.R
+import com.v1per.synthx.data.backup.BackupFolderLaunchCheck
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackError
@@ -51,7 +55,9 @@ import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
 import com.v1per.synthx.ui.screens.songs.SortBottomSheet
 import com.v1per.synthx.ui.screens.songs.SortOrder
 import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.channels.BufferOverflow
@@ -154,6 +160,31 @@ private fun RestoreTerminalSurface(
     )
 }
 
+/**
+ * Minimal, non-blocking notice for P7.2 — [BackupFolderLaunchCheck] runs once per process and
+ * this is its only surface. Reuses the plain Text-row shape already used for backupFolderError
+ * on the Backups & Restore screen itself (see BackupSection.kt) rather than introducing a new
+ * banner system; tapping it clears the flag and hands off to that screen, where Fix 2's own
+ * re-check and the actual repair flow (Fix 1) live.
+ */
+@Composable
+private fun BackupFolderNotice(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .background(SurfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
+    ) {
+        Text(
+            text = stringResource(R.string.backup_folder_needs_attention),
+            style = MaterialTheme.typography.bodySmall,
+            color = Error,
+        )
+    }
+}
+
 @Composable
 private fun NormalShell(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -206,6 +237,8 @@ private fun NormalShell(navController: NavHostController) {
     // currentSong stays here: chromeBottomPadding below and the SnackbarHost Box's padding
     // both derive from it, and unlike position it only changes when the song itself changes.
     val currentSong by playbackViewModel.currentSong.collectAsState()
+
+    val backupFolderNeedsAttention by BackupFolderLaunchCheck.grantLost.collectAsState()
 
     // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerSheet and used
     // to slide the bottom nav down in lockstep with the sheet's expansion.
@@ -290,6 +323,15 @@ private fun NormalShell(navController: NavHostController) {
                 playbackViewModel = playbackViewModel,
                 onSearchReselected = { searchReselectEvents.tryEmit(Unit) },
             )
+
+            if (backupFolderNeedsAttention) {
+                BackupFolderNotice(
+                    onClick = {
+                        BackupFolderLaunchCheck.dismiss()
+                        navController.navigate(Screen.BackupsAndRestore.route)
+                    },
+                )
+            }
         }
 
         // Declared after BottomChromeOverlay (not nested inside SynthXNavHost) so it draws

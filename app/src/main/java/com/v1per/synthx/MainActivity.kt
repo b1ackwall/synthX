@@ -26,6 +26,7 @@ import androidx.work.WorkManager
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import com.v1per.synthx.data.backup.BackupFolderLaunchCheck
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.DatabaseStartupGate
@@ -138,6 +139,11 @@ class MainActivity : ComponentActivity() {
         // Resolved on the main thread before the coroutine: ViewModel creation (and the
         // MediaController binding it starts) belongs there, unlike the call below.
         val playback = playbackViewModel
+
+        // P7.2: purely informational, never blocks — see BackupFolderLaunchCheck's kdoc for
+        // why this can't reuse DatabaseStartupGate, and how it stays a once-per-process check
+        // across Activity recreation despite this function re-running on every one of those.
+        BackupFolderLaunchCheck.runOnce(applicationContext, lifecycleScope)
 
         lifecycleScope.launch(Dispatchers.IO) {
             backupDailyIfDue(preferences, backupManager)
