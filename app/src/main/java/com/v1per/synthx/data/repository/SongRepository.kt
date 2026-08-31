@@ -1,6 +1,7 @@
 package com.v1per.synthx.data.repository
 
 import android.net.Uri
+import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
 import com.v1per.synthx.data.scanner.ScanResult
 import kotlinx.coroutines.flow.Flow
 
@@ -66,14 +67,16 @@ interface SongRepository {
     suspend fun isInAnyPlaylist(songId: String): Boolean
 
     /**
-     * Temporary debug tooling — safe to delete independently of PlaylistSeeder. Bulk version
-     * of [dismissFromStarred] for restoring test state after a fresh install/empty DB, not a
-     * production feature. See [com.v1per.synthx.data.db.SongDao.removeOrganizedFromStarred]
-     * for the full removal checklist.
+     * Debug tooling: read-only audit of the root music folder — walks the live filesystem
+     * and classifies every audio file found there against the DB (unorganized vs. unindexed),
+     * without writing anything. See
+     * [com.v1per.synthx.data.scanner.checkRootLibraryOrganization] for the classification
+     * rules.
      *
-     * @return the number of songs actually cleared.
+     * @return `null` if [musicFolderUri]'s root can't currently be resolved (not configured,
+     *   revoked grant, ejected volume, etc.) rather than a false "fully organized" result.
      */
-    suspend fun removeOrganizedFromStarred(): Int
+    suspend fun checkRootLibraryOrganization(musicFolderUri: Uri): RootOrganizationCheckResult?
 
     // Groups
     fun getAllGroups(): Flow<List<PlaylistGroup>>

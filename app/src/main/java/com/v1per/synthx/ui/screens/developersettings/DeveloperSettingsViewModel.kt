@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.screens.developersettings
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,6 +11,8 @@ import com.v1per.synthx.data.playlistseed.PlaylistSeedManifestGenerator
 import com.v1per.synthx.data.playlistseed.PlaylistSeedManifestRegenerationResult
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
+import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +23,7 @@ class DeveloperSettingsViewModel internal constructor(
     private val playlistSeedBootstrapper: PlaylistSeedBootstrapper,
     private val playlistSeedManifestGenerator: PlaylistSeedManifestGenerator,
     private val repository: SongRepository,
+    private val preferencesManager: PreferencesManager,
 ) : ViewModel() {
 
     private val _isSeeding = MutableStateFlow(false)
@@ -36,13 +40,17 @@ class DeveloperSettingsViewModel internal constructor(
     val regenerateSeedManifestResult: StateFlow<PlaylistSeedManifestRegenerationResult?> =
         _regenerateSeedManifestResult.asStateFlow()
 
-    private val _removeOrganizedFromStarredStatus = MutableStateFlow<String?>(null)
-    val removeOrganizedFromStarredStatus: StateFlow<String?> =
-        _removeOrganizedFromStarredStatus.asStateFlow()
+    private val _rootOrganizationCheckStatus = MutableStateFlow<String?>(null)
+    val rootOrganizationCheckStatus: StateFlow<String?> =
+        _rootOrganizationCheckStatus.asStateFlow()
 
-    private val _isRemovingOrganizedFromStarred = MutableStateFlow(false)
-    val isRemovingOrganizedFromStarred: StateFlow<Boolean> =
-        _isRemovingOrganizedFromStarred.asStateFlow()
+    private val _isCheckingRootOrganization = MutableStateFlow(false)
+    val isCheckingRootOrganization: StateFlow<Boolean> =
+        _isCheckingRootOrganization.asStateFlow()
+
+    private val _rootOrganizationCheckResult = MutableStateFlow<RootOrganizationCheckResult?>(null)
+    val rootOrganizationCheckResult: StateFlow<RootOrganizationCheckResult?> =
+        _rootOrganizationCheckResult.asStateFlow()
 
     fun seedPlaylistsFromManifest() {
         if (_isSeeding.value) return
@@ -78,24 +86,31 @@ class DeveloperSettingsViewModel internal constructor(
         _regenerateSeedManifestResult.value = null
     }
 
-    fun removeOrganizedFromStarred() {
-        if (_isRemovingOrganizedFromStarred.value) return
+    fun checkRootLibraryOrganization() {
+        if (_isCheckingRootOrganization.value) return
 
         viewModelScope.launch {
-            _isRemovingOrganizedFromStarred.value = true
+            _isCheckingRootOrganization.value = true
             try {
-                val count = repository.removeOrganizedFromStarred()
-                _removeOrganizedFromStarredStatus.showTemporarily(
-                    if (count > 0) {
-                        "Removed $count songs from Starred"
-                    } else {
-                        "No organized songs to remove"
-                    }
-                )
+                val musicFolderUri = preferencesManager.musicFolderUri?.let(Uri::parse)
+                if (musicFolderUri == null) {
+                    _rootOrganizationCheckStatus.showTemporarily("No music folder configured")
+                    return@launch
+                }
+                val result = repository.checkRootLibraryOrganization(musicFolderUri)
+                if (result == null) {
+                    _rootOrganizationCheckStatus.showTemporarily("Music folder not accessible")
+                } else {
+                    _rootOrganizationCheckResult.value = result
+                }
             } finally {
-                _isRemovingOrganizedFromStarred.value = false
+                _isCheckingRootOrganization.value = false
             }
         }
+    }
+
+    fun dismissRootOrganizationCheckResult() {
+        _rootOrganizationCheckResult.value = null
     }
 
     private fun MutableStateFlow<String?>.showTemporarily(message: String?) {
@@ -119,6 +134,7 @@ class DeveloperSettingsViewModel internal constructor(
                 ),
                 playlistSeedManifestGenerator = PlaylistSeedManifestGenerator.create(appContext),
                 repository = SongRepositoryImpl.create(appContext),
+                preferencesManager = PreferencesManager(appContext),
             ) as T
         }
     }

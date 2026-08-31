@@ -22,7 +22,9 @@ import androidx.room.withTransaction
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import com.v1per.synthx.data.scanner.FolderScanner
+import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
 import com.v1per.synthx.data.scanner.ScanResult
+import com.v1per.synthx.data.scanner.walkAndClassifyRootOrganization
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import java.util.UUID
@@ -244,13 +246,12 @@ class SongRepositoryImpl(
         songDao.isInAnyPlaylist(songId)
     }
 
-    // Temporary debug tooling — safe to delete independently of PlaylistSeeder. See
-    // SongDao.removeOrganizedFromStarred's doc comment for the full removal checklist. No
-    // backupManager.createBackup here, same reasoning as dismissFromStarred above: this only
-    // clears a triage flag, nothing destructive to playlist data.
-    override suspend fun removeOrganizedFromStarred(): Int = dbOperation {
-        songDao.removeOrganizedFromStarred()
-    }
+    // Debug tooling, read-only — no backupManager.createBackup here, unlike deleteSong: this
+    // pass never writes to the DB.
+    override suspend fun checkRootLibraryOrganization(musicFolderUri: Uri): RootOrganizationCheckResult? =
+        dbOperation {
+            walkAndClassifyRootOrganization(context, songDao, musicFolderUri)
+        }
 
     override fun getMissingSongs(): Flow<List<MissingSongInfo>> =
         RepositoryDbFlow.observe { songDao.getMissingSongs() }

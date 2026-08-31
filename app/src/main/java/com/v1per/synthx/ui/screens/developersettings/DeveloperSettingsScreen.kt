@@ -32,8 +32,9 @@ fun DeveloperSettingsScreen(
     val seedResult by viewModel.seedResult.collectAsState()
     val isRegeneratingSeedManifest by viewModel.isRegeneratingSeedManifest.collectAsState()
     val regenerateSeedManifestResult by viewModel.regenerateSeedManifestResult.collectAsState()
-    val removeOrganizedStatus by viewModel.removeOrganizedFromStarredStatus.collectAsState()
-    val isRemovingOrganized by viewModel.isRemovingOrganizedFromStarred.collectAsState()
+    val rootOrganizationCheckStatus by viewModel.rootOrganizationCheckStatus.collectAsState()
+    val isCheckingRootOrganization by viewModel.isCheckingRootOrganization.collectAsState()
+    val rootOrganizationCheckResult by viewModel.rootOrganizationCheckResult.collectAsState()
     var showConfirmation by remember { mutableStateOf(false) }
     var showRegenerateConfirmation by remember { mutableStateOf(false) }
 
@@ -48,10 +49,12 @@ fun DeveloperSettingsScreen(
             enabled = !isRegeneratingSeedManifest,
             onClick = { showRegenerateConfirmation = true },
         )
-        RemoveOrganizedFromStarredSection(
-            removeOrganizedStatus = removeOrganizedStatus,
-            isRemovingOrganized = isRemovingOrganized,
-            onRemoveOrganizedFromStarred = viewModel::removeOrganizedFromStarred,
+        VerifyRootOrganizationSection(
+            checkStatus = rootOrganizationCheckStatus,
+            isChecking = isCheckingRootOrganization,
+            result = rootOrganizationCheckResult,
+            onCheckRootLibraryOrganization = viewModel::checkRootLibraryOrganization,
+            onDismissResult = viewModel::dismissRootOrganizationCheckResult,
         )
     }
 
