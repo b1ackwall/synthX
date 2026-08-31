@@ -25,9 +25,7 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -38,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupInfo
+import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.LoadingIndicator
@@ -64,28 +63,60 @@ fun RestoreScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val outcome by viewModel.outcome.collectAsState()
-    var pendingRestore by remember { mutableStateOf<BackupInfo?>(null) }
+    val preview by viewModel.preview.collectAsState()
 
     val isRestoring = outcome is RestoreOutcome.InProgress
+    val isPreviewing = preview !is RestorePreview.Idle
 
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
         RestoreContent(
             uiState = uiState,
-            enabled = !isRestoring,
-            onSelect = { pendingRestore = it },
+            enabled = !isRestoring && !isPreviewing,
+            onSelect = { viewModel.beginPreview(it) },
         )
     }
 
-    pendingRestore?.let { backup ->
-        ConfirmRestoreDialog(
-            backup = backup,
+    when (val current = preview) {
+        is RestorePreview.Loading -> Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Background.copy(alpha = 0.85f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = TextSecondary, strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.height(Spacing.md))
+                Text(
+                    text = stringResource(R.string.restore_preview_loading),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TextPrimary,
+                )
+            }
+        }
+        is RestorePreview.Ready -> ConfirmRestoreDialog(
+            backup = current.backup,
+            counts = current.counts,
             onConfirm = {
-                pendingRestore = null
-                viewModel.restore(backup)
+                viewModel.restore(current.backup)
+                viewModel.dismissPreview()
             },
-            onDismiss = { pendingRestore = null },
+            onDismiss = { viewModel.dismissPreview() },
         )
+        is RestorePreview.Failed -> AlertDialog(
+            onDismissRequest = viewModel::dismissPreview,
+            title = { Text(stringResource(R.string.restore_preview_error_title)) },
+            text = { Text(current.message) },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissPreview) {
+                    Text(stringResource(R.string.action_ok))
+                }
+            },
+            containerColor = SurfaceColor,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+        )
+        RestorePreview.Idle -> Unit
     }
 
     when (val current = outcome) {
@@ -242,13 +273,27 @@ private fun BackupRow(
 @Composable
 private fun ConfirmRestoreDialog(
     backup: BackupInfo,
+    counts: BackupPreviewCounts,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.restore_confirm_title)) },
-        text = { Text(stringResource(R.string.restore_confirm_message, backup.fileName)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.restore_confirm_message, backup.fileName))
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text(
+                    stringResource(
+                        R.string.restore_confirm_counts,
+                        counts.playlistCount,
+                        counts.songCount,
+                        counts.playlistEntryCount,
+                    ),
+                )
+            }
+        },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(text = stringResource(R.string.restore_confirm_action), color = Error)
@@ -267,7 +312,7 @@ private fun ConfirmRestoreDialog(
 
 @Preview(name = "Restore — Success", showBackground = true)
 @Composable
-private fun RestorePreview() {
+private fun RestoreListPreview() {
     val now = System.currentTimeMillis()
     SynthXTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = Background) {

@@ -34,6 +34,13 @@ object BackupReason {
     const val PRE_RESTORE_SAFETY = "pre_restore_safety"
 }
 
+/** Read-only content counts for a candidate backup (P4.3 restore preview), never a live query. */
+data class BackupPreviewCounts(
+    val playlistCount: Int,
+    val songCount: Int,
+    val playlistEntryCount: Int,
+)
+
 data class BackupInfo(
     val databaseUri: Uri,
     val metadataUri: Uri?,
@@ -246,6 +253,43 @@ class BackupManager(private val context: Context) {
         BackupOutcomeStore.recordVerificationOutcome(context, result)
         result
     }
+
+    // ---------------------------------------------------------------- preview (P4.3)
+
+    /**
+     * Read-only playlist/song/playlist-membership counts for [backup], obtained by staging the
+     * candidate locally (same [RestoreTransaction.copySafOnce] staging [verifyMostRecentBackup]
+     * already uses) and querying the staged copy directly — entirely independent of
+     * [RestoreTransaction]/[RestoreCoordinator]: no live-DB quiescing or admission gating, since
+     * nothing here touches the live database or commits to a restore.
+     */
+    suspend fun previewBackup(backup: BackupInfo): Result<BackupPreviewCounts> = withContext(Dispatchers.IO) {
+        runCatching {
+            val stagingDirectory = File(context.noBackupFilesDir, STAGING_DIRECTORY)
+            if (!stagingDirectory.exists()) stagingDirectory.mkdirs()
+            val copy = File(stagingDirectory, "preview-${UUID.randomUUID()}.db")
+            try {
+                RestoreTransaction.copySafOnce(context, backup.databaseUri.toString(), copy)
+                // migrationSnapshot=true: a preview must work on a candidate at any restorable
+                // schema version, not only one already at the current version.
+                BackupSnapshotValidator.validate(copy, migrationSnapshot = true)
+                SQLiteDatabase.openDatabase(copy.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+                    BackupPreviewCounts(
+                        playlistCount = countRows(db, "playlists"),
+                        songCount = countRows(db, "songs"),
+                        playlistEntryCount = countRows(db, "playlist_songs"),
+                    )
+                }
+            } finally {
+                deleteLocalStage(copy)
+            }
+        }
+    }
+
+    private fun countRows(database: SQLiteDatabase, table: String): Int =
+        database.rawQuery("SELECT COUNT(*) FROM $table", null).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
 
     // --------------------------------------------------------------- restore
 

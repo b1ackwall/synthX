@@ -2,10 +2,13 @@ package com.v1per.synthx.data.backup
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.net.Uri
 import android.os.StatFs
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
+import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import androidx.work.WorkManager
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.LibraryScanWorker
@@ -13,6 +16,7 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.repository.RepositoryDbFlow
 import com.v1per.synthx.playback.ExoPlayerEngine
 import com.v1per.synthx.playback.QueuePersistence
+import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
@@ -36,6 +40,7 @@ import kotlinx.serialization.json.Json
 // an oversight.
 /** The durable, on-disk boundary of a restore. All database artifacts are same-directory. */
 internal object RestoreTransaction {
+    private const val TAG = "RestoreTransaction"
     private const val STATE_FILE = "synthx.restore-state.json"
     private const val STATE_TEMP_FILE = "synthx.restore-state.tmp"
     private const val INCIDENT_FILE = "synthx.restore-incident.id"
@@ -359,7 +364,7 @@ internal object RestoreTransaction {
                     updatedAt = System.currentTimeMillis(),
                 )
                 writeState(dir, complete, faults)
-                cleanupAfterColdValidation(dir, complete)
+                cleanupAfterColdValidation(context, dir, complete)
                 clearIncident(dir)
                 RestoreRecovery.NORMAL
             }
@@ -369,14 +374,14 @@ internal object RestoreTransaction {
                 }
                 // Operation artifacts may already be gone. Retrying their cleanup is
                 // idempotent and deliberately leaves normal synthx.db WAL/SHM alone.
-                cleanupAfterColdValidation(dir, state)
+                cleanupAfterColdValidation(context, dir, state)
                 clearIncident(dir)
                 RestoreRecovery.NORMAL
             }
             RestoreRecoveryAction.PROMOTE_OLD ->
-                completeStartupRollback(dir, live, state, useSafety = false, faults)
+                completeStartupRollback(context, dir, live, state, useSafety = false, faults)
             RestoreRecoveryAction.PROMOTE_SAFETY ->
-                completeStartupRollback(dir, live, state, useSafety = true, faults)
+                completeStartupRollback(context, dir, live, state, useSafety = true, faults)
             RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL -> {
                 check(validateStandalone(live, currentOnly = true)) {
                     "Recovered live database did not validate"
@@ -387,7 +392,7 @@ internal object RestoreTransaction {
                     updatedAt = System.currentTimeMillis(),
                 )
                 writeState(dir, complete, faults)
-                cleanupAfterColdValidation(dir, complete)
+                cleanupAfterColdValidation(context, dir, complete)
                 clearIncident(dir)
                 RestoreRecovery.NORMAL
             }
@@ -451,6 +456,7 @@ internal object RestoreTransaction {
     }
 
     private fun completeStartupRollback(
+        context: Context,
         dir: File,
         live: File,
         original: State,
@@ -480,7 +486,7 @@ internal object RestoreTransaction {
         writeState(dir, state, faults)
         state = state.copy(phase = Phase.COMPLETE, updatedAt = System.currentTimeMillis())
         writeState(dir, state, faults)
-        cleanupAfterColdValidation(dir, state)
+        cleanupAfterColdValidation(context, dir, state)
         clearIncident(dir)
         return RestoreRecovery.NORMAL
     }
@@ -800,7 +806,17 @@ internal object RestoreTransaction {
         syncDirectory(dir)
     }
 
-    private fun cleanupAfterColdValidation(dir: File, state: State) {
+    private fun cleanupAfterColdValidation(context: Context, dir: File, state: State) {
+        // P4.4: only a successful install's safety snapshot is worth keeping around as a
+        // bonus Auto-tier backup — a rolled-back attempt's safety copy either already became
+        // live via completeStartupRollback/rollbackCurrentProcess, or is just ordinary
+        // transaction debris with nothing new to preserve. Runs strictly here: this function
+        // is only ever reached once Phase.COMPLETE has already been durably written above, so
+        // the safety file has been untouched (available for rollback) through every phase up
+        // to this point.
+        if (state.outcome == Outcome.INSTALLED) {
+            promoteSafetyToAutoTier(context, dir, state)
+        }
         // candidate was checkpoint-proven, old sidecars were detached only after full
         // checkpoint proof, and safety is a standalone VACUUM snapshot. Failed/unknown
         // copies are retained for diagnostics rather than having their WAL deleted blind.
@@ -808,6 +824,64 @@ internal object RestoreTransaction {
             deleteFileSet(File(dir, it))
         }
         syncDirectory(dir)
+    }
+
+    /**
+     * Best-effort republish of the pre-restore safety snapshot as an ordinary Auto-tier
+     * backup. Never allowed to fail the surrounding cold-start cleanup — the restore itself
+     * already succeeded regardless of whether this bonus backup gets created. The rename to
+     * the reserved `safetyPromotion` name happens first so a crash between rename and publish
+     * still leaves behind a file [RestoreArtifactNames.parseOperationId] recognizes as owned
+     * by this operation (rather than an unrecognized stray triggering emergency recovery), and
+     * so a retried cleanup pass (idempotent, like the rest of this recovery path) can resume
+     * from either the original or the already-renamed location.
+     */
+    private fun promoteSafetyToAutoTier(context: Context, dir: File, state: State) {
+        val names = RestoreArtifactNames(state.operationId)
+        val safety = File(dir, state.safetyName)
+        val staged = File(dir, names.safetyPromotion)
+        try {
+            if (safety.isFile) {
+                if (staged.exists()) deleteFileSet(staged)
+                rawRename(safety, staged)
+                syncDirectory(dir)
+            }
+            if (staged.isFile) publishSafetyPromotion(context, staged)
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not promote pre-restore safety snapshot to Auto tier", error)
+        } finally {
+            deleteFileSet(staged)
+            deleteFileSet(safety)
+            syncDirectory(dir)
+        }
+    }
+
+    private fun publishSafetyPromotion(context: Context, staged: File) {
+        val treeUri = PreferencesManager(context).backupFolderUri?.let(Uri::parse) ?: return
+        val root = DocumentFile.fromTreeUri(context, treeUri) ?: return
+        val tierDirectory = root.findFile(BackupTier.Auto.folderName)?.takeIf { it.isDirectory }
+            ?: root.createDirectory(BackupTier.Auto.folderName)
+            ?: return
+
+        val validated = BackupSnapshotValidator.validate(staged, migrationSnapshot = false)
+        val digest = BackupHashing.hash(staged)
+        val identity = BackupFileNames.create()
+        val metadata = BackupMetadata(
+            timestamp = System.currentTimeMillis(),
+            tier = BackupTier.Auto.name,
+            reason = BackupReason.PRE_RESTORE_SAFETY,
+            dbVersion = validated.schema.userVersion,
+            file = identity.databaseFileName,
+            sizeBytes = digest.sizeBytes,
+            sha256 = digest.sha256,
+        )
+        SafBackupPublisher(context).publish(
+            tierDirectory = tierDirectory,
+            identity = identity,
+            snapshot = staged,
+            digest = digest,
+            metadataBytes = BackupMetadataCodec.encode(metadata),
+        )
     }
 
     private fun archiveRecoveredArtifacts(artifacts: List<File>) {

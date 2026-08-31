@@ -9,6 +9,7 @@ import androidx.work.WorkManager
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupManager
+import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.data.backup.RestoreWorker
 import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,14 @@ sealed class RestoreOutcome {
     object InProgress : RestoreOutcome()
     object Complete : RestoreOutcome()
     data class Failed(val message: String) : RestoreOutcome()
+}
+
+/** P4.3 dry-run preview shown before the destructive confirm dialog. */
+sealed class RestorePreview {
+    object Idle : RestorePreview()
+    data class Loading(val backup: BackupInfo) : RestorePreview()
+    data class Ready(val backup: BackupInfo, val counts: BackupPreviewCounts) : RestorePreview()
+    data class Failed(val backup: BackupInfo, val message: String) : RestorePreview()
 }
 
 class RestoreViewModel(
@@ -74,6 +83,9 @@ class RestoreViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RestoreOutcome.Idle)
 
+    private val _preview = MutableStateFlow<RestorePreview>(RestorePreview.Idle)
+    val preview: StateFlow<RestorePreview> = _preview.asStateFlow()
+
     init {
         refresh()
     }
@@ -87,6 +99,26 @@ class RestoreViewModel(
                 UiState.Error(e.message ?: "Failed to read backups")
             }
         }
+    }
+
+    /** Stages [backup] locally and counts its contents — see [BackupManager.previewBackup]. */
+    fun beginPreview(backup: BackupInfo) {
+        _preview.value = RestorePreview.Loading(backup)
+        viewModelScope.launch {
+            backupManager.previewBackup(backup).fold(
+                onSuccess = { counts -> _preview.value = RestorePreview.Ready(backup, counts) },
+                onFailure = { error ->
+                    _preview.value = RestorePreview.Failed(
+                        backup,
+                        error.message ?: context.getString(R.string.restore_preview_error_unknown),
+                    )
+                },
+            )
+        }
+    }
+
+    fun dismissPreview() {
+        _preview.value = RestorePreview.Idle
     }
 
     fun restore(backup: BackupInfo) {

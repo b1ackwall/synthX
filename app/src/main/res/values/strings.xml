@@ -153,6 +153,10 @@
     <string name="restore_confirm_title">Restore this backup?</string>
     <string name="restore_confirm_message">This replaces your entire library — songs, playlists, queue, and Starred state — with the contents of %1$s. A validated local safety snapshot is taken first. synthX will close when the restore finishes and must be reopened manually. This cannot be undone.</string>
     <string name="restore_confirm_action">Restore</string>
+    <string name="restore_confirm_counts">This backup contains %1$d playlists, %2$d songs, and %3$d playlist entries.</string>
+    <string name="restore_preview_loading">Checking backup contents…</string>
+    <string name="restore_preview_error_title">Couldn\'t preview this backup</string>
+    <string name="restore_preview_error_unknown">Could not read this backup\'s contents.</string>
     <string name="restore_done_title">Restore complete</string>
     <string name="restore_done_message">Your library has been restored. Please reopen synthX.</string>
     <string name="restore_failed_title">Restore failed</string>
