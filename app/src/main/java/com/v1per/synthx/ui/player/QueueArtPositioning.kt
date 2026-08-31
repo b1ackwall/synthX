@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player
 
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
@@ -37,8 +38,10 @@ data class ArtPosition(
  *    Column's top edge).
  *
  * No composable-scope APIs are involved in the actual math — every input is a plain value the
- * caller already has in hand (read out of its own `BoxWithConstraints` and other local state),
- * so this stays a plain function rather than a composable.
+ * caller already has in hand (read out of its own `BoxWithConstraints`, `LocalDensity`, and
+ * other local state), so this stays a plain function rather than a composable. [density] is one
+ * of those plain values and not a measurement hook: its only job here is converting the header
+ * row's `sp` text metrics to `dp` at the current font scale (see [QueueHeaderRowIntrinsicHeight]).
  */
 fun computeArtPosition(
     progress: Float,
@@ -51,6 +54,7 @@ fun computeArtPosition(
     artWeightAbove: Float,
     artWeightBelow: Float,
     controlsOverlayHeight: Dp,
+    density: Density,
 ): ArtPosition {
     // 44dp mini thumbnail growing to the expanded player's full-width art, capped against
     // available height minus the title row's reserved space.
@@ -81,9 +85,12 @@ fun computeArtPosition(
     val expandedFlexSpace = (expandedRegionHeight - constrainedArtSize).coerceAtLeast(0.dp)
     val artOffsetYExpanded = expandedTopMargin +
         expandedFlexSpace * (artWeightAbove / (artWeightAbove + artWeightBelow))
-    // The queue header's top anchor reuses expandedTopMargin (32dp) rather than a new
-    // constant, so it stays in sync with the expanded state's own top margin. QueueModeArtSize
-    // is then centered within the QueueHeaderRowHeight approximation.
+    // The queue header Column's top anchor. Reuses expandedTopMargin (32dp) rather than a new
+    // constant, so it stays in sync with the expanded state's own top margin, plus the
+    // half-difference between QueueHeaderRowHeight and QueueModeArtSize. That second term is a
+    // fixed 4dp nudge left over from when the art was centred directly against this anchor; it
+    // no longer positions the art at all (artOffsetYQueueTarget below does that), it just
+    // shifts the whole header Column — and queueListOffsetY with it — down by that much.
     val artOffsetYQueue = expandedTopMargin + (QueueHeaderRowHeight - QueueModeArtSize) / 2
     // Where QueueList starts: right after the fixed-height header-region Column (header Row +
     // playback row, see QueueHeaderRegionHeight's doc comment) ends. Uses the Column's own
@@ -97,7 +104,8 @@ fun computeArtPosition(
     // reconstructs the header Row's actual vertical center from the same slack math the
     // Column uses, so the art centers on where the title/artist text actually renders rather
     // than on the Column's top edge.
-    val artCenterYQueue = artOffsetYQueue + QueueColumnLeadingSlack + QueueHeaderRowIntrinsicHeight / 2
+    val artCenterYQueue = artOffsetYQueue +
+        with(density) { QueueColumnLeadingSlack + QueueHeaderRowIntrinsicHeight / 2 }
     val artOffsetYQueueTarget = artCenterYQueue - QueueModeArtSize / 2
     val expandedTargetY = lerpDp(artOffsetYExpanded, artOffsetYQueueTarget, queueProgressValue)
     val artOffsetY = lerpDp(artOffsetYMini, expandedTargetY, progress)

@@ -252,6 +252,7 @@ fun PlayerSheetSkeleton(
             artWeightAbove = ArtWeightAbove,
             artWeightBelow = ArtWeightBelow,
             controlsOverlayHeight = actualOverlayHeight,
+            density = density,
         )
 
         // The queue-mode header region's bottom edge — where QueueList begins — in the sheet
