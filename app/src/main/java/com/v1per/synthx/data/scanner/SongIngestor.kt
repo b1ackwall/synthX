@@ -17,6 +17,18 @@ import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.CancellationException
 
 private const val TAG = "SongIngestor"
+
+// Comma is the ONLY artist-splitting delimiter, deliberately. Introducing other
+// delimiters (&, "and", "feat.", ";", etc.) would incorrectly split legitimate
+// single-act names that contain them — e.g. "Dimitri Vegas & Like Mike" and
+// "Matisse & Sadko" are each one duo, not two artists. There is no reliable way
+// to distinguish "two artists joined by &" from "one act whose name contains &"
+// automatically. Comma-only accepts the narrower failure (a comma-containing
+// single-artist name, e.g. "Earth, Wind & Fire," gets incorrectly split) in
+// exchange for never incorrectly merging or splitting the much more common
+// ampersand/feat./and-joined act names. A future manual per-artist review/merge
+// feature is the intended way to close the remaining gap — not a smarter
+// auto-splitter, which would just move the false-positive risk elsewhere.
 private val ARTIST_DELIMITERS = listOf(",")
 
 /**

@@ -140,10 +140,13 @@ class BackupsAndRestoreViewModel(
     fun saveBackupFolder(uri: Uri) {
         viewModelScope.launch {
             runCatching {
-                val nestsAudioRoot = preferencesManager.configuredAudioRootUris().any { audioRoot ->
-                    RootNesting.detect(context, uri, audioRoot).isConflict
+                val relations = preferencesManager.configuredAudioRootUris().map { audioRoot ->
+                    RootNesting.detect(context, uri, audioRoot)
                 }
-                if (nestsAudioRoot) {
+                if (relations.any { it == RootNesting.Relation.UNDETERMINED }) {
+                    return@runCatching Outcome.NESTING_UNDETERMINED
+                }
+                if (relations.any { it.isConflict }) {
                     return@runCatching Outcome.NESTED
                 }
                 if (backupManager.ensureFolderStructure(uri)) Outcome.OK else Outcome.UNUSABLE
@@ -159,6 +162,11 @@ class BackupsAndRestoreViewModel(
                         Outcome.NESTED -> _backupFolderError.showTemporarily(
                             context.getString(R.string.error_backup_folder_nested)
                         )
+                        // Nesting couldn't be ruled out (opaque provider ids) rather than
+                        // confirmed — fail closed with a message that doesn't overclaim.
+                        Outcome.NESTING_UNDETERMINED -> _backupFolderError.showTemporarily(
+                            context.getString(R.string.error_backup_folder_nesting_undetermined)
+                        )
                         Outcome.UNUSABLE -> _backupFolderError.showTemporarily(
                             context.getString(R.string.backup_status_folder_create_failed)
                         )
@@ -173,7 +181,7 @@ class BackupsAndRestoreViewModel(
         }
     }
 
-    private enum class Outcome { OK, NESTED, UNUSABLE }
+    private enum class Outcome { OK, NESTED, NESTING_UNDETERMINED, UNUSABLE }
 
     fun createManualBackup() {
         viewModelScope.launch {

@@ -206,6 +206,7 @@
     <string name="backup_status_folder_create_failed">Couldn\'t create backup folders</string>
     <string name="backup_status_folder_check_failed">Couldn\'t verify the backup folder. Try again.</string>
     <string name="error_backup_folder_nested">Backup folder can\'t be the same as, or inside, your music folder. Pick a separate folder.</string>
+    <string name="error_backup_folder_nesting_undetermined">Couldn\'t confirm this backup folder isn\'t nested inside your music folder. Pick a different location.</string>
     <string name="error_backup_folder_grant_lost">synthX no longer has write access to your backup folder. Reselect it below.</string>
     <string name="backup_folder_needs_attention">Backup folder needs attention</string>
     <string name="backup_health_succeeded">Last backup: %1$s (%2$s)</string>
@@ -223,6 +224,7 @@
     <!-- Errors -->
     <string name="error_folder_permission_denied">Failed to get permission for the selected folder. Please try again.</string>
     <string name="error_folders_nested">The music folder and the new arrivals folder can\'t be the same folder, or one inside the other. Pick a separate folder.</string>
+    <string name="error_folders_nesting_undetermined">Couldn\'t confirm this folder isn\'t nested inside another configured folder. Pick a different location.</string>
     <string name="error_folder_save_failed">Couldn\'t save this folder. Try again.</string>
     <string name="error_load_songs">Couldn\'t load your songs. Try again.</string>
     <string name="error_load_starred">Couldn\'t load your starred songs. Try again.</string>

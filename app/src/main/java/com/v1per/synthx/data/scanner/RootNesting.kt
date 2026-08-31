@@ -36,13 +36,38 @@ internal object RootNesting {
 
     private const val TAG = "SynthXScan"
 
+    /**
+     * Authorities whose tree document ids are known to be path-like (per the class doc) and
+     * whose [DocumentsContract.isChildDocument] implementation can be trusted to answer
+     * `false` only when the roots are genuinely unrelated. Used solely by [detect] to decide
+     * whether a negative isChildDocument result means "confirmed unrelated" or "undetermined."
+     */
+    private val PATH_LIKE_AUTHORITIES = setOf(
+        "com.android.externalstorage.documents",
+        "com.android.providers.downloads.documents",
+    )
+
+    private fun isKnownPathLikeAuthority(authority: String?): Boolean =
+        authority in PATH_LIKE_AUTHORITIES
+
     enum class Relation {
         UNRELATED,
         SAME,
         /** The first URI passed to [detect] contains the second. */
         FIRST_CONTAINS_SECOND,
         /** The second URI passed to [detect] contains the first. */
-        SECOND_CONTAINS_FIRST;
+        SECOND_CONTAINS_FIRST,
+        /**
+         * Nesting could not be conclusively ruled out. Reached only when the tree document
+         * ids aren't path-like (so [isPathPrefix] can't apply) *and* the authority isn't one
+         * of the built-ins ([PATH_LIKE_AUTHORITIES]) known to implement
+         * [DocumentsContract.isChildDocument] faithfully — for any other provider, a `false`
+         * from that call means either "confirmed not nested" or "this provider doesn't
+         * implement the check," and the two are indistinguishable from the API alone (see
+         * class doc). Distinct from [UNRELATED] specifically so callers can fail closed on
+         * "can't tell" instead of silently treating it as "confirmed safe."
+         */
+        UNDETERMINED;
 
         val isConflict: Boolean get() = this != UNRELATED
     }
@@ -69,7 +94,13 @@ internal object RootNesting {
                     Relation.FIRST_CONTAINS_SECOND
                 isDescendant(context, parent = secondDoc, child = firstDoc) ->
                     Relation.SECOND_CONTAINS_FIRST
-                else -> Relation.UNRELATED
+                // A negative isChildDocument result is only trustworthy for the providers
+                // known to implement it faithfully. For anything else — opaque, non-path-like
+                // document ids — a `false` here doesn't prove the roots are unrelated, so
+                // don't report a confirmed UNRELATED; report that nesting couldn't be
+                // determined instead, and let callers fail closed on it.
+                isKnownPathLikeAuthority(first.authority) -> Relation.UNRELATED
+                else -> Relation.UNDETERMINED
             }
         }
 

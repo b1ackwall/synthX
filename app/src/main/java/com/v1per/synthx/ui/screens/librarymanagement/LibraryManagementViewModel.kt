@@ -299,9 +299,17 @@ class LibraryManagementViewModel(
         onError: (String) -> Unit,
     ): Boolean {
         if (other == null) return false
-        if (!RootNesting.detect(context, candidate, other).isConflict) return false
+        val relation = RootNesting.detect(context, candidate, other)
+        if (!relation.isConflict) return false
 
-        onError(context.getString(R.string.error_folders_nested))
+        // UNDETERMINED means nesting couldn't be ruled out (opaque provider ids) rather than
+        // confirmed — fail closed with a message that doesn't overclaim actual nesting.
+        val message = if (relation == RootNesting.Relation.UNDETERMINED) {
+            context.getString(R.string.error_folders_nesting_undetermined)
+        } else {
+            context.getString(R.string.error_folders_nested)
+        }
+        onError(message)
         releaseGrant(candidate)
         return true
     }
