@@ -153,17 +153,27 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
      * timeline.
      */
     fun requestPlayQueue(songs: List<Song>, startIndex: Int) {
-        val tapped = songs.getOrNull(startIndex)
-        if (tapped != null && isQueueCustomized.value && hasActivePlayback()) {
+        // The incoming list is whatever a screen displays, which can include missing songs
+        // mixed in among playable ones (SongRow disables tapping them, but leaves them in
+        // the list so the row still renders dimmed) — strip them here, once, upstream of
+        // every screen's tap handler, so no missing song ever reaches the engine as a
+        // MediaItem. The tapped song is identified by id *before* filtering and re-located
+        // in the filtered list, since filtering can shift its numeric position.
+        val tapped = songs.getOrNull(startIndex) ?: return
+        if (tapped.isMissing) return
+        val filteredSongs = songs.filterNot { it.isMissing }
+        val filteredIndex = filteredSongs.indexOfFirst { it.id == tapped.id }
+        if (filteredIndex < 0) return
+        if (isQueueCustomized.value && hasActivePlayback()) {
             _queuePrompts.tryEmit(
                 QueuePromptEvent(
                     tappedSong = tapped,
-                    contextSongs = songs,
-                    startIndex = startIndex,
+                    contextSongs = filteredSongs,
+                    startIndex = filteredIndex,
                 )
             )
         } else {
-            playQueue(songs, startIndex)
+            playQueue(filteredSongs, filteredIndex)
         }
     }
 
