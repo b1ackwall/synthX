@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -71,4 +72,32 @@ interface PlaylistDao {
             "WHERE playlist_id = :playlistId AND song_id = :songId)"
     )
     suspend fun containsSong(playlistId: String, songId: String): Boolean
+
+    /**
+     * P7.6/N9/6.6: contains-check, max-position read, and insert must happen as one
+     * @Transaction — otherwise two concurrent adds to the same playlist can both read the
+     * same max position before either write commits, landing two rows at the identical
+     * position (nothing constrains (playlist_id, position); only (playlist_id, song_id) is
+     * keyed), leaving ORDER BY position with an undefined tie. Checked rather than relying
+     * on REPLACE-on-conflict: that would silently move an already-present song to the end,
+     * which reads as the playlist reordering itself.
+     *
+     * Returns false without inserting if the song is already in the playlist.
+     */
+    @Transaction
+    suspend fun addSongToPlaylist(playlistId: String, songId: String, addedAt: Long): Boolean {
+        if (containsSong(playlistId, songId)) {
+            return false
+        }
+        val nextPosition = (getMaxPosition(playlistId) ?: -1) + 1
+        insertPlaylistSong(
+            PlaylistSongEntity(
+                playlistId = playlistId,
+                songId = songId,
+                position = nextPosition,
+                addedAt = addedAt,
+            )
+        )
+        return true
+    }
 }

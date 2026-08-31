@@ -12,7 +12,6 @@ import com.v1per.synthx.data.db.ArtistDao
 import com.v1per.synthx.data.db.PlaylistDao
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
-import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.QueueDao
 import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
@@ -359,23 +358,14 @@ class SongRepositoryImpl(
         }.flowOn(Dispatchers.Default)
 
     override suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean = dbOperation {
-        // Checked rather than relying on REPLACE-on-conflict: that would silently move an
-        // already-present song to the end, which reads as the playlist reordering itself.
-        if (playlistDao.containsSong(playlistId, songId)) {
-            false
-        } else {
-            val nextPosition = (playlistDao.getMaxPosition(playlistId) ?: -1) + 1
-            playlistDao.insertPlaylistSong(
-                PlaylistSongEntity(
-                    playlistId = playlistId,
-                    songId = songId,
-                    position = nextPosition,
-                    addedAt = System.currentTimeMillis(),
-                )
-            )
+        // P7.6/N9/6.6: contains-check, max-position read, and insert live in one
+        // @Transaction DAO method so concurrent adds to the same playlist can't race on
+        // the next position — see PlaylistDao.addSongToPlaylist.
+        val added = playlistDao.addSongToPlaylist(playlistId, songId, System.currentTimeMillis())
+        if (added) {
             playlistExportManager.scheduleExport()
-            true
         }
+        added
     }
 
     override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) = dbOperation {
