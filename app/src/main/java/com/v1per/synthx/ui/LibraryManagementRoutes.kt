@@ -45,6 +45,9 @@ fun NavGraphBuilder.libraryManagementRoutes(
                         onBack = { navController.popBackStack() },
                     )
                 },
+                onNavigateToBackups = {
+                    navController.navigate(Screen.BackupsAndRestore.route)
+                },
                 viewModel = issuesViewModel,
             )
         }

@@ -2,6 +2,7 @@ package com.v1per.synthx.ui.screens.issues
 
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,6 +30,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
+import com.v1per.synthx.data.backup.BackupAttemptOutcome
+import com.v1per.synthx.data.backup.BackupTier
+import com.v1per.synthx.data.backup.ExportAttemptOutcome
+import com.v1per.synthx.data.backup.VerificationAttemptOutcome
 import com.v1per.synthx.data.repository.MissingSongInfo
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.DeleteSongDialog
@@ -48,6 +53,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 @Composable
 fun IssuesScreen(
     topBar: @Composable () -> Unit,
+    onNavigateToBackups: () -> Unit = {},
     viewModel: IssuesViewModel = viewModel(
         factory = IssuesViewModel.Factory(LocalContext.current),
     ),
@@ -62,15 +68,17 @@ fun IssuesScreen(
             uiState = uiState,
             deleteEnabled = deleteSongsEnabled,
             onDelete = viewModel::deleteSong,
+            onNavigateToBackups = onNavigateToBackups,
         )
     }
 }
 
 @Composable
 private fun IssuesContent(
-    uiState: UiState<List<MissingSongInfo>>,
+    uiState: UiState<List<Issue>>,
     deleteEnabled: Boolean,
     onDelete: (String) -> Unit,
+    onNavigateToBackups: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
@@ -90,16 +98,47 @@ private fun IssuesContent(
             is UiState.Success -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(uiState.data, key = { it.id }) { song ->
-                    MissingSongRow(
-                        song = song,
-                        deleteEnabled = deleteEnabled,
-                        onDelete = { onDelete(song.id) },
-                    )
+                items(uiState.data, key = { it.rowKey() }) { issue ->
+                    when (issue) {
+                        is Issue.MissingSong -> MissingSongRow(
+                            song = issue.info,
+                            deleteEnabled = deleteEnabled,
+                            onDelete = { onDelete(issue.info.id) },
+                        )
+                        is Issue.BackupUnhealthy -> BackupUnhealthyRow(
+                            outcome = issue.outcome,
+                            onClick = onNavigateToBackups,
+                        )
+                        is Issue.ExportUnhealthy -> ExportUnhealthyRow(
+                            outcome = issue.outcome,
+                            onClick = onNavigateToBackups,
+                        )
+                        is Issue.VerificationFailed -> VerificationFailedRow(
+                            outcome = issue.outcome,
+                            onClick = onNavigateToBackups,
+                        )
+                        is Issue.DestructiveActionsSinceBackup -> DestructiveActionsRow(
+                            count = issue.count,
+                            onClick = onNavigateToBackups,
+                        )
+                        is Issue.BackupFolderGrantLost -> BackupFolderGrantLostRow(
+                            onClick = onNavigateToBackups,
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+/** Stable LazyColumn key per issue — the safety-net variants have no natural id of their own. */
+private fun Issue.rowKey(): String = when (this) {
+    is Issue.MissingSong -> "missing_song:${info.id}"
+    is Issue.BackupUnhealthy -> "backup_unhealthy:${outcome.timestamp}"
+    is Issue.ExportUnhealthy -> "export_unhealthy:${outcome.timestamp}"
+    is Issue.VerificationFailed -> "verification_failed:${outcome.timestamp}"
+    is Issue.DestructiveActionsSinceBackup -> "destructive_actions"
+    is Issue.BackupFolderGrantLost -> "backup_folder_grant_lost"
 }
 
 /** The row body is inert — a missing song has no file to play. Actions live in the menu. */
@@ -175,6 +214,107 @@ private fun MissingSongMenu(deleteEnabled: Boolean, onDelete: () -> Unit) {
     )
 }
 
+/** Shared body for the five safety-net rows: title/subtitle/optional-timestamp, tap to navigate. */
+@Composable
+private fun SafetyNetIssueRow(
+    title: String,
+    subtitle: String,
+    timestamp: Long?,
+    onClick: () -> Unit,
+) {
+    Column {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(start = Spacing.HorizontalPadding, top = Spacing.md, bottom = Spacing.md),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (timestamp != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = relativeTime(timestamp).toString(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = Hairline,
+        )
+    }
+}
+
+@Composable
+private fun BackupUnhealthyRow(outcome: BackupAttemptOutcome, onClick: () -> Unit) {
+    SafetyNetIssueRow(
+        title = stringResource(R.string.issues_backup_unhealthy_title, outcome.tier.folderName),
+        subtitle = outcome.failureMessage
+            ?: stringResource(R.string.issues_backup_unhealthy_subtitle_generic),
+        timestamp = outcome.timestamp,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun ExportUnhealthyRow(outcome: ExportAttemptOutcome, onClick: () -> Unit) {
+    SafetyNetIssueRow(
+        title = stringResource(R.string.issues_export_unhealthy_title),
+        subtitle = outcome.failureMessage
+            ?: stringResource(R.string.issues_backup_unhealthy_subtitle_generic),
+        timestamp = outcome.timestamp,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun VerificationFailedRow(outcome: VerificationAttemptOutcome, onClick: () -> Unit) {
+    SafetyNetIssueRow(
+        title = stringResource(R.string.issues_verification_failed_title),
+        subtitle = outcome.failureMessage
+            ?: stringResource(R.string.issues_backup_unhealthy_subtitle_generic),
+        timestamp = outcome.timestamp,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun DestructiveActionsRow(count: Int, onClick: () -> Unit) {
+    SafetyNetIssueRow(
+        title = stringResource(R.string.issues_destructive_actions_title, count),
+        subtitle = stringResource(R.string.issues_backup_unhealthy_subtitle_generic),
+        timestamp = null,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun BackupFolderGrantLostRow(onClick: () -> Unit) {
+    SafetyNetIssueRow(
+        title = stringResource(R.string.issues_backup_folder_grant_lost_title),
+        subtitle = stringResource(R.string.issues_backup_folder_grant_lost_subtitle),
+        timestamp = null,
+        onClick = onClick,
+    )
+}
+
 /**
  * "3 days ago" / "5 min. ago". MINUTE_IN_MILLIS resolution means anything under a
  * minute reads as "0 min. ago" rather than a bare "now", which is fine here — a song
@@ -200,28 +340,46 @@ private fun IssuesPreview() {
             IssuesContent(
                 uiState = UiState.Success(
                     data = listOf(
-                        MissingSongInfo(
-                            id = "1",
-                            title = "Severed Link",
-                            artist = "KNTRL",
-                            missingSince = now - 2 * DateUtils.HOUR_IN_MILLIS,
+                        Issue.BackupFolderGrantLost,
+                        Issue.BackupUnhealthy(
+                            BackupAttemptOutcome(
+                                timestamp = now - 30 * DateUtils.MINUTE_IN_MILLIS,
+                                tier = BackupTier.Daily,
+                                reason = null,
+                                succeeded = false,
+                                failureMessage = "No space left on backup folder",
+                            ),
                         ),
-                        MissingSongInfo(
-                            id = "2",
-                            title = "Null Signal",
-                            artist = "v1per",
-                            missingSince = now - 3 * DateUtils.DAY_IN_MILLIS,
+                        Issue.DestructiveActionsSinceBackup(count = 4),
+                        Issue.MissingSong(
+                            MissingSongInfo(
+                                id = "1",
+                                title = "Severed Link",
+                                artist = "KNTRL",
+                                missingSince = now - 2 * DateUtils.HOUR_IN_MILLIS,
+                            ),
                         ),
-                        MissingSongInfo(
-                            id = "3",
-                            title = "Ghost Partition",
-                            artist = "Unknown Artist",
-                            missingSince = now - 21 * DateUtils.DAY_IN_MILLIS,
+                        Issue.MissingSong(
+                            MissingSongInfo(
+                                id = "2",
+                                title = "Null Signal",
+                                artist = "v1per",
+                                missingSince = now - 3 * DateUtils.DAY_IN_MILLIS,
+                            ),
+                        ),
+                        Issue.MissingSong(
+                            MissingSongInfo(
+                                id = "3",
+                                title = "Ghost Partition",
+                                artist = "Unknown Artist",
+                                missingSince = now - 21 * DateUtils.DAY_IN_MILLIS,
+                            ),
                         ),
                     ),
                 ),
                 deleteEnabled = true,
                 onDelete = {},
+                onNavigateToBackups = {},
             )
         }
     }
@@ -239,6 +397,7 @@ private fun IssuesEmptyPreview() {
                 uiState = UiState.Empty,
                 deleteEnabled = true,
                 onDelete = {},
+                onNavigateToBackups = {},
             )
         }
     }
