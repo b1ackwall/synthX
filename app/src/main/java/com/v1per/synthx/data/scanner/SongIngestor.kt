@@ -2,6 +2,7 @@ package com.v1per.synthx.data.scanner
 
 import android.content.Context
 import android.media.MediaMetadataRetriever
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.AlbumEntity
@@ -13,7 +14,9 @@ import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.data.repository.Song
+import kotlinx.coroutines.CancellationException
 
+private const val TAG = "SongIngestor"
 private val ARTIST_DELIMITERS = listOf(",")
 
 /**
@@ -61,8 +64,15 @@ internal class SongIngestor(
             val (compressedArtUri, fullArtUri) = AlbumArtExtractor.extract(context, retriever, id)
             albumArtUri = compressedArtUri
             albumArtFullUri = fullArtUri
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             // Unreadable metadata — fall back to filename below, keep the song tracked
+        } catch (e: OutOfMemoryError) {
+            // Art extraction (or, in principle, any step above it) blew the memory budget —
+            // this must not take the whole scan down. Degrade exactly like the Exception
+            // path above: keep the song tracked, just without whatever wasn't extracted.
+            Log.w(TAG, "OutOfMemoryError ingesting song $id — continuing without full metadata/art", e)
         } finally {
             retriever.release()
         }

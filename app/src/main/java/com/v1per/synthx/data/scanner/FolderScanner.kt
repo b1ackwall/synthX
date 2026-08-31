@@ -324,7 +324,19 @@ class FolderScanner internal constructor(
 
         // Only after the transaction commits — a file delete cannot be rolled back
         // alongside the DB the way the row deletes above can.
-        pendingArtCleanup.forEach { deleteSongArtFile(context, it) }
+        //
+        // Re-check each id against the now-committed DB before deleting its art: song ids
+        // are content-hash derived, so an id evicted earlier in this same scan (path-collision
+        // occupant eviction, above) can be legitimately re-claimed by a later file in the same
+        // pass with byte-identical content — that re-insert already committed fresh art under
+        // this same id. Deleting unconditionally here would strip that just-written art out
+        // from under the resurrected row. A genuinely, permanently evicted id has no row left
+        // and still gets cleaned up as before.
+        pendingArtCleanup.forEach { id ->
+            if (songDao.getSongById(id) == null) {
+                deleteSongArtFile(context, id)
+            }
+        }
 
         // Only after the transaction commits — scheduleExport() is fire-and-forget and its
         // debounced write can fire before an in-transaction call's changes are committed,
