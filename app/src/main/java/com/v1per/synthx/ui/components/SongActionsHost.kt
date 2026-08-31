@@ -29,6 +29,7 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.preferences.DeleteSongsGate
+import com.v1per.synthx.ui.common.launchCatching
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -63,6 +64,8 @@ sealed class SongActionEvent {
     data object AddedToQueue : SongActionEvent()
     data object AlreadyInQueue : SongActionEvent()
     data object RemovedFromStarred : SongActionEvent()
+    /** A mutation threw (Room/SAF failure) — see [SongActionsViewModel.launchCatching] use. */
+    data object ActionFailed : SongActionEvent()
 }
 
 /**
@@ -120,6 +123,7 @@ fun SongActionsHost(
                     context.getString(R.string.actions_already_in_queue)
                 SongActionEvent.RemovedFromStarred ->
                     context.getString(R.string.actions_removed_from_starred)
+                SongActionEvent.ActionFailed -> context.getString(R.string.actions_failed)
             }
             snackbarHostState.showSnackbar(message)
         }
@@ -326,11 +330,13 @@ class SongActionsViewModel(
     val events: SharedFlow<SongActionEvent> = _events.asSharedFlow()
 
     fun deleteSong(songId: String) {
-        viewModelScope.launch { repository.deleteSong(songId) }
+        launchCatching(onError = { _events.tryEmit(SongActionEvent.ActionFailed) }) {
+            repository.deleteSong(songId)
+        }
     }
 
     fun addToPlaylist(playlistId: String, songId: String) {
-        viewModelScope.launch {
+        launchCatching(onError = { _events.tryEmit(SongActionEvent.ActionFailed) }) {
             val added = repository.addSongToPlaylist(playlistId, songId)
             val name = playlists.value.firstOrNull { it.id == playlistId }?.name.orEmpty()
             _events.tryEmit(
@@ -341,7 +347,9 @@ class SongActionsViewModel(
     }
 
     fun removeFromPlaylist(playlistId: String, songId: String) {
-        viewModelScope.launch { repository.removeSongFromPlaylist(playlistId, songId) }
+        launchCatching(onError = { _events.tryEmit(SongActionEvent.ActionFailed) }) {
+            repository.removeSongFromPlaylist(playlistId, songId)
+        }
     }
 
     /**
@@ -349,7 +357,7 @@ class SongActionsViewModel(
      * Playlist membership is untouched, and there is no undo: the flag is never set back.
      */
     fun removeFromStarred(songId: String) {
-        viewModelScope.launch {
+        launchCatching(onError = { _events.tryEmit(SongActionEvent.ActionFailed) }) {
             repository.dismissFromStarred(songId)
             _events.tryEmit(SongActionEvent.RemovedFromStarred)
         }

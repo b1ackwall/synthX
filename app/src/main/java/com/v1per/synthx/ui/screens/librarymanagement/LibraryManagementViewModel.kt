@@ -20,6 +20,7 @@ import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.data.scanner.RootNesting
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.ui.common.launchCatching
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -231,13 +232,15 @@ class LibraryManagementViewModel(
         // Backup first, then persist: the snapshot must capture the library as it was
         // under the old folder, before the change invalidates it. Validation precedes even
         // that — a rejected pick must leave no trace, backup included.
-        viewModelScope.launch {
+        launchCatching(onError = {
+            _folderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
+        }) {
             val rejected = rejectIfNested(
                 candidate = uri,
                 other = _newArrivalsFolderUri.value,
                 onError = { _folderError.value = it },
             )
-            if (rejected) return@launch
+            if (rejected) return@launchCatching
 
             backupManager.createBackup(BackupTier.Auto, BackupReason.FOLDER_CHANGE)
 
@@ -261,13 +264,15 @@ class LibraryManagementViewModel(
      * something is already running it's a no-op and the launch chain picks it up next time.
      */
     fun saveNewArrivalsFolder(uri: Uri) {
-        viewModelScope.launch {
+        launchCatching(onError = {
+            _newArrivalsFolderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
+        }) {
             val rejected = rejectIfNested(
                 candidate = uri,
                 other = _musicFolderUri.value,
                 onError = { _newArrivalsFolderError.value = it },
             )
-            if (rejected) return@launch
+            if (rejected) return@launchCatching
 
             releaseGrantIfSuperseded(old = _newArrivalsFolderUri.value, new = uri)
             preferencesManager.newArrivalsFolderUri = uri.toString()

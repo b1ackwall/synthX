@@ -102,6 +102,7 @@ fun PlaylistListScreen(
                 PlaylistListViewModel.ActionError.MovePlaylistFailed -> R.string.error_move_playlist
                 PlaylistListViewModel.ActionError.RenameGroupFailed -> R.string.error_rename_group
                 PlaylistListViewModel.ActionError.DeleteGroupFailed -> R.string.error_delete_group
+                PlaylistListViewModel.ActionError.CreateGroupFailed -> R.string.error_create_group
             }
             snackbarHostState.showSnackbar(context.getString(messageRes))
         }

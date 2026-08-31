@@ -8,7 +8,7 @@ import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
-import kotlinx.coroutines.CancellationException
+import com.v1per.synthx.ui.common.launchCatching
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +27,7 @@ class PlaylistListViewModel(
      *  GroupDetailViewModel.ActionError for the same pattern. */
     enum class ActionError {
         RenamePlaylistFailed, DeletePlaylistFailed, MovePlaylistFailed,
-        RenameGroupFailed, DeleteGroupFailed,
+        RenameGroupFailed, DeleteGroupFailed, CreateGroupFailed,
     }
 
     data class PlaylistListUiState(
@@ -83,70 +83,40 @@ class PlaylistListViewModel(
         // could act on differently than "try again" — same tradeoff Apple Music's own inline
         // creation flows make.
         _showCreateGroup.value = false
-        viewModelScope.launch {
+        launchCatching(onError = { _actionErrors.tryEmit(ActionError.CreateGroupFailed) }) {
             repository.createGroup(name.trim())
         }
     }
 
     fun renameGroup(id: String, name: String) {
         if (name.isBlank()) return
-        viewModelScope.launch {
-            try {
-                repository.renameGroup(id, name.trim())
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _actionErrors.tryEmit(ActionError.RenameGroupFailed)
-            }
+        launchCatching(onError = { _actionErrors.tryEmit(ActionError.RenameGroupFailed) }) {
+            repository.renameGroup(id, name.trim())
         }
     }
 
     fun deleteGroup(id: String) {
-        viewModelScope.launch {
-            try {
-                repository.deleteGroup(id)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _actionErrors.tryEmit(ActionError.DeleteGroupFailed)
-            }
+        launchCatching(onError = { _actionErrors.tryEmit(ActionError.DeleteGroupFailed) }) {
+            repository.deleteGroup(id)
         }
     }
 
     fun movePlaylistToGroup(playlistId: String, groupId: String?) {
-        viewModelScope.launch {
-            try {
-                repository.movePlaylistToGroup(playlistId, groupId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _actionErrors.tryEmit(ActionError.MovePlaylistFailed)
-            }
+        launchCatching(onError = { _actionErrors.tryEmit(ActionError.MovePlaylistFailed) }) {
+            repository.movePlaylistToGroup(playlistId, groupId)
         }
     }
 
     fun renamePlaylist(id: String, name: String) {
         if (name.isBlank()) return
-        viewModelScope.launch {
-            try {
-                repository.renamePlaylist(id, name.trim())
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _actionErrors.tryEmit(ActionError.RenamePlaylistFailed)
-            }
+        launchCatching(onError = { _actionErrors.tryEmit(ActionError.RenamePlaylistFailed) }) {
+            repository.renamePlaylist(id, name.trim())
         }
     }
 
     fun deletePlaylist(id: String) {
-        viewModelScope.launch {
-            try {
-                repository.deletePlaylist(id)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _actionErrors.tryEmit(ActionError.DeletePlaylistFailed)
-            }
+        launchCatching(onError = { _actionErrors.tryEmit(ActionError.DeletePlaylistFailed) }) {
+            repository.deletePlaylist(id)
         }
     }
 

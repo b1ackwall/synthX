@@ -54,6 +54,7 @@
     <string name="actions_already_playing_next">Already playing next</string>
     <string name="actions_remove_from_starred">Remove from Starred</string>
     <string name="actions_removed_from_starred">Removed from Starred</string>
+    <string name="actions_failed">Couldn\'t complete that action. Try again.</string>
 
     <!-- Sort -->
     <string name="sort_by">Sort by</string>
@@ -222,6 +223,7 @@
     <!-- Errors -->
     <string name="error_folder_permission_denied">Failed to get permission for the selected folder. Please try again.</string>
     <string name="error_folders_nested">The music folder and the new arrivals folder can\'t be the same folder, or one inside the other. Pick a separate folder.</string>
+    <string name="error_folder_save_failed">Couldn\'t save this folder. Try again.</string>
     <string name="error_load_songs">Couldn\'t load your songs. Try again.</string>
     <string name="error_load_starred">Couldn\'t load your starred songs. Try again.</string>
     <string name="error_load_playlist">Couldn\'t load this playlist. Try again.</string>
@@ -229,6 +231,7 @@
     <string name="error_delete_playlist">Couldn\'t delete this playlist. Try again.</string>
     <string name="error_rename_group">Couldn\'t rename this group. Try again.</string>
     <string name="error_delete_group">Couldn\'t delete this group. Try again.</string>
+    <string name="error_create_group">Couldn\'t create this group. Try again.</string>
     <string name="error_move_playlist">Couldn\'t move this playlist. Try again.</string>
     <string name="error_remove_from_group">Couldn\'t remove this playlist from the group. Try again.</string>
     <string name="error_load_albums">Couldn\'t load your albums. Try again.</string>

@@ -9,7 +9,7 @@ import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.ui.common.LoadError
 import com.v1per.synthx.ui.common.UiState
-import kotlinx.coroutines.CancellationException
+import com.v1per.synthx.ui.common.launchCatching
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,26 +56,14 @@ class GroupDetailViewModel(
 
     fun renamePlaylist(id: String, name: String) {
         if (name.isBlank()) return
-        viewModelScope.launch {
-            try {
-                repository.renamePlaylist(id, name.trim())
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _actionErrors.tryEmit(ActionError.RenameFailed)
-            }
+        launchCatching(onError = { _actionErrors.tryEmit(ActionError.RenameFailed) }) {
+            repository.renamePlaylist(id, name.trim())
         }
     }
 
     fun deletePlaylist(id: String) {
-        viewModelScope.launch {
-            try {
-                repository.deletePlaylist(id)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _actionErrors.tryEmit(ActionError.DeleteFailed)
-            }
+        launchCatching(onError = { _actionErrors.tryEmit(ActionError.DeleteFailed) }) {
+            repository.deletePlaylist(id)
         }
     }
 
@@ -83,14 +71,8 @@ class GroupDetailViewModel(
     // Room's invalidation drops the row from this group's list on its own once the group_id
     // write lands, the same way deletePlaylist's removal shows up without a local list edit.
     fun removeFromGroup(id: String) {
-        viewModelScope.launch {
-            try {
-                repository.movePlaylistToGroup(id, null)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _actionErrors.tryEmit(ActionError.RemoveFromGroupFailed)
-            }
+        launchCatching(onError = { _actionErrors.tryEmit(ActionError.RemoveFromGroupFailed) }) {
+            repository.movePlaylistToGroup(id, null)
         }
     }
 
