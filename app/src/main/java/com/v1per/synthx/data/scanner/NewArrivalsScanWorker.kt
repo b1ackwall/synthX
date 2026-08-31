@@ -98,14 +98,26 @@ class NewArrivalsScanWorker(
 
         /**
          * Standalone enqueue, used when the folder is first picked so it gets scanned without
-         * waiting for the next launch. Always [ExistingWorkPolicy.KEEP] — never REPLACE:
-         * the shared unique name may be carrying an in-flight main-root scan, and this pass
-         * is not important enough to cancel one.
+         * waiting for the next launch. [policy] defaults to [ExistingWorkPolicy.KEEP] — never
+         * REPLACE: the shared unique name may be carrying an in-flight main-root scan, and this
+         * pass is not important enough to cancel one.
+         *
+         * [LibraryManagementViewModel.saveNewArrivalsFolder] passes
+         * [ExistingWorkPolicy.APPEND_OR_REPLACE] instead: KEEP would silently discard this
+         * request if another scan (a manual rescan, or the launch-time
+         * VerifyLibraryWorker->NewArrivalsScanWorker chain) is currently running or queued
+         * under this same unique name — see general 6.4 in the final-sweep audit. APPEND_OR_REPLACE
+         * queues this request to run once that work finishes rather than dropping it, while still
+         * falling back to a fresh enqueue (same as KEEP/REPLACE would) if nothing is currently
+         * running. It's the "_OR_REPLACE" variant rather than plain APPEND specifically because
+         * plain APPEND immediately fails/cancels the new request too if the chain it would
+         * append to already finished in a FAILED or CANCELLED state — APPEND_OR_REPLACE starts
+         * fresh in that case instead of inheriting a stale failure.
          */
-        fun enqueue(context: Context) {
+        fun enqueue(context: Context, policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 LibraryScanWorker.UNIQUE_WORK_NAME,
-                ExistingWorkPolicy.KEEP,
+                policy,
                 request(),
             )
         }

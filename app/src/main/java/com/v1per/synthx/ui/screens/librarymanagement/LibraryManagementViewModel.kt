@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.await
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
@@ -259,9 +260,12 @@ class LibraryManagementViewModel(
      * Deliberately diverges from [saveMusicFolder]: no [BackupReason.FOLDER_CHANGE] snapshot
      * (nothing about the existing library is invalidated by pointing at a different arrivals
      * tree) and, critically, no [ExistingWorkPolicy.REPLACE] — the shared unique work name may
-     * be carrying an in-flight main-root scan, which must not be cancelled by this. The KEEP
-     * enqueue just gets the freshly-picked folder ingested now rather than at next launch; if
-     * something is already running it's a no-op and the launch chain picks it up next time.
+     * be carrying an in-flight main-root scan, which must not be cancelled by this. Enqueued
+     * with [ExistingWorkPolicy.APPEND_OR_REPLACE] (see [NewArrivalsScanWorker.enqueue]'s kdoc)
+     * so the freshly-picked folder still gets scanned promptly even if something else is
+     * currently running under the shared unique name, rather than the request being silently
+     * discarded — general 6.4 in the final-sweep audit. When that's the case, the user is told
+     * their scan is queued rather than left to wonder why nothing happened.
      */
     fun saveNewArrivalsFolder(uri: Uri) {
         launchCatching(onError = {
@@ -277,8 +281,17 @@ class LibraryManagementViewModel(
             releaseGrantIfSuperseded(old = _newArrivalsFolderUri.value, new = uri)
             preferencesManager.newArrivalsFolderUri = uri.toString()
             _newArrivalsFolderUri.value = uri
-            _newArrivalsFolderError.value = null
-            NewArrivalsScanWorker.enqueue(context)
+
+            val anotherScanRunning = workManager
+                .getWorkInfosForUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME)
+                .await()
+                .any { !it.state.isFinished }
+            _newArrivalsFolderError.value = if (anotherScanRunning) {
+                context.getString(R.string.status_new_arrivals_scan_deferred)
+            } else {
+                null
+            }
+            NewArrivalsScanWorker.enqueue(context, ExistingWorkPolicy.APPEND_OR_REPLACE)
         }
     }
 

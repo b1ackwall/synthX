@@ -12,6 +12,7 @@ import com.v1per.synthx.data.db.SynthXDatabase
 import androidx.room.withTransaction
 import com.v1per.synthx.data.backup.PlaylistExportManager
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.SongRemap
 import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
@@ -192,6 +193,13 @@ class FolderScanner internal constructor(
         // matching SongRepositoryImpl.deleteSong's commit-then-delete-file ordering.
         val pendingArtCleanup = mutableListOf<String>()
 
+        // Remap notices accumulated mid-transaction, emitted only after the transaction
+        // commits — see the loop after withTransaction. Emitting from inside the loop (as
+        // this used to) would let a consumer (ExoPlayerEngine.songsById) adopt a newSong.id
+        // that later turns out to never have been persisted, if the transaction rolls back
+        // for an unrelated reason later in the same pass.
+        val pendingRemaps = mutableListOf<SongRemap>()
+
         var retagged = 0
         val txnStartMs = System.currentTimeMillis()
         val result = database.withTransaction {
@@ -278,8 +286,9 @@ class FolderScanner internal constructor(
                 val newSong = ingestor.insertNewSong(file, id, path)
                 // If the replaced song is the one currently loaded in the player, its
                 // in-memory Song (title/art) would otherwise go stale — see SongRemapEvents.
+                // Not emitted here: queued and flushed after the transaction commits, below.
                 if (staleId != null) {
-                    SongRemapEvents.notifyRemap(staleId, newSong)
+                    pendingRemaps.add(SongRemap(staleId, newSong))
                 }
                 added++
             }
@@ -336,6 +345,13 @@ class FolderScanner internal constructor(
             if (songDao.getSongById(id) == null) {
                 deleteSongArtFile(context, id)
             }
+        }
+
+        // Only after the transaction commits — see pendingRemaps' declaration above. A
+        // consumer acting on one of these is now guaranteed the replacement row it names
+        // actually exists.
+        pendingRemaps.forEach { remap ->
+            SongRemapEvents.notifyRemap(remap.oldId, remap.newSong)
         }
 
         // Only after the transaction commits — scheduleExport() is fire-and-forget and its

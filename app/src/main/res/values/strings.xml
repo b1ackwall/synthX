@@ -226,6 +226,7 @@
     <string name="error_folders_nested">The music folder and the new arrivals folder can\'t be the same folder, or one inside the other. Pick a separate folder.</string>
     <string name="error_folders_nesting_undetermined">Couldn\'t confirm this folder isn\'t nested inside another configured folder. Pick a different location.</string>
     <string name="error_folder_save_failed">Couldn\'t save this folder. Try again.</string>
+    <string name="status_new_arrivals_scan_deferred">A scan is already running — this folder will be scanned once it finishes.</string>
     <string name="error_load_songs">Couldn\'t load your songs. Try again.</string>
     <string name="error_load_starred">Couldn\'t load your starred songs. Try again.</string>
     <string name="error_load_playlist">Couldn\'t load this playlist. Try again.</string>
