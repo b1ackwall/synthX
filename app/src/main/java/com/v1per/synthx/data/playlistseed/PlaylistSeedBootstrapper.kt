@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.data.backup.PlaylistExportManager
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -33,13 +34,18 @@ class PlaylistSeedBootstrapper internal constructor(
     private val readManifestBytes: () -> ByteArray,
     private val database: PlaylistSeedDatabase,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
+    // N14: seeding writes through its own DAO seam rather than SongRepositoryImpl, so nothing
+    // else schedules an export of this data — without this, a fresh install's entire seeded
+    // playlist structure has zero export coverage until some unrelated later mutation happens
+    // to trigger one. Defaulted to a no-op so existing direct-constructor tests are unaffected.
+    private val scheduleExport: () -> Unit = {},
 ) {
 
     suspend fun seed(): PlaylistSeedBootstrapResult = withContext(Dispatchers.IO) {
         val manifest = readAndValidateManifest()
             ?: return@withContext PlaylistSeedBootstrapResult.InvalidManifest
 
-        try {
+        val result = try {
             RestoreCoordinator.withDbOperation { database.inTransaction {
                 if (getPlaylistCount() != 0) {
                     return@inTransaction PlaylistSeedBootstrapResult.PlaylistsAlreadyExist
@@ -97,6 +103,11 @@ class PlaylistSeedBootstrapper internal constructor(
         } catch (_: Exception) {
             PlaylistSeedBootstrapResult.DatabaseFailure
         }
+
+        if (result is PlaylistSeedBootstrapResult.Complete) {
+            scheduleExport()
+        }
+        result
     }
 
     private fun readAndValidateManifest(): PlaylistSeedManifest? {
@@ -130,11 +141,16 @@ class PlaylistSeedBootstrapper internal constructor(
         fun create(context: Context): PlaylistSeedBootstrapper {
             val appContext = context.applicationContext
             val roomDatabase = SynthXDatabase.getInstance(appContext)
+            // PlaylistExportManager.create() is a singleton (matching SongRepositoryImpl's own
+            // instance), so this reuses the same debounced writer SongRepositoryImpl uses
+            // rather than standing up a second, competing one.
+            val playlistExportManager = PlaylistExportManager.create(appContext)
             return PlaylistSeedBootstrapper(
                 readManifestBytes = {
                     appContext.assets.open(ASSET_FILE_NAME).use { input -> input.readBytes() }
                 },
                 database = RoomPlaylistSeedDatabase(roomDatabase),
+                scheduleExport = playlistExportManager::scheduleExport,
             )
         }
     }

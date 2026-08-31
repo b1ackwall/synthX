@@ -7,6 +7,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.ArtistDao
 import com.v1per.synthx.data.db.PlaylistDao
+import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.preferences.PreferencesManager
@@ -105,24 +106,34 @@ class PlaylistExportManager(
         context.contentResolver.openOutputStream(tempDoc.uri)?.use { out -> out.write(bytes) }
             ?: error("Could not open playlist export temp file for writing")
 
-        // Promote the fully-written temp file over the previous export. SAF's DocumentFile
-        // has no atomic "replace" primitive, only per-document renameTo — so this is the
-        // closest approximation available: the previous good export is parked under a .bak
-        // name (never left with zero copies of *something* readable) and only dropped once
-        // the new file has successfully taken the real name. A crash could still land between
-        // the two renameTo calls, but both are near-instant metadata operations, unlike the
-        // write above — the risk window they leave is far smaller than the one a direct
-        // overwrite-in-place would have carried.
-        root.findFile(BACKUP_FILE_NAME)?.delete()
-        val previous = root.findFile(FINAL_FILE_NAME)
-        if (previous != null && !previous.renameTo(BACKUP_FILE_NAME)) {
-            error("Could not stage previous playlist export for replacement")
-        }
+        // Rotate existing generations up (oldest pruned, the rest shifted by one, current
+        // moved to generation .1) BEFORE promoting the new write. This is the fix for the old
+        // both-copies-missing race: the previous "current" file is only ever renamed here,
+        // never deleted, ahead of the promotion below — so even if the final rename fails,
+        // generation .1 still holds the previous good export. The only unconditional deletion
+        // is of the oldest generation being pruned, whose content is already duplicated by
+        // every generation below it plus the (still-untouched) current file, so pruning it can
+        // never leave fewer than GENERATIONS_KEPT recoverable copies on disk.
+        rotateGenerations(root)
+
+        // Promote the fully-written temp file into the now-vacated current slot. SAF's
+        // DocumentFile has no atomic "replace" primitive, only per-document renameTo, but the
+        // rotation above already guarantees a fallback copy exists regardless of what happens
+        // next.
         if (!tempDoc.renameTo(FINAL_FILE_NAME)) {
             error("Could not finalize playlist export")
         }
-        root.findFile(BACKUP_FILE_NAME)?.delete()
     }
+
+    private fun rotateGenerations(root: DocumentFile) {
+        root.findFile(generationFileName(GENERATIONS_KEPT))?.delete()
+        for (generation in GENERATIONS_KEPT - 1 downTo 1) {
+            root.findFile(generationFileName(generation))?.renameTo(generationFileName(generation + 1))
+        }
+        root.findFile(FINAL_FILE_NAME)?.renameTo(generationFileName(1))
+    }
+
+    private fun generationFileName(generation: Int) = "playlists_export.$generation.json"
 
     /**
      * Rebuilds the full export tree from scratch — always the complete set of playlists, never
@@ -164,20 +175,30 @@ class PlaylistExportManager(
             )
         }
 
-        fun toExportedPlaylist(id: String, name: String) =
-            ExportedPlaylist(name = name, songHashes = songIdsByPlaylist[id].orEmpty())
+        fun toExportedPlaylist(playlist: PlaylistEntity, position: Int) = ExportedPlaylist(
+            name = playlist.name,
+            description = playlist.description,
+            createdAt = playlist.createdAt,
+            updatedAt = playlist.updatedAt,
+            position = position,
+            songHashes = songIdsByPlaylist[playlist.id].orEmpty(),
+        )
 
-        val groups = groupEntities.map { group ->
+        val groups = groupEntities.mapIndexed { index, group ->
             ExportedGroup(
                 name = group.name,
+                position = index,
                 playlists = playlistsByGroup[group].orEmpty()
-                    .map { toExportedPlaylist(it.id, it.name) },
+                    .mapIndexed { playlistIndex, playlist -> toExportedPlaylist(playlist, playlistIndex) },
             )
         }
-        val ungroupedPlaylists = ungroupedEntities.map { toExportedPlaylist(it.id, it.name) }
+        val ungroupedPlaylists = ungroupedEntities.mapIndexed { index, playlist ->
+            toExportedPlaylist(playlist, index)
+        }
 
         return PlaylistExport(
             exportedAt = System.currentTimeMillis(),
+            hashStrategy = HASH_STRATEGY,
             songs = songs,
             groups = groups,
             ungroupedPlaylists = ungroupedPlaylists,
@@ -190,21 +211,35 @@ class PlaylistExportManager(
         private const val MIME_JSON = "application/json"
         private const val FINAL_FILE_NAME = "playlists_export.json"
         private const val TEMP_FILE_NAME = "playlists_export.json.tmp"
-        private const val BACKUP_FILE_NAME = "playlists_export.json.bak"
+
+        /** How many prior generations survive alongside the current export, see [rotateGenerations]. */
+        private const val GENERATIONS_KEPT = 5
+
+        /** Matches PlaylistSeedManifestV1.HASH_STRATEGY — see [PlaylistExport.hashStrategy]. */
+        private const val HASH_STRATEGY = "synthx_sampled_sha256_v1"
 
         private const val DEBOUNCE_MS = 800L
 
-        /** Manual-DI entry point, matching BackupManager.create. */
+        @Volatile private var INSTANCE: PlaylistExportManager? = null
+
+        // A true singleton (matching SongRepositoryImpl.create()'s and SynthXDatabase's own
+        // pattern), not just a caller-discipline convention: PlaylistSeedBootstrapper.create()
+        // now also calls this, and a second independent instance would run its own competing
+        // debounced-write collector against the same SAF files.
         fun create(context: Context): PlaylistExportManager {
-            val appContext = context.applicationContext
-            val db = SynthXDatabase.getInstance(appContext)
-            return PlaylistExportManager(
-                context = appContext,
-                playlistDao = db.playlistDao(),
-                songDao = db.songDao(),
-                artistDao = db.artistDao(),
-                albumDao = db.albumDao(),
-            )
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: run {
+                    val appContext = context.applicationContext
+                    val db = SynthXDatabase.getInstance(appContext)
+                    PlaylistExportManager(
+                        context = appContext,
+                        playlistDao = db.playlistDao(),
+                        songDao = db.songDao(),
+                        artistDao = db.artistDao(),
+                        albumDao = db.albumDao(),
+                    ).also { INSTANCE = it }
+                }
+            }
         }
     }
 }
