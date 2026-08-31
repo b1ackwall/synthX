@@ -17,11 +17,14 @@ interface SongRepository {
      * @param otherRootUris the configured audio roots *other than* [folderUri], enumerated
      *   so their files count as found. Required whenever [reconcileMissing] is `true` and
      *   more than one root is configured, or songs under the others are flagged missing.
+     * @param isNewArrivalsRoot whether [folderUri] is the New Arrivals tree rather than the
+     *   main library root — see [com.v1per.synthx.data.scanner.FolderScanner.scan].
      */
     suspend fun scanLibrary(
         folderUri: Uri,
         reconcileMissing: Boolean = true,
         otherRootUris: List<Uri> = emptyList(),
+        isNewArrivalsRoot: Boolean = false,
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
     ): ScanResult
 

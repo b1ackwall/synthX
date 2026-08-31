@@ -55,7 +55,7 @@ internal class SongIngestor(
     private val songArtistDao: SongArtistDao,
 ) {
 
-    suspend fun insertNewSong(file: DocumentFile, id: String, path: String): Song {
+    suspend fun insertNewSong(file: DocumentFile, id: String, path: String, isStarred: Boolean): Song {
         val retriever = MediaMetadataRetriever()
         var rawTitle: String? = null
         var rawArtist: String? = null
@@ -124,6 +124,10 @@ internal class SongIngestor(
                 year = year,
                 trackNumber = trackNumber,
                 dateAdded = dateAdded,
+                // Explicit, not the entity's constructor default — this song's starred
+                // state is derived from which root it was found under, not "every new
+                // song starts starred".
+                isStarred = isStarred,
             )
         )
 

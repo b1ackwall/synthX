@@ -93,7 +93,11 @@ class LibraryScanWorker(
             var songCountAfterScan = 0
             val result = WorkerDatabaseAccess.run {
                 val repository = SongRepositoryImpl.create(applicationContext)
-                val scanResult = repository.scanLibraryAlreadyAdmitted(uri, otherRootUris = otherRoots) { current, total ->
+                val scanResult = repository.scanLibraryAlreadyAdmitted(
+                    uri,
+                    otherRootUris = otherRoots,
+                    isNewArrivalsRoot = false,
+                ) { current, total ->
                 val percent = if (total > 0) current * 100 / total else PROGRESS_INDETERMINATE
                 if (percent != lastPercent) {
                     lastPercent = percent

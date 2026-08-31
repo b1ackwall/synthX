@@ -159,20 +159,23 @@ class SongRepositoryImpl(
         folderUri: Uri,
         reconcileMissing: Boolean,
         otherRootUris: List<Uri>,
+        isNewArrivalsRoot: Boolean,
         onProgress: suspend (current: Int, total: Int) -> Unit,
     ): ScanResult = dbOperation {
-        scanLibraryAlreadyAdmitted(folderUri, reconcileMissing, otherRootUris, onProgress)
+        scanLibraryAlreadyAdmitted(folderUri, reconcileMissing, otherRootUris, isNewArrivalsRoot, onProgress)
     }
 
     internal suspend fun scanLibraryAlreadyAdmitted(
         folderUri: Uri,
         reconcileMissing: Boolean = true,
         otherRootUris: List<Uri> = emptyList(),
+        isNewArrivalsRoot: Boolean = false,
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
     ): ScanResult = folderScanner.scanAlreadyAdmitted(
         folderUri,
         reconcileMissing,
         otherRootUris,
+        isNewArrivalsRoot,
         onProgress,
     )
 

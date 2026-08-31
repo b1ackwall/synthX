@@ -109,14 +109,21 @@ class FolderScanner internal constructor(
      * unresolvable URI — missing-detection is skipped for the whole scan rather than run
      * against a short path set that would wrongly flag every song under that root. The scan
      * still succeeds; [ScanResult.missingReconciled] reports `false`.
+     *
+     * [isNewArrivalsRoot] identifies [folderUri] as the New Arrivals tree rather than the
+     * main library root. It drives `isStarred` (the `in_inbox` column) for every song this
+     * scan inserts or newly claims a path for — a song currently found under New Arrivals is
+     * starred, one found under the main root is not. Defaults to `false` so every existing
+     * caller (main-root scans, tests) keeps its current behaviour unless it opts in.
      */
     suspend fun scan(
         folderUri: Uri,
         reconcileMissing: Boolean = true,
         otherRootUris: List<Uri> = emptyList(),
+        isNewArrivalsRoot: Boolean = false,
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
     ): ScanResult = FolderScannerAdmission.direct {
-        scanAlreadyAdmitted(folderUri, reconcileMissing, otherRootUris, onProgress)
+        scanAlreadyAdmitted(folderUri, reconcileMissing, otherRootUris, isNewArrivalsRoot, onProgress)
     }
 
     /** Caller already owns RestoreCoordinator admission for the complete scan transaction. */
@@ -124,6 +131,7 @@ class FolderScanner internal constructor(
         folderUri: Uri,
         reconcileMissing: Boolean = true,
         otherRootUris: List<Uri> = emptyList(),
+        isNewArrivalsRoot: Boolean = false,
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
     ): ScanResult {
         scanBodyForTest?.let { body ->
@@ -241,6 +249,12 @@ class FolderScanner internal constructor(
                                     filePath = path,
                                     isMissing = false,
                                     missingSince = null,
+                                    // Re-derived from the root being scanned rather than
+                                    // carried over — this branch fires whenever the same
+                                    // content shows up at a new path, including a file
+                                    // moving between the main root and New Arrivals, and
+                                    // the flag must reflect where it lives *now*.
+                                    isStarred = isNewArrivalsRoot,
                                 )
                             )
                             updated++
@@ -283,7 +297,7 @@ class FolderScanner internal constructor(
                     stale.id
                 }
 
-                val newSong = ingestor.insertNewSong(file, id, path)
+                val newSong = ingestor.insertNewSong(file, id, path, isStarred = isNewArrivalsRoot)
                 // If the replaced song is the one currently loaded in the player, its
                 // in-memory Song (title/art) would otherwise go stale — see SongRemapEvents.
                 // Not emitted here: queued and flushed after the transaction commits, below.
