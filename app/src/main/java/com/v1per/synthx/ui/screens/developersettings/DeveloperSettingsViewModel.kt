@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.playlistseed.PlaylistSeedBootstrapResult
 import com.v1per.synthx.data.playlistseed.PlaylistSeedBootstrapper
+import com.v1per.synthx.data.playlistseed.PlaylistSeedManifestGenerator
+import com.v1per.synthx.data.playlistseed.PlaylistSeedManifestRegenerationResult
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import kotlinx.coroutines.delay
@@ -16,6 +18,7 @@ import kotlinx.coroutines.launch
 
 class DeveloperSettingsViewModel internal constructor(
     private val playlistSeedBootstrapper: PlaylistSeedBootstrapper,
+    private val playlistSeedManifestGenerator: PlaylistSeedManifestGenerator,
     private val repository: SongRepository,
 ) : ViewModel() {
 
@@ -24,6 +27,14 @@ class DeveloperSettingsViewModel internal constructor(
 
     private val _seedResult = MutableStateFlow<PlaylistSeedBootstrapResult?>(null)
     val seedResult: StateFlow<PlaylistSeedBootstrapResult?> = _seedResult.asStateFlow()
+
+    private val _isRegeneratingSeedManifest = MutableStateFlow(false)
+    val isRegeneratingSeedManifest: StateFlow<Boolean> = _isRegeneratingSeedManifest.asStateFlow()
+
+    private val _regenerateSeedManifestResult =
+        MutableStateFlow<PlaylistSeedManifestRegenerationResult?>(null)
+    val regenerateSeedManifestResult: StateFlow<PlaylistSeedManifestRegenerationResult?> =
+        _regenerateSeedManifestResult.asStateFlow()
 
     private val _removeOrganizedFromStarredStatus = MutableStateFlow<String?>(null)
     val removeOrganizedFromStarredStatus: StateFlow<String?> =
@@ -48,6 +59,23 @@ class DeveloperSettingsViewModel internal constructor(
 
     fun dismissSeedResult() {
         _seedResult.value = null
+    }
+
+    fun regenerateSeedManifest() {
+        if (_isRegeneratingSeedManifest.value) return
+
+        viewModelScope.launch {
+            _isRegeneratingSeedManifest.value = true
+            try {
+                _regenerateSeedManifestResult.value = playlistSeedManifestGenerator.regenerate()
+            } finally {
+                _isRegeneratingSeedManifest.value = false
+            }
+        }
+    }
+
+    fun dismissRegenerateSeedManifestResult() {
+        _regenerateSeedManifestResult.value = null
     }
 
     fun removeOrganizedFromStarred() {
@@ -89,6 +117,7 @@ class DeveloperSettingsViewModel internal constructor(
                 playlistSeedBootstrapper = PlaylistSeedBootstrapper.create(
                     appContext,
                 ),
+                playlistSeedManifestGenerator = PlaylistSeedManifestGenerator.create(appContext),
                 repository = SongRepositoryImpl.create(appContext),
             ) as T
         }

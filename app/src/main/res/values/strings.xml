@@ -93,6 +93,7 @@
     <string name="settings_backups_and_restore">Backups and Restore</string>
     <string name="settings_developer_settings">Developer Settings</string>
     <string name="settings_seed_playlists_from_manifest">Seed Playlists From Manifest</string>
+    <string name="settings_regenerate_seed_manifest">Regenerate Seed Manifest</string>
     <string name="settings_issues">Issues</string>
     <string name="settings_backup_folder">Backup folder</string>
     <string name="settings_backup_now">Back up now</string>
@@ -116,6 +117,16 @@
     <string name="playlist_seed_failed_title">Playlist seed failed</string>
     <string name="playlist_seed_failed_invalid_manifest">Invalid bundled manifest. No changes were made.</string>
     <string name="playlist_seed_failed_database">No changes were made.</string>
+
+    <string name="seed_manifest_regenerate_confirm_title">Regenerate seed manifest?</string>
+    <string name="seed_manifest_regenerate_confirm_message">This will write your current playlists to a file in your backup folder, for use as seed data in a future build. It does not change anything in the app itself.</string>
+    <string name="seed_manifest_regenerate_confirm_action">Regenerate</string>
+    <string name="seed_manifest_regenerate_success_title">Seed manifest regenerated</string>
+    <string name="seed_manifest_regenerate_success_message">Wrote %1$s to your backup folder.</string>
+    <string name="seed_manifest_regenerate_failed_title">Seed manifest regeneration failed</string>
+    <string name="seed_manifest_regenerate_failed_no_folder">No backup folder is configured. Set one in Backups and Restore first.</string>
+    <string name="seed_manifest_regenerate_failed_invalid">The generated manifest failed validation. Nothing was written.</string>
+    <string name="seed_manifest_regenerate_failed_write">Could not write the manifest file. No changes were made.</string>
 
     <!-- Issues -->
     <string name="issues_missing_since">Missing since %1$s</string>

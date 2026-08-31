@@ -14,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.playlistseed.PlaylistSeedBootstrapResult
+import com.v1per.synthx.data.playlistseed.PlaylistSeedManifestRegenerationResult
 import com.v1per.synthx.ui.components.SettingsDetailScaffold
 import com.v1per.synthx.ui.screens.settings.SettingsRow
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -29,15 +30,23 @@ fun DeveloperSettingsScreen(
 ) {
     val isSeeding by viewModel.isSeeding.collectAsState()
     val seedResult by viewModel.seedResult.collectAsState()
+    val isRegeneratingSeedManifest by viewModel.isRegeneratingSeedManifest.collectAsState()
+    val regenerateSeedManifestResult by viewModel.regenerateSeedManifestResult.collectAsState()
     val removeOrganizedStatus by viewModel.removeOrganizedFromStarredStatus.collectAsState()
     val isRemovingOrganized by viewModel.isRemovingOrganizedFromStarred.collectAsState()
     var showConfirmation by remember { mutableStateOf(false) }
+    var showRegenerateConfirmation by remember { mutableStateOf(false) }
 
     SettingsDetailScaffold(topBar = topBar) {
         SettingsRow(
             title = stringResource(R.string.settings_seed_playlists_from_manifest),
             enabled = !isSeeding,
             onClick = { showConfirmation = true },
+        )
+        SettingsRow(
+            title = stringResource(R.string.settings_regenerate_seed_manifest),
+            enabled = !isRegeneratingSeedManifest,
+            onClick = { showRegenerateConfirmation = true },
         )
         RemoveOrganizedFromStarredSection(
             removeOrganizedStatus = removeOrganizedStatus,
@@ -60,6 +69,23 @@ fun DeveloperSettingsScreen(
         PlaylistSeedResultDialog(
             result = result,
             onDismiss = viewModel::dismissSeedResult,
+        )
+    }
+
+    if (showRegenerateConfirmation) {
+        ConfirmRegenerateSeedManifestDialog(
+            onConfirm = {
+                showRegenerateConfirmation = false
+                viewModel.regenerateSeedManifest()
+            },
+            onDismiss = { showRegenerateConfirmation = false },
+        )
+    }
+
+    regenerateSeedManifestResult?.let { result ->
+        RegenerateSeedManifestResultDialog(
+            result = result,
+            onDismiss = viewModel::dismissRegenerateSeedManifestResult,
         )
     }
 }
@@ -118,6 +144,75 @@ private fun PlaylistSeedResultDialog(
         PlaylistSeedBootstrapResult.DatabaseFailure -> {
             title = stringResource(R.string.playlist_seed_failed_title)
             message = stringResource(R.string.playlist_seed_failed_database)
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_ok))
+            }
+        },
+        containerColor = SurfaceColor,
+        titleContentColor = TextPrimary,
+        textContentColor = TextSecondary,
+    )
+}
+
+@Composable
+private fun ConfirmRegenerateSeedManifestDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.seed_manifest_regenerate_confirm_title)) },
+        text = { Text(stringResource(R.string.seed_manifest_regenerate_confirm_message)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.seed_manifest_regenerate_confirm_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+        containerColor = SurfaceColor,
+        titleContentColor = TextPrimary,
+        textContentColor = TextSecondary,
+    )
+}
+
+@Composable
+private fun RegenerateSeedManifestResultDialog(
+    result: PlaylistSeedManifestRegenerationResult,
+    onDismiss: () -> Unit,
+) {
+    val title: String
+    val message: String
+    when (result) {
+        is PlaylistSeedManifestRegenerationResult.Success -> {
+            title = stringResource(R.string.seed_manifest_regenerate_success_title)
+            message = stringResource(
+                R.string.seed_manifest_regenerate_success_message,
+                result.fileName,
+            )
+        }
+        PlaylistSeedManifestRegenerationResult.NoBackupFolderConfigured -> {
+            title = stringResource(R.string.seed_manifest_regenerate_failed_title)
+            message = stringResource(R.string.seed_manifest_regenerate_failed_no_folder)
+        }
+        PlaylistSeedManifestRegenerationResult.GeneratedManifestInvalid -> {
+            title = stringResource(R.string.seed_manifest_regenerate_failed_title)
+            message = stringResource(R.string.seed_manifest_regenerate_failed_invalid)
+        }
+        PlaylistSeedManifestRegenerationResult.WriteFailure -> {
+            title = stringResource(R.string.seed_manifest_regenerate_failed_title)
+            message = stringResource(R.string.seed_manifest_regenerate_failed_write)
         }
     }
 

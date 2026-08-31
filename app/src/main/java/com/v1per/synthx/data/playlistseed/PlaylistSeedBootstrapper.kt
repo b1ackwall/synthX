@@ -7,7 +7,6 @@ import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.backup.PlaylistExportManager
 import com.v1per.synthx.data.backup.RestoreCoordinator
-import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -118,25 +117,11 @@ class PlaylistSeedBootstrapper internal constructor(
             )
         }.getOrNull() ?: return null
 
-        if (manifest.schemaVersion != PlaylistSeedManifestV1.SCHEMA_VERSION) return null
-        if (manifest.hashStrategy != PlaylistSeedManifestV1.HASH_STRATEGY) return null
-
-        val playlistIds = mutableSetOf<String>()
-        for (playlist in manifest.playlists) {
-            if (playlist.playlistId.isBlank()) return null
-            if (!playlistIds.add(playlist.playlistId)) return null
-            if (runCatching { UUID.fromString(playlist.playlistId) }.isFailure) return null
-            if (playlist.name.isBlank()) return null
-            if (playlist.songHashes.any { !SONG_HASH_REGEX.matches(it) }) return null
-            if (playlist.songHashes.size != playlist.songHashes.toSet().size) return null
-        }
-
-        return manifest
+        return manifest.takeIf { PlaylistSeedManifestValidator.isValid(it) }
     }
 
     companion object {
         private const val ASSET_FILE_NAME = "playlist_seed_manifest_v1.json"
-        private val SONG_HASH_REGEX = Regex("^[0-9a-f]{64}$")
 
         fun create(context: Context): PlaylistSeedBootstrapper {
             val appContext = context.applicationContext
