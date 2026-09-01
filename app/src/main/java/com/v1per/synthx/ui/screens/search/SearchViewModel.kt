@@ -48,6 +48,14 @@ class SearchViewModel(
         val isEmpty
             get() = songs.isEmpty() && artists.isEmpty() &&
                 albums.isEmpty() && playlists.isEmpty()
+
+        fun isEmptyForFilter(filter: SearchFilter): Boolean = when (filter) {
+            SearchFilter.ALL -> isEmpty
+            SearchFilter.SONGS -> songs.isEmpty()
+            SearchFilter.ARTISTS -> artists.isEmpty()
+            SearchFilter.ALBUMS -> albums.isEmpty()
+            SearchFilter.PLAYLISTS -> playlists.isEmpty()
+        }
     }
 
     private val _query = MutableStateFlow("")

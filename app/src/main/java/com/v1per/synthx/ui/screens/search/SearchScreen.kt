@@ -220,7 +220,7 @@ fun SearchScreen(
                     )
                 }
 
-                results.isEmpty -> Box(
+                results.isEmptyForFilter(filter) -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
