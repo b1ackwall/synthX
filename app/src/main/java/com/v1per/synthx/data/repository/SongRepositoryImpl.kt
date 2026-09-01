@@ -22,9 +22,11 @@ import androidx.room.withTransaction
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import com.v1per.synthx.data.scanner.FolderScanner
+import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
 import com.v1per.synthx.data.scanner.ScanResult
 import com.v1per.synthx.data.scanner.walkAndClassifyRootOrganization
+import com.v1per.synthx.data.scanner.graduateSong as graduateSongFile
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import java.util.UUID
@@ -36,6 +38,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -245,6 +248,40 @@ class SongRepositoryImpl(
     override suspend fun isInAnyPlaylist(songId: String): Boolean = dbOperation {
         songDao.isInAnyPlaylist(songId)
     }
+
+    // No dbOperation{} wrapper here — graduateSongFile does its own file I/O under
+    // Dispatchers.IO first and only gates its DB write through RepositoryDbOperation.run
+    // internally, per this project's backup/DB admission conventions.
+    //
+    // channelFlow rather than plain flow{}: graduateSongFile's onStage callback below fires
+    // from inside its own nested withContext(Dispatchers.IO) block — a different coroutine
+    // from this builder's body, even though both land on the same dispatcher. flow{}'s
+    // SafeCollector requires emit() to be called from the exact same coroutine the builder
+    // block is running in, which a callback invoked from a nested withContext can't satisfy
+    // (flowOn only reconciles the *dispatcher*, not this same-coroutine requirement).
+    // channelFlow backs the flow with a channel instead, so send/trySend from any coroutine
+    // is safe. trySend (not send) because stages are infrequent, discrete events with no
+    // real backpressure concern — see the ChannelResult handling below for why a dropped
+    // send still can't lose the terminal stage.
+    //
+    // flowOn(Dispatchers.IO) is kept: it still controls the dispatcher channelFlow's own
+    // producer coroutine (and therefore graduateSongFile) runs on, same as with flow{} —
+    // channelFlow doesn't make it redundant, it just no longer needs to reconcile the
+    // same-coroutine constraint too.
+    override fun graduateSong(songId: String, rootMusicFolderUri: Uri): Flow<GraduationStage> = channelFlow {
+        graduateSongFile(context, songDao, songId, rootMusicFolderUri) { stage ->
+            val result = trySend(stage)
+            if (result.isFailure) {
+                // Only reachable if this channel is already closed/cancelled (e.g. the
+                // collector went away) — channelFlow closes it automatically once this
+                // block returns, so a live graduation in progress always has an open
+                // channel to send into. Logged rather than silently dropped in case that
+                // assumption ever stops holding; not escalated to a thrown exception since
+                // there is nothing a cancelled collector needs delivered to it anyway.
+                Log.w(TAG, "Dropped graduation stage $stage — collector already gone")
+            }
+        }
+    }.flowOn(Dispatchers.IO)
 
     // Debug tooling, read-only — no backupManager.createBackup here, unlike deleteSong: this
     // pass never writes to the DB.

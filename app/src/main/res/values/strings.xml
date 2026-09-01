@@ -52,9 +52,18 @@
     <string name="actions_added_to_queue">Added to queue</string>
     <string name="actions_already_in_queue">Already in queue</string>
     <string name="actions_already_playing_next">Already playing next</string>
-    <string name="actions_remove_from_starred">Remove from Starred</string>
-    <string name="actions_removed_from_starred">Removed from Starred</string>
+    <string name="actions_remove_from_starred">Remove from Starred (Graduate)</string>
+    <string name="actions_removed_from_starred">Moved to library</string>
     <string name="actions_failed">Couldn\'t complete that action. Try again.</string>
+
+    <!-- Graduation (moving a song's file from New Arrivals into the root library) -->
+    <string name="graduation_dialog_title">Moving to Library</string>
+    <string name="graduation_stage_copying">Copying file…</string>
+    <string name="graduation_stage_verifying">Verifying…</string>
+    <string name="graduation_stage_deleting_original">Deleting original…</string>
+    <string name="graduation_stage_updating_database">Updating library…</string>
+    <string name="graduation_stage_done">Done</string>
+    <string name="graduation_dialog_close">Close</string>
 
     <!-- Sort -->
     <string name="sort_by">Sort by</string>

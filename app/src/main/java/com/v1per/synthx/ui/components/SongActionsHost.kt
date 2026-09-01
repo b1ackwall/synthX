@@ -1,6 +1,8 @@
 package com.v1per.synthx.ui.components
 
 import android.content.Context
+import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHostState
@@ -28,13 +30,16 @@ import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.preferences.DeleteSongsGate
+import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.launchCatching
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -46,6 +51,13 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** How long the graduation progress dialog stays up after reaching a terminal stage before
+ *  auto-dismissing, unless the user closes it manually first — see
+ *  [SongActionsViewModel.scheduleGraduationAutoDismiss]. */
+private const val GraduationDialogAutoDismissMs = 3_000L
+
+private const val TAG = "SongActionsHost"
 
 /** Where the sheet was opened from — lets the sheet tailor itself per origin. */
 enum class SongActionSource { Default, Player, Starred }
@@ -235,6 +247,13 @@ fun SongActionsHost(
             onDismiss = { dismiss() },
         )
     }
+
+    // Independent of the sheet/target above — the sheet is already dismissed by the time this
+    // shows, and it must survive the sheet's own composable being torn down.
+    val graduationStage by viewModel.graduationStage.collectAsState()
+    graduationStage?.let { stage ->
+        GraduationProgressDialog(stage = stage, onDismiss = viewModel::dismissGraduationDialog)
+    }
 }
 
 private data class SongActionsTarget(
@@ -264,6 +283,7 @@ private val SongActionsTargetKeySaver: Saver<SongActionsTargetKey?, List<String?
 
 class SongActionsViewModel(
     private val repository: SongRepository,
+    private val preferences: PreferencesManager,
 ) : ViewModel() {
 
     val playlists: StateFlow<ImmutableList<Playlist>> = repository.getAllPlaylists()
@@ -352,15 +372,65 @@ class SongActionsViewModel(
         }
     }
 
+    private val _graduationStage = MutableStateFlow<GraduationStage?>(null)
+
+    /** Drives [GraduationProgressDialog] — null means no graduation is in flight or shown. */
+    val graduationStage: StateFlow<GraduationStage?> = _graduationStage.asStateFlow()
+
+    // Guards the delayed auto-dismiss below the same way LibraryManagementViewModel's
+    // showTemporarily does: a manual dismissGraduationDialog() (or a newer graduation
+    // starting) must be able to cancel a still-pending delayed clear outright, rather than
+    // relying on a value-equality check racing a brand new terminal stage.
+    private var graduationAutoDismissJob: Job? = null
+
     /**
-     * Clears the song's starred flag — it leaves the Starred list and nothing else changes.
-     * Playlist membership is untouched, and there is no undo: the flag is never set back.
+     * Physically moves the song's file from wherever it currently lives into the configured
+     * root library folder — copy, hash-verify, delete original — then updates its DB row,
+     * clearing the starred flag as a side effect of the move landing. Replaces the old
+     * dismiss-only behavior for this same button. Progress is reported via [graduationStage]
+     * for [GraduationProgressDialog] to render.
      */
     fun removeFromStarred(songId: String) {
-        launchCatching(onError = { _events.tryEmit(SongActionEvent.ActionFailed) }) {
-            repository.dismissFromStarred(songId)
-            _events.tryEmit(SongActionEvent.RemovedFromStarred)
+        val rootUri = preferences.musicFolderUri?.let { uri -> runCatching { Uri.parse(uri) }.getOrNull() }
+        if (rootUri == null) {
+            _events.tryEmit(SongActionEvent.ActionFailed)
+            return
         }
+        graduationAutoDismissJob?.cancel()
+        viewModelScope.launch {
+            repository.graduateSong(songId, rootUri)
+                .catch { e ->
+                    Log.e(TAG, "Graduation flow threw", e)
+                    emit(GraduationStage.Failed("Something went wrong. Try again."))
+                }
+                .collect { stage ->
+                    _graduationStage.value = stage
+                    when (stage) {
+                        GraduationStage.Done -> {
+                            _events.tryEmit(SongActionEvent.RemovedFromStarred)
+                            scheduleGraduationAutoDismiss()
+                        }
+                        is GraduationStage.Failed -> scheduleGraduationAutoDismiss()
+                        else -> Unit
+                    }
+                }
+        }
+    }
+
+    /** Auto-dismisses the dialog [GraduationDialogAutoDismissMs] after a terminal stage,
+     *  unless [dismissGraduationDialog] (or a newer graduation) cancels this job first. */
+    private fun scheduleGraduationAutoDismiss() {
+        graduationAutoDismissJob = viewModelScope.launch {
+            delay(GraduationDialogAutoDismissMs)
+            _graduationStage.value = null
+        }
+    }
+
+    /** Manual close — cancels any pending auto-dismiss so it can't fire a beat later against
+     *  whatever the dialog is showing by then (closed again, or a new graduation). */
+    fun dismissGraduationDialog() {
+        graduationAutoDismissJob?.cancel()
+        _graduationStage.value = null
     }
 
     /**
@@ -383,7 +453,10 @@ class SongActionsViewModel(
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
             @Suppress("UNCHECKED_CAST")
-            return SongActionsViewModel(SongRepositoryImpl.create(context)) as T
+            return SongActionsViewModel(
+                SongRepositoryImpl.create(context),
+                PreferencesManager(context.applicationContext),
+            ) as T
         }
     }
 }

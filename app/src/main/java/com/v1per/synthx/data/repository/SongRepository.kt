@@ -1,6 +1,7 @@
 package com.v1per.synthx.data.repository
 
 import android.net.Uri
+import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
 import com.v1per.synthx.data.scanner.ScanResult
 import kotlinx.coroutines.flow.Flow
@@ -65,6 +66,17 @@ interface SongRepository {
 
     /** Whether the song belongs to at least one playlist — gates the dismissal above. */
     suspend fun isInAnyPlaylist(songId: String): Boolean
+
+    /**
+     * Physically graduates a song out of wherever it currently lives (typically New Arrivals)
+     * into [rootMusicFolderUri] — copy, hash-verify, delete original — then updates its DB
+     * row's file_path and clears isStarred. See
+     * [com.v1per.synthx.data.scanner.graduateSong] for the stage-by-stage mechanics.
+     *
+     * Emits every [GraduationStage] as the operation progresses; the last value emitted is
+     * always the terminal stage ([GraduationStage.Done] or [GraduationStage.Failed]).
+     */
+    fun graduateSong(songId: String, rootMusicFolderUri: Uri): Flow<GraduationStage>
 
     /**
      * Debug tooling: read-only audit of the root music folder — walks the live filesystem
