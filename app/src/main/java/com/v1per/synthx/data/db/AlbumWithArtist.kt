@@ -8,4 +8,5 @@ data class AlbumWithArtist(
     val title: String,
     @ColumnInfo(name = "album_art_uri") val albumArtUri: String?,
     val artistName: String,
+    val allSongsMissing: Boolean,
 )

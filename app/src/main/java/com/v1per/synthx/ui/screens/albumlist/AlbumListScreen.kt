@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -42,6 +43,7 @@ import com.v1per.synthx.ui.components.ArtPlaceholder
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
@@ -104,6 +106,11 @@ private fun AlbumListContent(
     }
 }
 
+// Tapping through to an all-missing album's detail screen is still allowed — that screen
+// (AlbumDetailScreen) now shows its missing songs dimmed via SongRow rather than empty, so
+// there's a real destination there. Only the alpha dims here, unlike SongRow's fully
+// disabled row: hiding the whole album was the actual problem being fixed, and a dead end
+// tap target would just reintroduce a milder version of it.
 @Composable
 private fun AlbumRow(
     album: Album,
@@ -121,7 +128,8 @@ private fun AlbumRow(
                     indication = ripple(color = Accent),
                     onClick = onClick,
                 )
-                .padding(horizontal = Spacing.HorizontalPadding),
+                .padding(horizontal = Spacing.HorizontalPadding)
+                .alpha(if (album.allSongsMissing) Alpha.Disabled else 1f),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (album.albumArtUri != null) {

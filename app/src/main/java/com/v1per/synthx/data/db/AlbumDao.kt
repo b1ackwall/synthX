@@ -68,29 +68,33 @@ interface AlbumDao {
     // rejects window functions and NULLS LAST, so this uses a correlated subquery
     // and the "expr IS NULL" ordering trick instead.
     //
-    // Albums where every song is_missing = 1 (or that have zero songs at all) are
-    // excluded via the EXISTS clause below, so they don't linger as dead entries —
-    // mirroring how missing songs already don't show up as tappable rows elsewhere.
+    // No longer filtered by is_missing — an album whose songs are all missing (or which
+    // has zero songs, e.g. a not-yet-cleaned-up orphan) is still returned, with
+    // allSongsMissing = 1, so AlbumListScreen can render it dimmed instead of hiding it,
+    // mirroring how a missing song shows dimmed via SongRow rather than vanishing. The
+    // primary-artist subquery below deliberately no longer filters by is_missing either —
+    // an all-missing album still needs a real artist name to display, not a fallback to
+    // "Unknown Artist".
     @Query(
         """
         SELECT
             albums.id,
             albums.title,
             albums.album_art_uri,
-            COALESCE(artists.name, 'Unknown Artist') AS artistName
+            COALESCE(artists.name, 'Unknown Artist') AS artistName,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM songs
+                WHERE songs.album_id = albums.id AND songs.is_missing = 0
+            ) THEN 0 ELSE 1 END AS allSongsMissing
         FROM albums
         LEFT JOIN artists ON artists.id = (
             SELECT song_artists.artist_id
             FROM songs
             INNER JOIN song_artists ON song_artists.song_id = songs.id
                 AND song_artists.position = 0
-            WHERE songs.album_id = albums.id AND songs.is_missing = 0
+            WHERE songs.album_id = albums.id
             ORDER BY songs.track_number IS NULL, songs.track_number ASC, songs.rowid ASC
             LIMIT 1
-        )
-        WHERE EXISTS (
-            SELECT 1 FROM songs
-            WHERE songs.album_id = albums.id AND songs.is_missing = 0
         )
         ORDER BY albums.title COLLATE NOCASE ASC
         """

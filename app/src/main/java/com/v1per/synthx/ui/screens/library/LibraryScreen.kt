@@ -9,16 +9,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
@@ -43,20 +42,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
-import com.v1per.synthx.ui.components.ArtPlaceholder
-import com.v1per.synthx.ui.components.crossfadeModel
+import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
@@ -85,6 +80,7 @@ fun LibraryScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val starredCount by viewModel.starredCount.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val currentlyPlayingSongId by playbackViewModel.currentSongId.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
@@ -117,6 +113,7 @@ fun LibraryScreen(
                 error = error,
                 isLoading = isLoading,
                 starredCount = starredCount,
+                currentlyPlayingSongId = currentlyPlayingSongId,
                 onPlaylistsClick = viewModel::onPlaylistsClick,
                 onArtistsClick = viewModel::onArtistsClick,
                 onAlbumsClick = viewModel::onAlbumsClick,
@@ -136,6 +133,7 @@ private fun LibraryScreenContent(
     error: String?,
     isLoading: Boolean,
     starredCount: Int,
+    currentlyPlayingSongId: String?,
     onPlaylistsClick: () -> Unit,
     onArtistsClick: () -> Unit,
     onAlbumsClick: () -> Unit,
@@ -224,6 +222,7 @@ private fun LibraryScreenContent(
             } else if (recentSongs.isNotEmpty()) {
                 RecentlyAddedSection(
                     songs = recentSongs,
+                    currentlyPlayingSongId = currentlyPlayingSongId,
                     onSeeAllClick = onSeeAllClick,
                     onSongClick = onSongClick,
                 )
@@ -236,9 +235,13 @@ private fun LibraryScreenContent(
     }
 }
 
+// Uses the shared SongRow (see SongRow.kt) rather than a bespoke tile, so a missing song in
+// Recently Added gets the same dimmed/inert treatment as every other list instead of
+// duplicating that logic here.
 @Composable
 private fun RecentlyAddedSection(
     songs: ImmutableList<Song>,
+    currentlyPlayingSongId: String?,
     onSeeAllClick: () -> Unit,
     onSongClick: (Int) -> Unit,
 ) {
@@ -266,40 +269,25 @@ private fun RecentlyAddedSection(
 
         Spacer(modifier = Modifier.height(Spacing.md))
 
-        val rows = songs.chunked(2)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.HorizontalPadding),
-            verticalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
-        ) {
-            rows.forEachIndexed { rowIndex, rowSongs ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
-                ) {
-                    rowSongs.forEachIndexed { columnIndex, song ->
-                        // chunked(2) above, so the flat index is row * 2 + column.
-                        val songIndex = rowIndex * 2 + columnIndex
-                        RecentSongTile(
-                            song = song,
-                            onClick = { onSongClick(songIndex) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    // Fill empty space if odd number of songs
-                    if (rowSongs.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            songs.forEachIndexed { index, song ->
+                // Remembered per song id for the same reason SongsScreen does it: an
+                // unrelated recomposition must not hand this row a fresh lambda and defeat
+                // row-level skip.
+                val onClick = remember(song.id, onSongClick) { { onSongClick(index) } }
+                SongRow(
+                    song = song,
+                    isCurrentlyPlaying = song.id == currentlyPlayingSongId,
+                    onClick = onClick,
+                )
             }
         }
     }
 }
 
-// Matches RecentlyAddedSection's header/grid shape while data is still loading. The "See
+// Matches RecentlyAddedSection's header/row shape while data is still loading. The "See
 // all" action is omitted rather than shown disabled — there's nothing to see all of yet.
-private const val SkeletonTileCount = 6
+private const val SkeletonRowCount = 4
 
 @Composable
 private fun RecentlyAddedSectionSkeleton() {
@@ -315,101 +303,47 @@ private fun RecentlyAddedSectionSkeleton() {
 
         Spacer(modifier = Modifier.height(Spacing.md))
 
-        val rows = (1..SkeletonTileCount).chunked(2)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.HorizontalPadding),
-            verticalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
-        ) {
-            rows.forEach { rowSlots ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.ItemSpacing),
-                ) {
-                    rowSlots.forEach { _ ->
-                        RecentSongTileSkeleton(modifier = Modifier.weight(1f))
-                    }
-                }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            repeat(SkeletonRowCount) {
+                RecentSongRowSkeleton()
             }
         }
     }
 }
 
-/** Static placeholder matching [RecentSongTile]'s silhouette — no shimmer, no animation. */
+/** Static placeholder matching a [SongRow]'s silhouette — no shimmer, no animation. */
 @Composable
-private fun RecentSongTileSkeleton(modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
+private fun RecentSongRowSkeleton() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
+                .size(48.dp)
                 .clip(MaterialTheme.shapes.small)
                 .background(SurfaceVariant),
         )
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.7f)
-                .height(10.dp)
-                .clip(MaterialTheme.shapes.small)
-                .background(TextSecondary.copy(alpha = 0.24f)),
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.5f)
-                .height(8.dp)
-                .clip(MaterialTheme.shapes.small)
-                .background(TextSecondary.copy(alpha = 0.14f)),
-        )
-    }
-}
-
-@Composable
-private fun RecentSongTile(
-    song: Song,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.clickable(onClick = onClick),
-    ) {
-        if (song.albumArtUri != null) {
-            AsyncImage(
-                model = crossfadeModel(song.albumArtUri),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+        Spacer(modifier = Modifier.width(Spacing.md))
+        Column {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .clip(MaterialTheme.shapes.small),
+                    .width(160.dp)
+                    .height(10.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(TextSecondary.copy(alpha = 0.24f)),
             )
-        } else {
-            // ArtPlaceholder applies .size() internally, so resolve the
-            // square edge from the tile width before handing it down.
-            BoxWithConstraints(
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f),
-            ) {
-                ArtPlaceholder(size = maxWidth)
-            }
+                    .width(100.dp)
+                    .height(8.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(TextSecondary.copy(alpha = 0.14f)),
+            )
         }
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Text(
-            text = song.title,
-            style = MaterialTheme.typography.labelMedium,
-            color = TextPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = song.artist,
-            style = MaterialTheme.typography.labelSmall,
-            color = TextSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
@@ -480,6 +414,7 @@ private fun LibraryScreenPreview() {
                 error = null,
                 isLoading = false,
                 starredCount = 12,
+                currentlyPlayingSongId = "1",
                 onPlaylistsClick = {},
                 onArtistsClick = {},
                 onAlbumsClick = {},

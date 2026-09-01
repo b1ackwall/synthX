@@ -5,4 +5,5 @@ data class Album(
     val title: String,
     val artist: String,
     val albumArtUri: String?,
+    val allSongsMissing: Boolean = false,
 )

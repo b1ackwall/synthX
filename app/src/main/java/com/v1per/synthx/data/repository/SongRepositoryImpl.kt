@@ -107,7 +107,9 @@ class SongRepositoryImpl(
     private var lastKnownArtists: List<Artist> = emptyList()
     private val artistsFlow: StateFlow<List<Artist>> =
         RepositoryDbFlow.observe { artistDao.getAllArtists() }.map { entities ->
-            entities.map { Artist(id = it.id, name = it.name) }.also { lastKnownArtists = it }
+            entities.map {
+                Artist(id = it.id, name = it.name, allSongsMissing = it.allSongsMissing)
+            }.also { lastKnownArtists = it }
         }.catch { e ->
             Log.e(TAG, "artistsFlow upstream failure — degrading to last known artists", e)
             emit(lastKnownArtists)
@@ -139,6 +141,7 @@ class SongRepositoryImpl(
                     title = it.title,
                     artist = it.artistName,
                     albumArtUri = it.albumArtUri,
+                    allSongsMissing = it.allSongsMissing,
                 )
             }.also { lastKnownAlbums = it }
         }.catch { e ->

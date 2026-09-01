@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +35,7 @@ import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
@@ -96,6 +98,8 @@ private fun ArtistListContent(
     }
 }
 
+// See AlbumListScreen's AlbumRow for why this stays tappable (dimmed only, not disabled)
+// even when every song under the artist is missing.
 @Composable
 private fun ArtistRow(
     artist: Artist,
@@ -113,7 +117,8 @@ private fun ArtistRow(
                     indication = ripple(color = Accent),
                     onClick = onClick,
                 )
-                .padding(horizontal = Spacing.HorizontalPadding),
+                .padding(horizontal = Spacing.HorizontalPadding)
+                .alpha(if (artist.allSongsMissing) Alpha.Disabled else 1f),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(

@@ -28,34 +28,37 @@ interface SongDao {
 
     // Room batches the @Relation loads, so these cost 3 queries total rather than
     // 2 per song. Callers still need getAllSongArtistRefs to restore artist order.
+    // Deliberately unfiltered by is_missing — a missing song still shows up here, inert,
+    // via SongRow's own missing-state rendering (see SongRow.kt), rather than vanishing.
+    // Playback safety is enforced separately and unconditionally by
+    // PlaybackViewModel.requestPlayQueue, not by this query.
     @Transaction
     @Query(
         """
         SELECT songs.* FROM songs
         INNER JOIN song_artists ON songs.id = song_artists.song_id
         WHERE song_artists.artist_id = :artistId
-        AND songs.is_missing = 0
         ORDER BY songs.title COLLATE NOCASE ASC
         """
     )
     fun getSongsWithDetailsForArtist(artistId: String): Flow<List<SongWithDetails>>
 
+    // Deliberately unfiltered by is_missing — see getSongsWithDetailsForArtist above.
     @Transaction
     @Query(
         """
         SELECT * FROM songs
         WHERE album_id = :albumId
-        AND is_missing = 0
         ORDER BY track_number IS NULL, track_number ASC, title COLLATE NOCASE ASC
         """
     )
     fun getSongsWithDetailsForAlbum(albumId: String): Flow<List<SongWithDetails>>
 
+    // Deliberately unfiltered by is_missing — see getSongsWithDetailsForArtist above.
     @Transaction
     @Query(
         """
         SELECT * FROM songs
-        WHERE is_missing = 0
         ORDER BY date_added DESC
         LIMIT :limit
         """
@@ -64,13 +67,13 @@ interface SongDao {
 
     // Room batches the @Relation loads, same as getSongsWithDetailsForArtist/Album — joins
     // straight to playlist_songs so the result set is the playlist, not the whole library.
+    // Deliberately unfiltered by is_missing — see getSongsWithDetailsForArtist above.
     @Transaction
     @Query(
         """
         SELECT songs.* FROM songs
         INNER JOIN playlist_songs ON playlist_songs.song_id = songs.id
         WHERE playlist_songs.playlist_id = :playlistId
-        AND songs.is_missing = 0
         ORDER BY playlist_songs.position ASC
         """
     )
@@ -80,13 +83,14 @@ interface SongDao {
     // getAllSongsWithDetails) for the same reason getSongsWithDetailsForPlaylist joins
     // straight to playlist_songs: the result set should be the starred songs, not the whole
     // library narrowed down afterwards. Newest first — the useful order for a "what still
-    // needs filing" list.
+    // needs filing" list. Deliberately unfiltered by is_missing — see
+    // getSongsWithDetailsForArtist above. Note getStarredSongCount below stays filtered:
+    // the Starred badge should count only what's actually actionable, not dead entries.
     @Transaction
     @Query(
         """
         SELECT * FROM songs
         WHERE in_inbox = 1
-        AND is_missing = 0
         ORDER BY date_added DESC
         """
     )
