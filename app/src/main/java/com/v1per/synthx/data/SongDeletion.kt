@@ -51,8 +51,48 @@ suspend fun deleteSongRowWithArtRepoint(songDao: SongDao, albumDao: AlbumDao, so
  */
 fun deleteSongArtFile(context: Context, songId: String): Boolean {
     val artDir = File(context.filesDir, "art")
-    val matches = artDir.listFiles { file ->
-        file.name.startsWith("art_$songId.") || file.name.startsWith("art_full_$songId.")
-    } ?: return false
+    val matches = artDir.listFiles { file -> songIdOfArtFile(file.name) == songId } ?: return false
     return matches.fold(false) { deletedAny, file -> file.delete() || deletedAny }
+}
+
+/**
+ * Bulk counterpart to [deleteSongArtFile], for callers holding many ids at once. Returns the
+ * number of files actually deleted.
+ *
+ * Exists because [deleteSongArtFile] lists `filesDir/art/` once per id, which is the right
+ * shape for the handful of evictions a committed scan reconciles but not for the thousands of
+ * ids a scan cancelled mid-import can have written art for — that would be one directory
+ * listing per song, on the cancellation path, where taking tens of seconds risks the worker
+ * being killed before it finishes cleaning up at all. This walks the directory once instead.
+ *
+ * Same matching rules as [deleteSongArtFile], via the same [songIdOfArtFile], so the two
+ * cannot drift apart.
+ */
+fun deleteSongArtFiles(context: Context, songIds: Set<String>): Int {
+    if (songIds.isEmpty()) return 0
+    val artDir = File(context.filesDir, "art")
+    val matches = artDir.listFiles { file -> songIdOfArtFile(file.name) in songIds } ?: return 0
+    return matches.count { it.delete() }
+}
+
+/**
+ * The song id an art filename belongs to, or null if the name isn't art at all.
+ *
+ * The single definition of the `art_<id>.<ext>` / `art_full_<id>.<ext>` convention that both
+ * deletion helpers match on. Matching by id rather than a fixed extension is deliberate:
+ * older art was written as `art_<id>.png`, newer art as `art_<id>.jpg` (see
+ * [com.v1per.synthx.data.scanner.AlbumArtExtractor]), and the untouched-original
+ * full-resolution copy's extension varies by sniffed source format (jpg/png/webp). Stopping
+ * at the first `.` also catches an interrupted write's `art_<id>.<uuid>.tmp` leftovers, which
+ * belong to the same song and should go with it.
+ *
+ * `art_full_` is tested first because it is also a valid `art_` prefix.
+ */
+private fun songIdOfArtFile(name: String): String? {
+    val withoutPrefix = when {
+        name.startsWith("art_full_") -> name.removePrefix("art_full_")
+        name.startsWith("art_") -> name.removePrefix("art_")
+        else -> return null
+    }
+    return withoutPrefix.substringBefore('.').takeIf { it.isNotEmpty() }
 }

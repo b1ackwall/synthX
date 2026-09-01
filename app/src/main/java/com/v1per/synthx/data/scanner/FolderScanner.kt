@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 data class ScanResult(
     val added: Int,
@@ -71,8 +72,9 @@ class FolderScanner internal constructor(
 
     /**
      * Per-file metadata extraction and row writing. Constructed once and reused for every
-     * file — it holds no per-scan state. Its methods run inside the scan's own Room
-     * transaction; see [SongIngestor]'s transaction contract.
+     * file — it holds no per-scan state, which is also what makes its extraction half safe
+     * to call from many coroutines at once. Its *writing* methods run inside the scan's own
+     * Room transaction; see [SongIngestor]'s transaction contract.
      */
     private val ingestor = SongIngestor(context, songDao, artistDao, albumDao, songArtistDao)
 
@@ -82,15 +84,28 @@ class FolderScanner internal constructor(
      * Concurrency is no longer guarded here — LibraryScanWorker enqueues under a unique
      * work name, so only one scan can be in flight per process.
      *
+     * The scan runs in two phases. **Extraction** ([extractScanData]) hashes, identifies and
+     * reads every file, concurrently and with no transaction open — nearly all of a scan's
+     * wall-clock cost, and the only part with no cross-file ordering dependency. **Writing**
+     * then replays those results into Room strictly in walk order inside one transaction,
+     * where the ordering *is* load-bearing (album/artist reuse, duplicate collapse, path
+     * eviction). Splitting them is purely a performance change: the write phase's behaviour
+     * is identical to when it read each file inline.
+     *
      * [onProgress] receives `(current, total)` where `current` is the number of audio
-     * files fully processed so far. Two phases have no meaningful denominator — the
-     * file-system walk before the file list exists, and the missing-detection plus
-     * orphan-cleanup passes afterwards — and report [PROGRESS_INDETERMINATE] for **both**
-     * arguments. Callers should treat `total <= 0` as "show a spinner, not a bar".
+     * files fully extracted so far — in completion order, which the concurrent extraction
+     * phase no longer guarantees is walk order. Everything outside that phase has no
+     * meaningful denominator — the file-system walk before the file list exists, and the
+     * write, missing-detection and orphan-cleanup passes afterwards — and reports
+     * [PROGRESS_INDETERMINATE] for **both** arguments. Callers should treat `total <= 0` as
+     * "show a spinner, not a bar".
      *
      * The whole mutation phase runs in one Room transaction, so a cancelled or failed
-     * scan rolls back rather than leaving the library half-reconciled. Cancellation is
-     * checked once per file, so it takes effect within one file's work.
+     * scan rolls back rather than leaving the library half-reconciled. Album art files are
+     * the one thing a rollback cannot undo, so a scan that does not commit deletes the art
+     * it wrote on its way out (see `deleteOrphanedScanArt`). Cancellation is checked once
+     * per file in both phases; extraction's blocking native reads cannot be interrupted
+     * mid-file, so a cancelled scan finishes at most the handful of files already in flight.
      *
      * [reconcileMissing] controls the post-loop missing-detection pass, which compares
      * *every* song in the library against the set of files found on disk. Pass `false` when
@@ -208,142 +223,214 @@ class FolderScanner internal constructor(
         // for an unrelated reason later in the same pass.
         val pendingRemaps = mutableListOf<SongRemap>()
 
+        // Every song id that had art files written for it before anything was committed —
+        // filled concurrently by the extraction phase, and appended to by the write loop's
+        // live-extraction fallback. Art files are the one part of a scan a rollback cannot
+        // undo, so this set is what keeps a cancelled or failed scan from leaving orphans in
+        // filesDir/art/: if the transaction never commits, every id here is cleaned up; if it
+        // does, each id is reconciled against the committed rows like any other.
+        val artWrittenIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+        // Ids the write loop actually inserted a row for. Their art is owned by a committed
+        // row by definition, so the post-commit reconciliation can skip them outright rather
+        // than paying a redundant lookup for every song on a first scan of a whole library.
+        val insertedIds = mutableSetOf<String>()
+
         var retagged = 0
-        val txnStartMs = System.currentTimeMillis()
-        val result = database.withTransaction {
-            var added = 0
-            var updated = 0
-            var unchanged = 0
-            var deleted = 0
-            var hashMismatchFlagged = 0
-            var errors = 0
 
-            for ((index, file) in audioFiles.withIndex()) {
-                // Cooperative cancellation: the per-file work below is mostly blocking
-                // I/O, so without this a cancelled scan would run to the end of the list.
-                currentCoroutineContext().ensureActive()
-                onProgress(index, audioFiles.size)
+        val result = try {
+            // Phase 1 — hash, identify and read every file, concurrently, with no
+            // transaction open. This is where a scan now spends nearly all of its time, and
+            // it is the part with no order dependency at all: nothing here writes, so no
+            // file's outcome can affect another's.
+            val extracted = extractScanData(
+                context = context,
+                songDao = songDao,
+                ingestor = ingestor,
+                files = audioFiles,
+                artWrittenIds = artWrittenIds,
+                onProgress = onProgress,
+            )
 
-                val path = file.uri.toString()
-                // Unreadable file: no identity, nothing we can safely store
-                val id = HashUtils.computeSongId(file, context)
-                if (id == null) {
-                    errors++
-                    continue
-                }
-
-                val existing = songDao.getSongById(id)
-                if (existing != null) {
-                    when {
-                        existing.filePath != path -> {
-                            // Check if another song already occupies this path — remove it
-                            // first to avoid UNIQUE constraint violation on file_path index
-                            val occupant = songDao.getSongByPath(path)
-                            if (occupant != null && occupant.id != existing.id) {
-                                deleteSongRowWithArtRepoint(songDao, albumDao, occupant.id)
-                                pendingArtCleanup.add(occupant.id)
-                                deleted++
-                            }
-                            songDao.upsertSong(
-                                existing.copy(
-                                    filePath = path,
-                                    isMissing = false,
-                                    missingSince = null,
-                                    // Re-derived from the root being scanned rather than
-                                    // carried over — this branch fires whenever the same
-                                    // content shows up at a new path, including a file
-                                    // moving between the main root and New Arrivals, and
-                                    // the flag must reflect where it lives *now*.
-                                    isStarred = isNewArrivalsRoot,
-                                )
-                            )
-                            updated++
-                        }
-                        existing.isMissing -> {
-                            // Same path, previously flagged missing — the file is back
-                            songDao.markFound(id)
-                            updated++
-                        }
-                        // Same path, same hash — the byte ranges the id is built from
-                        // (first/last 64KB + size) didn't move, but an ID3 edit that lands
-                        // outside those ranges (or reuses the same padding) wouldn't touch
-                        // them either. A cheap tag re-read catches that case without paying
-                        // for a full metadata extraction + resolution on every untouched file.
-                        else -> if (ingestor.retagIfChanged(file, existing)) {
-                            retagged++
-                            updated++
-                        } else {
-                            unchanged++
-                        }
-                    }
-                    continue
-                }
-
-                // Same path, different hash: the file content changed. The old row is
-                // flagged missing rather than deleted — playlist_songs (and everything
-                // else) cascade-deletes on songs.id, so a hard delete here would silently
-                // wipe the old row's playlist memberships and starred state. Its path is
-                // blanked so the new row can claim it (file_path is UNIQUE); its art is
-                // left alone since the row — and its legitimate ownership of that art —
-                // still exists. No SongRepositoryImpl mutation method runs here to trigger
-                // the usual scheduleExport() call — one is requested after the transaction
-                // commits instead (see below), since scheduling it from in here risks the
-                // debounced export firing and reading the database before this transaction
-                // commits, capturing a stale pre-scan snapshot.
-                val staleId = songDao.getSongByPath(path)?.let { stale ->
-                    songDao.markMissing(stale.id, System.currentTimeMillis())
-                    songDao.clearFilePathForRetag(stale.id)
-                    hashMismatchFlagged++
-                    stale.id
-                }
-
-                val newSong = ingestor.insertNewSong(file, id, path, isStarred = isNewArrivalsRoot)
-                // If the replaced song is the one currently loaded in the player, its
-                // in-memory Song (title/art) would otherwise go stale — see SongRemapEvents.
-                // Not emitted here: queued and flushed after the transaction commits, below.
-                if (staleId != null) {
-                    pendingRemaps.add(SongRemap(staleId, newSong))
-                }
-                added++
-            }
-
-            // No per-file denominator from here on — back to indeterminate.
+            // No per-file denominator from here on — back to indeterminate. The write phase
+            // below reads no files, so it no longer warrants its own progress bar, and the
+            // missing-detection and orphan-cleanup passes after it never had a denominator.
             onProgress(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE)
 
-            var missing = 0
-            if (reconcile) {
-                val now = System.currentTimeMillis()
-                for (song in songDao.getAllSongsOnce()) {
-                    if (song.filePath !in foundPaths) {
-                        if (!song.isMissing) {
-                            songDao.markMissing(song.id, now)
+            val txnStartMs = System.currentTimeMillis()
+            val scanResult = database.withTransaction {
+                var added = 0
+                var updated = 0
+                var unchanged = 0
+                var deleted = 0
+                var hashMismatchFlagged = 0
+                var errors = 0
+
+                // Phase 2 — strictly in walk order, strictly sequential. Every ordering
+                // dependency the old inline loop had is still here and still load-bearing:
+                // album rows are minted by whichever song reaches them first and keep that
+                // song's cover, later files reuse the artists earlier ones created, duplicate
+                // content collapses onto the row the first copy inserted, and a path collision
+                // evicts whoever currently holds the path. Only where the metadata comes from
+                // has changed.
+                for (data in extracted) {
+                    // Cooperative cancellation. Far cheaper per file now that the reading is
+                    // already done, but the loop is still long enough to abandon early.
+                    currentCoroutineContext().ensureActive()
+
+                    val path = data.path
+                    // Unreadable file: no identity, nothing we can safely store
+                    val id = data.id
+                    if (id == null) {
+                        errors++
+                        continue
+                    }
+
+                    // Re-read rather than trusting the extraction phase's branch prediction.
+                    // That prediction was made against the pre-scan database, and existed
+                    // only to decide whether the file needed reading. By the time a file is
+                    // reached here, an earlier file in this same loop may already have
+                    // inserted a row under this id (two byte-identical files), moved this row
+                    // to another path, or evicted it as a path-collision occupant. Deriving
+                    // the branch from live transaction state is what keeps every outcome
+                    // identical to the pre-split scan.
+                    val existing = songDao.getSongById(id)
+                    if (existing != null) {
+                        when {
+                            existing.filePath != path -> {
+                                // Check if another song already occupies this path — remove it
+                                // first to avoid UNIQUE constraint violation on file_path index
+                                val occupant = songDao.getSongByPath(path)
+                                if (occupant != null && occupant.id != existing.id) {
+                                    deleteSongRowWithArtRepoint(songDao, albumDao, occupant.id)
+                                    pendingArtCleanup.add(occupant.id)
+                                    deleted++
+                                }
+                                songDao.upsertSong(
+                                    existing.copy(
+                                        filePath = path,
+                                        isMissing = false,
+                                        missingSince = null,
+                                        // Re-derived from the root being scanned rather than
+                                        // carried over — this branch fires whenever the same
+                                        // content shows up at a new path, including a file
+                                        // moving between the main root and New Arrivals, and
+                                        // the flag must reflect where it lives *now*.
+                                        isStarred = isNewArrivalsRoot,
+                                    )
+                                )
+                                updated++
+                            }
+                            existing.isMissing -> {
+                                // Same path, previously flagged missing — the file is back
+                                songDao.markFound(id)
+                                updated++
+                            }
+                            // Same path, same hash — the byte ranges the id is built from
+                            // (first/last 64KB + size) didn't move, but an ID3 edit that lands
+                            // outside those ranges (or reuses the same padding) wouldn't touch
+                            // them either. A cheap tag re-read catches that case without paying
+                            // for a full metadata extraction + resolution on every untouched file.
+                            // That re-read already happened in phase 1 (tags only, no art, as
+                            // this path has always done); all that is left here is comparing it
+                            // against the stored row.
+                            else -> if (ingestor.retagIfChanged(data.file, existing, data.metadata)) {
+                                retagged++
+                                updated++
+                            } else {
+                                unchanged++
+                            }
                         }
-                        missing++
+                        continue
+                    }
+
+                    // Same path, different hash: the file content changed. The old row is
+                    // flagged missing rather than deleted — playlist_songs (and everything
+                    // else) cascade-deletes on songs.id, so a hard delete here would silently
+                    // wipe the old row's playlist memberships and starred state. Its path is
+                    // blanked so the new row can claim it (file_path is UNIQUE); its art is
+                    // left alone since the row — and its legitimate ownership of that art —
+                    // still exists. No SongRepositoryImpl mutation method runs here to trigger
+                    // the usual scheduleExport() call — one is requested after the transaction
+                    // commits instead (see below), since scheduling it from in here risks the
+                    // debounced export firing and reading the database before this transaction
+                    // commits, capturing a stale pre-scan snapshot.
+                    val staleId = songDao.getSongByPath(path)?.let { stale ->
+                        songDao.markMissing(stale.id, System.currentTimeMillis())
+                        songDao.clearFilePathForRetag(stale.id)
+                        hashMismatchFlagged++
+                        stale.id
+                    }
+
+                    // Null metadata here means phase 1 predicted a branch that needed no read
+                    // and live state disagreed — the only way that happens is a row evicted as
+                    // a path-collision occupant earlier in this same loop. insertNewSong then
+                    // reads the file right here, exactly as every insert used to, which also
+                    // means it writes art inside the transaction; register the id so a later
+                    // rollback cleans that art up alongside phase 1's.
+                    if (data.metadata == null) artWrittenIds.add(id)
+
+                    val newSong = ingestor.insertNewSong(
+                        data.file,
+                        id,
+                        path,
+                        isStarred = isNewArrivalsRoot,
+                        extracted = data.metadata,
+                    )
+                    insertedIds.add(id)
+                    // If the replaced song is the one currently loaded in the player, its
+                    // in-memory Song (title/art) would otherwise go stale — see SongRemapEvents.
+                    // Not emitted here: queued and flushed after the transaction commits, below.
+                    if (staleId != null) {
+                        pendingRemaps.add(SongRemap(staleId, newSong))
+                    }
+                    added++
+                }
+
+                var missing = 0
+                if (reconcile) {
+                    val now = System.currentTimeMillis()
+                    for (song in songDao.getAllSongsOnce()) {
+                        if (song.filePath !in foundPaths) {
+                            if (!song.isMissing) {
+                                songDao.markMissing(song.id, now)
+                            }
+                            missing++
+                        }
                     }
                 }
+
+                // Clean up artist and album rows that no longer have any songs referencing them
+                artistDao.deleteOrphanArtists()
+                albumDao.deleteOrphanAlbums()
+
+                ScanResult(
+                    added = added,
+                    updated = updated,
+                    missing = missing,
+                    unchanged = unchanged,
+                    missingReconciled = reconcile,
+                    deleted = deleted,
+                    hashMismatchFlagged = hashMismatchFlagged,
+                    errors = errors,
+                )
             }
-
-            // Clean up artist and album rows that no longer have any songs referencing them
-            artistDao.deleteOrphanArtists()
-            albumDao.deleteOrphanAlbums()
-
-            ScanResult(
-                added = added,
-                updated = updated,
-                missing = missing,
-                unchanged = unchanged,
-                missingReconciled = reconcile,
-                deleted = deleted,
-                hashMismatchFlagged = hashMismatchFlagged,
-                errors = errors,
+            Log.d(
+                TAG,
+                "Scan transaction complete in ${System.currentTimeMillis() - txnStartMs}ms — " +
+                    "added=${scanResult.added} updated=${scanResult.updated} (retagged=$retagged) " +
+                    "unchanged=${scanResult.unchanged} missing=${scanResult.missing}",
             )
+            scanResult
+        } catch (t: Throwable) {
+            // Reached only when nothing was committed: either the extraction phase was
+            // cancelled/failed before the transaction ever opened, or the transaction itself
+            // rolled back. Either way every art file this scan wrote is an orphan, and it is
+            // the one artifact the rollback cannot take back. Best-effort and non-fatal — it
+            // must never replace the real cause on the way out.
+            deleteOrphanedScanArt(context, artWrittenIds)
+            throw t
         }
-        Log.d(
-            TAG,
-            "Scan transaction complete in ${System.currentTimeMillis() - txnStartMs}ms — " +
-                "added=${result.added} updated=${result.updated} (retagged=$retagged) " +
-                "unchanged=${result.unchanged} missing=${result.missing}",
-        )
 
         // Only after the transaction commits — a file delete cannot be rolled back
         // alongside the DB the way the row deletes above can.
@@ -355,7 +442,15 @@ class FolderScanner internal constructor(
         // this same id. Deleting unconditionally here would strip that just-written art out
         // from under the resurrected row. A genuinely, permanently evicted id has no row left
         // and still gets cleaned up as before.
-        pendingArtCleanup.forEach { id ->
+        //
+        // Extraction-phase art joins the same reconciliation, minus the ids that actually
+        // became rows: phase 1 writes art before it can know whether the row will really be
+        // inserted, and a file it read as new can still collapse onto an existing row by the
+        // time the write loop reaches it. One rule decides both cases — an id with a committed
+        // row keeps its art, an id without one never became a song.
+        val artToReconcile = LinkedHashSet(pendingArtCleanup)
+        artWrittenIds.filterNotTo(artToReconcile) { it in insertedIds }
+        artToReconcile.forEach { id ->
             if (songDao.getSongById(id) == null) {
                 deleteSongArtFile(context, id)
             }

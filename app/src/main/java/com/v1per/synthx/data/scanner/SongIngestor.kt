@@ -15,6 +15,8 @@ import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 private const val TAG = "SongIngestor"
 
@@ -34,14 +36,23 @@ private val ARTIST_DELIMITERS = listOf(",")
 /**
  * Per-file metadata extraction and row writing for [FolderScanner]'s ingest loop.
  *
- * **Transaction contract:** every method here writes to Room and is expected to be called
- * from inside a `database.withTransaction { ... }` block established by the caller — in
- * production that is [FolderScanner.scanAlreadyAdmitted], whose whole mutation phase runs
- * in one transaction so a cancelled or failed scan rolls back rather than leaving the
- * library half-reconciled. Room carries the active transaction in the coroutine context,
- * so these calls join it implicitly; this class opens no transaction of its own and must
- * not be called outside one. When this logic lived inline in [FolderScanner] that was
- * self-evident from proximity — it is stated explicitly here now that it is not.
+ * **Transaction contract:** every *writing* method here — [insertNewSong], [retagIfChanged],
+ * [resolveAlbum], [resolveArtist] — is expected to be called from inside a
+ * `database.withTransaction { ... }` block established by the caller. In production that is
+ * [FolderScanner.scanAlreadyAdmitted], whose whole mutation phase runs in one transaction so
+ * a cancelled or failed scan rolls back rather than leaving the library half-reconciled. Room
+ * carries the active transaction in the coroutine context, so these calls join it implicitly;
+ * this class opens no transaction of its own and must not be called outside one. When this
+ * logic lived inline in [FolderScanner] that was self-evident from proximity — it is stated
+ * explicitly here now that it is not.
+ *
+ * [extractMetadata] is the deliberate exception, and the reason the split exists: it touches
+ * no database at all, so a scan runs it for every file up front, concurrently and outside the
+ * transaction (see [extractScanData]), and then hands the results to the writing methods.
+ * Calling it from inside the transaction is still *correct* — [insertNewSong] and
+ * [retagIfChanged] fall back to exactly that when handed no pre-extracted data — but it
+ * re-introduces the per-file blocking read the split exists to keep out of the transaction,
+ * so it should stay a fallback for mis-predicted branches rather than a normal path.
  *
  * Admission is likewise the caller's responsibility: [FolderScanner]'s entrypoints already
  * hold RestoreCoordinator admission for the whole scan (see `FolderScannerAdmission`), so
@@ -55,8 +66,39 @@ internal class SongIngestor(
     private val songArtistDao: SongArtistDao,
 ) {
 
-    suspend fun insertNewSong(file: DocumentFile, id: String, path: String, isStarred: Boolean): Song {
+    /**
+     * Reads one file's tags — and, when [includeArt], its embedded cover — into memory.
+     *
+     * **Touches no database.** This is the entire file-in/data-out half of what
+     * [insertNewSong] and [retagIfChanged] used to do inline, lifted out so a scan can run it
+     * for every file concurrently before its write transaction opens. Nothing here depends on
+     * a transaction, a dispatcher, or any state shared with another call: the
+     * `MediaMetadataRetriever` is constructed, used and released entirely within this call,
+     * and [AlbumArtExtractor] is stateless and writes only to `art_<songId>.*` paths.
+     *
+     * Field derivation is deliberately identical to what the two callers did before the split
+     * — same filename title fallback, same 4-char year truncation, same `"5/12"` track
+     * handling, same comma-only artist splitting — so a row written from this result is the
+     * row the old inline path would have written.
+     *
+     * Never throws except for cancellation: an unreadable file degrades to
+     * [ExtractedMetadata.readOk] `= false` with filename-derived fallbacks, and an
+     * `OutOfMemoryError` from art decoding degrades to no art, exactly as before.
+     *
+     * [includeArt] must be `false` for the retag path. Decoding and rewriting a bitmap is
+     * precisely the cost that path exists to avoid paying when nothing changed.
+     */
+    suspend fun extractMetadata(
+        file: DocumentFile,
+        songId: String,
+        includeArt: Boolean,
+    ): ExtractedMetadata {
+        // The only cancellation check this call can offer: everything below is blocking
+        // native work that never observes it. Cancelling therefore costs at most one file.
+        currentCoroutineContext().ensureActive()
+
         val retriever = MediaMetadataRetriever()
+        var readOk = false
         var rawTitle: String? = null
         var rawArtist: String? = null
         var rawAlbum: String? = null
@@ -73,9 +115,14 @@ internal class SongIngestor(
             rawDuration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             rawYear = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
             rawTrackNumber = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
-            val (compressedArtUri, fullArtUri) = AlbumArtExtractor.extract(context, retriever, id)
-            albumArtUri = compressedArtUri
-            albumArtFullUri = fullArtUri
+            // Set before art, not after: the tags are what `readOk` speaks for. Art failing
+            // is already expressed by a null URI and must not make a good tag read look bad.
+            readOk = true
+            if (includeArt) {
+                val (compressedArtUri, fullArtUri) = AlbumArtExtractor.extract(context, retriever, songId)
+                albumArtUri = compressedArtUri
+                albumArtFullUri = fullArtUri
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -84,7 +131,7 @@ internal class SongIngestor(
             // Art extraction (or, in principle, any step above it) blew the memory budget —
             // this must not take the whole scan down. Degrade exactly like the Exception
             // path above: keep the song tracked, just without whatever wasn't extracted.
-            Log.w(TAG, "OutOfMemoryError ingesting song $id — continuing without full metadata/art", e)
+            Log.w(TAG, "OutOfMemoryError ingesting song $songId — continuing without full metadata/art", e)
         } finally {
             retriever.release()
         }
@@ -96,18 +143,51 @@ internal class SongIngestor(
         // Track metadata is often "5/12" (track 5 of 12) — keep only the track part
         val trackNumber = rawTrackNumber?.substringBefore("/")?.trim()?.toIntOrNull()
 
-        // Parsed once, up front: album resolution now needs the position-0 ("primary")
-        // artist to match against — see AlbumDao.getAlbumByTitleAndArtist — and that has
-        // to be known before the song row (and its song_artists rows) exist to join
-        // against. The per-artist loop below reuses this same list.
-        val rawArtistNames = splitArtists(rawArtist?.takeIf { it.isNotBlank() } ?: "Unknown Artist")
+        // Parsed once, up front: album resolution needs the position-0 ("primary") artist to
+        // match against — see AlbumDao.getAlbumByTitleAndArtist — and that has to be known
+        // before the song row (and its song_artists rows) exist to join against. Both writing
+        // paths reuse this same list rather than re-splitting.
+        val artistNames = splitArtists(rawArtist?.takeIf { it.isNotBlank() } ?: "Unknown Artist")
             .distinctBy { it.lowercase() }
-        val primaryArtistNormalized = (rawArtistNames.firstOrNull() ?: "Unknown Artist")
+        val primaryArtistNormalized = (artistNames.firstOrNull() ?: "Unknown Artist")
             .trim()
             .lowercase()
 
-        val album = rawAlbum?.takeIf { it.isNotBlank() }?.trim()?.let { albumTitle ->
-            resolveAlbum(albumTitle, primaryArtistNormalized, year, albumArtUri)
+        return ExtractedMetadata(
+            readOk = readOk,
+            title = title,
+            artistNames = artistNames,
+            primaryArtistNormalized = primaryArtistNormalized,
+            albumTitle = rawAlbum?.takeIf { it.isNotBlank() }?.trim(),
+            duration = rawDuration?.toLongOrNull() ?: 0L,
+            year = year,
+            trackNumber = trackNumber,
+            albumArtUri = albumArtUri,
+            albumArtFullUri = albumArtFullUri,
+        )
+    }
+
+    /**
+     * Writes the song, album and artist rows for a file the library has never seen.
+     *
+     * [extracted] is this file's already-read tags and art, from the scan's out-of-transaction
+     * extraction phase. Passing `null` makes this read the file live instead — the pre-split
+     * behaviour, kept as the safety net for a branch prediction that turned out wrong (see
+     * [ScanBranch]). Everything after the read is unchanged and stays order-dependent: album
+     * resolution matches against songs already inserted by earlier files in this same pass,
+     * and whichever song first mints an album row donates its cover to it.
+     */
+    suspend fun insertNewSong(
+        file: DocumentFile,
+        id: String,
+        path: String,
+        isStarred: Boolean,
+        extracted: ExtractedMetadata? = null,
+    ): Song {
+        val meta = extracted ?: extractMetadata(file, id, includeArt = true)
+
+        val album = meta.albumTitle?.let { albumTitle ->
+            resolveAlbum(albumTitle, meta.primaryArtistNormalized, meta.year, meta.albumArtUri)
         }
         val albumId = album?.id
         val dateAdded = System.currentTimeMillis()
@@ -115,14 +195,14 @@ internal class SongIngestor(
         songDao.upsertSong(
             SongEntity(
                 id = id,
-                title = title,
+                title = meta.title,
                 albumId = albumId,
-                duration = rawDuration?.toLongOrNull() ?: 0L,
+                duration = meta.duration,
                 filePath = path,
-                albumArtUri = albumArtUri,
-                albumArtFullUri = albumArtFullUri,
-                year = year,
-                trackNumber = trackNumber,
+                albumArtUri = meta.albumArtUri,
+                albumArtFullUri = meta.albumArtFullUri,
+                year = meta.year,
+                trackNumber = meta.trackNumber,
                 dateAdded = dateAdded,
                 // Explicit, not the entity's constructor default — this song's starred
                 // state is derived from which root it was found under, not "every new
@@ -132,7 +212,7 @@ internal class SongIngestor(
         )
 
         songArtistDao.deleteSongArtists(id)
-        val artists = rawArtistNames.mapIndexed { index, name ->
+        val artists = meta.artistNames.mapIndexed { index, name ->
             val artist = resolveArtist(name)
             songArtistDao.insertSongArtist(
                 SongArtistEntity(songId = id, artistId = artist.id, position = index)
@@ -142,13 +222,13 @@ internal class SongIngestor(
 
         return Song(
             id = id,
-            title = title,
+            title = meta.title,
             artist = artists.joinToString(", ") { it.name }.ifEmpty { "Unknown Artist" },
             album = album?.title ?: "Unknown Album",
-            duration = rawDuration?.toLongOrNull() ?: 0L,
+            duration = meta.duration,
             filePath = path,
-            albumArtUri = albumArtUri,
-            albumArtFullUri = albumArtFullUri,
+            albumArtUri = meta.albumArtUri,
+            albumArtFullUri = meta.albumArtFullUri,
             isMissing = false,
             dateAdded = dateAdded,
             albumId = albumId,
@@ -170,60 +250,48 @@ internal class SongIngestor(
      * the row a fresh scan of the same file would have produced — but skips
      * [AlbumArtExtractor.extract] entirely: that decodes and rewrites a bitmap file, which
      * is the kind of per-file cost this path exists to avoid paying when nothing changed.
+     *
+     * [extracted] is this file's already-read tags, from the scan's out-of-transaction
+     * extraction phase, and must have been read with `includeArt = false`. Passing `null`
+     * makes this read the file live instead — the pre-split behaviour, kept as a fallback.
+     * A read that failed ([ExtractedMetadata.readOk] `= false`) returns `false` without
+     * touching the row, exactly as the inline version's `catch` did.
      */
-    suspend fun retagIfChanged(file: DocumentFile, existing: SongEntity): Boolean {
-        val retriever = MediaMetadataRetriever()
-        val rawTitle: String?
-        val rawArtist: String?
-        val rawAlbum: String?
-        val rawYear: String?
-        val rawTrackNumber: String?
-        try {
-            retriever.setDataSource(context, file.uri)
-            rawTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-            rawArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-            rawAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
-            rawYear = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
-            rawTrackNumber = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
-        } catch (e: Exception) {
-            // Unreadable this pass — leave the stored row alone rather than falling back to
-            // filename/"Unknown Artist" and clobbering tags that were fine a moment ago.
-            return false
-        } finally {
-            retriever.release()
-        }
+    suspend fun retagIfChanged(
+        file: DocumentFile,
+        existing: SongEntity,
+        extracted: ExtractedMetadata? = null,
+    ): Boolean {
+        val meta = extracted ?: extractMetadata(file, existing.id, includeArt = false)
 
-        val title = rawTitle?.takeIf { it.isNotBlank() }
-            ?: file.name?.substringBeforeLast('.')
-            ?: "Unknown"
-        val year = rawYear?.trim()?.take(4)?.toIntOrNull()
-        val trackNumber = rawTrackNumber?.substringBefore("/")?.trim()?.toIntOrNull()
-
-        val rawArtistNames = splitArtists(rawArtist?.takeIf { it.isNotBlank() } ?: "Unknown Artist")
-            .distinctBy { it.lowercase() }
-        val primaryArtistNormalized = (rawArtistNames.firstOrNull() ?: "Unknown Artist")
-            .trim()
-            .lowercase()
+        // Unreadable this pass — leave the stored row alone rather than falling back to
+        // filename/"Unknown Artist" and clobbering tags that were fine a moment ago.
+        if (!meta.readOk) return false
 
         // Indexed name lookups, same as a fresh scan resolves — inserts only happen if the
         // tag edit genuinely introduced a new artist/album, not on every unchanged file.
-        val newArtistIds = rawArtistNames.map { resolveArtist(it).id }
-        val albumId = rawAlbum?.takeIf { it.isNotBlank() }?.trim()?.let { albumTitle ->
-            resolveAlbum(albumTitle, primaryArtistNormalized, year, existing.albumArtUri).id
+        val newArtistIds = meta.artistNames.map { resolveArtist(it).id }
+        val albumId = meta.albumTitle?.let { albumTitle ->
+            resolveAlbum(albumTitle, meta.primaryArtistNormalized, meta.year, existing.albumArtUri).id
         }
 
         val currentArtistIds = songDao.getSongArtistRefs(existing.id).map { it.artistId }
         val artistsChanged = currentArtistIds != newArtistIds
-        val songChanged = existing.title != title ||
-            existing.year != year ||
-            existing.trackNumber != trackNumber ||
+        val songChanged = existing.title != meta.title ||
+            existing.year != meta.year ||
+            existing.trackNumber != meta.trackNumber ||
             existing.albumId != albumId
 
         if (!songChanged && !artistsChanged) return false
 
         if (songChanged) {
             songDao.upsertSong(
-                existing.copy(title = title, year = year, trackNumber = trackNumber, albumId = albumId)
+                existing.copy(
+                    title = meta.title,
+                    year = meta.year,
+                    trackNumber = meta.trackNumber,
+                    albumId = albumId,
+                )
             )
         }
         if (artistsChanged) {
