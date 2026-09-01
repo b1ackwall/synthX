@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.backup.WorkerDatabaseAccess
 import com.v1per.synthx.preferences.PreferencesManager
@@ -42,7 +43,7 @@ class VerifyLibraryWorker(
                     .verifyLibraryAlreadyAdmitted(configuredRootUris)
             }
             Log.d(TAG, "Launch verify complete: $newlyMissing newly missing")
-            Result.success()
+            Result.success(workDataOf(KEY_NEWLY_MISSING to newlyMissing))
         } catch (e: IOException) {
             // Plausibly a momentary SAF/content-provider hiccup (e.g. the provider process
             // hasn't finished warming up right after boot) rather than a real defect — worth
@@ -82,6 +83,10 @@ class VerifyLibraryWorker(
 
     companion object {
         private const val TAG = "SynthXScan"
+
+        /** Count of songs newly flagged missing this pass — absent on retry/failure, since
+         *  neither path has a meaningful count to report. */
+        const val KEY_NEWLY_MISSING = "newly_missing"
 
         /** Launch-time check has time to spare — this is not meant to retry aggressively. */
         private const val MAX_TRANSIENT_ATTEMPTS = 3

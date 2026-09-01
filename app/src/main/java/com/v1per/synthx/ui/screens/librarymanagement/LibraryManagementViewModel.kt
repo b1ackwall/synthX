@@ -19,6 +19,7 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.data.scanner.RootNesting
+import com.v1per.synthx.data.scanner.VerifyLibraryWorker
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.launchCatching
@@ -44,6 +45,10 @@ import java.util.UUID
  * and consulted by the next instance to suppress re-showing that same run's terminal
  * status text. An in-progress run is never recorded here, so it always survives navigating
  * away and back. Cleared implicitly by process death, same as the cold-start prune.
+ *
+ * Now shared across all three scan workers (not just [LibraryScanWorker]) since [workInfo]
+ * below resolves to whichever of the three most recently ran — a single id is still enough,
+ * since only one of them can ever be the "current" one at a time.
  */
 private object ScanStatusAcknowledgement {
     var acknowledgedWorkId: UUID? = null
@@ -56,6 +61,7 @@ private const val StatusMessageDisplayMs = 4_000L
 /** WorkManager tags every request with its worker's fully-qualified class name. */
 private val NEW_ARRIVALS_TAG: String = NewArrivalsScanWorker::class.java.name
 private val LIBRARY_SCAN_TAG: String = LibraryScanWorker::class.java.name
+private val VERIFY_TAG: String = VerifyLibraryWorker::class.java.name
 
 /** Determinate when [total] is positive; otherwise the scan is in an uncounted phase. */
 data class ScanProgress(val current: Int, val total: Int) {
@@ -108,24 +114,28 @@ class LibraryManagementViewModel(
     // state, not a default.
     //
     // The unique name is shared by three workers: LibraryScanWorker (the manual rescan this
-    // row reports on), VerifyLibraryWorker (a silent launch-time sweep with no intended UI),
-    // and NewArrivalsScanWorker (a silent launch-time worker, chained after Verify). Excluding
-    // only the new-arrivals tag isn't enough — it doesn't distinguish Verify's WorkInfo from
-    // LibraryScanWorker's, so an unpruned/concurrent Verify entry could get picked instead of
-    // the actual rescan. Matching on LibraryScanWorker's own tag is unambiguous regardless of
-    // how many other stages' WorkInfo happen to still be sitting under this unique name.
+    // row historically reported on), VerifyLibraryWorker (a silent launch-time sweep) and
+    // NewArrivalsScanWorker (a silent launch-time worker, chained after Verify). All three are
+    // now surfaced here — see selectRelevantWorkInfo — rather than filtering down to just
+    // LibraryScanWorker's tag, so the status row reflects whichever of the three is actually
+    // running or most recently finished.
     private val workInfo: StateFlow<WorkInfo?> = workManager
         .getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
-        .map { infos -> infos.firstOrNull { LIBRARY_SCAN_TAG in it.tags } }
+        .map { infos -> selectRelevantWorkInfo(infos) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val isScanning: StateFlow<Boolean> = workInfo
         .map { info -> info != null && !info.state.isFinished }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    // Determinate progress only ever comes from LibraryScanWorker — it's the only one of the
+    // three that calls setProgress/setForeground (NewArrivalsScanWorker and VerifyLibraryWorker
+    // are both silent by design). Null here for the other two just means ScanSection renders
+    // its existing indeterminate bar for them, which is the correct representation.
     val scanProgress: StateFlow<ScanProgress?> = workInfo
         .map { info ->
             if (info == null || info.state != WorkInfo.State.RUNNING) return@map null
+            if (LIBRARY_SCAN_TAG !in info.tags) return@map null
             ScanProgress(
                 current = info.progress.getInt(LibraryScanWorker.KEY_CURRENT, -1),
                 total = info.progress.getInt(LibraryScanWorker.KEY_TOTAL, -1),
@@ -146,7 +156,10 @@ class LibraryManagementViewModel(
         // read. Watched per-stage, since the two workers share one unique work name.
         viewModelScope.launch {
             workInfo.collect { info ->
-                if (info?.state == WorkInfo.State.FAILED) {
+                // workInfo can now resolve to any of the three tagged runs — only react to a
+                // LibraryScanWorker failure here; a NewArrivals/Verify failure has nothing to
+                // do with the main music-folder grant.
+                if (info?.state == WorkInfo.State.FAILED && LIBRARY_SCAN_TAG in info.tags) {
                     _musicFolderUri.value = preferencesManager.musicFolderUri?.let { Uri.parse(it) }
                 }
             }
@@ -165,38 +178,84 @@ class LibraryManagementViewModel(
         }
     }
 
+    /**
+     * Resolves the shared unique-work queue's entries down to the one WorkInfo worth showing:
+     * whichever tagged run is currently active, or — if none is — the most recently finished
+     * one, so a completed result summary keeps lingering after the run the same way it always
+     * has for LibraryScanWorker alone. WorkManager gives no completion timestamp on WorkInfo,
+     * but [getWorkInfosForUniqueWorkFlow] returns entries in roughly insertion order, so the
+     * last finished entry in the filtered list is the most recent one.
+     */
+    private fun selectRelevantWorkInfo(infos: List<WorkInfo>): WorkInfo? {
+        val tagged = infos.filter { info ->
+            LIBRARY_SCAN_TAG in info.tags || NEW_ARRIVALS_TAG in info.tags || VERIFY_TAG in info.tags
+        }
+        tagged.firstOrNull { !it.state.isFinished }?.let { return it }
+        return tagged.lastOrNull { it.state.isFinished }
+    }
+
+    /** Preparing/running label for whichever worker [info] belongs to — used both while
+     *  ENQUEUED/BLOCKED and during LibraryScanWorker's indeterminate (not-yet-counted) phase. */
+    private fun preparingLabelFor(info: WorkInfo): String = when {
+        LIBRARY_SCAN_TAG in info.tags -> context.getString(R.string.scan_progress_library)
+        NEW_ARRIVALS_TAG in info.tags -> context.getString(R.string.scan_progress_new_arrivals)
+        VERIFY_TAG in info.tags -> context.getString(R.string.scan_progress_verify)
+        else -> context.getString(R.string.scan_progress_preparing)
+    }
+
     private fun statusFor(info: WorkInfo?): String? = when (info?.state) {
         null -> null
-        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED ->
-            context.getString(R.string.scan_progress_preparing)
-        WorkInfo.State.RUNNING -> {
-            val current = info.progress.getInt(LibraryScanWorker.KEY_CURRENT, -1)
-            val total = info.progress.getInt(LibraryScanWorker.KEY_TOTAL, -1)
-            if (total > 0) {
-                context.getString(R.string.scan_progress_counted, current, total)
-            } else {
-                context.getString(R.string.scan_progress_preparing)
+        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> preparingLabelFor(info)
+        WorkInfo.State.RUNNING -> when {
+            LIBRARY_SCAN_TAG in info.tags -> {
+                val current = info.progress.getInt(LibraryScanWorker.KEY_CURRENT, -1)
+                val total = info.progress.getInt(LibraryScanWorker.KEY_TOTAL, -1)
+                if (total > 0) {
+                    context.getString(R.string.scan_progress_counted, current, total)
+                } else {
+                    preparingLabelFor(info)
+                }
             }
+            else -> preparingLabelFor(info)
         }
-        WorkInfo.State.SUCCEEDED -> {
-            val data = info.outputData
-            val doneMessage = context.getString(
-                R.string.scan_status_done,
-                data.getInt(LibraryScanWorker.KEY_ADDED, 0),
-                data.getInt(LibraryScanWorker.KEY_UPDATED, 0),
-                data.getInt(LibraryScanWorker.KEY_MISSING, 0),
-            )
-            if (data.getBoolean(LibraryScanWorker.KEY_HIGH_IMPACT, false)) {
-                val highImpactMessage = context.getString(
-                    R.string.scan_status_high_impact,
-                    data.getInt(LibraryScanWorker.KEY_IMPACT_COUNT, 0),
-                    data.getString(LibraryScanWorker.KEY_BACKUP_FILENAME)
-                        ?: context.getString(R.string.scan_status_backup_filename_unknown),
+        WorkInfo.State.SUCCEEDED -> when {
+            LIBRARY_SCAN_TAG in info.tags -> {
+                val data = info.outputData
+                val doneMessage = context.getString(
+                    R.string.scan_status_done,
+                    data.getInt(LibraryScanWorker.KEY_ADDED, 0),
+                    data.getInt(LibraryScanWorker.KEY_UPDATED, 0),
+                    data.getInt(LibraryScanWorker.KEY_MISSING, 0),
                 )
-                "$doneMessage $highImpactMessage"
-            } else {
-                doneMessage
+                if (data.getBoolean(LibraryScanWorker.KEY_HIGH_IMPACT, false)) {
+                    val highImpactMessage = context.getString(
+                        R.string.scan_status_high_impact,
+                        data.getInt(LibraryScanWorker.KEY_IMPACT_COUNT, 0),
+                        data.getString(LibraryScanWorker.KEY_BACKUP_FILENAME)
+                            ?: context.getString(R.string.scan_status_backup_filename_unknown),
+                    )
+                    "$doneMessage $highImpactMessage"
+                } else {
+                    doneMessage
+                }
             }
+            NEW_ARRIVALS_TAG in info.tags -> {
+                val added = info.outputData.getInt(LibraryScanWorker.KEY_ADDED, 0)
+                if (added > 0) {
+                    context.getString(R.string.scan_status_new_arrivals_found, added)
+                } else {
+                    context.getString(R.string.scan_status_new_arrivals_none)
+                }
+            }
+            VERIFY_TAG in info.tags -> {
+                val newlyMissing = info.outputData.getInt(VerifyLibraryWorker.KEY_NEWLY_MISSING, 0)
+                if (newlyMissing > 0) {
+                    context.getString(R.string.scan_status_verify_missing, newlyMissing)
+                } else {
+                    context.getString(R.string.scan_status_verify_none)
+                }
+            }
+            else -> null
         }
         WorkInfo.State.FAILED -> context.getString(
             R.string.scan_status_failed,

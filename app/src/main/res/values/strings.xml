@@ -200,6 +200,13 @@
     <string name="scan_status_backup_filename_unknown">the most recent Auto backup</string>
     <string name="scan_status_failed">Scan failed: %1$s</string>
     <string name="scan_status_unknown_error">unknown error</string>
+    <string name="scan_progress_library">Scanning library…</string>
+    <string name="scan_progress_new_arrivals">Checking New Arrivals…</string>
+    <string name="scan_progress_verify">Verifying library…</string>
+    <string name="scan_status_new_arrivals_found">%1$d new songs found</string>
+    <string name="scan_status_new_arrivals_none">No new songs</string>
+    <string name="scan_status_verify_none">No changes</string>
+    <string name="scan_status_verify_missing">%1$d songs newly missing</string>
     <string name="backup_status_backing_up">Backing up…</string>
     <string name="backup_status_created">Backup created</string>
     <string name="backup_status_failed">Backup failed: %1$s</string>
