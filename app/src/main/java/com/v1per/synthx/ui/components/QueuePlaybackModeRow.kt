@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -51,7 +50,7 @@ fun QueuePlaybackModeRow(
             .padding(vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        IconButton(onClick = onShuffleClick, enabled = enabled) {
+        DragResistantIconButton(onClick = onShuffleClick, enabled = enabled) {
             Icon(
                 imageVector = Icons.Filled.Shuffle,
                 contentDescription = stringResource(R.string.cd_shuffle),
@@ -59,7 +58,7 @@ fun QueuePlaybackModeRow(
                 modifier = Modifier.size(24.dp),
             )
         }
-        IconButton(onClick = onRepeatClick, enabled = enabled) {
+        DragResistantIconButton(onClick = onRepeatClick, enabled = enabled) {
             Icon(
                 imageVector = if (repeatMode == RepeatMode.One) {
                     Icons.Filled.RepeatOne
