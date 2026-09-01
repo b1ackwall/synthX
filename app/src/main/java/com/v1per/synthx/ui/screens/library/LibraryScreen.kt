@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -83,6 +84,7 @@ fun LibraryScreen(
     val error by viewModel.error.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val starredCount by viewModel.starredCount.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
@@ -100,25 +102,30 @@ fun LibraryScreen(
         containerColor = Background,
         topBar = topBar,
     ) { innerPadding ->
-        LibraryScreenContent(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = viewModel::onPullToRefresh,
             modifier = Modifier.padding(
                 start = innerPadding.calculateStartPadding(LayoutDirection.Ltr),
                 top = innerPadding.calculateTopPadding(),
                 end = innerPadding.calculateEndPadding(LayoutDirection.Ltr),
                 bottom = innerPadding.calculateBottomPadding(),
             ),
-            recentSongs = recentSongs,
-            error = error,
-            isLoading = isLoading,
-            starredCount = starredCount,
-            onPlaylistsClick = viewModel::onPlaylistsClick,
-            onArtistsClick = viewModel::onArtistsClick,
-            onAlbumsClick = viewModel::onAlbumsClick,
-            onSongsClick = viewModel::onSongsClick,
-            onStarredClick = viewModel::onStarredClick,
-            onSeeAllClick = onNavigateToSongs,
-            onSongClick = { index -> playbackViewModel.requestPlayQueue(recentSongs, index) },
-        )
+        ) {
+            LibraryScreenContent(
+                recentSongs = recentSongs,
+                error = error,
+                isLoading = isLoading,
+                starredCount = starredCount,
+                onPlaylistsClick = viewModel::onPlaylistsClick,
+                onArtistsClick = viewModel::onArtistsClick,
+                onAlbumsClick = viewModel::onAlbumsClick,
+                onSongsClick = viewModel::onSongsClick,
+                onStarredClick = viewModel::onStarredClick,
+                onSeeAllClick = onNavigateToSongs,
+                onSongClick = { index -> playbackViewModel.requestPlayQueue(recentSongs, index) },
+            )
+        }
     }
 }
 

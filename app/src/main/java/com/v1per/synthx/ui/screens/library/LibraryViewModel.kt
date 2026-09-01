@@ -4,9 +4,13 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.work.ExistingWorkPolicy
+import androidx.work.WorkManager
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.data.scanner.LibraryScanWorker
+import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.ui.common.LoadError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
@@ -27,6 +31,12 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 
 private const val RecentSongsLimit = 20
+
+/** WorkManager tags every request with its worker's fully-qualified class name.
+ *  Declared independently here rather than reused from LibraryManagementViewModel's
+ *  own copy (which is file-private) — this ViewModel deliberately has zero
+ *  cross-ViewModel coupling to that screen's richer scan-status machinery. */
+private val NEW_ARRIVALS_TAG: String = NewArrivalsScanWorker::class.java.name
 
 sealed class NavigationEvent {
     object GoToSongs : NavigationEvent()
@@ -68,6 +78,17 @@ class LibraryViewModel(
     val starredCount: StateFlow<Int> = repository.getStarredSongCount()
         .catch { emit(0) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    // Drives the pull-to-refresh spinner only — quiet by design, no result surfaced here.
+    // Independent of LibraryManagementViewModel's richer ScanStatus: reads WorkManager
+    // directly so a scan started from any of the three trigger points (this pull, the
+    // launch-time Verify->NewArrivals chain, or the folder-picker save) is reflected the
+    // same way, without this screen knowing which one is actually running.
+    val isRefreshing: StateFlow<Boolean> = WorkManager.getInstance(appContext)
+        .getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
+        .map { infos -> infos.any { NEW_ARRIVALS_TAG in it.tags && !it.state.isFinished } }
+        .catch { emit(false) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     init {
         viewModelScope.launch {
@@ -114,6 +135,17 @@ class LibraryViewModel(
         viewModelScope.launch {
             _navigationEvents.emit(NavigationEvent.GoToStarred)
         }
+    }
+
+    /**
+     * Triggers a New Arrivals scan from a user pull-to-refresh gesture. KEEP per
+     * [NewArrivalsScanWorker.enqueue]'s own kdoc default: this is never important enough
+     * to interrupt a scan already running under the shared unique-work name (whether
+     * that's the launch-time Verify->NewArrivals chain or a folder-picker save) — the
+     * spinner just observes whatever is already in flight via [isRefreshing] instead.
+     */
+    fun onPullToRefresh() {
+        NewArrivalsScanWorker.enqueue(appContext, ExistingWorkPolicy.KEEP)
     }
 
     companion object {
