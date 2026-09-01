@@ -62,7 +62,7 @@ class NewArrivalsScanWorker(
         return try {
             val result = WorkerDatabaseAccess.run {
                 SongRepositoryImpl.create(applicationContext)
-                    .scanLibraryAlreadyAdmitted(uri, reconcileMissing = false, isNewArrivalsRoot = true)
+                    .scanLibrary(uri, reconcileMissing = false, isNewArrivalsRoot = true)
             }
             Log.d(TAG, "New arrivals scan complete: ${result.added} added, ${result.updated} updated")
             Result.success(

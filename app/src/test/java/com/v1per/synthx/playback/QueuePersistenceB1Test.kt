@@ -10,7 +10,6 @@ import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
-import com.v1per.synthx.data.scanner.ScanResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
@@ -28,11 +27,11 @@ class QueuePersistenceB1Test {
         var gate: CompletableDeferred<Unit>? = null
         var failWrites = false
         val started = CompletableDeferred<Unit>()
-        override suspend fun setQueueStateAlreadyAdmitted(songIds: List<String>, queueIndex: Int, positionMs: Long) {
+        override suspend fun setQueueState(songIds: List<String>, queueIndex: Int, positionMs: Long) {
             started.complete(Unit); gate?.await(); persisted += songIds
             if (failWrites) error("database failure")
         }
-        override suspend fun setBaselineQueueSongsAlreadyAdmitted(songIds: List<String>) {
+        override suspend fun setBaselineQueueSongs(songIds: List<String>) {
             started.complete(Unit); gate?.await(); persisted += songIds
             if (failWrites) error("database failure")
         }
@@ -42,8 +41,7 @@ class QueuePersistenceB1Test {
         override fun getSongs(): Flow<List<Song>> = emptyFlow(); override fun getArtists(): Flow<List<Artist>> = emptyFlow()
         override fun getSongsForArtist(artistId: String): Flow<List<Song>> = emptyFlow(); override fun getAlbums(): Flow<List<Album>> = emptyFlow()
         override fun getSongsForAlbum(albumId: String): Flow<List<Song>> = emptyFlow()
-        override suspend fun scanLibrary(folderUri: Uri, reconcileMissing: Boolean, otherRootUris: List<Uri>, isNewArrivalsRoot: Boolean, onProgress: suspend (Int, Int) -> Unit) = ScanResult(0,0,0,0)
-        override suspend fun verifyLibrary(configuredRootUris: List<Uri>) = 0; override fun getMissingSongs(): Flow<List<MissingSongInfo>> = emptyFlow(); override fun getMissingSongCount(): Flow<Int> = emptyFlow()
+        override fun getMissingSongs(): Flow<List<MissingSongInfo>> = emptyFlow(); override fun getMissingSongCount(): Flow<Int> = emptyFlow()
         override suspend fun deleteSong(id: String) {}; override fun getStarredSongs(): Flow<List<Song>> = emptyFlow(); override fun getStarredSongCount(): Flow<Int> = emptyFlow()
         override fun getRecentSongs(limit: Int): Flow<List<Song>> = emptyFlow()
         override suspend fun dismissFromStarred(songId: String) {}; override suspend fun isInAnyPlaylist(songId: String) = false; override suspend fun checkRootLibraryOrganization(musicFolderUri: Uri) = null
@@ -53,9 +51,9 @@ class QueuePersistenceB1Test {
         override suspend fun createPlaylist(name: String, groupId: String?) = ""; override suspend fun renamePlaylist(id: String,name: String) {}; override suspend fun movePlaylistToGroup(id: String,groupId: String?) {}; override suspend fun deletePlaylist(id: String) {}
         override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> = emptyFlow(); override suspend fun addSongToPlaylist(playlistId: String,songId: String) = false; override suspend fun removeSongFromPlaylist(playlistId: String,songId: String) {}
         override suspend fun getSongsByIds(ids: List<String>) = emptyList<Song>()
-        override suspend fun getQueueSongs() = emptyList<Song>(); override suspend fun getQueueSongIds() = emptyList<String>(); override suspend fun setQueueSongs(songIds: List<String>) {}
+        override suspend fun getQueueSongs() = emptyList<Song>(); override suspend fun getQueueSongIds() = emptyList<String>()
         override suspend fun getQueueSongIdsAndCursor(): Pair<List<String>, com.v1per.synthx.data.repository.QueueCursor?> = emptyList<String>() to null
-        override suspend fun getBaselineQueueSongs() = emptyList<Song>(); override suspend fun getBaselineQueueSongIds() = emptyList<String>(); override suspend fun setBaselineQueueSongs(songIds: List<String>) {}
+        override suspend fun getBaselineQueueSongs() = emptyList<Song>(); override suspend fun getBaselineQueueSongIds() = emptyList<String>()
     }
     private fun song(id: String) = Song(id, id, "", "", 0L, "")
     private fun reset() = RestoreCoordinator.resetForTest()

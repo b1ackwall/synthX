@@ -40,7 +40,7 @@ class VerifyLibraryWorker(
         return try {
             val newlyMissing = WorkerDatabaseAccess.run {
                 SongRepositoryImpl.create(applicationContext)
-                    .verifyLibraryAlreadyAdmitted(configuredRootUris)
+                    .verifyLibrary(configuredRootUris)
             }
             Log.d(TAG, "Launch verify complete: $newlyMissing newly missing")
             Result.success(workDataOf(KEY_NEWLY_MISSING to newlyMissing))

@@ -3,7 +3,6 @@ package com.v1per.synthx.data.repository
 import android.net.Uri
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
-import com.v1per.synthx.data.scanner.ScanResult
 import kotlinx.coroutines.flow.Flow
 
 interface SongRepository {
@@ -12,33 +11,6 @@ interface SongRepository {
     fun getSongsForArtist(artistId: String): Flow<List<Song>>
     fun getAlbums(): Flow<List<Album>>
     fun getSongsForAlbum(albumId: String): Flow<List<Song>>
-    /**
-     * @param reconcileMissing `false` skips the library-wide missing-detection pass — see
-     *   [com.v1per.synthx.data.scanner.FolderScanner.scan]. Only a caller that can account
-     *   for the whole library may reconcile; a secondary-tree scan must not.
-     * @param otherRootUris the configured audio roots *other than* [folderUri], enumerated
-     *   so their files count as found. Required whenever [reconcileMissing] is `true` and
-     *   more than one root is configured, or songs under the others are flagged missing.
-     * @param isNewArrivalsRoot whether [folderUri] is the New Arrivals tree rather than the
-     *   main library root — see [com.v1per.synthx.data.scanner.FolderScanner.scan].
-     */
-    suspend fun scanLibrary(
-        folderUri: Uri,
-        reconcileMissing: Boolean = true,
-        otherRootUris: List<Uri> = emptyList(),
-        isNewArrivalsRoot: Boolean = false,
-        onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
-    ): ScanResult
-
-    /**
-     * Lightweight existence check over every stored song. Returns the count newly flagged
-     * missing.
-     * @param configuredRootUris every currently configured audio root (primary + others).
-     *   A song under a root that fails its reachability check is left untouched this pass
-     *   rather than risking a false missing-flag — see
-     *   [com.v1per.synthx.data.scanner.FolderScanner.verify].
-     */
-    suspend fun verifyLibrary(configuredRootUris: List<Uri>): Int
 
     // Issues — songs flagged is_missing
     fun getMissingSongs(): Flow<List<MissingSongInfo>>
@@ -136,9 +108,6 @@ interface SongRepository {
      */
     suspend fun getQueueSongIdsAndCursor(): Pair<List<String>, QueueCursor?>
 
-    /** Overwrites the saved queue with [songIds], in order. */
-    suspend fun setQueueSongs(songIds: List<String>)
-
     // Baseline order — the app-managed source-of-truth sequence, persisted separately
     // from the live/active queue above so it can survive shuffle toggles.
 
@@ -147,9 +116,6 @@ interface SongRepository {
 
     /** The saved baseline as raw ids, including entries that no longer resolve to a playable song. */
     suspend fun getBaselineQueueSongIds(): List<String>
-
-    /** Overwrites the saved baseline with [songIds], in order. */
-    suspend fun setBaselineQueueSongs(songIds: List<String>)
 }
 
 /** The saved resume position: a raw index into the queue as persisted alongside it, and the
@@ -162,12 +128,12 @@ data class QueueCursor(val index: Int, val positionMs: Long, val shuffleEnabled:
 internal interface AdmittedQueuePersistenceRepository {
     /** Replaces the queue structure and the resume cursor in one atomic commit — see
      *  [com.v1per.synthx.data.db.QueueDao.replaceQueueAndCursor]. */
-    suspend fun setQueueStateAlreadyAdmitted(songIds: List<String>, queueIndex: Int, positionMs: Long)
+    suspend fun setQueueState(songIds: List<String>, queueIndex: Int, positionMs: Long)
 
-    /** Cursor-only counterpart of [setQueueStateAlreadyAdmitted] — see
+    /** Cursor-only counterpart of [setQueueState] — see
      *  [com.v1per.synthx.data.db.QueueDao.updateCursor]. Does not touch the persisted queue. */
     suspend fun setCursorAlreadyAdmitted(queueIndex: Int, positionMs: Long)
-    suspend fun setBaselineQueueSongsAlreadyAdmitted(songIds: List<String>)
+    suspend fun setBaselineQueueSongs(songIds: List<String>)
 
     /** Narrow shuffle-mode write — see [com.v1per.synthx.data.db.QueueDao.updateShuffleEnabled]. */
     suspend fun setShuffleEnabledAlreadyAdmitted(enabled: Boolean)

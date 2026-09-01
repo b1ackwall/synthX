@@ -93,7 +93,7 @@ class LibraryScanWorker(
             var songCountAfterScan = 0
             val result = WorkerDatabaseAccess.run {
                 val repository = SongRepositoryImpl.create(applicationContext)
-                val scanResult = repository.scanLibraryAlreadyAdmitted(
+                val scanResult = repository.scanLibrary(
                     uri,
                     otherRootUris = otherRoots,
                     isNewArrivalsRoot = false,

@@ -95,7 +95,7 @@ class QueuePersistence(
                     require(repository is AdmittedQueuePersistenceRepository) {
                         "Queue persistence requires an already-admitted repository"
                     }
-                    repository.setQueueStateAlreadyAdmitted(songIds, index, positionMs)
+                    repository.setQueueState(songIds, index, positionMs)
                 } catch (e: Exception) {
                     runCatching { Log.w(TAG, "Queue state save failed: ${e.message}") }
                 } finally {
@@ -165,7 +165,7 @@ class QueuePersistence(
                     require(repository is AdmittedQueuePersistenceRepository) {
                         "Queue persistence requires an already-admitted repository"
                     }
-                    repository.setBaselineQueueSongsAlreadyAdmitted(ids)
+                    repository.setBaselineQueueSongs(ids)
                 } catch (e: Exception) {
                     runCatching { Log.w(TAG, "Baseline queue save failed: ${e.message}") }
                 } finally {

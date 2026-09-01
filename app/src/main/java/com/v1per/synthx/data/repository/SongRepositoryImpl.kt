@@ -160,17 +160,7 @@ class SongRepositoryImpl(
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
 
-    override suspend fun scanLibrary(
-        folderUri: Uri,
-        reconcileMissing: Boolean,
-        otherRootUris: List<Uri>,
-        isNewArrivalsRoot: Boolean,
-        onProgress: suspend (current: Int, total: Int) -> Unit,
-    ): ScanResult = dbOperation {
-        scanLibraryAlreadyAdmitted(folderUri, reconcileMissing, otherRootUris, isNewArrivalsRoot, onProgress)
-    }
-
-    internal suspend fun scanLibraryAlreadyAdmitted(
+    internal suspend fun scanLibrary(
         folderUri: Uri,
         reconcileMissing: Boolean = true,
         otherRootUris: List<Uri> = emptyList(),
@@ -184,10 +174,7 @@ class SongRepositoryImpl(
         onProgress,
     )
 
-    override suspend fun verifyLibrary(configuredRootUris: List<Uri>): Int =
-        dbOperation { folderScanner.verifyAlreadyAdmitted(configuredRootUris) }
-
-    internal suspend fun verifyLibraryAlreadyAdmitted(configuredRootUris: List<Uri>): Int =
+    internal suspend fun verifyLibrary(configuredRootUris: List<Uri>): Int =
         folderScanner.verifyAlreadyAdmitted(configuredRootUris)
 
     /** Total library size, for gauging a scan's impact as a percentage. */
@@ -444,11 +431,7 @@ class SongRepositoryImpl(
             }
         } }
 
-    override suspend fun setQueueSongs(songIds: List<String>) = dbOperation { withContext(Dispatchers.IO) {
-        queueDao.replaceQueue(songIds)
-    } }
-
-    override suspend fun setQueueStateAlreadyAdmitted(
+    override suspend fun setQueueState(
         songIds: List<String>,
         queueIndex: Int,
         positionMs: Long,
@@ -489,11 +472,7 @@ class SongRepositoryImpl(
         queueDao.getBaselineQueueSongIds()
     } }
 
-    override suspend fun setBaselineQueueSongs(songIds: List<String>) = dbOperation { withContext(Dispatchers.IO) {
-        queueDao.replaceBaselineQueue(songIds)
-    } }
-
-    override suspend fun setBaselineQueueSongsAlreadyAdmitted(songIds: List<String>) = withContext(Dispatchers.IO) {
+    override suspend fun setBaselineQueueSongs(songIds: List<String>) = withContext(Dispatchers.IO) {
         queueDao.replaceBaselineQueue(songIds)
     }
 
