@@ -2,6 +2,7 @@ package com.v1per.synthx.ui.player
 
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,11 +25,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
+import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.MoreOptionsButton
@@ -134,7 +137,7 @@ fun PlayerSkeletonQueueContent(
     // throughout the slide rather than the two drifting apart.
     val queueContentSlideOffset = lerpDp(ContentSlideDistance, 0.dp, queueContentAlpha)
 
-    Box(modifier = modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 // Resting anchor plus the slide, summed into the single offset() call rather
@@ -188,7 +191,31 @@ fun PlayerSkeletonQueueContent(
             )
         }
 
-        if (queueProgressValue > 0f) {
+        if (queueProgressValue > 0f && upcomingQueue.isEmpty()) {
+            // fillMaxHeight() here would center within the whole remaining sheet height,
+            // including the ~300dp the fixed PlayerSkeletonControlsOverlay draws over at the
+            // bottom — unlike QueueList's LazyColumn (which reserves that space via its own
+            // contentPadding), a static centered Box has no equivalent, so the safe span has
+            // to be measured explicitly: this maxHeight comes from BoxWithConstraints above
+            // (the same live constraint QueueList/the overlay ultimately resolve against),
+            // not a hardcoded constant, since it varies by device/sheet size.
+            val emptyStateHeight = (maxHeight - queueListOffsetY - controlsOverlayHeight)
+                .coerceAtLeast(0.dp)
+            Box(
+                modifier = Modifier
+                    .offset(y = queueListOffsetY + queueContentSlideOffset)
+                    .fillMaxWidth()
+                    .height(emptyStateHeight)
+                    .alpha(queueContentAlpha),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.empty_queue_no_upcoming),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TextSecondary,
+                )
+            }
+        } else if (queueProgressValue > 0f) {
             QueueList(
                 queue = persistentUpcomingQueue,
                 onSongClick = onQueueSongClick,
