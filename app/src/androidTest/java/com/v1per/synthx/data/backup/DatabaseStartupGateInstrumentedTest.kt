@@ -124,7 +124,7 @@ class DatabaseStartupGateInstrumentedTest {
         val worker = async {
             WorkerDatabaseAccess.run {
                 val repository = SongRepositoryImpl.create(context)
-                repository.getQueueSongIds()
+                repository.getQueueSlots()
                 order += "room-open"
             }
         }

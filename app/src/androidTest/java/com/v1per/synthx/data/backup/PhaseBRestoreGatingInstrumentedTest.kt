@@ -48,7 +48,7 @@ class PhaseBRestoreGatingInstrumentedTest : PhaseBRestoreTestBase() {
         val queue = QueuePersistence(repository)
         RestoreCoordinator.markClosed()
         expectSuspendFailure { repository.isInAnyPlaylist("missing") }
-        queue.saveQueueState(emptyList(), -1, 0L)
+        queue.saveQueueState(emptyList(), null, 0L)
         queue.quiesceForRestore()
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }

@@ -412,50 +412,49 @@ class SongRepositoryImpl(
         details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
     } }
 
-    override suspend fun getQueueSongs(): List<Song> = dbOperation { withContext(Dispatchers.IO) {
-        val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
-        queueDao.getQueueItems().map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+    override suspend fun getQueueSlots(): List<QueueSlot> = dbOperation { withContext(Dispatchers.IO) {
+        resolveQueueSlots(queueDao.getQueueItems().map { QueueSlotRecord(it.slotId, it.songId) })
     } }
 
-    override suspend fun getQueueSongIds(): List<String> = dbOperation { withContext(Dispatchers.IO) {
-        queueDao.getQueueSongIds()
-    } }
-
-    override suspend fun getQueueSongIdsAndCursor(): Pair<List<String>, QueueCursor?> =
-        dbOperation { withContext(Dispatchers.IO) {
-            val (ids, cursor) = queueDao.getQueueAndCursor()
-            ids to cursor?.let {
+    override suspend fun getQueueSnapshot(): QueueSnapshot = dbOperation { withContext(Dispatchers.IO) {
+        val (items, cursor) = queueDao.getQueueAndCursor()
+        val records = items.map { QueueSlotRecord(it.slotId, it.songId) }
+        QueueSnapshot(
+            slots = resolveQueueSlots(records),
+            storedSlotCount = records.size,
+            cursor = cursor?.let {
                 QueueCursor(
-                    index = it.queueIndex,
+                    currentSlotId = it.currentSlotId,
                     positionMs = it.positionMs,
                     shuffleEnabled = it.shuffleEnabled,
                     repeatMode = it.repeatMode,
                 )
-            }
-        } }
+            },
+        )
+    } }
 
     override suspend fun setQueueState(
-        songIds: List<String>,
-        queueIndex: Int,
+        slots: List<QueueSlotRecord>,
+        currentSlotId: String?,
         positionMs: Long,
     ) = withContext(Dispatchers.IO) {
-        queueDao.replaceQueueAndCursor(songIds, queueIndex, positionMs)
+        queueDao.replaceQueueAndCursor(slots, currentSlotId, positionMs)
         // P6.3: the one place both sides are now guaranteed to have landed together —
         // a violation here means replaceQueueAndCursor's transaction itself is broken,
         // never a legitimate runtime state, so this must never silently pass in debug.
         if (BuildConfig.DEBUG) {
-            check(queueIndex < 0 || queueIndex < songIds.size) {
-                "Playback cursor invariant violated: queueIndex=$queueIndex not in bounds " +
-                    "of ${songIds.size} just-persisted queue items"
+            check(currentSlotId == null || slots.any { it.slotId == currentSlotId }) {
+                "Playback cursor invariant violated: currentSlotId=$currentSlotId is not in " +
+                    "the ${slots.size} just-persisted queue slots"
             }
         }
     }
 
     override suspend fun setCursorAlreadyAdmitted(
-        queueIndex: Int,
+        currentSlotId: String?,
         positionMs: Long,
     ) = withContext(Dispatchers.IO) {
-        queueDao.updateCursor(queueIndex, positionMs)
+        queueDao.updateCursor(currentSlotId, positionMs)
     }
 
     override suspend fun setShuffleEnabledAlreadyAdmitted(enabled: Boolean) = withContext(Dispatchers.IO) {
@@ -466,17 +465,34 @@ class SongRepositoryImpl(
         queueDao.updateRepeatMode(mode)
     }
 
-    override suspend fun getBaselineQueueSongs(): List<Song> = dbOperation { withContext(Dispatchers.IO) {
-        val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
-        queueDao.getBaselineQueueItems().map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+    override suspend fun getBaselineQueueSlots(): List<QueueSlot> = dbOperation { withContext(Dispatchers.IO) {
+        resolveQueueSlots(queueDao.getBaselineQueueItems().map { QueueSlotRecord(it.slotId, it.songId) })
     } }
 
-    override suspend fun getBaselineQueueSongIds(): List<String> = dbOperation { withContext(Dispatchers.IO) {
-        queueDao.getBaselineQueueSongIds()
-    } }
+    override suspend fun setBaselineQueueSlots(slots: List<QueueSlotRecord>) = withContext(Dispatchers.IO) {
+        queueDao.replaceBaselineQueue(slots)
+    }
 
-    override suspend fun setBaselineQueueSongs(songIds: List<String>) = withContext(Dispatchers.IO) {
-        queueDao.replaceBaselineQueue(songIds)
+    private suspend fun resolveQueueSlots(records: List<QueueSlotRecord>): List<QueueSlot> {
+        if (records.isEmpty()) return emptyList()
+        val songIds = records.map { it.songId }.distinct()
+        // Room expands each IN-list element to one SQLite bind parameter. Queues can contain
+        // well over 999 entries, so hydrate in bounded batches instead of failing restore for
+        // a large queue with "too many SQL variables".
+        val details = songIds.chunked(SQLITE_IN_BATCH_SIZE).flatMap {
+            songDao.getSongsWithDetailsByIds(it)
+        }
+        val refsBySongId = details.map { it.song.id }.chunked(SQLITE_IN_BATCH_SIZE).flatMap {
+            songDao.getSongArtistRefsForSongs(it)
+        }
+            .groupBy { it.songId }
+        val songsById = details
+            .asSequence()
+            .filterNot { it.song.isMissing }
+            .associate { it.song.id to it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+        return records.mapNotNull { record ->
+            songsById[record.songId]?.let { song -> QueueSlot(record.slotId, song) }
+        }
     }
 
     private fun PlaylistEntity.toDomain(): Playlist =
@@ -514,6 +530,8 @@ class SongRepositoryImpl(
     }
 
     companion object {
+        private const val SQLITE_IN_BATCH_SIZE = 900
+
         @Volatile private var INSTANCE: SongRepositoryImpl? = null
 
         // Manual DI entry point — everything hangs off the SynthXDatabase singleton. A true

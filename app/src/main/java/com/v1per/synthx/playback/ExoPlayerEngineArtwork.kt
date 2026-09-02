@@ -1,14 +1,18 @@
 package com.v1per.synthx.playback
 
 import android.net.Uri
+import android.os.Bundle
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.QueueSlot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+
+internal const val MEDIA_METADATA_SONG_ID = "com.v1per.synthx.SONG_ID"
 
 /**
  * Fills in artwork for the current item and the one after it, replacing their
@@ -24,20 +28,22 @@ internal fun ExoPlayerEngine.prefetchArtwork() {
 
     val pending = targets
         .map { ctrl.getMediaItemAt(it).mediaId }
-        .filter { it !in artworkLoadedIds }
-        .mapNotNull { songsById[it] }
+        .filter { it !in artworkLoadedSlotIds }
+        .mapNotNull { slotId ->
+            songsBySlotId[slotId]?.let { song -> QueueSlot(slotId, song) }
+        }
     if (pending.isEmpty()) return
 
     // A transition invalidates the previous window, so the in-flight job is dropped
     // rather than left to write artwork for songs that have since moved out of range.
     artworkJob?.cancel()
     artworkJob = engineScope.launch {
-        for (song in pending) {
-            val artwork = buildArtworkData(song)
+        for (slot in pending) {
+            val artwork = buildArtworkData(slot.song)
             val live = controller ?: return@launch
-            val index = indexOfMediaId(live, song.id) ?: continue
-            live.replaceMediaItem(index, buildMediaItem(song, artwork))
-            artworkLoadedIds.add(song.id)
+            val index = indexOfMediaId(live, slot.slotId) ?: continue
+            live.replaceMediaItem(index, buildMediaItem(slot.slotId, slot.song, artwork))
+            artworkLoadedSlotIds.add(slot.slotId)
         }
     }
 }
@@ -72,17 +78,18 @@ internal suspend fun ExoPlayerEngine.buildArtworkData(song: Song): ByteArray {
 }
 
 /** Stateless — no [ExoPlayerEngine] state involved, just a [Song] -> [MediaItem] mapping. */
-internal fun buildMediaItem(song: Song, artworkData: ByteArray?): MediaItem {
+internal fun buildMediaItem(slotId: String, song: Song, artworkData: ByteArray?): MediaItem {
     val metadata = MediaMetadata.Builder()
         .setTitle(song.title)
         .setArtist(song.artist)
         .apply {
             artworkData?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }
         }
+        .setExtras(Bundle().apply { putString(MEDIA_METADATA_SONG_ID, song.id) })
         .build()
 
     return MediaItem.Builder()
-        .setMediaId(song.id)
+        .setMediaId(slotId)
         .setUri(Uri.parse(song.filePath))
         .setMediaMetadata(metadata)
         .build()

@@ -92,12 +92,11 @@ class MigrationFullChainTest {
 
     @Test
     fun fullChainPreservesRealDataFromTheLastDestructiveMigrationOnward() {
-        // MIGRATION_2_3 and MIGRATION_3_4 are the only destructive legs (full song-data wipes for
-        // a hash-strategy change, then an artist-splitting-delimiter change) — every migration
-        // since MIGRATION_4_5 is additive-only (see each migration's own comment in
-        // SynthXDatabase.kt). Seeding at v4, right where 3_4 lands, and walking the rest of the
-        // chain in one pass proves what every real v4+ install actually depends on: a song
-        // surviving every migration since. Seeding at v1 instead would make this a test of
+        // MIGRATION_2_3 and MIGRATION_3_4 are the only destructive legs for library data.
+        // MIGRATION_11_12 deliberately wipes transient queue rows, but must still preserve every
+        // song and playlist table. Seeding at v4, right where 3_4 lands, and walking the rest of
+        // the chain in one pass proves what every real v4+ install actually depends on: a song
+        // surviving every later migration. Seeding at v1 instead would make this a test of
         // 2_3/3_4's *intentional* wipe behavior, which is the wrong thing to assert here.
         val name = databaseName("full-chain-data")
         migrationHelper.createDatabase(name, 4).use { seedV4Song(it) }

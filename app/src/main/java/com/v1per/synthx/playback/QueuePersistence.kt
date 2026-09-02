@@ -2,12 +2,11 @@ package com.v1per.synthx.playback
 
 import android.content.Context
 import android.util.Log
-import com.v1per.synthx.BuildConfig
-import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.repository.AdmittedQueuePersistenceRepository
-import com.v1per.synthx.data.repository.QueueCursor
+import com.v1per.synthx.data.repository.QueueSlot
+import com.v1per.synthx.data.repository.QueueSlotRecord
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +70,7 @@ class QueuePersistence(
      * songs flagged missing are filtered out by the query.
      */
     data class RestoredQueue(
-        val songs: List<Song>,
+        val slots: List<QueueSlot>,
         val startIndex: Int,
         val positionMs: Long,
         val droppedCount: Int,
@@ -81,12 +80,25 @@ class QueuePersistence(
 
     /**
      * Replaces the saved queue AND the resume cursor in one atomic commit — this is the only
-     * write path for either, precisely so the two can never land independently. [songIds] is
-     * the full queue structure at the moment of the call, [index]/[positionMs] the cursor
+     * write path for either, precisely so the two can never land independently. [slots] is
+     * the full queue structure at the moment of the call, [currentSlotId]/[positionMs] the cursor
      * within it; every caller (a queue mutation, a pause, an app-backgrounded event, or a
      * restore rewrite) already has both in hand, so there is no case where only one is known.
      */
-    fun saveQueueState(songIds: List<String>, index: Int, positionMs: Long) {
+    fun saveQueueState(slots: List<QueueSlot>, currentSlotId: String?, positionMs: Long) {
+        saveQueueRecords(
+            slots.map { QueueSlotRecord(slotId = it.slotId, songId = it.song.id) },
+            currentSlotId,
+            positionMs,
+        )
+    }
+
+    /** Service-side equivalent when the live MediaItems already carry both persisted ids. */
+    internal fun saveQueueRecords(
+        slots: List<QueueSlotRecord>,
+        currentSlotId: String?,
+        positionMs: Long,
+    ) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
             if (!acceptingWrites) { permit.release(); return }
@@ -95,7 +107,7 @@ class QueuePersistence(
                     require(repository is AdmittedQueuePersistenceRepository) {
                         "Queue persistence requires an already-admitted repository"
                     }
-                    repository.setQueueState(songIds, index, positionMs)
+                    repository.setQueueState(slots, currentSlotId, positionMs)
                 } catch (e: Exception) {
                     runCatching { Log.w(TAG, "Queue state save failed: ${e.message}") }
                 } finally {
@@ -114,7 +126,7 @@ class QueuePersistence(
      * as [saveQueueState], so a cursor-only write and a full write can never race each other or
      * land out of order.
      */
-    fun updateCursor(index: Int, positionMs: Long) {
+    fun updateCursor(currentSlotId: String?, positionMs: Long) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
             if (!acceptingWrites) { permit.release(); return }
@@ -123,7 +135,7 @@ class QueuePersistence(
                     require(repository is AdmittedQueuePersistenceRepository) {
                         "Queue persistence requires an already-admitted repository"
                     }
-                    repository.setCursorAlreadyAdmitted(index, positionMs)
+                    repository.setCursorAlreadyAdmitted(currentSlotId, positionMs)
                 } catch (e: Exception) {
                     runCatching { Log.w(TAG, "Cursor update failed: ${e.message}") }
                 } finally {
@@ -135,17 +147,18 @@ class QueuePersistence(
     }
 
     /**
-     * Resolves ids from a live player timeline back into [Song]s — used when reconnecting to
+     * Resolves slot ids from a live player timeline back into [QueueSlot]s — used when reconnecting to
      * a still-running playback service, where no in-memory cache already holds them. Returns
      * an empty list on failure rather than throwing, matching [loadQueue]'s failure shape:
      * the caller treats "nothing resolved" the same as "nothing to resolve."
      */
-    suspend fun resolveSongs(ids: List<String>): List<Song> {
-        if (ids.isEmpty()) return emptyList()
+    suspend fun resolveSlots(slotIds: List<String>): List<QueueSlot> {
+        if (slotIds.isEmpty()) return emptyList()
         return try {
-            repository.getSongsByIds(ids)
+            val requested = slotIds.toHashSet()
+            repository.getQueueSlots().filter { it.slotId in requested }
         } catch (e: Exception) {
-            Log.w(TAG, "Timeline song resolution failed: ${e.message}")
+            Log.w(TAG, "Timeline slot resolution failed: ${e.message}")
             emptyList()
         }
     }
@@ -155,8 +168,8 @@ class QueuePersistence(
      * kdoc for what this represents. Same fire-and-forget shape as [saveQueueState]; callers
      * decide when a baseline mutation is worth persisting, this just writes it.
      */
-    fun saveBaselineQueue(songs: List<Song>) {
-        val ids = songs.map { it.id }
+    fun saveBaselineQueue(slots: List<QueueSlot>) {
+        val records = slots.map { QueueSlotRecord(slotId = it.slotId, songId = it.song.id) }
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
             if (!acceptingWrites) { permit.release(); return }
@@ -165,7 +178,7 @@ class QueuePersistence(
                     require(repository is AdmittedQueuePersistenceRepository) {
                         "Queue persistence requires an already-admitted repository"
                     }
-                    repository.setBaselineQueueSongs(ids)
+                    repository.setBaselineQueueSlots(records)
                 } catch (e: Exception) {
                     runCatching { Log.w(TAG, "Baseline queue save failed: ${e.message}") }
                 } finally {
@@ -225,45 +238,32 @@ class QueuePersistence(
 
     /**
      * Null when there is nothing to restore: a fresh install, or a saved queue whose songs
-     * have all gone. The saved index is re-found by song id rather than reused as a number,
-     * so dropped entries shift the queue without shifting what resumes.
+     * have all gone. The exact saved slot id is re-found after unavailable songs are filtered,
+     * so dropped entries shift the queue without changing which occurrence resumes.
      */
     suspend fun loadQueue(): RestoredQueue? {
-        val (savedIds, cursor) = try {
-            repository.getQueueSongIdsAndCursor()
+        val snapshot = try {
+            repository.getQueueSnapshot()
         } catch (e: Exception) {
             Log.w(TAG, "Queue load failed: ${e.message}")
             return null
         }
-        if (savedIds.isEmpty()) return null
+        if (snapshot.storedSlotCount == 0) return null
 
-        val songs = repository.getQueueSongs()
-        if (songs.isEmpty()) {
-            Log.i(TAG, "Saved queue of ${savedIds.size} no longer resolves to any song")
+        val slots = snapshot.slots
+        if (slots.isEmpty()) {
+            Log.i(TAG, "Saved queue of ${snapshot.storedSlotCount} no longer resolves to any song")
             return null
         }
 
-        val savedIndex = cursor?.index ?: -1
-        // P6.3: savedIndex and savedIds were read from the same transaction (see
-        // QueueDao.getQueueAndCursor), so a cursor genuinely out of bounds here means the
-        // atomic-write invariant itself broke, not a normal drift case — those are handled
-        // below via savedId/resolvedIndex instead. Never silently pass in debug.
-        if (BuildConfig.DEBUG) {
-            check(savedIndex < 0 || savedIndex < savedIds.size) {
-                "Persisted cursor ($savedIndex) out of bounds for persisted queue " +
-                    "(${savedIds.size} items) — atomic write invariant violated"
-            }
-        }
-        val savedId = savedIds.getOrNull(savedIndex)
-        val resolvedIndex = songs.indexOfFirst { it.id == savedId }
-
+        val cursor = snapshot.cursor
+        val currentSlotId = cursor?.currentSlotId
+        val resolvedIndex = slots.indexOfFirst { it.slotId == currentSlotId }
         return RestoredQueue(
-            songs = songs,
-            // The song that was playing is gone: resume from the top of what is left
-            // rather than from an index that now means a different song.
+            slots = slots,
             startIndex = if (resolvedIndex >= 0) resolvedIndex else 0,
             positionMs = if (resolvedIndex >= 0) (cursor?.positionMs ?: 0L) else 0L,
-            droppedCount = savedIds.size - songs.size,
+            droppedCount = snapshot.storedSlotCount - slots.size,
             shuffleEnabled = cursor?.shuffleEnabled ?: false,
             repeatMode = cursor?.repeatMode ?: 0,
         )
@@ -275,9 +275,9 @@ class QueuePersistence(
      * index/position bookkeeping here: the baseline is a plain ordered list, nothing reads
      * a "current position" out of it directly.
      */
-    suspend fun loadBaselineQueue(): List<Song> {
+    suspend fun loadBaselineQueue(): List<QueueSlot> {
         return try {
-            repository.getBaselineQueueSongs()
+            repository.getBaselineQueueSlots()
         } catch (e: Exception) {
             Log.w(TAG, "Baseline queue load failed: ${e.message}")
             emptyList()

@@ -293,6 +293,7 @@ private fun NormalShell(navController: NavHostController) {
         },
         onPlayNext = playbackViewModel::playNext,
         onAddToQueue = playbackViewModel::addToQueue,
+        currentSongId = currentSong?.id,
     ) {
     Box(modifier = Modifier.fillMaxSize()) {
         // Excluded from TalkBack traversal while the sort sheet is open — see

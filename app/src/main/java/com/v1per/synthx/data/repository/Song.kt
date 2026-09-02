@@ -21,3 +21,17 @@ data class Song(
     /** Individual artists in position order — [artist] is these joined for display. */
     val artists: List<Artist> = emptyList(),
 )
+
+/** One independently addressable occurrence of a [Song] in the playback queue. */
+@Immutable
+data class QueueSlot(
+    val slotId: String,
+    val song: Song,
+)
+
+/** The persistence form of [QueueSlot], retaining identity without duplicating song data. */
+@Immutable
+data class QueueSlotRecord(
+    val slotId: String,
+    val songId: String,
+)

@@ -13,7 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.QueueSlot
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toPersistentList
 import sh.calvin.reorderable.ReorderableItem
@@ -44,7 +44,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  */
 @Composable
 fun QueueList(
-    queue: ImmutableList<Song>,
+    queue: ImmutableList<QueueSlot>,
     onSongClick: (index: Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
     onRemove: (index: Int) -> Unit,
@@ -57,19 +57,19 @@ fun QueueList(
     var localQueue by remember(queue) { mutableStateOf(queue) }
     // Identity, not a raw index: an arbitrarily long drag can straddle a queue mutation
     // (e.g. auto-advance resetting localQueue via the remember(queue) key above), which
-    // would leave a captured index stale. Resolving the end position by song id against
+    // would leave a captured index stale. Resolving the end position by slot id against
     // the live localQueue immediately before calling onMove mirrors onRemove's
     // identity-based resolution below and the engine-level principle documented on
     // PlaybackEngine.removeQueueItem.
-    var dragStartSongId by remember { mutableStateOf<String?>(null) }
+    var dragStartSlotId by remember { mutableStateOf<String?>(null) }
     // The "before" list, snapshotted the instant the drag begins — a cheap reference copy
     // (localQueue is a PersistentList). Needed because localQueue is already live-reordered
     // by reorderableState's onMove callback below as the drag happens, so by drop time it
-    // is the song's *final* position for every lookup, not its starting one. Resolving
+    // is the slot's *final* position for every lookup, not its starting one. Resolving
     // start against this snapshot and end against the live localQueue is what makes the
     // two indices genuinely different for a real reorder, instead of both resolving the
     // same dragged song's identity against the same (already-reordered) list.
-    var dragStartQueueSnapshot by remember { mutableStateOf<ImmutableList<Song>?>(null) }
+    var dragStartQueueSnapshot by remember { mutableStateOf<ImmutableList<QueueSlot>?>(null) }
 
     val reorderableState = rememberReorderableLazyListState(state) { from, to ->
         localQueue = localQueue.toMutableList().apply {
@@ -78,10 +78,11 @@ fun QueueList(
     }
 
     LazyColumn(state = state, contentPadding = contentPadding, modifier = modifier) {
-        itemsIndexed(localQueue, key = { _, song -> song.id }) { index, song ->
-            ReorderableItem(reorderableState, key = song.id) {
+        itemsIndexed(localQueue, key = { _, slot -> slot.slotId }) { index, slot ->
+            ReorderableItem(reorderableState, key = slot.slotId) {
                 QueueRow(
-                    song = song,
+                    slotId = slot.slotId,
+                    song = slot.song,
                     queue = queue,
                     onClick = { if (enabled) onSongClick(index) },
                     // Resolved against [queue] by identity rather than reported as `index`:
@@ -89,14 +90,14 @@ fun QueueList(
                     // from [queue]'s between a drop and the engine's echo, and the host
                     // resolves this index back to a song against [queue].
                     onRemove = {
-                        val queueIndex = queue.indexOfFirst { it.id == song.id }
+                        val queueIndex = queue.indexOfFirst { it.slotId == slot.slotId }
                         if (enabled && queueIndex != -1) onRemove(queueIndex)
                     },
                     surfaceColor = surfaceColor,
                     enabled = enabled,
                     dragHandleModifier = Modifier.draggableHandle(
                         onDragStarted = {
-                            dragStartSongId = song.id
+                            dragStartSlotId = slot.slotId
                             dragStartQueueSnapshot = localQueue
                         },
                         onDragStopped = {
@@ -108,36 +109,36 @@ fun QueueList(
                             // indices (see the field doc comments above for why resolving
                             // both against the same live list, as the previous fix did,
                             // made them always equal).
-                            val startSongId = dragStartSongId
+                            val startSlotId = dragStartSlotId
                             val beforeQueue = dragStartQueueSnapshot
-                            val startIndex = if (startSongId != null && beforeQueue != null) {
-                                beforeQueue.indexOfFirst { it.id == startSongId }
+                            val startIndex = if (startSlotId != null && beforeQueue != null) {
+                                beforeQueue.indexOfFirst { it.slotId == startSlotId }
                             } else {
                                 -1
                             }
-                            val endIndex = startSongId
-                                ?.let { id -> localQueue.indexOfFirst { it.id == id } }
+                            val endIndex = startSlotId
+                                ?.let { id -> localQueue.indexOfFirst { it.slotId == id } }
                                 ?: -1
                             // If the dragged song can no longer be found in either list
                             // (e.g. removed during the drag), there is nothing valid to
                             // move — drop the reorder rather than call onMove with a -1
                             // index.
                             //
-                            // Same song set, different order, required: if the queue was
+                            // Same slot set, different order, required: if the queue was
                             // externally mutated mid-drag (e.g. auto-advance resetting
                             // localQueue to a wholly different list via the remember(queue)
                             // key above), beforeQueue and localQueue are two unrelated
                             // lists — indices resolved against one don't mean anything
                             // relative to the other, even if both individually resolve to
-                            // a non-(-1) value. Comparing id sets (order-independent) is
+                            // a non-(-1) value. Comparing slot-id sets (order-independent) is
                             // the cheapest way to detect that without diffing positions.
                             val sameQueue = beforeQueue != null &&
-                                beforeQueue.mapTo(mutableSetOf()) { it.id } ==
-                                localQueue.mapTo(mutableSetOf()) { it.id }
+                                beforeQueue.mapTo(mutableSetOf()) { it.slotId } ==
+                                localQueue.mapTo(mutableSetOf()) { it.slotId }
                             if (enabled && sameQueue && startIndex != -1 && endIndex != -1 && startIndex != endIndex) {
                                 onMove(startIndex, endIndex)
                             }
-                            dragStartSongId = null
+                            dragStartSlotId = null
                             dragStartQueueSnapshot = null
                         },
                     ),

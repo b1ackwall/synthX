@@ -8,6 +8,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.v1per.synthx.data.SongRemapEvents
+import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -60,19 +61,22 @@ class ExoPlayerEngine(
     internal val _currentSongId = MutableStateFlow<String?>(null)
     override val currentSongId: Flow<String?> = _currentSongId.asStateFlow()
 
-    internal val _queue = MutableStateFlow<List<Song>>(emptyList())
-    override val queue: Flow<List<Song>> = _queue.asStateFlow()
+    /** Media3 identity of the exact playing queue occurrence; never exposed as song identity. */
+    internal val _currentSlotId = MutableStateFlow<String?>(null)
+
+    internal val _queue = MutableStateFlow<List<QueueSlot>>(emptyList())
+    override val queue: Flow<List<QueueSlot>> = _queue.asStateFlow()
 
     internal val _currentIndex = MutableStateFlow(-1)
     override val currentIndex: Flow<Int> = _currentIndex.asStateFlow()
 
-    internal val _upcomingQueue = MutableStateFlow<List<Song>>(emptyList())
-    override val upcomingQueue: Flow<List<Song>> = _upcomingQueue.asStateFlow()
+    internal val _upcomingQueue = MutableStateFlow<List<QueueSlot>>(emptyList())
+    override val upcomingQueue: Flow<List<QueueSlot>> = _upcomingQueue.asStateFlow()
 
     // Parallel to _upcomingQueue.value: upcomingTimelineIndices[i] is the real timeline
     // window index of upcomingQueue[i]. Recomputed alongside it in refreshUpcomingQueue();
     // moveQueueItem/seekToQueueItem translate the display index the UI hands them through
-    // this before touching the controller. removeQueueItem takes a song id instead and
+    // this before touching the controller. removeQueueItem takes a slot id instead and
     // derives its own display index from _upcomingQueue first, then translates it here.
     internal var upcomingTimelineIndices: List<Int> = emptyList()
 
@@ -111,14 +115,14 @@ class ExoPlayerEngine(
     )
     override val errors: Flow<PlaybackError> = _errors.asSharedFlow()
 
-    // MediaItem.mediaId holds song.id, but a MediaItem cannot carry the whole Song back,
-    // so the timeline is re-hydrated into Songs through this cache. Written and read on
+    // MediaItem.mediaId holds QueueSlot.slotId, while this map retains the corresponding Song.
+    // The timeline is re-hydrated into QueueSlots through this cache. Written and read on
     // the main thread only (playback mutations and Player.Listener callbacks both run
     // there), so it needs no synchronisation.
-    internal val songsById = LinkedHashMap<String, Song>()
+    internal val songsBySlotId = LinkedHashMap<String, Song>()
 
-    // Song ids whose MediaItem in the current timeline already carries artwork bytes.
-    internal val artworkLoadedIds = mutableSetOf<String>()
+    // Slot ids whose MediaItem in the current timeline already carries artwork bytes.
+    internal val artworkLoadedSlotIds = mutableSetOf<String>()
 
     // Main.immediate to match MediaController's main-thread requirement; the artwork
     // work itself hops to IO/Default and comes back.
@@ -161,17 +165,35 @@ class ExoPlayerEngine(
 
     init {
         instances += this
-        // A rescan can replace a song's row (and id) while that exact song is the one
-        // cached here — see SongRemapEvents' kdoc. songsById is keyed by MediaItem.mediaId,
-        // which never changes for an item already in the timeline, so the entry is
-        // refreshed in place under [SongRemap.oldId] rather than re-keyed.
+        // A rescan can replace one content id while several independently keyed queue slots
+        // reference it. Refresh every matching value without changing any stable slot key.
         engineScope.launch {
             SongRemapEvents.events.collect { remap ->
-                if (songsById.containsKey(remap.oldId)) {
-                    songsById[remap.oldId] = remap.newSong.copy(id = remap.oldId)
-                    artworkLoadedIds.remove(remap.oldId)
+                val affectedSlotIds = songsBySlotId
+                    .filterValues { it.id == remap.oldId }
+                    .keys
+                    .toList()
+                if (affectedSlotIds.isNotEmpty()) {
+                    affectedSlotIds.forEach { slotId ->
+                        songsBySlotId[slotId] = remap.newSong
+                        artworkLoadedSlotIds.remove(slotId)
+                    }
+                    baselineManager.remapSong(remap.oldId, remap.newSong)
+                    val ctrl = controller
+                    affectedSlotIds.forEach { slotId ->
+                        val index = ctrl?.let { indexOfMediaId(it, slotId) } ?: return@forEach
+                        ctrl.replaceMediaItem(
+                            index,
+                            buildMediaItem(slotId, remap.newSong, artworkData = null),
+                        )
+                    }
                     refreshQueue()
                     refreshUpcomingQueue()
+                    val currentSlotId = _currentSlotId.value
+                    if (currentSlotId != null && currentSlotId in affectedSlotIds) {
+                        _currentSongId.value = remap.newSong.id
+                    }
+                    persistQueue()
                     prefetchArtwork()
                 }
             }
@@ -196,13 +218,16 @@ class ExoPlayerEngine(
                         // Shuffle has no media3-side state to adopt any more — restoreSavedQueue
                         // (or a fresh playQueue) is what seeds _shuffleEnabled now.
                         _repeatMode.value = ctrl.repeatMode.toRepeatMode()
-                        if (ctrl.mediaItemCount > 0 && songsById.isEmpty()) {
-                            // Reconnecting to a still-running service: songsById is otherwise
+                        if (ctrl.mediaItemCount > 0 && songsBySlotId.isEmpty()) {
+                            // Reconnecting to a still-running service: songsBySlotId is otherwise
                             // only populated by playQueueInternal/restoreSavedQueueInternal,
                             // neither of which runs here — must happen before refreshQueue()
                             // below or _queue ends up empty against a full live timeline.
                             adoptRunningTimeline(ctrl)
                         }
+                        val currentSlotId = ctrl.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }
+                        _currentSlotId.value = currentSlotId
+                        _currentSongId.value = currentSlotId?.let { songsBySlotId[it]?.id }
                         refreshQueue()
                         refreshUpcomingQueue()
                         refreshNavigationState()
@@ -225,7 +250,11 @@ class ExoPlayerEngine(
         val ctrl = controller ?: return
         val index = ctrl.currentMediaItemIndex
         if (index == C.INDEX_UNSET || ctrl.mediaItemCount == 0) return
-        persistence.saveQueueState(_queue.value.map { it.id }, index, ctrl.currentPosition)
+        persistence.saveQueueState(
+            _queue.value,
+            ctrl.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() },
+            ctrl.currentPosition,
+        )
     }
 
     override fun next() {
@@ -258,14 +287,14 @@ class ExoPlayerEngine(
 
     override fun moveQueueItem(fromIndex: Int, toIndex: Int) = moveQueueItemInternal(fromIndex, toIndex)
 
-    override fun removeQueueItem(songId: String) = removeQueueItemInternal(songId)
+    override fun removeQueueItem(slotId: String) = removeQueueItemInternal(slotId)
 
     override fun seekToQueueItem(index: Int) = seekToQueueItemInternal(index)
 
     override fun pause() {
         controller?.pause()
         // Pause and app-backgrounded are the only position writes: saving on every tick
-        // would mean a SharedPreferences commit twice a second for a whole album.
+        // would mean a database write twice a second for a whole album.
         persistPlaybackState()
     }
 
@@ -275,6 +304,7 @@ class ExoPlayerEngine(
 
     override fun stop() {
         controller?.stop()
+        _currentSlotId.value = null
         _currentSongId.value = null
         refreshNavigationState()
     }

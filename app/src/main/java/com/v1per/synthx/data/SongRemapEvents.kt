@@ -12,7 +12,7 @@ data class SongRemap(val oldId: String, val newSong: Song)
 /**
  * Process-wide notice that a scan replaced a song row under a new id while the old id may
  * still be held in memory elsewhere — currently just
- * [com.v1per.synthx.playback.ExoPlayerEngine.songsById], which has no other way to learn its
+ * [com.v1per.synthx.playback.ExoPlayerEngine.songsBySlotId], which has no other way to learn its
  * cached [Song] for the currently-playing (or queued) item just went stale.
  *
  * A singleton bus rather than a constructor-injected dependency because the emitting side

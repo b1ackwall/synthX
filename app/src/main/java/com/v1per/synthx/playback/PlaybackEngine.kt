@@ -1,6 +1,7 @@
 package com.v1per.synthx.playback
 
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.QueueSlot
 import kotlinx.coroutines.flow.Flow
 
 /** One-off playback failures, surfaced to the UI as transient messages. */
@@ -24,13 +25,14 @@ interface PlaybackEngine {
      * play/pause icon rather than leaving the two states visually identical.
      */
     val isBuffering: Flow<Boolean>
+    /** Content identity ([Song.id]) of the current slot, used for library-row highlighting. */
     val currentSongId: Flow<String?>
     val currentPosition: Flow<Long>
     val duration: Flow<Long>
     val errors: Flow<PlaybackError>
 
-    /** The playback timeline, in queue order (unaffected by shuffle). */
-    val queue: Flow<List<Song>>
+    /** The live playback timeline; app-managed shuffle physically reorders these slots. */
+    val queue: Flow<List<QueueSlot>>
 
     /** Index into [queue] of the item currently playing, or -1 when the queue is empty. */
     val currentIndex: Flow<Int>
@@ -42,7 +44,7 @@ interface PlaybackEngine {
      * walking media3's own next-window traversal, so what this shows is guaranteed to match
      * what actually plays next rather than a display-only approximation of it.
      */
-    val upcomingQueue: Flow<List<Song>>
+    val upcomingQueue: Flow<List<QueueSlot>>
 
     val shuffleEnabled: Flow<Boolean>
     val repeatMode: Flow<RepeatMode>
@@ -117,15 +119,15 @@ interface PlaybackEngine {
     fun moveQueueItem(fromIndex: Int, toIndex: Int)
 
     /**
-     * Removes the item with [songId] from [upcomingQueue]. Safe under shuffle.
+     * Removes the item with [slotId] from [upcomingQueue]. Safe under shuffle.
      *
-     * Identified by song id rather than by position — unlike [moveQueueItem] and
+     * Identified by stable slot id rather than by position — unlike [moveQueueItem] and
      * [seekToQueueItem], which still take display indices. Removal is the destructive one:
      * a position captured by the UI can be invalidated by any queue mutation that lands
      * first, and acting on a stale one removes the wrong song permanently. Implementations
      * must resolve the position fresh, at call time, from their own live queue state.
      */
-    fun removeQueueItem(songId: String)
+    fun removeQueueItem(slotId: String)
 
     /** Jumps playback to the item at [index] in [upcomingQueue] and plays it. */
     fun seekToQueueItem(index: Int)

@@ -1,6 +1,7 @@
 package com.v1per.synthx.playback
 
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.QueueSlot
 import kotlinx.coroutines.flow.Flow
 
 class PlaybackController(private val engine: PlaybackEngine) {
@@ -11,9 +12,9 @@ class PlaybackController(private val engine: PlaybackEngine) {
     val currentPosition: Flow<Long> = engine.currentPosition
     val duration: Flow<Long> = engine.duration
     val errors: Flow<PlaybackError> = engine.errors
-    val queue: Flow<List<Song>> = engine.queue
+    val queue: Flow<List<QueueSlot>> = engine.queue
     val currentIndex: Flow<Int> = engine.currentIndex
-    val upcomingQueue: Flow<List<Song>> = engine.upcomingQueue
+    val upcomingQueue: Flow<List<QueueSlot>> = engine.upcomingQueue
     val shuffleEnabled: Flow<Boolean> = engine.shuffleEnabled
     val repeatMode: Flow<RepeatMode> = engine.repeatMode
     val hasNext: Flow<Boolean> = engine.hasNext
@@ -31,7 +32,7 @@ class PlaybackController(private val engine: PlaybackEngine) {
     fun addToQueue(song: Song): Boolean = engine.addToQueue(song)
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = engine.moveQueueItem(fromIndex, toIndex)
     /** Identity-based, not index-based — see [PlaybackEngine.removeQueueItem] for why. */
-    fun removeQueueItem(songId: String) = engine.removeQueueItem(songId)
+    fun removeQueueItem(slotId: String) = engine.removeQueueItem(slotId)
     fun seekToQueueItem(index: Int) = engine.seekToQueueItem(index)
     fun pause() = engine.pause()
     fun resume() = engine.resume()

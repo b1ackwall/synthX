@@ -1,6 +1,7 @@
 package com.v1per.synthx.playback
 
 import androidx.media3.session.MediaController
+import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 
 /**
@@ -17,49 +18,49 @@ import com.v1per.synthx.data.repository.Song
  */
 class QueueBaselineManager(private val persistence: QueuePersistence) {
 
-    var current: List<Song> = emptyList()
+    var current: List<QueueSlot> = emptyList()
         private set
 
     /** A fresh [ExoPlayerEngine.playQueue] call always fully replaces baseline — never merges with whatever existed before. */
-    fun captureFresh(songs: List<Song>) {
-        current = songs
-        persistence.saveBaselineQueue(songs)
+    fun captureFresh(slots: List<QueueSlot>) {
+        current = slots
+        persistence.saveBaselineQueue(slots)
     }
 
     /** Restore path — baseline was already loaded from storage by the caller, so this just adopts it; nothing to re-persist. */
-    fun restore(songs: List<Song>) {
-        current = songs
+    fun restore(slots: List<QueueSlot>) {
+        current = slots
     }
 
     /**
-     * [ExoPlayerEngine.playNext] while shuffle is off — [song] is woven into baseline right
+     * [ExoPlayerEngine.playNext] while shuffle is off — [slot] is woven into baseline right
      * after the current song, permanently. While shuffle is on, callers simply don't call
      * this; the song is folded into baseline later, by [computeUnshuffleTarget].
      */
-    fun weaveNext(song: Song, currentSongId: String?) {
-        val insertAt = if (currentSongId != null) {
-            current.indexOfFirst { it.id == currentSongId } + 1
+    fun weaveNext(slot: QueueSlot, currentSlotId: String?) {
+        val insertAt = if (currentSlotId != null) {
+            current.indexOfFirst { it.slotId == currentSlotId } + 1
         } else {
             current.size
         }
-        current = current.toMutableList().apply { add(insertAt.coerceIn(0, size), song) }
+        current = current.toMutableList().apply { add(insertAt.coerceIn(0, size), slot) }
         persistence.saveBaselineQueue(current)
     }
 
     /** [ExoPlayerEngine.addToQueue] while shuffle is off — same permanence rule as [weaveNext], appended at the end instead. */
-    fun weaveEnd(song: Song) {
-        current = current + song
+    fun weaveEnd(slot: QueueSlot) {
+        current = current + slot
         persistence.saveBaselineQueue(current)
     }
 
     /**
      * [ExoPlayerEngine.moveQueueItem] while shuffle is off — the active queue's upcoming
      * order *is* baseline's tail while unshuffled, so the display indices line up via
-     * `baseline.indexOf(current) + 1 + displayIndex`. A no-op if [currentSongId] can't be
+     * `baseline.indexOf(current) + 1 + displayIndex`. A no-op if [currentSlotId] can't be
      * found in baseline, or either translated index falls outside it.
      */
-    fun mirrorMove(fromDisplayIndex: Int, toDisplayIndex: Int, currentSongId: String?) {
-        val baseIndex = currentSongId?.let { id -> current.indexOfFirst { it.id == id } } ?: -1
+    fun mirrorMove(fromDisplayIndex: Int, toDisplayIndex: Int, currentSlotId: String?) {
+        val baseIndex = currentSlotId?.let { id -> current.indexOfFirst { it.slotId == id } } ?: -1
         if (baseIndex < 0) return
         val baseFrom = baseIndex + 1 + fromDisplayIndex
         val baseTo = baseIndex + 1 + toDisplayIndex
@@ -70,17 +71,28 @@ class QueueBaselineManager(private val persistence: QueuePersistence) {
 
     /**
      * [ExoPlayerEngine.removeQueueItem] — always permanent, regardless of shuffle state:
-     * removing a song means "don't play this again," not "hide it while shuffled," so
-     * baseline is unconditionally stripped of it too, by song id.
+     * removing a slot means "don't play this occurrence again," not "hide it while shuffled,"
+     * so that exact slot is unconditionally stripped from baseline too.
      */
-    fun remove(songId: String) {
-        current = current.filterNot { it.id == songId }
+    fun remove(slotId: String) {
+        current = current.filterNot { it.slotId == slotId }
         persistence.saveBaselineQueue(current)
     }
 
+    /** Replaces content data under every matching slot while preserving each occurrence id. */
+    fun remapSong(oldSongId: String, newSong: Song) {
+        val remapped = current.map { slot ->
+            if (slot.song.id == oldSongId) slot.copy(song = newSong) else slot
+        }
+        if (remapped != current) {
+            current = remapped
+            persistence.saveBaselineQueue(current)
+        }
+    }
+
     /** Shuffle ON: [current] stays first, everything else in baseline (played or not) is reshuffled after it. Does not mutate baseline. */
-    fun computeShuffleTarget(current: Song): List<Song> {
-        return listOf(current) + this.current.filterNot { it.id == current.id }.shuffled()
+    fun computeShuffleTarget(current: QueueSlot): List<QueueSlot> {
+        return listOf(current) + this.current.filterNot { it.slotId == current.slotId }.shuffled()
     }
 
     /**
@@ -91,15 +103,17 @@ class QueueBaselineManager(private val persistence: QueuePersistence) {
      * in their current live order ([liveQueue], derived by set difference against baseline,
      * not tracked separately). The result becomes the new baseline, persisted as such.
      */
-    fun computeUnshuffleTarget(current: Song, liveQueue: List<Song>): List<Song> {
-        val currentBaselineIndex = this.current.indexOfFirst { it.id == current.id }
+    fun computeUnshuffleTarget(current: QueueSlot, liveQueue: List<QueueSlot>): List<QueueSlot> {
+        val currentBaselineIndex = this.current.indexOfFirst { it.slotId == current.slotId }
         val afterCurrentInBaseline = if (currentBaselineIndex >= 0) {
             this.current.subList(currentBaselineIndex + 1, this.current.size)
         } else {
             emptyList()
         }
-        val baselineIds = this.current.mapTo(HashSet()) { it.id }
-        val sessionExtras = liveQueue.filterNot { it.id == current.id || it.id in baselineIds }
+        val baselineIds = this.current.mapTo(HashSet()) { it.slotId }
+        val sessionExtras = liveQueue.filterNot {
+            it.slotId == current.slotId || it.slotId in baselineIds
+        }
         val target = listOf(current) + afterCurrentInBaseline + sessionExtras
         this.current = target
         persistence.saveBaselineQueue(target)
@@ -121,15 +135,15 @@ class QueueBaselineManager(private val persistence: QueuePersistence) {
  * currently-playing one, which rebuffers/interrupts it. `moveMediaItem` reorders the same
  * holders in place instead, so the playing item is never torn down.
  */
-internal fun applyReorderViaMoves(ctrl: MediaController, target: List<Song>) {
-    val targetIds = target.mapTo(HashSet()) { it.id }
+internal fun applyReorderViaMoves(ctrl: MediaController, target: List<QueueSlot>) {
+    val targetIds = target.mapTo(HashSet()) { it.slotId }
     for (i in ctrl.mediaItemCount - 1 downTo 0) {
         if (ctrl.getMediaItemAt(i).mediaId !in targetIds) {
             ctrl.removeMediaItem(i)
         }
     }
     for (targetIndex in target.indices) {
-        val currentPos = indexOfMediaId(ctrl, target[targetIndex].id) ?: continue
+        val currentPos = indexOfMediaId(ctrl, target[targetIndex].slotId) ?: continue
         if (currentPos != targetIndex) {
             ctrl.moveMediaItem(currentPos, targetIndex)
         }

@@ -95,45 +95,52 @@ interface SongRepository {
 
     // Playback queue — persisted so it survives a restart
 
-    /** The saved queue, resolved to songs. Shorter than [getQueueSongIds] when songs went away. */
-    suspend fun getQueueSongs(): List<Song>
-
-    /** The saved queue as raw ids, including entries that no longer resolve to a playable song. */
-    suspend fun getQueueSongIds(): List<String>
+    /** The saved queue, retaining each occurrence's slot identity. */
+    suspend fun getQueueSlots(): List<QueueSlot>
 
     /**
-     * The saved queue ids and resume cursor, read as one consistent snapshot (see
+     * The saved queue rows and resume cursor, read as one consistent snapshot (see
      * [QueueCursor]) — the read-side counterpart of [AdmittedQueuePersistenceRepository]'s
      * atomic write.
      */
-    suspend fun getQueueSongIdsAndCursor(): Pair<List<String>, QueueCursor?>
+    suspend fun getQueueSnapshot(): QueueSnapshot
 
     // Baseline order — the app-managed source-of-truth sequence, persisted separately
     // from the live/active queue above so it can survive shuffle toggles.
 
-    /** The saved baseline, resolved to songs. Shorter than [getBaselineQueueSongIds] when songs went away. */
-    suspend fun getBaselineQueueSongs(): List<Song>
-
-    /** The saved baseline as raw ids, including entries that no longer resolve to a playable song. */
-    suspend fun getBaselineQueueSongIds(): List<String>
+    /** The saved baseline, retaining each occurrence's slot identity. */
+    suspend fun getBaselineQueueSlots(): List<QueueSlot>
 }
 
-/** The saved resume position: a raw index into the queue as persisted alongside it, and the
- *  playback position within that item, plus the shuffle/repeat mode the queue was in. See
- *  PlaybackCursorEntity's kdoc for why none of these are written independently of the queue
- *  structure any more. */
-data class QueueCursor(val index: Int, val positionMs: Long, val shuffleEnabled: Boolean, val repeatMode: Int)
+/** The saved resume position: an exact slot id plus position and playback modes. */
+data class QueueCursor(
+    val currentSlotId: String?,
+    val positionMs: Long,
+    val shuffleEnabled: Boolean,
+    val repeatMode: Int,
+)
+
+/** A consistent persisted queue/cursor read, including rows that no longer resolve to songs. */
+data class QueueSnapshot(
+    val slots: List<QueueSlot>,
+    val storedSlotCount: Int,
+    val cursor: QueueCursor?,
+)
 
 /** Internal queue-only contract: the caller already owns a RestoreCoordinator operation permit. */
 internal interface AdmittedQueuePersistenceRepository {
     /** Replaces the queue structure and the resume cursor in one atomic commit — see
      *  [com.v1per.synthx.data.db.QueueDao.replaceQueueAndCursor]. */
-    suspend fun setQueueState(songIds: List<String>, queueIndex: Int, positionMs: Long)
+    suspend fun setQueueState(
+        slots: List<QueueSlotRecord>,
+        currentSlotId: String?,
+        positionMs: Long,
+    )
 
     /** Cursor-only counterpart of [setQueueState] — see
      *  [com.v1per.synthx.data.db.QueueDao.updateCursor]. Does not touch the persisted queue. */
-    suspend fun setCursorAlreadyAdmitted(queueIndex: Int, positionMs: Long)
-    suspend fun setBaselineQueueSongs(songIds: List<String>)
+    suspend fun setCursorAlreadyAdmitted(currentSlotId: String?, positionMs: Long)
+    suspend fun setBaselineQueueSlots(slots: List<QueueSlotRecord>)
 
     /** Narrow shuffle-mode write — see [com.v1per.synthx.data.db.QueueDao.updateShuffleEnabled]. */
     suspend fun setShuffleEnabledAlreadyAdmitted(enabled: Boolean)

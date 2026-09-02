@@ -102,6 +102,14 @@ internal object BackupSchemaContracts {
                 setOf("queue_items", "queue_baseline_items", "playback_cursor"),
             hasMigrationPathToCurrent = true,
         ),
+        // 11_12 changes queue/cursor columns but keeps the same managed table set.
+        BackupSchemaContract(
+            userVersion = 12,
+            roomIdentityHash = "630429cddc8bfc2e1fb033aff73f53e0",
+            expectedTables = coreTables +
+                setOf("queue_items", "queue_baseline_items", "playback_cursor"),
+            hasMigrationPathToCurrent = true,
+        ),
     ).associateBy { it.userVersion }
 
     val current: BackupSchemaContract

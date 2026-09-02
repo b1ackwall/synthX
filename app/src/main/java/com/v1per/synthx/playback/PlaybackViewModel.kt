@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.QueueSlot
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -32,6 +33,16 @@ data class QueuePromptEvent(
     val startIndex: Int,
 )
 
+/** Outcome of [PlaybackViewModel.playNext]/[PlaybackViewModel.addToQueue]. */
+sealed class QueueAddResult {
+    /** The controller call went through. */
+    data object Added : QueueAddResult()
+    /** The song is already in the position ([playNext]'s next slot, [addToQueue]'s last
+     *  slot) that would make this call a likely-accidental duplicate — the caller should
+     *  ask the user to confirm, then retry with `force = true`. */
+    data object NeedsConfirmation : QueueAddResult()
+}
+
 class PlaybackViewModel(private val controller: PlaybackController) : ViewModel() {
 
     // Combined optimistic/real play-pause state: a tap flips this synchronously, before the
@@ -45,6 +56,7 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     val isBuffering: StateFlow<Boolean> = controller.isBuffering
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    // Public content identity for library-row highlighting; never a QueueSlot.slotId.
     val currentSongId: StateFlow<String?> = controller.currentSongId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -54,7 +66,7 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     // Eagerly, unlike the state below: currentSong is resolved against queue.value in
     // init, which only holds a real list while something is subscribed. The upstream is a
     // hot StateFlow in the engine, so there is nothing to keep warm at a cost.
-    val queue: StateFlow<List<Song>> = controller.queue
+    val queue: StateFlow<List<QueueSlot>> = controller.queue
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val currentIndex: StateFlow<Int> = controller.currentIndex
@@ -62,7 +74,7 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
 
     // Screen-scoped like shuffleEnabled/repeatMode below: only the Queue screen reads this,
     // and nothing here needs a synchronous .value the way requestPlayQueue needs queue.value.
-    val upcomingQueue: StateFlow<List<Song>> = controller.upcomingQueue
+    val upcomingQueue: StateFlow<List<QueueSlot>> = controller.upcomingQueue
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val shuffleEnabled: StateFlow<Boolean> = controller.shuffleEnabled
@@ -112,7 +124,7 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
             currentSongId.collect { id ->
                 _currentSong.value = when (id) {
                     null -> null
-                    else -> queue.value.firstOrNull { it.id == id } ?: _currentSong.value
+                    else -> queue.value.firstOrNull { it.song.id == id }?.song ?: _currentSong.value
                 }
             }
         }
@@ -182,10 +194,13 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
      * after the current item and jumped to, so what the user queued up plays after it. The
      * list the song was tapped from is deliberately discarded — only the song matters here.
      *
-     * Same dedup as [playNext]/[addToQueue]: returns `false` without touching the
-     * controller when [song] is already the current song or already sits in
-     * [upcomingQueue]. Dedup only applies once there's an existing queue to be a
-     * duplicate of, matching the [hasActivePlayback] gating on the other two methods.
+     * Uses the same blanket [isAlreadyQueued] dedup [playNext]/[addToQueue] used to use —
+     * this flow answers a queue-replace prompt rather than an ordinary tap, so it keeps the
+     * coarser "anywhere in the queue" guard rather than their newer position-specific one.
+     * Returns `false` without touching the controller when [song] is already the current
+     * song or already sits in [upcomingQueue]. Dedup only applies once there's an existing
+     * queue to be a duplicate of, matching the [hasActivePlayback] gating on the other two
+     * methods.
      */
     fun keepQueueAndPlayNext(song: Song): Boolean {
         // The queue can have ended between the prompt being raised and answered.
@@ -238,49 +253,67 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
      * no play), so without this branch "Play Next" against a dead queue would put the song
      * in the timeline and leave the player idle.
      *
-     * Returns `false` without touching the controller when [song] is already the current
-     * song or already sits in [upcomingQueue] — dedup only applies to this branch, since
-     * there is nothing to be a duplicate of when [hasActivePlayback] is false.
+     * Unlike [keepQueueAndPlayNext], duplicates elsewhere in the queue are fine — every
+     * insert gets its own slot id (see ExoPlayerEngineQueueOps) — so the only case worth
+     * asking about is the one a tap could trigger by accident: the song is already sitting
+     * in the exact slot this call would insert it into. Returns [QueueAddResult.NeedsConfirmation]
+     * without touching the controller when [song] is already next in [upcomingQueue] and
+     * [force] is false; the caller re-invokes with `force = true` once the user confirms.
      */
-    fun playNext(song: Song): Boolean {
+    fun playNext(song: Song, force: Boolean = false): QueueAddResult {
         if (!hasActivePlayback()) {
             playQueue(listOf(song), 0)
-            return true
+            return QueueAddResult.Added
         }
-        if (isAlreadyQueued(song.id)) return false
+        if (!force && isNextInQueue(song.id)) return QueueAddResult.NeedsConfirmation
         controller.playNext(song)
-        return true
+        return QueueAddResult.Added
     }
 
-    /** Appends [song], with the same fall back to starting playback and dedup as [playNext]. */
-    fun addToQueue(song: Song): Boolean {
+    /**
+     * Appends [song], with the same fall back to starting playback as [playNext]. The
+     * confirmation check only applies once there's an end of the queue for [song] to
+     * duplicate — an empty [upcomingQueue] (active playback with nothing queued after it)
+     * behaves like [playNext] against an empty queue and adds immediately.
+     */
+    fun addToQueue(song: Song, force: Boolean = false): QueueAddResult {
         if (!hasActivePlayback()) {
             playQueue(listOf(song), 0)
-            return true
+            return QueueAddResult.Added
         }
-        if (isAlreadyQueued(song.id)) return false
+        if (upcomingQueue.value.isNotEmpty() && !force && isLastInQueue(song.id)) {
+            return QueueAddResult.NeedsConfirmation
+        }
         controller.addToQueue(song)
-        return true
+        return QueueAddResult.Added
     }
 
     /** True when [songId] is the current song or already sits in [upcomingQueue]. */
     private fun isAlreadyQueued(songId: String): Boolean =
-        songId == currentSongId.value || upcomingQueue.value.any { it.id == songId }
+        songId == currentSongId.value || upcomingQueue.value.any { it.song.id == songId }
+
+    /** True when [songId] matches [upcomingQueue]'s first entry — the slot [playNext] targets. */
+    private fun isNextInQueue(songId: String): Boolean =
+        upcomingQueue.value.firstOrNull()?.song?.id == songId
+
+    /** True when [songId] matches [upcomingQueue]'s last entry — the slot [addToQueue] targets. */
+    private fun isLastInQueue(songId: String): Boolean =
+        upcomingQueue.value.lastOrNull()?.song?.id == songId
 
     /** [fromIndex]/[toIndex] are positions in [upcomingQueue] — the Up Next screen's rows. */
     fun moveQueueItem(fromIndex: Int, toIndex: Int) = controller.moveQueueItem(fromIndex, toIndex)
 
     /**
-     * Removes the [upcomingQueue] entry for [songId] — the Up Next screen's rows.
+     * Removes the [upcomingQueue] entry for [slotId] — the Up Next screen's rows.
      *
-     * Takes the song id rather than the row index on purpose. A row index captured when the
+     * Takes the stable slot id rather than the row index. A row index captured when the
      * user starts a gesture can be stale by the time the call lands: any queue mutation in
      * between (the track advancing, a play-next insert, a second removal in quick succession)
      * shifts every row after it, and the stale index then names a different song. The engine
      * resolves the real position fresh from its own live queue instead, so nothing
      * index-shaped ever crosses that gap.
      */
-    fun removeQueueItem(songId: String) = controller.removeQueueItem(songId)
+    fun removeQueueItem(slotId: String) = controller.removeQueueItem(slotId)
 
     /** Jumps to and plays the item at [index] in [upcomingQueue] — the Up Next screen's row tap. */
     fun playQueueItem(index: Int) = controller.seekToQueueItem(index)

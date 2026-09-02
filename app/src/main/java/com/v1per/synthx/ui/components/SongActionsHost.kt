@@ -31,6 +31,7 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.GraduationStage
+import com.v1per.synthx.playback.QueueAddResult
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.launchCatching
@@ -71,10 +72,6 @@ fun interface SongActionsController {
 sealed class SongActionEvent {
     data class AlreadyInPlaylist(val playlistName: String) : SongActionEvent()
     data class AddedToPlaylist(val playlistName: String) : SongActionEvent()
-    data object PlayingNext : SongActionEvent()
-    data object AlreadyPlayingNext : SongActionEvent()
-    data object AddedToQueue : SongActionEvent()
-    data object AlreadyInQueue : SongActionEvent()
     data object RemovedFromStarred : SongActionEvent()
     /** A mutation threw (Room/SAF failure) — see [SongActionsViewModel.launchCatching] use. */
     data object ActionFailed : SongActionEvent()
@@ -104,9 +101,16 @@ fun SongActionsHost(
     onNavigateToArtist: (artistId: String, artistName: String) -> Unit,
     // Supplied by the caller for the same reason the navigation callbacks are: the host
     // sits below whatever owns the PlaybackViewModel, and SongActionsViewModel has no
-    // business reaching playback.
-    onPlayNext: (Song) -> Boolean,
-    onAddToQueue: (Song) -> Boolean,
+    // business reaching playback. The `force` argument mirrors
+    // PlaybackViewModel.playNext/addToQueue's own — false on the first attempt, true when
+    // retrying after the user answers a duplicate-position confirmation below.
+    onPlayNext: (Song, Boolean) -> QueueAddResult,
+    onAddToQueue: (Song, Boolean) -> QueueAddResult,
+    // The currently playing song's content id, or null when nothing is playing — just
+    // enough playback state to hide the Play Next row for the current song (see
+    // SongActionsBottomSheet's isCurrentlyPlaying) without giving this host a full
+    // PlaybackViewModel reference.
+    currentSongId: String?,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -127,12 +131,6 @@ fun SongActionsHost(
                     context.getString(R.string.actions_already_in_playlist, event.playlistName)
                 is SongActionEvent.AddedToPlaylist ->
                     context.getString(R.string.actions_added_to_playlist, event.playlistName)
-                SongActionEvent.PlayingNext -> context.getString(R.string.actions_playing_next)
-                SongActionEvent.AlreadyPlayingNext ->
-                    context.getString(R.string.actions_already_playing_next)
-                SongActionEvent.AddedToQueue -> context.getString(R.string.actions_added_to_queue)
-                SongActionEvent.AlreadyInQueue ->
-                    context.getString(R.string.actions_already_in_queue)
                 SongActionEvent.RemovedFromStarred ->
                     context.getString(R.string.actions_removed_from_starred)
                 SongActionEvent.ActionFailed -> context.getString(R.string.actions_failed)
@@ -166,11 +164,26 @@ fun SongActionsHost(
         }
     }
 
+    // Success feedback for playNext/addToQueue lives here rather than on viewModel.events:
+    // both actions are answered by PlaybackViewModel, not SongActionsViewModel (see
+    // onPlayNext/onAddToQueue's kdoc above), so there is no event for it to ride on.
+    // Called from both the immediate-success path and the duplicate-position dialog's
+    // confirm path below, since QueueAddResult.Added can arrive from either.
+    fun showQueueSnackbar(messageRes: Int) {
+        scope.launch { snackbarHostState.showSnackbar(context.getString(messageRes)) }
+    }
+
     val controller = remember {
         SongActionsController { song, playlistId, source ->
             targetKey = SongActionsTargetKey(song.id, playlistId, source)
         }
     }
+
+    // Holds the tapped song while its duplicate-position confirmation dialog is up —
+    // null the rest of the time. Local state, same pattern as SongActionsBottomSheet's own
+    // showDeleteConfirm, rather than a SharedFlow: both dialogs are answered from right here.
+    var playNextConfirmTarget by remember { mutableStateOf<Song?>(null) }
+    var addToQueueConfirmTarget by remember { mutableStateOf<Song?>(null) }
 
     // The ≥1-playlist-membership gate is resolved once per sheet opening, keyed on the
     // target — not per row and not per scroll frame. Rows never run this query; only the
@@ -203,6 +216,7 @@ fun SongActionsHost(
             deleteEnabled = deleteSongsEnabled,
             showRemoveFromStarredRow = current.source == SongActionSource.Starred,
             removeFromStarredEnabled = removeFromStarredEnabled,
+            isCurrentlyPlaying = current.song.id == currentSongId,
             onDeleteSong = {
                 val id = current.song.id
                 dismiss { viewModel.deleteSong(id) }
@@ -224,15 +238,19 @@ fun SongActionsHost(
             onPlayNext = {
                 val song = current.song
                 dismiss {
-                    val added = onPlayNext(song)
-                    viewModel.confirmPlayNext(added)
+                    when (onPlayNext(song, false)) {
+                        QueueAddResult.Added -> showQueueSnackbar(R.string.actions_playing_next)
+                        QueueAddResult.NeedsConfirmation -> playNextConfirmTarget = song
+                    }
                 }
             },
             onAddToQueue = {
                 val song = current.song
                 dismiss {
-                    val added = onAddToQueue(song)
-                    viewModel.confirmAddToQueue(added)
+                    when (onAddToQueue(song, false)) {
+                        QueueAddResult.Added -> showQueueSnackbar(R.string.actions_added_to_queue)
+                        QueueAddResult.NeedsConfirmation -> addToQueueConfirmTarget = song
+                    }
                 }
             },
             onRemoveFromPlaylist = {
@@ -253,6 +271,31 @@ fun SongActionsHost(
     val graduationStage by viewModel.graduationStage.collectAsState()
     graduationStage?.let { stage ->
         GraduationProgressDialog(stage = stage, onDismiss = viewModel::dismissGraduationDialog)
+    }
+
+    // Same independence from the sheet as the graduation dialog above — the sheet that
+    // triggered these has already closed by the time either can show.
+    playNextConfirmTarget?.let { song ->
+        PlayNextDuplicateDialog(
+            onConfirm = {
+                if (onPlayNext(song, true) == QueueAddResult.Added) {
+                    showQueueSnackbar(R.string.actions_playing_next)
+                }
+                playNextConfirmTarget = null
+            },
+            onDismiss = { playNextConfirmTarget = null },
+        )
+    }
+    addToQueueConfirmTarget?.let { song ->
+        AddToQueueDuplicateDialog(
+            onConfirm = {
+                if (onAddToQueue(song, true) == QueueAddResult.Added) {
+                    showQueueSnackbar(R.string.actions_added_to_queue)
+                }
+                addToQueueConfirmTarget = null
+            },
+            onDismiss = { addToQueueConfirmTarget = null },
+        )
     }
 }
 
@@ -431,20 +474,6 @@ class SongActionsViewModel(
     fun dismissGraduationDialog() {
         graduationAutoDismissJob?.cancel()
         _graduationStage.value = null
-    }
-
-    /**
-     * The queue itself is driven by PlaybackViewModel, which this ViewModel deliberately
-     * does not reach — the host supplies that call. These only put the confirmation on the
-     * same event flow the playlist actions already use, so every sheet action reports back
-     * through one channel.
-     */
-    fun confirmPlayNext(added: Boolean) {
-        _events.tryEmit(if (added) SongActionEvent.PlayingNext else SongActionEvent.AlreadyPlayingNext)
-    }
-
-    fun confirmAddToQueue(added: Boolean) {
-        _events.tryEmit(if (added) SongActionEvent.AddedToQueue else SongActionEvent.AlreadyInQueue)
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {

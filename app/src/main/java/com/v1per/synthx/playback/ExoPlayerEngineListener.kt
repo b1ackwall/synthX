@@ -27,7 +27,9 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
         // Queue first: PlaybackViewModel resolves the new id against the queue to
         // rebuild currentSong, so the queue must already be up to date when the id lands.
         refreshQueue()
-        _currentSongId.value = mediaItem?.mediaId?.takeIf { it.isNotEmpty() }
+        val currentSlotId = mediaItem?.mediaId?.takeIf { it.isNotEmpty() }
+        _currentSlotId.value = currentSlotId
+        _currentSongId.value = currentSlotId?.let { songsBySlotId[it]?.id }
         // The current item moved, so "everything after it" moves with it.
         refreshUpcomingQueue()
         refreshNavigationState()
@@ -45,7 +47,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
         controller?.let { ctrl ->
             val index = ctrl.currentMediaItemIndex
             if (index != C.INDEX_UNSET) {
-                persistence.updateCursor(index, ctrl.currentPosition)
+                persistence.updateCursor(ctrl.currentMediaItem?.mediaId, ctrl.currentPosition)
             }
         }
     }
@@ -86,7 +88,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
      */
     override fun onPlayerError(error: PlaybackException) {
         val title = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
-            ?: _currentSongId.value?.let { songsById[it]?.title }
+            ?: _currentSlotId.value?.let { songsBySlotId[it]?.title }
         _isBuffering.value = false
         if (title != null) {
             _errors.tryEmit(PlaybackError.PlaybackFailed(title))

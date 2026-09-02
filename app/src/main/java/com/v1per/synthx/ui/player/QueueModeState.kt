@@ -19,7 +19,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.ui.theme.Motion
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -155,7 +155,7 @@ class QueueModeState internal constructor(
 @Composable
 fun rememberQueueModeState(
     scope: CoroutineScope,
-    upcomingQueue: List<Song>,
+    upcomingQueue: List<QueueSlot>,
     onShuffleClick: () -> Unit,
 ): QueueModeState {
     val density = LocalDensity.current

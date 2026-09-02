@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.R
+import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.MoreOptionsButton
@@ -101,7 +102,7 @@ fun PlayerSkeletonQueueContent(
     queueProgressValue: Float,
     expandedContentEnabled: Boolean,
     queueModeArtSize: Dp,
-    upcomingQueue: List<Song>,
+    upcomingQueue: List<QueueSlot>,
     shuffleEnabled: Boolean,
     repeatMode: RepeatMode,
     onShuffleClick: () -> Unit,
@@ -220,7 +221,7 @@ fun PlayerSkeletonQueueContent(
                 queue = persistentUpcomingQueue,
                 onSongClick = onQueueSongClick,
                 onMove = onQueueMove,
-                onRemove = { index -> upcomingQueue.getOrNull(index)?.let { onQueueRemove(it.id) } },
+                onRemove = { index -> upcomingQueue.getOrNull(index)?.let { onQueueRemove(it.slotId) } },
                 surfaceColor = surfaceColor,
                 state = queueListState,
                 enabled = queueContentEnabled,

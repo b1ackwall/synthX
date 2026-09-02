@@ -195,6 +195,10 @@
     <string name="queue_prompt_title">Keep the songs in your Up Next queue?</string>
     <string name="queue_prompt_message">Keep plays this song now and continues with the songs you queued. Clear replaces the queue with the list you tapped from.</string>
     <string name="queue_up_next">Up Next</string>
+    <string name="play_next_duplicate_title">Already playing next</string>
+    <string name="play_next_duplicate_message">This song is already up next in your queue. Play it next again?</string>
+    <string name="add_to_queue_duplicate_title">Already at the end of the queue</string>
+    <string name="add_to_queue_duplicate_message">This song is already the last one queued. Add another copy?</string>
 
     <!-- Library scan -->
     <string name="scan_channel_name">Library scan</string>

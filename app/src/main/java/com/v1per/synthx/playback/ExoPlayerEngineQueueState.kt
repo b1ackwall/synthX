@@ -4,6 +4,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
+import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 
 /**
@@ -39,16 +40,16 @@ internal fun ExoPlayerEngine.onQueueReordered() {
 
 internal fun ExoPlayerEngine.persistQueue() {
     val ctrl = controller
-    val index = ctrl?.currentMediaItemIndex?.takeIf { it != C.INDEX_UNSET } ?: -1
     val positionMs = ctrl?.currentPosition ?: 0L
-    persistence.saveQueueState(_queue.value.map { it.id }, index, positionMs)
+    val currentSlotId = ctrl?.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }
+    persistence.saveQueueState(_queue.value, currentSlotId, positionMs)
 }
 
 /**
- * Rehydrates [ExoPlayerEngine.songsById] from the live player timeline when reconnecting to a
+ * Rehydrates [ExoPlayerEngine.songsBySlotId] from the live player timeline when reconnecting to a
  * service that was already running — process was killed, foreground service survived. Neither
  * [playQueueInternal] nor [restoreSavedQueueInternal] runs in this path (the latter explicitly
- * no-ops once the timeline already has media items), so without this, `songsById` stays empty
+ * no-ops once the timeline already has media items), so without this, `songsBySlotId` stays empty
  * and [refreshQueue] would rebuild an empty `_queue` against a timeline that is actually full —
  * see the connect callback in `ExoPlayerEngine.kt` for where this is called, and why it has to
  * run before [refreshQueue].
@@ -57,10 +58,10 @@ internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController)
     val timeline = ctrl.currentTimeline
     if (timeline.windowCount == 0) return
     val window = Timeline.Window()
-    val ids = (0 until timeline.windowCount)
+    val slotIds = (0 until timeline.windowCount)
         .map { timeline.getWindow(it, window).mediaItem.mediaId }
         .distinct()
-    persistence.resolveSongs(ids).forEach { songsById[it.id] = it }
+    persistence.resolveSlots(slotIds).forEach { slot -> songsBySlotId[slot.slotId] = slot.song }
 }
 
 /**
@@ -91,18 +92,18 @@ internal fun ExoPlayerEngine.refreshQueue() {
 
     val timeline = ctrl.currentTimeline
     val window = Timeline.Window()
-    val songs = ArrayList<Song>(timeline.windowCount)
+    val slots = ArrayList<QueueSlot>(timeline.windowCount)
     for (i in 0 until timeline.windowCount) {
         val mediaId = timeline.getWindow(i, window).mediaItem.mediaId
         // Only this engine ever populates the timeline, so the cache always has the
         // Song; an unknown id (e.g. an item restored by the service from a previous
         // process) is skipped rather than faked.
-        songsById[mediaId]?.let { songs.add(it) }
+        songsBySlotId[mediaId]?.let { song -> slots.add(QueueSlot(mediaId, song)) }
     }
 
-    _queue.value = songs
+    _queue.value = slots
     _currentIndex.value = ctrl.currentMediaItemIndex.takeIf {
-        it != C.INDEX_UNSET && it < songs.size
+        it != C.INDEX_UNSET && it < slots.size
     } ?: -1
 }
 
@@ -137,7 +138,7 @@ internal fun ExoPlayerEngine.refreshUpcomingQueue() {
     }
 
     val window = Timeline.Window()
-    val songs = ArrayList<Song>()
+    val slots = ArrayList<QueueSlot>()
     val indices = ArrayList<Int>()
 
     // visited guards against an unforeseen cycle; REPEAT_MODE_OFF should already
@@ -146,14 +147,14 @@ internal fun ExoPlayerEngine.refreshUpcomingQueue() {
     var index = timeline.getNextWindowIndex(startIndex, Player.REPEAT_MODE_OFF, /* shuffleModeEnabled= */ false)
     while (index != C.INDEX_UNSET && visited.add(index)) {
         val mediaId = timeline.getWindow(index, window).mediaItem.mediaId
-        songsById[mediaId]?.let {
-            songs.add(it)
+        songsBySlotId[mediaId]?.let { song ->
+            slots.add(QueueSlot(mediaId, song))
             indices.add(index)
         }
         index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF, /* shuffleModeEnabled= */ false)
     }
 
-    _upcomingQueue.value = songs
+    _upcomingQueue.value = slots
     upcomingTimelineIndices = indices
 }
 
@@ -175,7 +176,11 @@ internal fun ExoPlayerEngine.nextWindowIndexForRepeatOne(): Int? {
     return if (next != C.INDEX_UNSET) next else timeline.getFirstWindowIndex(/* shuffleModeEnabled= */ false)
 }
 
-internal fun ExoPlayerEngine.currentSong(): Song? = _currentSongId.value?.let { songsById[it] }
+internal fun ExoPlayerEngine.currentSlot(): QueueSlot? = _currentSlotId.value?.let { slotId ->
+    songsBySlotId[slotId]?.let { song -> QueueSlot(slotId, song) }
+}
+
+internal fun ExoPlayerEngine.currentSong(): Song? = currentSlot()?.song
 
 /**
  * Stateless — takes the controller explicitly rather than as an [ExoPlayerEngine]

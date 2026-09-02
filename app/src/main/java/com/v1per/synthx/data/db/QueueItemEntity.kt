@@ -9,10 +9,9 @@ import androidx.room.PrimaryKey
 /**
  * One row per item in the persisted playback queue, in timeline order.
  *
- * `position` is the primary key rather than a generated id: the queue is a single global
- * list that is always rewritten wholesale, so position uniquely identifies a row and
- * doubles as the ORDER BY key. Deleting a song CASCADEs its queue row away, which is why
- * the restore path has to tolerate a queue that came back shorter than it was saved.
+ * `slot_id` is the stable identity of this exact queue occurrence; `position` is only its
+ * current ordering key and changes whenever the queue is rewritten. Deleting a song CASCADEs
+ * every slot that references it, so restore still tolerates a shorter queue.
  */
 @Entity(
     tableName = "queue_items",
@@ -24,9 +23,10 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("song_id")],
+    indices = [Index("position"), Index("song_id")],
 )
 data class QueueItemEntity(
-    @PrimaryKey val position: Int,
+    @PrimaryKey @ColumnInfo(name = "slot_id") val slotId: String,
+    val position: Int,
     @ColumnInfo(name = "song_id") val songId: String,
 )

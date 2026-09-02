@@ -3,9 +3,11 @@ package com.v1per.synthx.playback
 import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.session.MediaController
+import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 /**
  * Above this queue size, [applyReorderViaMoves]'s one-`moveMediaItem`-per-swap rebuild
@@ -28,28 +30,29 @@ private const val SHUFFLE_LARGE_QUEUE_THRESHOLD = 300
 internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startIndex: Int) {
     if (songs.isEmpty()) return
     val start = startIndex.coerceIn(0, songs.lastIndex)
+    val slots = songs.map { song -> QueueSlot(UUID.randomUUID().toString(), song) }
 
     // Only the starting item gets its artwork up front — building bytes for every
     // song in the queue would mean decoding/generating hundreds of bitmaps before a
     // single note plays. The rest are filled in by prefetchArtwork() as they approach.
-    val startArtwork = buildArtworkData(songs[start])
+    val startArtwork = buildArtworkData(slots[start].song)
 
     // Building a MediaItem per song is pure CPU work (Uri.parse + builder calls, no I/O) —
     // dispatched off Main so a large queue doesn't block the UI thread just to construct
     // the list setMediaItems below will consume.
     val mediaItems = withContext(Dispatchers.Default) {
-        songs.mapIndexed { index, song ->
-            buildMediaItem(song, if (index == start) startArtwork else null)
+        slots.mapIndexed { index, slot ->
+            buildMediaItem(slot.slotId, slot.song, if (index == start) startArtwork else null)
         }
     }
 
     // MediaController is main-thread-only and the hops above may have moved us off it
     withContext(Dispatchers.Main.immediate) {
         val ctrl = awaitController() ?: return@withContext
-        songsById.clear()
-        songs.forEach { songsById[it.id] = it }
-        artworkLoadedIds.clear()
-        artworkLoadedIds.add(songs[start].id)
+        songsBySlotId.clear()
+        slots.forEach { songsBySlotId[it.slotId] = it.song }
+        artworkLoadedSlotIds.clear()
+        artworkLoadedSlotIds.add(slots[start].slotId)
 
         ctrl.setMediaItems(mediaItems, start, C.TIME_UNSET)
         ctrl.prepare()
@@ -57,7 +60,7 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
 
         // A fresh queue always fully replaces the baseline — never merges with
         // whatever baseline existed before.
-        baselineManager.captureFresh(songs)
+        baselineManager.captureFresh(slots)
 
         onQueueStructureChanged(fresh = true)
     }
@@ -70,16 +73,20 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
  */
 internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     val restored = persistence.loadQueue() ?: return
-    val startSong = restored.songs[restored.startIndex]
-    val startArtwork = buildArtworkData(startSong)
+    val startSlot = restored.slots[restored.startIndex]
+    val startArtwork = buildArtworkData(startSlot.song)
     // Loaded alongside the active queue rather than derived from it — baseline can
     // legitimately differ from the active list (e.g. history dropped by an ON->OFF
     // toggle last session), so it needs its own read, not a recomputation.
     val restoredBaseline = persistence.loadBaselineQueue()
 
     val mediaItems = withContext(Dispatchers.Default) {
-        restored.songs.map { song ->
-            buildMediaItem(song, if (song.id == startSong.id) startArtwork else null)
+        restored.slots.map { slot ->
+            buildMediaItem(
+                slot.slotId,
+                slot.song,
+                if (slot.slotId == startSlot.slotId) startArtwork else null,
+            )
         }
     }
 
@@ -89,11 +96,11 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
         // something, and replacing it with last session's queue would be a surprise.
         if (ctrl.mediaItemCount > 0) return@withContext
 
-        songsById.clear()
-        restored.songs.forEach { songsById[it.id] = it }
-        restoredBaseline.forEach { songsById.putIfAbsent(it.id, it) }
-        artworkLoadedIds.clear()
-        artworkLoadedIds.add(startSong.id)
+        songsBySlotId.clear()
+        restored.slots.forEach { songsBySlotId[it.slotId] = it.song }
+        restoredBaseline.forEach { songsBySlotId.putIfAbsent(it.slotId, it.song) }
+        artworkLoadedSlotIds.clear()
+        artworkLoadedSlotIds.add(startSlot.slotId)
 
         ctrl.setMediaItems(mediaItems, restored.startIndex, restored.positionMs)
         ctrl.repeatMode = restored.repeatMode
@@ -116,10 +123,14 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
         if (restored.droppedCount > 0) {
             Log.i(
                 ExoPlayerEngine.TAG,
-                "Restored ${restored.songs.size} queue items, " +
+                "Restored ${restored.slots.size} queue items, " +
                     "${restored.droppedCount} no longer available",
             )
-            persistence.saveQueueState(_queue.value.map { it.id }, restored.startIndex, restored.positionMs)
+            persistence.saveQueueState(
+                _queue.value,
+                _queue.value.getOrNull(restored.startIndex)?.slotId,
+                restored.positionMs,
+            )
         }
         prefetchArtwork()
     }
@@ -138,7 +149,7 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
 internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean) {
     if (enabled == _shuffleEnabled.value) return
     val ctrl = controller ?: return
-    val current = currentSong() ?: return
+    val current = currentSlot() ?: return
 
     val target = if (enabled) {
         baselineManager.computeShuffleTarget(current)
@@ -149,10 +160,10 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
     // Shuffle OFF only: computeUnshuffleTarget permanently drops baseline history
     // before the current song, and applyReorderViaMoves/applyReorderViaSetMediaItems
     // below remove those items from the live timeline too — target is exactly what
-    // survives, so anything else in songsById is now stale. Shuffle ON's target is a
+    // survives, so anything else in songsBySlotId is now stale. Shuffle ON's target is a
     // superset of what's already tracked, so nothing needs pruning there.
     if (!enabled) {
-        songsById.keys.retainAll(target.mapTo(HashSet()) { it.id })
+        songsBySlotId.keys.retainAll(target.mapTo(HashSet()) { it.slotId })
     }
 
     if (target.size > SHUFFLE_LARGE_QUEUE_THRESHOLD) {
@@ -174,7 +185,7 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
  * to its new index trades that brief interruption for avoiding the OOM the move-based
  * rebuild causes at this scale. Artwork is intentionally left out of the rebuilt
  * [MediaItem]s (unlike [ExoPlayerEngine.playQueueInternal]'s synchronous start-item fetch);
- * clearing [ExoPlayerEngine.artworkLoadedIds] means the caller's [onQueueStructureChanged]
+ * clearing [ExoPlayerEngine.artworkLoadedSlotIds] means the caller's [onQueueStructureChanged]
  * -> `prefetchArtwork()` picks it back up asynchronously. The MediaItem build itself runs on
  * [Dispatchers.Default] — this is the branch this codepath exists for (queues large enough
  * to OOM the move-based rebuild), so it's also large enough for bulk MediaItem construction
@@ -182,17 +193,17 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
  */
 internal suspend fun ExoPlayerEngine.applyReorderViaSetMediaItems(
     ctrl: MediaController,
-    target: List<Song>,
-    current: Song,
+    target: List<QueueSlot>,
+    current: QueueSlot,
 ) {
     val positionMs = ctrl.currentPosition
-    val startIndex = target.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
+    val startIndex = target.indexOfFirst { it.slotId == current.slotId }.coerceAtLeast(0)
     val mediaItems = withContext(Dispatchers.Default) {
-        target.map { song -> buildMediaItem(song, artworkData = null) }
+        target.map { slot -> buildMediaItem(slot.slotId, slot.song, artworkData = null) }
     }
 
     withContext(Dispatchers.Main.immediate) {
-        artworkLoadedIds.clear()
+        artworkLoadedSlotIds.clear()
         ctrl.setMediaItems(mediaItems, startIndex, positionMs)
         ctrl.prepare()
     }
@@ -206,12 +217,13 @@ internal suspend fun ExoPlayerEngine.applyReorderViaSetMediaItems(
  */
 internal fun ExoPlayerEngine.playNextInternal(song: Song) {
     val ctrl = controller ?: return
-    songsById[song.id] = song
+    val slot = QueueSlot(UUID.randomUUID().toString(), song)
+    songsBySlotId[slot.slotId] = song
     val insertAt = (ctrl.currentMediaItemIndex + 1).coerceIn(0, ctrl.mediaItemCount)
-    ctrl.addMediaItem(insertAt, buildMediaItem(song, artworkData = null))
+    ctrl.addMediaItem(insertAt, buildMediaItem(slot.slotId, song, artworkData = null))
 
     if (!_shuffleEnabled.value) {
-        baselineManager.weaveNext(song, currentSong()?.id)
+        baselineManager.weaveNext(slot, _currentSlotId.value)
     }
 
     onQueueStructureChanged(fresh = false)
@@ -220,11 +232,12 @@ internal fun ExoPlayerEngine.playNextInternal(song: Song) {
 /** Same baseline-weaving rule as [playNextInternal], appended at the end instead of next-slot. */
 internal fun ExoPlayerEngine.addToQueueInternal(song: Song) {
     val ctrl = controller ?: return
-    songsById[song.id] = song
-    ctrl.addMediaItem(buildMediaItem(song, artworkData = null))
+    val slot = QueueSlot(UUID.randomUUID().toString(), song)
+    songsBySlotId[slot.slotId] = song
+    ctrl.addMediaItem(buildMediaItem(slot.slotId, song, artworkData = null))
 
     if (!_shuffleEnabled.value) {
-        baselineManager.weaveEnd(song)
+        baselineManager.weaveEnd(slot)
     }
 
     onQueueStructureChanged(fresh = false)
@@ -245,14 +258,14 @@ internal fun ExoPlayerEngine.moveQueueItemInternal(fromIndex: Int, toIndex: Int)
     ctrl.moveMediaItem(realFrom, realTo)
 
     if (!_shuffleEnabled.value) {
-        baselineManager.mirrorMove(fromIndex, toIndex, currentSong()?.id)
+        baselineManager.mirrorMove(fromIndex, toIndex, _currentSlotId.value)
     }
 
     onQueueStructureChanged(fresh = false)
 }
 
 /**
- * Removes the item identified by [songId] — no position is accepted from the caller. The
+ * Removes the item identified by [slotId] — no position is accepted from the caller. The
  * display index is resolved here, at call time, from the engine's own live `_upcomingQueue`,
  * then translated to a real timeline index via `upcomingTimelineIndices` as usual. A position
  * captured further up (in the UI, at gesture time) can be invalidated by any queue mutation
@@ -261,18 +274,19 @@ internal fun ExoPlayerEngine.moveQueueItemInternal(fromIndex: Int, toIndex: Int)
  *
  * Always permanent, regardless of shuffle state — see [QueueBaselineManager.remove].
  */
-internal fun ExoPlayerEngine.removeQueueItemInternal(songId: String) {
+internal fun ExoPlayerEngine.removeQueueItemInternal(slotId: String) {
     val ctrl = controller ?: return
-    val displayIndex = _upcomingQueue.value.indexOfFirst { it.id == songId }
+    val displayIndex = _upcomingQueue.value.indexOfFirst { it.slotId == slotId }
     if (displayIndex < 0) return
     val realIndex = upcomingTimelineIndices.getOrNull(displayIndex) ?: return
     // Last identity check before the destructive call: if engine state has drifted from the
     // timeline, drop the removal rather than delete whatever else now sits at realIndex.
-    if (realIndex >= ctrl.mediaItemCount || ctrl.getMediaItemAt(realIndex).mediaId != songId) return
+    if (realIndex >= ctrl.mediaItemCount || ctrl.getMediaItemAt(realIndex).mediaId != slotId) return
     ctrl.removeMediaItem(realIndex)
 
-    baselineManager.remove(songId)
-    songsById.remove(songId)
+    baselineManager.remove(slotId)
+    songsBySlotId.remove(slotId)
+    artworkLoadedSlotIds.remove(slotId)
 
     onQueueStructureChanged(fresh = false)
 }

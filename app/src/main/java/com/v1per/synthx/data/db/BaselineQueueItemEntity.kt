@@ -11,9 +11,8 @@ import androidx.room.PrimaryKey
  * sequence that survives shuffle toggles, distinct from `queue_items` (the live/active
  * order actually playing, which is shuffled order while shuffle is on).
  *
- * Structurally identical to [QueueItemEntity]: `position` is the primary key for the same
- * reason (a single global list, always rewritten wholesale, position doubles as ORDER BY
- * key), and a deleted song CASCADEs its row away the same way.
+ * Structurally identical to [QueueItemEntity]: `slot_id` identifies the exact occurrence,
+ * `position` is its mutable ordering key, and a deleted song CASCADEs its rows away.
  */
 @Entity(
     tableName = "queue_baseline_items",
@@ -25,9 +24,10 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("song_id")],
+    indices = [Index("position"), Index("song_id")],
 )
 data class BaselineQueueItemEntity(
-    @PrimaryKey val position: Int,
+    @PrimaryKey @ColumnInfo(name = "slot_id") val slotId: String,
+    val position: Int,
     @ColumnInfo(name = "song_id") val songId: String,
 )

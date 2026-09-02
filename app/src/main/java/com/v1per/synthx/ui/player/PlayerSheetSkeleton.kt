@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.lerp as lerpDp
+import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.BottomNavHeight
@@ -118,7 +119,7 @@ fun PlayerSheetSkeleton(
     onNextClick: () -> Unit,
     hasPrevious: Boolean,
     hasNext: Boolean,
-    upcomingQueue: List<Song>,
+    upcomingQueue: List<QueueSlot>,
     shuffleEnabled: Boolean,
     repeatMode: RepeatMode,
     onShuffleClick: () -> Unit,

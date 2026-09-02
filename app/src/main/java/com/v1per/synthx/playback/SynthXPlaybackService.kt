@@ -1,6 +1,7 @@
 package com.v1per.synthx.playback
 
 import android.content.Intent
+import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
@@ -8,6 +9,7 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import com.v1per.synthx.R
+import com.v1per.synthx.data.repository.QueueSlotRecord
 
 /** Same id media3's [DefaultMediaNotificationProvider] would otherwise auto-generate — pinned
  *  explicitly so the channel survives a Builder reconfiguration without silently forking into
@@ -82,8 +84,21 @@ class SynthXPlaybackService : MediaLibraryService() {
             // second, independently-ordered writer racing it. Without that, a still-draining
             // write from the engine's instance (e.g. a recent updateCursor) could land after
             // this fresher save and silently overwrite it (see general 6.7).
-            val songIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }
-            QueuePersistence.create(this).saveQueueState(songIds, index, player.currentPosition)
+            val slots = (0 until player.mediaItemCount).mapNotNull { itemIndex ->
+                val mediaItem = player.getMediaItemAt(itemIndex)
+                mediaItem.mediaMetadata.extras
+                    ?.getString(MEDIA_METADATA_SONG_ID)
+                    ?.let { songId -> QueueSlotRecord(mediaItem.mediaId, songId) }
+            }
+            if (slots.size == player.mediaItemCount) {
+                QueuePersistence.create(this).saveQueueRecords(
+                    slots = slots,
+                    currentSlotId = player.currentMediaItem?.mediaId,
+                    positionMs = player.currentPosition,
+                )
+            } else {
+                Log.w(TAG, "Skipping incomplete queue snapshot: missing content identity metadata")
+            }
         }
         releasePlayback()
         stopSelf()
@@ -101,5 +116,9 @@ class SynthXPlaybackService : MediaLibraryService() {
         player.stop()
         player.release()
         mediaLibrarySession.release()
+    }
+
+    private companion object {
+        const val TAG = "SynthXPlaybackService"
     }
 }

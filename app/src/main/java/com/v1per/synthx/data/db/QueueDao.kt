@@ -5,29 +5,14 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import com.v1per.synthx.data.repository.QueueSlotRecord
 
 @Dao
 interface QueueDao {
 
-    /**
-     * The persisted queue joined to song details, in position order. Rows whose song has
-     * gone missing are filtered out here, the same way [SongDao.getSongsWithDetailsForPlaylist]
-     * does — so this can return fewer entries than [getQueueSongIds].
-     */
-    @Transaction
-    @Query(
-        """
-        SELECT songs.* FROM songs
-        INNER JOIN queue_items ON queue_items.song_id = songs.id
-        WHERE songs.is_missing = 0
-        ORDER BY queue_items.position ASC
-        """
-    )
-    suspend fun getQueueItems(): List<SongWithDetails>
-
-    /** The raw stored ids, including any that [getQueueItems] drops — used to re-find the saved index. */
-    @Query("SELECT song_id FROM queue_items ORDER BY position ASC")
-    suspend fun getQueueSongIds(): List<String>
+    /** Raw persisted slots in active-timeline order; song resolution happens in the repository. */
+    @Query("SELECT * FROM queue_items ORDER BY position ASC")
+    suspend fun getQueueItems(): List<QueueItemEntity>
 
     @Query("DELETE FROM queue_items")
     suspend fun clearQueue()
@@ -40,11 +25,11 @@ interface QueueDao {
      * The queue is rewritten on every mutation, so there is no per-row state worth preserving.
      */
     @Transaction
-    suspend fun replaceQueue(songIds: List<String>) {
+    suspend fun replaceQueue(slots: List<QueueSlotRecord>) {
         clearQueue()
         insertQueueItems(
-            songIds.mapIndexed { index, songId ->
-                QueueItemEntity(position = index, songId = songId)
+            slots.mapIndexed { index, slot ->
+                QueueItemEntity(slotId = slot.slotId, position = index, songId = slot.songId)
             }
         )
     }
@@ -63,31 +48,51 @@ interface QueueDao {
      * transition during ordinary playback), as opposed to [replaceQueueAndCursor], which is for
      * call sites where the structure itself might also need to be (re)confirmed.
      */
-    suspend fun updateCursor(queueIndex: Int, positionMs: Long) {
-        upsertCursor(PlaybackCursorEntity(queueIndex = queueIndex, positionMs = positionMs))
+    @Transaction
+    suspend fun updateCursor(currentSlotId: String?, positionMs: Long) {
+        val previous = getCursor()
+        upsertCursor(
+            PlaybackCursorEntity(
+                currentSlotId = currentSlotId,
+                positionMs = positionMs,
+                shuffleEnabled = previous?.shuffleEnabled ?: false,
+                repeatMode = previous?.repeatMode ?: 0,
+            )
+        )
     }
 
     /**
      * The atomic write this table pair exists for: queue structure and cursor land in the
      * same transaction, so a process death can never leave one persisted without the other.
-     * [queueIndex] is the raw timeline index the caller wants to resume from; it always
-     * describes a position within [songIds] as written here, in the same commit.
+     * [currentSlotId] identifies the exact occurrence the caller wants to resume from.
      */
     @Transaction
-    suspend fun replaceQueueAndCursor(songIds: List<String>, queueIndex: Int, positionMs: Long) {
+    suspend fun replaceQueueAndCursor(
+        slots: List<QueueSlotRecord>,
+        currentSlotId: String?,
+        positionMs: Long,
+    ) {
         clearQueue()
         insertQueueItems(
-            songIds.mapIndexed { index, songId ->
-                QueueItemEntity(position = index, songId = songId)
+            slots.mapIndexed { index, slot ->
+                QueueItemEntity(slotId = slot.slotId, position = index, songId = slot.songId)
             }
         )
-        upsertCursor(PlaybackCursorEntity(queueIndex = queueIndex, positionMs = positionMs))
+        val previous = getCursor()
+        upsertCursor(
+            PlaybackCursorEntity(
+                currentSlotId = currentSlotId,
+                positionMs = positionMs,
+                shuffleEnabled = previous?.shuffleEnabled ?: false,
+                repeatMode = previous?.repeatMode ?: 0,
+            )
+        )
     }
 
-    /** Reads queue ids and cursor as one consistent snapshot, rather than two separate queries. */
+    /** Reads queue slots and cursor as one consistent snapshot, rather than two separate queries. */
     @Transaction
-    suspend fun getQueueAndCursor(): Pair<List<String>, PlaybackCursorEntity?> =
-        getQueueSongIds() to getCursor()
+    suspend fun getQueueAndCursor(): Pair<List<QueueItemEntity>, PlaybackCursorEntity?> =
+        getQueueItems() to getCursor()
 
     @Query("UPDATE playback_cursor SET shuffle_enabled = :enabled WHERE id = 0")
     suspend fun updateShuffleEnabledRaw(enabled: Boolean): Int
@@ -96,7 +101,7 @@ interface QueueDao {
     suspend fun updateRepeatModeRaw(mode: Int): Int
 
     /**
-     * Shuffle-only mode write — leaves `queue_index`/`position_ms` (and `repeat_mode`)
+     * Shuffle-only mode write — leaves `current_slot_id`/`position_ms` (and `repeat_mode`)
      * untouched. A shuffle toggle doesn't coincide with a cursor or queue-structure change,
      * so this is its own narrow update rather than routed through [replaceQueueAndCursor] or
      * [updateCursor]. Falls back to inserting a fresh row only when no cursor exists yet
@@ -106,7 +111,7 @@ interface QueueDao {
     @Transaction
     suspend fun updateShuffleEnabled(enabled: Boolean) {
         if (updateShuffleEnabledRaw(enabled) == 0) {
-            upsertCursor(PlaybackCursorEntity(queueIndex = -1, positionMs = 0L, shuffleEnabled = enabled))
+            upsertCursor(PlaybackCursorEntity(currentSlotId = null, positionMs = 0L, shuffleEnabled = enabled))
         }
     }
 
@@ -114,25 +119,14 @@ interface QueueDao {
     @Transaction
     suspend fun updateRepeatMode(mode: Int) {
         if (updateRepeatModeRaw(mode) == 0) {
-            upsertCursor(PlaybackCursorEntity(queueIndex = -1, positionMs = 0L, repeatMode = mode))
+            upsertCursor(PlaybackCursorEntity(currentSlotId = null, positionMs = 0L, repeatMode = mode))
         }
     }
 
     // --- baseline order (mirrors queue_items above; see BaselineQueueItemEntity's kdoc) ---
 
-    @Transaction
-    @Query(
-        """
-        SELECT songs.* FROM songs
-        INNER JOIN queue_baseline_items ON queue_baseline_items.song_id = songs.id
-        WHERE songs.is_missing = 0
-        ORDER BY queue_baseline_items.position ASC
-        """
-    )
-    suspend fun getBaselineQueueItems(): List<SongWithDetails>
-
-    @Query("SELECT song_id FROM queue_baseline_items ORDER BY position ASC")
-    suspend fun getBaselineQueueSongIds(): List<String>
+    @Query("SELECT * FROM queue_baseline_items ORDER BY position ASC")
+    suspend fun getBaselineQueueItems(): List<BaselineQueueItemEntity>
 
     @Query("DELETE FROM queue_baseline_items")
     suspend fun clearBaselineQueue()
@@ -141,11 +135,11 @@ interface QueueDao {
     suspend fun insertBaselineQueueItems(items: List<BaselineQueueItemEntity>)
 
     @Transaction
-    suspend fun replaceBaselineQueue(songIds: List<String>) {
+    suspend fun replaceBaselineQueue(slots: List<QueueSlotRecord>) {
         clearBaselineQueue()
         insertBaselineQueueItems(
-            songIds.mapIndexed { index, songId ->
-                BaselineQueueItemEntity(position = index, songId = songId)
+            slots.mapIndexed { index, slot ->
+                BaselineQueueItemEntity(slotId = slot.slotId, position = index, songId = slot.songId)
             }
         )
     }

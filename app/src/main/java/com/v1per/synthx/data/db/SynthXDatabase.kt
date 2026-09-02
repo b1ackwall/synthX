@@ -22,7 +22,7 @@ import com.v1per.synthx.data.backup.RestoreStartup
         BaselineQueueItemEntity::class,
         PlaybackCursorEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -36,7 +36,7 @@ abstract class SynthXDatabase : RoomDatabase() {
 
     companion object {
         /** Must track the `version` in the @Database annotation above. */
-        const val VERSION = 11
+        const val VERSION = 12
 
         const val DB_NAME = "synthx.db"
 
@@ -265,16 +265,93 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        // Queue occurrences gain their own stable identity. There is no meaningful value to
+        // backfill for old rows because song_id identifies content, not an occurrence, so the
+        // two transient queue-order tables are deliberately recreated empty. The cursor table
+        // is rebuilt to replace its ambiguous raw queue index with an exact nullable slot id;
+        // playback position and the independent shuffle/repeat preferences are retained.
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS queue_items")
+                database.execSQL("DROP TABLE IF EXISTS queue_baseline_items")
+
+                database.execSQL(
+                    """
+                    CREATE TABLE queue_items (
+                        slot_id TEXT NOT NULL,
+                        position INTEGER NOT NULL,
+                        song_id TEXT NOT NULL,
+                        PRIMARY KEY(slot_id),
+                        FOREIGN KEY(song_id) REFERENCES songs(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "CREATE INDEX index_queue_items_position ON queue_items(position)"
+                )
+                database.execSQL(
+                    "CREATE INDEX index_queue_items_song_id ON queue_items(song_id)"
+                )
+
+                database.execSQL(
+                    """
+                    CREATE TABLE queue_baseline_items (
+                        slot_id TEXT NOT NULL,
+                        position INTEGER NOT NULL,
+                        song_id TEXT NOT NULL,
+                        PRIMARY KEY(slot_id),
+                        FOREIGN KEY(song_id) REFERENCES songs(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "CREATE INDEX index_queue_baseline_items_position " +
+                        "ON queue_baseline_items(position)"
+                )
+                database.execSQL(
+                    "CREATE INDEX index_queue_baseline_items_song_id " +
+                        "ON queue_baseline_items(song_id)"
+                )
+
+                database.execSQL(
+                    """
+                    CREATE TABLE playback_cursor_new (
+                        id INTEGER NOT NULL,
+                        current_slot_id TEXT,
+                        position_ms INTEGER NOT NULL,
+                        shuffle_enabled INTEGER NOT NULL DEFAULT 0,
+                        repeat_mode INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(id)
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    INSERT INTO playback_cursor_new (
+                        id, current_slot_id, position_ms, shuffle_enabled, repeat_mode
+                    )
+                    SELECT id, NULL, position_ms, shuffle_enabled, repeat_mode
+                    FROM playback_cursor
+                    """.trimIndent()
+                )
+                database.execSQL("DROP TABLE playback_cursor")
+                database.execSQL("ALTER TABLE playback_cursor_new RENAME TO playback_cursor")
+            }
+        }
+
         /**
          * The canonical migration chain, in order. Single source of truth for every Room
          * builder in this file — the live singleton in [getOrCreate] and the offline
          * restore candidate in [createStandalone] must migrate identically, so neither
          * builds its own list. Append new migrations here and nowhere else.
          *
-         * MIGRATION_2_3 and MIGRATION_3_4 are the only destructive migrations in this app's
-         * history — each wiped song-derived data for a hash-strategy/artist-splitting change,
-         * before this app held any real user data. Every migration since MIGRATION_4_5 has
-         * been additive-only, and that must stay the default going forward: this app now
+         * MIGRATION_2_3 and MIGRATION_3_4 wiped song-derived data for hash-strategy and
+         * artist-splitting changes before this app held real user data. MIGRATION_11_12 only
+         * wipes the two transient queue-order tables because old rows have no stable slot id;
+         * it preserves the library and playlist data. Destructive treatment must remain an
+         * explicit exception going forward: this app now
          * manages a 2000+ song, 68-playlist library built from years of hand curation, with
          * no external backup of future changes beyond what this app itself provides. A
          * migration that deletes or overwrites existing data with no backfill path is an
@@ -284,6 +361,7 @@ abstract class SynthXDatabase : RoomDatabase() {
         internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
             MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+            MIGRATION_11_12,
         )
 
         fun getInstance(context: Context): SynthXDatabase {

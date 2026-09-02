@@ -66,6 +66,7 @@ fun SongActionsBottomSheet(
     deleteEnabled: Boolean,
     showRemoveFromStarredRow: Boolean,
     removeFromStarredEnabled: Boolean,
+    isCurrentlyPlaying: Boolean,
     onDeleteSong: () -> Unit,
     onGoToAlbum: (albumId: String) -> Unit,
     onGoToArtist: (artistId: String) -> Unit,
@@ -95,6 +96,7 @@ fun SongActionsBottomSheet(
                 deleteEnabled = deleteEnabled,
                 showRemoveFromStarredRow = showRemoveFromStarredRow,
                 removeFromStarredEnabled = removeFromStarredEnabled,
+                isCurrentlyPlaying = isCurrentlyPlaying,
                 onDeleteSong = { showDeleteConfirm = true },
                 onGoToAlbum = onGoToAlbum,
                 onGoToArtist = onGoToArtist,
@@ -140,6 +142,7 @@ private fun ActionsPage(
     deleteEnabled: Boolean,
     showRemoveFromStarredRow: Boolean,
     removeFromStarredEnabled: Boolean,
+    isCurrentlyPlaying: Boolean,
     onDeleteSong: () -> Unit,
     onGoToAlbum: (String) -> Unit,
     onGoToArtist: (String) -> Unit,
@@ -195,11 +198,15 @@ private fun ActionsPage(
             )
         }
 
-        ActionRow(
-            icon = Icons.AutoMirrored.Filled.PlaylistPlay,
-            label = stringResource(R.string.actions_play_next),
-            onClick = onPlayNext,
-        )
+        // Hidden, not disabled, for the currently playing song — "play next" has no
+        // meaning against the song already playing.
+        if (!isCurrentlyPlaying) {
+            ActionRow(
+                icon = Icons.AutoMirrored.Filled.PlaylistPlay,
+                label = stringResource(R.string.actions_play_next),
+                onClick = onPlayNext,
+            )
+        }
         ActionRow(
             icon = Icons.AutoMirrored.Filled.QueueMusic,
             label = stringResource(R.string.actions_add_to_queue),

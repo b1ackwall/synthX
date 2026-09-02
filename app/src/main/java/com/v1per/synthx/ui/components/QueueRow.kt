@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
@@ -86,8 +87,8 @@ private val SwipeVelocityThreshold = 1200.dp
  * equivalent of the swipe, which those users likewise can't perform.
  *
  * [queue] is the authoritative upcoming list this row belongs to — read only by the
- * self-healing reset below, which needs to know whether [song] genuinely left the queue after
- * a confirmed dismissal.
+ * self-healing reset below, which needs to know whether [slotId] genuinely left the queue after
+ * a confirmed dismissal; another slot for the same [song] does not count.
  *
  * [enabled] never gates the `.anchoredDraggable(...)` modifier itself — this project's rule is
  * to never gate anchoredDraggable's `enabled` on a dynamic condition, since that tears down and
@@ -98,8 +99,9 @@ private val SwipeVelocityThreshold = 1200.dp
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun QueueRow(
+    slotId: String,
     song: Song,
-    queue: ImmutableList<Song>,
+    queue: ImmutableList<QueueSlot>,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     surfaceColor: Color,
@@ -160,7 +162,7 @@ fun QueueRow(
     // swipe state itself would check before the removal's async round trip had a chance to
     // land. A successful removal disposes this row before the check can matter.
     LaunchedEffect(queue) {
-        if (swipeState.settledValue != QueueRowSwipe.Settled && queue.any { it.id == song.id }) {
+        if (swipeState.settledValue != QueueRowSwipe.Settled && queue.any { it.slotId == slotId }) {
             swipeState.animateTo(QueueRowSwipe.Settled)
         }
     }

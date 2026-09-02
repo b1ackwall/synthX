@@ -218,7 +218,7 @@ class FolderScanner internal constructor(
 
         // Remap notices accumulated mid-transaction, emitted only after the transaction
         // commits — see the loop after withTransaction. Emitting from inside the loop (as
-        // this used to) would let a consumer (ExoPlayerEngine.songsById) adopt a newSong.id
+        // this used to) would let a consumer (ExoPlayerEngine.songsBySlotId) adopt a newSong.id
         // that later turns out to never have been persisted, if the transaction rolls back
         // for an unrelated reason later in the same pass.
         val pendingRemaps = mutableListOf<SongRemap>()
