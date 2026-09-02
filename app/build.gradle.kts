@@ -14,8 +14,8 @@ android {
         applicationId = "com.v1per.synthx"
         minSdk = 32
         targetSdk = 36
-        versionCode = 6
-        versionName = "2.2.2"
+        versionCode = 7
+        versionName = "2.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
