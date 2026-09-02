@@ -82,6 +82,16 @@ class BackupManager(private val context: Context) {
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             RestoreStartup.await()
+            // Let every already-admitted finite operation land before the snapshot — most
+            // importantly QueuePersistence's cursor/queue writes, which are fire-and-forget:
+            // the caller's RestoreCoordinator permit is acquired synchronously but the actual
+            // Room write only happens later on QueuePersistence's own IO writer. Without this,
+            // VACUUM INTO below could snapshot the live database before an already-admitted
+            // cursor update actually lands, silently backing up a stale playback position.
+            // Must run BEFORE this call's own withDbOperation acquires ITS permit — awaiting
+            // drain from inside that permit would wait on itself and never complete, since the
+            // permit doesn't release until this whole block finishes.
+            RestoreCoordinator.awaitFiniteDrained()
             RestoreCoordinator.withDbOperation {
                 BackupCreationCoordinator.serialize {
                     createBackupLocked(tier, reason, cancelActiveScan)
