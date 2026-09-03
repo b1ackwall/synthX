@@ -55,6 +55,11 @@ class BackupsAndRestoreViewModel(
     )
     val backupFolderUri: StateFlow<Uri?> = _backupFolderUri.asStateFlow()
 
+    // Read once per screen visit, same as backupFolderUri above — a fresh ViewModel is
+    // constructed every time this screen is opened, so navigating here after configuring the
+    // music folder elsewhere (Library Management) always sees the current value.
+    val musicFolderConfigured: Boolean = preferencesManager.musicFolderUri != null
+
     private val _backupFolderError = MutableStateFlow<String?>(null)
     val backupFolderError: StateFlow<String?> = _backupFolderError.asStateFlow()
 

@@ -7,6 +7,16 @@
     <string name="nav_library">Library</string>
     <string name="nav_search">Search</string>
 
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Welcome to synthX</string>
+    <string name="onboarding_welcome_subtitle">Let\'s get your library set up.</string>
+    <string name="onboarding_fresh_install">Fresh install</string>
+    <string name="onboarding_recover_backup">Recover from backup</string>
+    <string name="onboarding_folder_setup_title">Set up your library</string>
+    <string name="onboarding_folder_setup_subtitle">Choose your root music folder to get started. New Arrivals and a backup folder are optional and can be set up later.</string>
+    <string name="onboarding_scanning_title">Setting up your library…</string>
+    <string name="action_done">Done</string>
+
     <!-- Screen titles -->
     <string name="screen_songs">Songs</string>
     <string name="screen_starred">Starred</string>
@@ -150,6 +160,9 @@
     <string name="issues_destructive_actions_title">%1$d change(s) since your last backup</string>
     <string name="issues_backup_folder_grant_lost_title">Backup folder access lost</string>
     <string name="issues_backup_folder_grant_lost_subtitle">Reconnect it to keep backups working</string>
+    <string name="issues_missing_art_title">%1$d song(s) missing cover art</string>
+    <string name="issues_missing_art_subtitle">Art isn\'t included in backups — tap Fix to re-extract it from the original files</string>
+    <string name="issues_fix_art">Fix</string>
     <string name="delete_song_dialog_title">Delete this song?</string>
     <string name="delete_song_dialog_message">This permanently removes the song from your library, along with its playlist entries, listen history, and artist and album links. The file on disk is not affected. This cannot be undone.</string>
 
@@ -188,6 +201,10 @@
     <string name="restore_error_restore_failed">Restore failed.</string>
     <string name="restore_error_cancelled">Restore was interrupted before it finished.</string>
     <string name="restore_error_unknown">Restore failed for an unknown reason.</string>
+    <string name="restore_error_music_folder_required">A root music folder must be selected before restoring — a restored library needs somewhere to find its songs.</string>
+    <string name="restore_music_folder_required_title">Music folder required</string>
+    <string name="restore_music_folder_required_message">Select your root music folder before restoring a backup — without it, a restored library has no songs to find.</string>
+    <string name="restore_music_folder_required_action">Select folder</string>
     <string name="action_ok">OK</string>
     <string name="action_keep">Keep</string>
     <string name="action_clear">Clear</string>

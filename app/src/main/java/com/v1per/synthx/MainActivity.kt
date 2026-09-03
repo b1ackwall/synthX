@@ -34,9 +34,11 @@ import com.v1per.synthx.data.backup.MigrationInvariantFailedException
 import com.v1per.synthx.data.backup.MigrationRecoveryAction
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.UnsupportedLiveDatabaseVersionException
+import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.data.scanner.VerifyLibraryWorker
+import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.MainScaffold
@@ -75,6 +77,15 @@ class MainActivity : ComponentActivity() {
         databaseStartupAttemptRunning = true
         lifecycleScope.launch {
             val startupFailure = runCatching { DatabaseStartupGate.awaitReady() }.exceptionOrNull()
+            // Synchronous SharedPreferences read, not a Room/DAO read — safe ahead of the
+            // database gate resolving. Onboarding shows for a genuine fresh install, a
+            // post-uninstall reinstall, or cleared app data alike: all three collapse to this
+            // one condition.
+            val startDestination = if (PreferencesManager(applicationContext).musicFolderUri == null) {
+                Screen.Onboarding.route
+            } else {
+                Screen.Home.route
+            }
             enableEdgeToEdge()
             setContent {
                 SynthXTheme {
@@ -89,7 +100,7 @@ class MainActivity : ComponentActivity() {
                         )
                         else -> {
                             NotificationPermissionEffect()
-                            MainScaffold()
+                            MainScaffold(startDestination = startDestination)
                         }
                     }
                 }
@@ -151,7 +162,37 @@ class MainActivity : ComponentActivity() {
             // existence sweep — a song that vanished since last session fails on play with
             // the normal error snackbar.
             playback.restoreSavedQueue()
-            runLaunchScans()
+            runArtSweepIfPending(preferences)
+            // Nothing to scan yet if onboarding hasn't configured a root folder — running this
+            // chain here would be pointless, and pending Onboarding's own saveMusicFolder call
+            // to enqueue LibraryScanWorker directly instead, this way it can't race it either.
+            if (preferences.musicFolderUri != null) {
+                runLaunchScans()
+            }
+        }
+    }
+
+    /**
+     * B1/B3: consumes [PreferencesManager.artSweepPending] — set by RestoreTransaction on the
+     * cold boot right after a successful restore — and, if it was set, runs [ArtRecovery]'s
+     * full-library sweep silently in the background. Cleared before the sweep runs (not after)
+     * so a process death mid-sweep can't re-trigger it forever; a missed sweep is not silent
+     * data loss, it just leaves whatever art it would have fixed for the Issues screen's manual
+     * Fix action to pick up instead. No progress UI — unlike the manual Fix action, this pass
+     * has no screen open to report to.
+     */
+    private suspend fun runArtSweepIfPending(preferences: PreferencesManager) {
+        if (!preferences.artSweepPending) return
+        preferences.artSweepPending = false
+        runCatching {
+            val result = SongRepositoryImpl.create(applicationContext).recoverMissingArt()
+            Log.d(
+                TAG,
+                "Post-restore art sweep complete — checked=${result.checked} " +
+                    "recovered=${result.recovered} skipped=${result.skipped}",
+            )
+        }.onFailure { e ->
+            Log.w(TAG, "Post-restore art sweep failed: ${e.message}", e)
         }
     }
 

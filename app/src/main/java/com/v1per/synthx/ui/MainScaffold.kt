@@ -75,7 +75,12 @@ import kotlin.system.exitProcess
  * collect, instead of merely drawing something over a still-live tree.
  */
 @Composable
-fun MainScaffold(navController: NavHostController = rememberNavController()) {
+fun MainScaffold(
+    navController: NavHostController = rememberNavController(),
+    // Resolved once in MainActivity from PreferencesManager.musicFolderUri == null — see
+    // SynthXNavHost's startDestination parameter for where this ends up.
+    startDestination: String = Screen.Home.route,
+) {
     val restoreMode by RestoreCoordinator.mode.collectAsState()
     val restoreTerminal by RestoreCoordinator.terminal.collectAsState()
     val diagnosticOperationId by RestoreCoordinator.diagnosticOperationId.collectAsState()
@@ -83,7 +88,7 @@ fun MainScaffold(navController: NavHostController = rememberNavController()) {
     when (RestoreShellPolicy.decide(restoreMode, restoreTerminal)) {
         RestoreShellSurface.Maintenance -> RestoreMaintenanceSurface()
         RestoreShellSurface.Terminal -> RestoreTerminalSurface(restoreTerminal, diagnosticOperationId)
-        RestoreShellSurface.Normal -> NormalShell(navController)
+        RestoreShellSurface.Normal -> NormalShell(navController, startDestination)
     }
 }
 
@@ -186,7 +191,7 @@ private fun BackupFolderNotice(onClick: () -> Unit) {
 }
 
 @Composable
-private fun NormalShell(navController: NavHostController) {
+private fun NormalShell(navController: NavHostController, startDestination: String) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
@@ -311,6 +316,7 @@ private fun NormalShell(navController: NavHostController) {
                 onShowSortSheet = { order, onOrderSelected ->
                     sortSheetTarget = SortSheetTarget(order, onOrderSelected)
                 },
+                startDestination = startDestination,
             )
 
             BottomChromeOverlay(

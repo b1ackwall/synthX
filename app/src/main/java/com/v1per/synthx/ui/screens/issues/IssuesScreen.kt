@@ -68,6 +68,7 @@ fun IssuesScreen(
             uiState = uiState,
             deleteEnabled = deleteSongsEnabled,
             onDelete = viewModel::deleteSong,
+            onFixMissingArt = viewModel::fixMissingArt,
             onNavigateToBackups = onNavigateToBackups,
         )
     }
@@ -78,6 +79,7 @@ private fun IssuesContent(
     uiState: UiState<List<Issue>>,
     deleteEnabled: Boolean,
     onDelete: (String) -> Unit,
+    onFixMissingArt: (List<String>) -> Unit,
     onNavigateToBackups: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -124,6 +126,10 @@ private fun IssuesContent(
                         is Issue.BackupFolderGrantLost -> BackupFolderGrantLostRow(
                             onClick = onNavigateToBackups,
                         )
+                        is Issue.MissingArt -> MissingArtRow(
+                            songIds = issue.songIds,
+                            onFix = { onFixMissingArt(issue.songIds) },
+                        )
                     }
                 }
             }
@@ -139,6 +145,7 @@ private fun Issue.rowKey(): String = when (this) {
     is Issue.VerificationFailed -> "verification_failed:${outcome.timestamp}"
     is Issue.DestructiveActionsSinceBackup -> "destructive_actions"
     is Issue.BackupFolderGrantLost -> "backup_folder_grant_lost"
+    is Issue.MissingArt -> "missing_art"
 }
 
 /** The row body is inert — a missing song has no file to play. Actions live in the menu. */
@@ -211,6 +218,64 @@ private fun MissingSongMenu(deleteEnabled: Boolean, onDelete: () -> Unit) {
                 onDismiss = onDismiss,
             )
         },
+    )
+}
+
+/**
+ * Non-destructive, unlike [MissingSongRow]'s delete — Fix only re-extracts art from files
+ * already on disk, so it needs no confirmation dialog. The row body is inert, same shape as
+ * [MissingSongRow]: the action lives in the menu, not the row tap.
+ */
+@Composable
+private fun MissingArtRow(songIds: List<String>, onFix: () -> Unit) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.HorizontalPadding, top = Spacing.md, bottom = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.issues_missing_art_title, songIds.size),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = stringResource(R.string.issues_missing_art_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            MissingArtMenu(onFix = onFix)
+        }
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = Hairline,
+        )
+    }
+}
+
+@Composable
+private fun MissingArtMenu(onFix: () -> Unit) {
+    ThreeDotMenuWithConfirm(
+        menuItems = { closeMenu, _ ->
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.issues_fix_art)) },
+                onClick = {
+                    closeMenu()
+                    onFix()
+                },
+            )
+        },
+        // No confirmation needed — Fix is non-destructive, so requestConfirm above is never
+        // invoked and this is never shown.
+        confirmDialog = { _, _ -> },
     )
 }
 
@@ -379,6 +444,7 @@ private fun IssuesPreview() {
                 ),
                 deleteEnabled = true,
                 onDelete = {},
+                onFixMissingArt = {},
                 onNavigateToBackups = {},
             )
         }
@@ -397,6 +463,7 @@ private fun IssuesEmptyPreview() {
                 uiState = UiState.Empty,
                 deleteEnabled = true,
                 onDelete = {},
+                onFixMissingArt = {},
                 onNavigateToBackups = {},
             )
         }

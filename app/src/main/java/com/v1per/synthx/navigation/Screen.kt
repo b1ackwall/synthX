@@ -3,6 +3,7 @@ package com.v1per.synthx.navigation
 import android.net.Uri
 
 sealed class Screen(val route: String) {
+    object Onboarding : Screen("onboarding")
     object Home : Screen("home")
     object Library : Screen("library")
     object Search : Screen("search")

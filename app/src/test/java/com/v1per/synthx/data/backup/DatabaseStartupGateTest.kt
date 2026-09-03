@@ -303,7 +303,7 @@ class DatabaseStartupProductionOrderingTest {
         val source = productionFile("com/v1per/synthx/MainActivity.kt").readText()
         val await = source.indexOf("DatabaseStartupGate.awaitReady()")
         val content = source.indexOf("setContent", startIndex = await)
-        val scaffold = source.indexOf("MainScaffold()", startIndex = content)
+        val scaffold = source.indexOf("MainScaffold(", startIndex = content)
 
         assertTrue(await >= 0, "MainActivity must await the process database gate")
         assertTrue(content > await, "setContent must follow database-gate resolution")

@@ -28,6 +28,10 @@ fun SynthXNavHost(
     // Rendering lives at MainScaffold level (above BottomChromeOverlay) so the sheet draws
     // above the bottom nav/player as a structural sibling, not a descendant of this NavHost.
     onShowSortSheet: (currentOrder: SortOrder, onOrderSelected: (SortOrder) -> Unit) -> Unit,
+    // Resolved once in MainActivity from PreferencesManager.musicFolderUri == null and threaded
+    // down through MainScaffold/NormalShell — Screen.Onboarding.route on a first run/reinstall/
+    // cleared-data launch, Screen.Home.route otherwise.
+    startDestination: String = Screen.Home.route,
 ) {
     Scaffold(
         containerColor = Background,
@@ -37,7 +41,7 @@ fun SynthXNavHost(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Home.route,
+            startDestination = startDestination,
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(ShellTestTags.NavHost)
@@ -50,6 +54,9 @@ fun SynthXNavHost(
             popEnterTransition = { EnterTransition.None },
             popExitTransition = { ExitTransition.None },
         ) {
+            onboardingRoutes(
+                navController = navController,
+            )
             tabRoutes(
                 navController = navController,
                 playbackViewModel = playbackViewModel,

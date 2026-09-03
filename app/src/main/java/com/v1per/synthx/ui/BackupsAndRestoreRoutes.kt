@@ -30,6 +30,9 @@ fun NavGraphBuilder.backupsAndRestoreRoutes(
                 onRestoreClick = {
                     navController.navigate(Screen.Restore.route)
                 },
+                onManageLibraryClick = {
+                    navController.navigate(Screen.LibraryManagement.route)
+                },
             )
         }
     }

@@ -41,11 +41,19 @@ class IssuesViewModel(
     /** Gates the delete row in the menu below — see [DeleteSongsGate]. */
     val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
 
+    // Filesystem-backed, not DB-backed (see ArtRecovery), so unlike every other source above it
+    // has nothing Room can invalidate a Flow on — it's a plain one-shot check, re-run on this
+    // ViewModel's own init and again after fixMissingArt(), same "fresh ViewModel per visit,
+    // re-check on open" shape BackupsAndRestoreViewModel already uses for folder health.
+    private val _missingArtSongIds = MutableStateFlow<List<String>>(emptyList())
+
     init {
+        refreshMissingArtSongIds()
         viewModelScope.launch {
             // combine() only has overloads up to 5 flows of a shared type; these six carry
             // different types, so the 6th (grantLost) is folded in via a second combine() leg
-            // rather than forcing everything into one call.
+            // rather than forcing everything into one call. missingArtSongIds is folded in via
+            // a third leg for the same reason.
             combine(
                 repository.getMissingSongs(),
                 BackupOutcomeStore.lastBackupOutcome,
@@ -55,12 +63,20 @@ class IssuesViewModel(
             ) { missingSongs, backupOutcome, exportOutcome, verificationOutcome, destructiveCount ->
                 PartialSources(missingSongs, backupOutcome, exportOutcome, verificationOutcome, destructiveCount)
             }.combine(BackupFolderLaunchCheck.grantLost) { partial, grantLost ->
-                buildIssues(partial, grantLost)
+                partial to grantLost
+            }.combine(_missingArtSongIds) { (partial, grantLost), missingArtSongIds ->
+                buildIssues(partial, grantLost, missingArtSongIds)
             }.catch { e ->
                 _uiState.value = UiState.Error(e.message ?: "Failed to load issues")
             }.collect { issues ->
                 _uiState.value = if (issues.isEmpty()) UiState.Empty else UiState.Success(data = issues)
             }
+        }
+    }
+
+    private fun refreshMissingArtSongIds() {
+        viewModelScope.launch {
+            _missingArtSongIds.value = runCatching { repository.findMissingArtSongIds() }.getOrDefault(emptyList())
         }
     }
 
@@ -73,7 +89,11 @@ class IssuesViewModel(
      * count sorts last (the softest signal — a plain count with no failure behind it). Missing
      * songs keep their existing most-recent-first order.
      */
-    private fun buildIssues(partial: PartialSources, grantLost: Boolean): List<Issue> {
+    private fun buildIssues(
+        partial: PartialSources,
+        grantLost: Boolean,
+        missingArtSongIds: List<String>,
+    ): List<Issue> {
         val timestampedIssues = listOfNotNull(
             partial.backupOutcome
                 ?.takeIf { !it.succeeded }
@@ -92,6 +112,9 @@ class IssuesViewModel(
             if (partial.destructiveCount > 0) {
                 add(Issue.DestructiveActionsSinceBackup(partial.destructiveCount))
             }
+            if (missingArtSongIds.isNotEmpty()) {
+                add(Issue.MissingArt(missingArtSongIds))
+            }
         }
 
         val missingSongIssues = partial.missingSongs
@@ -105,6 +128,14 @@ class IssuesViewModel(
     fun deleteSong(id: String) {
         viewModelScope.launch {
             repository.deleteSong(id)
+        }
+    }
+
+    /** Re-extracts art for [songIds] (the affected songs from one [Issue.MissingArt] entry). */
+    fun fixMissingArt(songIds: List<String>) {
+        viewModelScope.launch {
+            repository.recoverMissingArt(songIds)
+            refreshMissingArtSongIds()
         }
     }
 

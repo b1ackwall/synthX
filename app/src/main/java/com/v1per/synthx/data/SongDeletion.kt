@@ -76,6 +76,22 @@ fun deleteSongArtFiles(context: Context, songIds: Set<String>): Int {
 }
 
 /**
+ * Whether [songId] has an art file (compressed and/or full-res) actually present on disk right
+ * now — independent of what `album_art_uri`/`album_art_full_uri` say a song's row points at.
+ * Used by [com.v1per.synthx.data.scanner.ArtRecovery] to detect art lost outside a normal
+ * delete, e.g. an uninstall/reinstall wiping `filesDir` since album art is deliberately excluded
+ * from backups. Same [songIdOfArtFile] matching as [deleteSongArtFile]/[deleteSongArtFiles], so
+ * detection and deletion can never disagree about what counts as a given song's art.
+ */
+fun songHasArtFile(context: Context, songId: String): Boolean =
+    songHasArtFile(File(context.filesDir, "art"), songId)
+
+/** [songHasArtFile] split on the directory argument so it's testable with a plain JVM temp dir,
+ *  with no Android [Context] needed. */
+internal fun songHasArtFile(artDir: File, songId: String): Boolean =
+    artDir.listFiles { file -> songIdOfArtFile(file.name) == songId }?.isNotEmpty() == true
+
+/**
  * The song id an art filename belongs to, or null if the name isn't art at all.
  *
  * The single definition of the `art_<id>.<ext>` / `art_full_<id>.<ext>` convention that both

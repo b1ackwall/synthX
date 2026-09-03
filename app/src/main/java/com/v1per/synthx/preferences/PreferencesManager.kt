@@ -129,6 +129,24 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_MIGRATION_INVARIANT_FAILURE_PENDING, false)
         set(value) = prefs.edit().putBoolean(KEY_MIGRATION_INVARIANT_FAILURE_PENDING, value).apply()
 
+    // --------------------------------------------------------------------- post-restore art sweep
+
+    /**
+     * Set the moment a restore's outcome resolves to installed (see RestoreTransaction's
+     * COMPLETE_INSTALLED_AND_NORMAL/ACCEPT_COMPLETE_HISTORY_AND_NORMAL branches), read and
+     * cleared once by [MainActivity.runLaunchMaintenance] on the next launch. Album art is
+     * deliberately excluded from backups, and a normal rescan can't self-heal a restored song's
+     * missing art (identity resolution treats it as "existing, unchanged" — see
+     * SongIngestor.retagIfChanged), so this flag is what triggers the one-time automatic
+     * recovery sweep (see ArtRecovery) instead. Same persisted-boolean shape as
+     * [migrationInvariantFailurePending] — chosen because the restore flow's forced
+     * exitProcess(0) means any in-memory signal (e.g. RestoreCoordinator.Terminal) is gone by
+     * the time the next process reads it.
+     */
+    var artSweepPending: Boolean
+        get() = prefs.getBoolean(KEY_ART_SWEEP_PENDING, false)
+        set(value) = prefs.edit().putBoolean(KEY_ART_SWEEP_PENDING, value).apply()
+
     companion object {
         private const val PREFS_NAME = "synthx_prefs"
         const val KEY_MUSIC_FOLDER_URI = "music_folder_uri"
@@ -152,5 +170,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_MIGRATION_SNAPSHOT_FOR_VERSION = "migration_snapshot_for_version"
         private const val KEY_MIGRATION_SNAPSHOT_LAUNCHES = "migration_snapshot_confirmed_launches"
         private const val KEY_MIGRATION_INVARIANT_FAILURE_PENDING = "migration_invariant_failure_pending"
+        private const val KEY_ART_SWEEP_PENDING = "art_sweep_pending"
     }
 }

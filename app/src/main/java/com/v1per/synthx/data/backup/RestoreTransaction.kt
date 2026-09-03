@@ -13,6 +13,7 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.repository.RepositoryDbFlow
 import com.v1per.synthx.playback.ExoPlayerEngine
 import com.v1per.synthx.playback.QueuePersistence
+import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
@@ -370,6 +371,7 @@ internal object RestoreTransaction {
                 writeState(dir, complete, faults)
                 cleanupAfterColdValidation(context, dir, complete)
                 clearIncident(dir)
+                markArtSweepPending(context)
                 RestoreRecovery.NORMAL
             }
             RestoreRecoveryAction.ACCEPT_COMPLETE_HISTORY_AND_NORMAL -> {
@@ -380,6 +382,7 @@ internal object RestoreTransaction {
                 // idempotent and deliberately leaves normal synthx.db WAL/SHM alone.
                 cleanupAfterColdValidation(context, dir, state)
                 clearIncident(dir)
+                markArtSweepPending(context)
                 RestoreRecovery.NORMAL
             }
             RestoreRecoveryAction.PROMOTE_OLD ->
@@ -404,6 +407,16 @@ internal object RestoreTransaction {
         }.also { result ->
             if (result == RestoreRecovery.EMERGENCY) lastDiagnosticOperationId = state.operationId
         }
+    }
+
+    /**
+     * Flags a one-time art-recovery sweep for [MainActivity.runLaunchMaintenance] to consume on
+     * this cold boot — see [PreferencesManager.artSweepPending]. Called only on the two
+     * recovery paths that resolve a restore's outcome to installed, since a rolled-back or
+     * otherwise non-installed outcome leaves the pre-restore library (and its art) untouched.
+     */
+    private fun markArtSweepPending(context: Context) {
+        PreferencesManager(context).artSweepPending = true
     }
 
     /** Missing/malformed state may touch only filenames owned by synthX restore operations. */

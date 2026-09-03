@@ -21,6 +21,8 @@ import android.util.Log
 import androidx.room.withTransaction
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
+import com.v1per.synthx.data.scanner.ArtRecovery
+import com.v1per.synthx.data.scanner.ArtRecoveryResult
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
@@ -285,6 +287,17 @@ class SongRepositoryImpl(
 
     override fun getMissingSongCount(): Flow<Int> =
         RepositoryDbFlow.observe { songDao.getMissingSongCount() }
+
+    // Read-only filesystem check, same dbOperation gating as checkRootLibraryOrganization above
+    // even though it writes nothing — RestoreCoordinator still needs to know this work is in
+    // flight so a restore can drain it before touching filesDir/art/ or the songs table.
+    override suspend fun findMissingArtSongIds(): List<String> = dbOperation {
+        ArtRecovery.findMissingArt(context, songDao.getAllSongsOnce()).map { it.id }
+    }
+
+    override suspend fun recoverMissingArt(songIds: List<String>?): ArtRecoveryResult = dbOperation {
+        ArtRecovery.recover(context, songDao, songIds)
+    }
 
     override fun getAllGroups(): Flow<List<PlaylistGroup>> =
         RepositoryDbFlow.observe { playlistDao.getAllGroups() }.map { entities ->

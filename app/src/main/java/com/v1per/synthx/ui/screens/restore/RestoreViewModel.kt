@@ -11,6 +11,7 @@ import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.data.backup.RestoreWorker
+import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,6 +41,7 @@ sealed class RestorePreview {
 class RestoreViewModel(
     private val context: Context,
     private val backupManager: BackupManager,
+    private val preferencesManager: PreferencesManager,
 ) : ViewModel() {
 
     private val workManager = WorkManager.getInstance(context)
@@ -61,8 +63,19 @@ class RestoreViewModel(
     // dialog would have nothing to change, since the underlying WorkInfo stays FAILED.
     private val _dismissedFailure = MutableStateFlow(false)
 
-    val outcome: StateFlow<RestoreOutcome> = combine(workInfo, _dismissedFailure) { info, dismissed ->
+    // Set by restore() when it refuses to enqueue (currently: no root music folder configured
+    // — see BackupsAndRestoreScreen's primary gate for the same check earlier in the flow).
+    // Folded into outcome below via the existing Failed rendering rather than a second error
+    // channel, so RestoreScreen needs no new UI to surface this.
+    private val _localBlockReason = MutableStateFlow<String?>(null)
+
+    val outcome: StateFlow<RestoreOutcome> = combine(
+        workInfo,
+        _dismissedFailure,
+        _localBlockReason,
+    ) { info, dismissed, blockReason ->
         when {
+            blockReason != null -> RestoreOutcome.Failed(blockReason)
             info == null -> RestoreOutcome.Idle
             !info.state.isFinished -> RestoreOutcome.InProgress
             info.state == WorkInfo.State.SUCCEEDED -> RestoreOutcome.Complete
@@ -128,12 +141,26 @@ class RestoreViewModel(
         // dismissal flag so a stale acknowledged failure from a previous attempt doesn't
         // suppress this attempt's own outcome once it lands.
         if (outcome.value == RestoreOutcome.InProgress) return
+
+        // Backstop for BackupsAndRestoreScreen's primary gate — this ViewModel has no other
+        // caller today, but nothing here should be able to enqueue a restore for a library
+        // with nowhere configured to find its songs, regardless of how this got reached.
+        if (preferencesManager.musicFolderUri == null) {
+            _dismissedFailure.value = false
+            _localBlockReason.value = context.getString(R.string.restore_error_music_folder_required)
+            return
+        }
+
         _dismissedFailure.value = false
+        _localBlockReason.value = null
         RestoreWorker.enqueue(context, backup)
     }
 
     fun dismissFailure() {
-        if (outcome.value is RestoreOutcome.Failed) _dismissedFailure.value = true
+        if (outcome.value is RestoreOutcome.Failed) {
+            _dismissedFailure.value = true
+            _localBlockReason.value = null
+        }
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {
@@ -143,7 +170,11 @@ class RestoreViewModel(
             }
             val appContext = context.applicationContext
             @Suppress("UNCHECKED_CAST")
-            return RestoreViewModel(appContext, BackupManager.create(appContext)) as T
+            return RestoreViewModel(
+                appContext,
+                BackupManager.create(appContext),
+                PreferencesManager(appContext),
+            ) as T
         }
     }
 }
