@@ -27,11 +27,18 @@ interface PlaybackEngine {
     val isBuffering: Flow<Boolean>
     /** Content identity ([Song.id]) of the current slot, used for library-row highlighting. */
     val currentSongId: Flow<String?>
+    /** Fully resolved current song, published by the engine from its slot-to-song lookup. */
+    val currentSong: Flow<Song?>
     val currentPosition: Flow<Long>
     val duration: Flow<Long>
     val errors: Flow<PlaybackError>
 
-    /** The live playback timeline; app-managed shuffle physically reorders these slots. */
+    /**
+     * The full intended play order, in its entirety; app-managed shuffle physically reorders
+     * these slots. Note this is *not* what the player has loaded — implementations are free to
+     * keep only a bounded window of it live (see [ExoPlayerEngine]'s
+     * [QueueOrderStore]/`maintainWindow`) — but it is the order playback will actually follow.
+     */
     val queue: Flow<List<QueueSlot>>
 
     /** Index into [queue] of the item currently playing, or -1 when the queue is empty. */
@@ -39,10 +46,10 @@ interface PlaybackEngine {
 
     /**
      * The real forward playback order starting immediately after the current item, and
-     * excluding it — i.e. exactly what [next] will walk through, one call at a time. When
-     * [shuffleEnabled] is on this is shuffle order, not timeline order: it is built by
-     * walking media3's own next-window traversal, so what this shows is guaranteed to match
-     * what actually plays next rather than a display-only approximation of it.
+     * excluding it — i.e. exactly what [next] will walk through, one call at a time — for the
+     * whole rest of the queue, not just the part the player currently holds. When
+     * [shuffleEnabled] is on this is shuffle order: the order is app-managed end to end, so
+     * what this shows is what actually plays next rather than a display-only approximation.
      */
     val upcomingQueue: Flow<List<QueueSlot>>
 
@@ -88,16 +95,23 @@ interface PlaybackEngine {
     /**
      * Restarts the current item if more than [media3's default 3s][androidx.media3.common.C.DEFAULT_MAX_SEEK_TO_PREVIOUS_POSITION_MS]
      * into it, otherwise jumps to the actual previous queue item — standard player
-     * convention (Apple Music, Spotify). This is media3's own built-in `Player.seekToPrevious()`
-     * behavior, not hand-rolled: it already applies this exact threshold, and already
-     * falls back to restarting the current item when there is no previous one.
+     * convention (Apple Music, Spotify), and it likewise falls back to restarting the current
+     * item when there is no previous one.
+     *
+     * How far back "previous" can walk is bounded by whatever history the implementation keeps
+     * loaded — for [ExoPlayerEngine] that is [WINDOW_BACK] items, after which this restarts the
+     * current item rather than extending the loaded window backwards. An accepted, deliberate
+     * limit: extending it would mean a timeline mutation in the middle of exactly the kind of
+     * rapid interaction windowing exists to keep cheap.
      */
     fun previous()
 
     /**
-     * Suspend because a large-queue reshuffle builds a MediaItem per song (see
-     * [ExoPlayerEngine.setShuffleEnabled]'s implementation) — that work is dispatched off
-     * the main thread, with only the final controller calls requiring it back.
+     * Suspend so implementations can order the reorder against the main thread rather than
+     * assuming a caller's dispatcher — [ExoPlayerEngine] confines the whole operation to
+     * `Main.immediate`, since it is now a records-only list permutation plus a bounded window
+     * reconciliation. (It no longer builds a MediaItem per song, which is what originally
+     * forced this to be suspend.)
      */
     suspend fun setShuffleEnabled(enabled: Boolean)
     fun setRepeatMode(mode: RepeatMode)
@@ -110,11 +124,10 @@ interface PlaybackEngine {
 
     /**
      * Moves the item at [fromIndex] to [toIndex] within [upcomingQueue], leaving playback
-     * running. A no-op while shuffle is enabled: media3's `moveMediaItem` does not reindex
-     * its internal shuffle order (see [ExoPlayerEngine.moveQueueItem]'s implementation
-     * comment), so honouring this call under shuffle would desync what's displayed from
-     * what actually plays next. Callers are expected to also disable the affected UI, this
-     * is the backstop.
+     * running. Honoured whether or not shuffle is enabled — ordering is app-managed end to end,
+     * so a reorder while shuffled is a safe (if temporary, per spec) edit of the live order —
+     * and honoured whether or not either position is currently loaded into the player, since
+     * both are resolved against the full order rather than a timeline index.
      */
     fun moveQueueItem(fromIndex: Int, toIndex: Int)
 

@@ -1,7 +1,6 @@
 package com.v1per.synthx.playback
 
 import android.net.Uri
-import android.os.Bundle
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -12,12 +11,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
-internal const val MEDIA_METADATA_SONG_ID = "com.v1per.synthx.SONG_ID"
-
 /**
  * Fills in artwork for the current item and the one after it, replacing their
  * MediaItems in place. Only the metadata differs (same mediaId, same URI), so media3
  * updates the item without interrupting playback.
+ *
+ * Already window-safe with no changes: it only ever addresses `currentMediaItemIndex` and
+ * `nextMediaItemIndex`, both of which are positions in the loaded window by definition, and
+ * the window always keeps the current item plus lookahead. `maintainWindow` calls this after
+ * reconciling so a newly loaded next item picks its artwork up.
  */
 internal fun ExoPlayerEngine.prefetchArtwork() {
     val ctrl = controller ?: return
@@ -85,7 +87,6 @@ internal fun buildMediaItem(slotId: String, song: Song, artworkData: ByteArray?)
         .apply {
             artworkData?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) }
         }
-        .setExtras(Bundle().apply { putString(MEDIA_METADATA_SONG_ID, song.id) })
         .build()
 
     return MediaItem.Builder()

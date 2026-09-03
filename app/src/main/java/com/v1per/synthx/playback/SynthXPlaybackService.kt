@@ -9,12 +9,12 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import com.v1per.synthx.R
-import com.v1per.synthx.data.repository.QueueSlotRecord
 
 /** Same id media3's [DefaultMediaNotificationProvider] would otherwise auto-generate — pinned
  *  explicitly so the channel survives a Builder reconfiguration without silently forking into
  *  a second channel the user would have to notice and re-grant permissions for. */
 private const val PLAYBACK_CHANNEL_ID = "synthx_playback"
+private const val TAG = "SynthXPlaybackService"
 
 class SynthXPlaybackService : MediaLibraryService() {
 
@@ -28,6 +28,7 @@ class SynthXPlaybackService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "onCreate")
 
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -73,32 +74,27 @@ class SynthXPlaybackService : MediaLibraryService() {
      * rather than continuing to play from a task the user just dismissed.
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.d(TAG, "onTaskRemoved")
         val index = player.currentMediaItemIndex
         if (index != C.INDEX_UNSET && player.mediaItemCount > 0) {
-            // Read directly off the live player rather than any engine-side cache — this is
-            // the actual live timeline, so it's the most correct snapshot to commit alongside
-            // the cursor (see QueuePersistence.saveQueueState).
+            // Cursor only — deliberately NOT the queue structure. This used to iterate the
+            // live player's timeline and persist it as the saved queue, which was correct
+            // while the timeline held the whole queue. It no longer does: the timeline is a
+            // bounded window (see ExoPlayerEngineWindow.kt), so writing it here would replace
+            // a 2000-song saved queue with the ~51 songs that happened to be loaded — silent,
+            // permanent data loss on every swipe-from-Recents. The full order is already
+            // persisted by the engine on every structural change (see persistQueue); the only
+            // thing that can still be stale by now is where playback got to.
             //
             // QueuePersistence.create() is an app-process singleton (see its own kdoc), so
             // this is the SAME instance/writer any live ExoPlayerEngine already holds — not a
             // second, independently-ordered writer racing it. Without that, a still-draining
             // write from the engine's instance (e.g. a recent updateCursor) could land after
             // this fresher save and silently overwrite it (see general 6.7).
-            val slots = (0 until player.mediaItemCount).mapNotNull { itemIndex ->
-                val mediaItem = player.getMediaItemAt(itemIndex)
-                mediaItem.mediaMetadata.extras
-                    ?.getString(MEDIA_METADATA_SONG_ID)
-                    ?.let { songId -> QueueSlotRecord(mediaItem.mediaId, songId) }
-            }
-            if (slots.size == player.mediaItemCount) {
-                QueuePersistence.create(this).saveQueueRecords(
-                    slots = slots,
-                    currentSlotId = player.currentMediaItem?.mediaId,
-                    positionMs = player.currentPosition,
-                )
-            } else {
-                Log.w(TAG, "Skipping incomplete queue snapshot: missing content identity metadata")
-            }
+            QueuePersistence.create(this).updateCursor(
+                currentSlotId = player.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() },
+                positionMs = player.currentPosition,
+            )
         }
         releasePlayback()
         stopSelf()
@@ -106,6 +102,7 @@ class SynthXPlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        Log.d(TAG, "onDestroy")
         releasePlayback()
         super.onDestroy()
     }
@@ -118,7 +115,4 @@ class SynthXPlaybackService : MediaLibraryService() {
         mediaLibrarySession.release()
     }
 
-    private companion object {
-        const val TAG = "SynthXPlaybackService"
-    }
 }

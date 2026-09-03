@@ -8,28 +8,37 @@ import androidx.media3.common.Timeline
 
 /**
  * Builds the [Player.Listener] [ExoPlayerEngine] registers with its `MediaController` —
- * relocated out of the class body purely to keep `ExoPlayerEngine.kt` shorter. Every
- * callback below still reads/writes the engine's own state directly, via the extension
- * receiver captured when this object expression is created.
+ * relocated out of the class body purely to keep `ExoPlayerEngine.kt` shorter. Every callback
+ * below still reads/writes the engine's own state directly, via the extension receiver captured
+ * when this object expression is created.
  */
 internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : Player.Listener {
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         _isPlaying.value = isPlaying
     }
 
+    /**
+     * No longer a queue signal. The timeline is a bounded window into the order store rather
+     * than the queue itself, so its changes are almost always the *result* of edits
+     * [maintainWindow] just applied — which is also why window maintenance must not be
+     * triggered from here, as that would recurse. Navigation state is refreshed defensively;
+     * it is derived from the order store, so this is a cheap no-op in the normal case.
+     */
     override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-        refreshQueue()
-        refreshUpcomingQueue()
         refreshNavigationState()
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        // Queue first: PlaybackViewModel resolves the new id against the queue to
-        // rebuild currentSong, so the queue must already be up to date when the id lands.
-        refreshQueue()
         val currentSlotId = mediaItem?.mediaId?.takeIf { it.isNotEmpty() }
-        _currentSlotId.value = currentSlotId
-        _currentSongId.value = currentSlotId?.let { songsBySlotId[it]?.id }
+        publishCurrentSlot(currentSlotId)
+        // Only the cursor moved, not the order, so the full `queue` projection is left alone
+        // and just its index is re-derived. The resolved current Song was published directly
+        // above from the engine's cache, independently of queue-flow emission timing.
+        refreshCurrentIndex()
+        // The primary window-refill trigger. Unforced, so the hysteresis in windowNeedsRefill
+        // applies and the steady state is one small add/remove pair every ~20 tracks rather
+        // than a timeline edit on every single one.
+        maintainWindow()
         // The current item moved, so "everything after it" moves with it.
         refreshUpcomingQueue()
         refreshNavigationState()
@@ -52,29 +61,39 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
         }
     }
 
+    /**
+     * Forces a window rebuild: Repeat All is what decides whether the window wraps around the
+     * true end of the queue (see [computeWindow]), so toggling it changes which slots should be
+     * loaded, not merely how much lookahead is left. [refreshNavigationState] follows for the
+     * same reason — `hasNext` is repeat-aware.
+     */
     override fun onRepeatModeChanged(repeatMode: Int) {
         _repeatMode.value = repeatMode.toRepeatMode()
         persistence.updateRepeatMode(repeatMode)
+        maintainWindow(force = true)
         prefetchArtwork()
         refreshNavigationState()
     }
 
     /**
-     * STATE_ENDED means the *whole* timeline finished, not that one item ended —
-     * media3 auto-advances between queue items without leaving STATE_READY. The
-     * hasNextMediaItem() guard is belt-and-braces: it accounts for repeat mode and
-     * shuffle order, so anything still reachable keeps playback alive and only a
-     * genuinely exhausted queue falls through to stop().
+     * STATE_ENDED means the *loaded timeline* finished, which is no longer the same thing as
+     * the queue finishing: the timeline only holds a window, so running off its end can happen
+     * with hundreds of songs still queued. [advancePastWindowEnd] consults the order store and
+     * keeps playing from the true next slot; only a genuinely exhausted queue returns false and
+     * falls through to stop().
      *
-     * Also the only place [_isBuffering] is driven: true exactly while STATE_BUFFERING,
-     * false in every other state (including the error path, which never reaches
-     * STATE_BUFFERING but may leave a stale true behind if a stall preceded the failure).
+     * Hysteresis in [maintainWindow] should keep this from firing mid-queue at all, but a
+     * silent stop partway through a 2000-song queue is not a failure worth leaving to "should".
+     *
+     * Also the only place [_isBuffering] is driven: true exactly while STATE_BUFFERING, false
+     * in every other state (including the error path, which never reaches STATE_BUFFERING but
+     * may leave a stale true behind if a stall preceded the failure).
      */
     override fun onPlaybackStateChanged(playbackState: Int) {
         _isBuffering.value = playbackState == Player.STATE_BUFFERING
         if (playbackState != Player.STATE_ENDED) return
-        val ctrl = controller ?: return
-        if (!ctrl.hasNextMediaItem()) stop()
+        if (advancePastWindowEnd()) return
+        stop()
     }
 
     /**

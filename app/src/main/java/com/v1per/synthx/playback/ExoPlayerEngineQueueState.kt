@@ -1,23 +1,25 @@
 package com.v1per.synthx.playback
 
-import androidx.media3.common.C
-import androidx.media3.common.Player
-import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import com.v1per.synthx.data.repository.QueueSlot
-import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.QueueSlotRecord
 
 /**
- * The single hook every structural change to the timeline runs through: re-derives the
- * queue flows, writes the new structure to storage, and records whether the queue is
- * still a pristine context list or has been hand-modified.
+ * The single hook every structural change to the queue runs through: re-derives the queue
+ * flows, writes the new structure to storage, and records whether the queue is still a pristine
+ * context list or has been hand-modified.
  *
- * A future reorder or remove only has to call this — with [fresh] false, since anything
- * that is not a wholesale `playQueue` is by definition the user customising the queue.
+ * "Structural" now means the order store changed, not the timeline — callers apply their edit
+ * to [ExoPlayerEngine.orderStore] and then call this. [refreshNavigationState] is part of the
+ * sequence for the same reason: `hasNext` is derived from the store's true length and position
+ * now, so a mutation that adds or removes the last slot has to re-answer it here rather than
+ * waiting for a timeline callback that may never come (the mutation may be entirely outside the
+ * loaded window).
  */
 internal fun ExoPlayerEngine.onQueueStructureChanged(fresh: Boolean) {
     refreshQueue()
     refreshUpcomingQueue()
+    refreshNavigationState()
     persistQueue()
     _isQueueCustomized.value = !fresh
     prefetchArtwork()
@@ -25,171 +27,168 @@ internal fun ExoPlayerEngine.onQueueStructureChanged(fresh: Boolean) {
 
 /**
  * Same refresh/persist/prefetch plumbing as [onQueueStructureChanged], for structural changes
- * that are not a user customisation — currently just a shuffle toggle. A system-driven
- * reorder must not touch [ExoPlayerEngine._isQueueCustomized] in either direction: forcing it
- * true wrongly triggers the Keep/Clear prompt on the next song tap for a user who never
- * hand-reordered anything, and forcing it false would just as wrongly erase a customisation
- * that genuinely happened earlier in the session.
+ * that are not a user customisation — currently just a shuffle toggle. A system-driven reorder
+ * must not touch [ExoPlayerEngine._isQueueCustomized] in either direction: forcing it true
+ * wrongly triggers the Keep/Clear prompt on the next song tap for a user who never hand-reordered
+ * anything, and forcing it false would just as wrongly erase a customisation that genuinely
+ * happened earlier in the session.
  */
 internal fun ExoPlayerEngine.onQueueReordered() {
     refreshQueue()
     refreshUpcomingQueue()
+    refreshNavigationState()
     persistQueue()
     prefetchArtwork()
 }
 
+/**
+ * Persists the **full** order, from the order store — never from the live timeline, which only
+ * holds a window and would truncate the saved queue to ~[WINDOW_SIZE] rows.
+ *
+ * The current slot id is verified against the store before being written: the repository
+ * asserts the cursor names one of the slots it was handed in the same commit, so a slot the
+ * store no longer contains has to become a null cursor rather than a failed write.
+ */
 internal fun ExoPlayerEngine.persistQueue() {
-    val ctrl = controller
-    val positionMs = ctrl?.currentPosition ?: 0L
-    val currentSlotId = ctrl?.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }
-    persistence.saveQueueState(_queue.value, currentSlotId, positionMs)
+    val positionMs = controller?.currentPosition ?: 0L
+    val currentSlotId = _currentSlotId.value?.takeIf { orderStore.indexOfSlot(it) >= 0 }
+    persistence.saveQueueRecords(orderStore.live, currentSlotId, positionMs)
 }
 
 /**
- * Rehydrates [ExoPlayerEngine.songsBySlotId] from the live player timeline when reconnecting to a
- * service that was already running — process was killed, foreground service survived. Neither
- * [playQueueInternal] nor [restoreSavedQueueInternal] runs in this path (the latter explicitly
- * no-ops once the timeline already has media items), so without this, `songsBySlotId` stays empty
- * and [refreshQueue] would rebuild an empty `_queue` against a timeline that is actually full —
- * see the connect callback in `ExoPlayerEngine.kt` for where this is called, and why it has to
- * run before [refreshQueue].
+ * Rebuilds engine state when reconnecting to a service that was already running — process was
+ * killed, foreground service survived. Neither [playQueueInternal] nor
+ * [restoreSavedQueueInternal] runs in this path (the latter explicitly no-ops once the timeline
+ * already has media items), so without this the engine would come up with an empty order store
+ * against a player that is actually playing.
+ *
+ * Reads the persisted order rather than the live timeline, which is the windowing-era
+ * correction to this path: the timeline holds at most [WINDOW_SIZE] items, so adopting it would
+ * silently shrink a 2000-song queue to the window that happened to be loaded. `queue_items` is
+ * the full order and the engine rewrites it on every structural change, so it is the right
+ * thing to adopt; the caller reconciles the already-playing window against it afterwards.
  */
 internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController) {
-    val timeline = ctrl.currentTimeline
-    if (timeline.windowCount == 0) return
-    val window = Timeline.Window()
-    val slotIds = (0 until timeline.windowCount)
-        .map { timeline.getWindow(it, window).mediaItem.mediaId }
-        .distinct()
-    persistence.resolveSlots(slotIds).forEach { slot -> songsBySlotId[slot.slotId] = slot.song }
+    if (ctrl.mediaItemCount == 0) return
+    val restored = persistence.loadQueue() ?: return
+    val restoredBaseline = persistence.loadBaselineQueue()
+    restored.slots.forEach { songsBySlotId[it.slotId] = it.song }
+    restoredBaseline.forEach { songsBySlotId.putIfAbsent(it.slotId, it.song) }
+    orderStore.restore(
+        live = restored.slots.map { QueueSlotRecord(it.slotId, it.song.id) },
+        baseline = restoredBaseline.map { QueueSlotRecord(it.slotId, it.song.id) },
+    )
+    _shuffleEnabled.value = restored.shuffleEnabled
 }
 
 /**
- * media3's own next/previous navigation treats Repeat One as Repeat Off — it ignores
- * the single-item loop and looks for a genuinely different next window — so
- * [MediaController.hasNextMediaItem] alone would disable the next button at the last
- * item even while repeating it. The `|| repeatMode == One` override matches the
- * product requirement instead: a track the user is repeating is still one they expect
- * to be able to skip off of.
+ * Whether [ExoPlayerEngine.next] would move to a genuinely different item, answered from the
+ * order store's true length and position rather than `MediaController.hasNextMediaItem()`.
+ *
+ * That distinction is load-bearing under windowing: the loaded timeline ends [WINDOW_FORWARD]
+ * or so ahead of the current song, so the controller would report "no next item" while hundreds
+ * of songs are still queued, and the skip-forward button would go dead mid-queue.
  */
 internal fun ExoPlayerEngine.refreshNavigationState() {
-    val ctrl = controller
-    _hasNext.value = ctrl != null && (ctrl.hasNextMediaItem() || _repeatMode.value == RepeatMode.One)
+    _hasNext.value = nextLiveIndex() != null
 }
 
 /**
- * Rebuilds the engine's `queue`/`currentIndex` from the controller's timeline. The
- * timeline is the single source of truth — every mutation (setMediaItems, addMediaItem,
- * move/remove) lands there, so reading it back avoids keeping a parallel list in sync.
+ * The next position in the full order, honouring repeat mode — the app-side replacement for
+ * media3's own next-window traversal, which now only sees the window.
+ *
+ * Repeat One returns the following slot (wrapping) rather than the current one, matching the
+ * product requirement the old `nextWindowIndexForRepeatOne` encoded: media3 treats Repeat One
+ * as Repeat Off for navigation and would no-op at the end, but a track the user is repeating is
+ * still one they expect to be able to skip off of.
+ */
+internal fun ExoPlayerEngine.nextLiveIndex(): Int? = nextIndexInOrder(
+    count = orderStore.size,
+    currentIndex = orderStore.indexOfSlot(_currentSlotId.value),
+    repeatMode = _repeatMode.value,
+)
+
+/**
+ * The pure arithmetic behind [nextLiveIndex], split out so the one rule that three separate
+ * windowing traps all reduce to — "next" is a question about the full order, never about the
+ * loaded timeline — is unit-testable on its own:
+ *
+ *  - `hasNext` (skip-forward enablement) must stay true mid-queue even when the window's last
+ *    item is playing;
+ *  - the `STATE_ENDED` handler must only stop when this returns null, not when the timeline
+ *    runs dry;
+ *  - Repeat All must wrap at [count] - 1 rather than at the window's end, and Repeat One must
+ *    still offer a genuinely different next item to skip onto.
+ */
+internal fun nextIndexInOrder(count: Int, currentIndex: Int, repeatMode: RepeatMode): Int? {
+    if (count <= 0 || currentIndex !in 0 until count) return null
+    if (currentIndex + 1 < count) return currentIndex + 1
+    return when (repeatMode) {
+        RepeatMode.All, RepeatMode.One -> 0
+        RepeatMode.Off -> null
+    }
+}
+
+/**
+ * Safety net for `STATE_ENDED` arriving while the real queue still has songs left — i.e. the
+ * *window* was exhausted, not the queue. Rebuilds the window at the true next slot and keeps
+ * playing; returns false only when the queue is genuinely finished, which is the one case that
+ * should still stop playback.
+ *
+ * Hysteresis in [maintainWindow] should keep this from ever firing during ordinary playback,
+ * but "should" is not a guarantee worth betting silent mid-queue stops on.
+ */
+internal fun ExoPlayerEngine.advancePastWindowEnd(): Boolean {
+    val target = nextLiveIndex() ?: return false
+    return rebuildWindowAround(target, positionMs = 0L, play = true)
+}
+
+/**
+ * Rebuilds `queue` — the full live order, hydrated to real songs — from the order store. Only
+ * a structural change needs this; a plain track transition moves the cursor, not the order, so
+ * it refreshes [refreshCurrentIndex] alone rather than re-projecting the whole list.
  */
 internal fun ExoPlayerEngine.refreshQueue() {
-    val ctrl = controller
-    if (ctrl == null) {
-        _queue.value = emptyList()
-        _currentIndex.value = -1
-        return
-    }
+    _queue.value = hydrate(orderStore.live)
+    refreshCurrentIndex()
+}
 
-    val timeline = ctrl.currentTimeline
-    val window = Timeline.Window()
-    val slots = ArrayList<QueueSlot>(timeline.windowCount)
-    for (i in 0 until timeline.windowCount) {
-        val mediaId = timeline.getWindow(i, window).mediaItem.mediaId
-        // Only this engine ever populates the timeline, so the cache always has the
-        // Song; an unknown id (e.g. an item restored by the service from a previous
-        // process) is skipped rather than faked.
-        songsBySlotId[mediaId]?.let { song -> slots.add(QueueSlot(mediaId, song)) }
-    }
-
-    _queue.value = slots
-    _currentIndex.value = ctrl.currentMediaItemIndex.takeIf {
-        it != C.INDEX_UNSET && it < slots.size
-    } ?: -1
+/** Position of the playing slot within the full order — not within the loaded window. */
+internal fun ExoPlayerEngine.refreshCurrentIndex() {
+    _currentIndex.value = orderStore.indexOfSlot(_currentSlotId.value)
 }
 
 /**
- * Rebuilds the engine's `upcomingQueue` (and the parallel `upcomingTimelineIndices`
- * display-index -> real-timeline-index map) by walking forward from the current item one
- * window at a time via [Timeline.getNextWindowIndex] with [Player.REPEAT_MODE_OFF] forced
- * — this is a single forward pass for display purposes, not the player's actual repeat
- * setting, so it terminates at the real end of the queue instead of looping. The shuffle
- * param is a literal `false`, not `ctrl.shuffleModeEnabled`: media3's native shuffle is no
- * longer used at all (ordering is entirely app-managed — see [QueueBaselineManager]), so
- * `shuffleModeEnabled` always reads `false` regardless, and the timeline itself is already
- * in whatever order `setMediaItems`/`moveMediaItem` last wrote it in — a plain forward walk
- * over it is exactly the shuffled-or-not order that is actually live.
- *
- * Guarded against an empty/unready timeline: [MediaController.getCurrentMediaItemIndex]
- * returns `0`, not [C.INDEX_UNSET], when the timeline has no windows yet, so that check
- * alone doesn't catch a listener callback (e.g. `onTimelineChanged`) firing before
- * `setMediaItems` has fully landed. Bounds-checking against the timeline's actual window
- * count closes that off regardless of which caller manages to invoke this too early.
+ * Rebuilds `upcomingQueue` — everything after the current slot in the full order, hydrated for
+ * the Up Next list. Deliberately the whole remainder, not the loaded window: the store is the
+ * source of truth, so the user keeps seeing and scrolling the real queue while the player holds
+ * only a slice of it. This is also why the display indices the UI hands back
+ * (`moveQueueItem`/`seekToQueueItem`) are order-store offsets now and need no translation into
+ * timeline positions.
  */
 internal fun ExoPlayerEngine.refreshUpcomingQueue() {
-    val ctrl = controller
-    val startIndex = ctrl?.currentMediaItemIndex
-    val timeline = ctrl?.currentTimeline
-    if (ctrl == null || timeline == null || startIndex == null ||
-        startIndex == C.INDEX_UNSET || startIndex !in 0 until timeline.windowCount
-    ) {
-        _upcomingQueue.value = emptyList()
-        upcomingTimelineIndices = emptyList()
-        return
-    }
-
-    val window = Timeline.Window()
-    val slots = ArrayList<QueueSlot>()
-    val indices = ArrayList<Int>()
-
-    // visited guards against an unforeseen cycle; REPEAT_MODE_OFF should already
-    // terminate at C.INDEX_UNSET on its own, this is defensive insurance only.
-    val visited = HashSet<Int>()
-    var index = timeline.getNextWindowIndex(startIndex, Player.REPEAT_MODE_OFF, /* shuffleModeEnabled= */ false)
-    while (index != C.INDEX_UNSET && visited.add(index)) {
-        val mediaId = timeline.getWindow(index, window).mediaItem.mediaId
-        songsBySlotId[mediaId]?.let { song ->
-            slots.add(QueueSlot(mediaId, song))
-            indices.add(index)
-        }
-        index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF, /* shuffleModeEnabled= */ false)
-    }
-
-    _upcomingQueue.value = slots
-    upcomingTimelineIndices = indices
+    _upcomingQueue.value = hydrate(orderStore.upcomingFrom(_currentSlotId.value))
 }
 
 /**
- * Target window for [ExoPlayerEngine.next] while Repeat One is active — media3's own
- * `seekToNext()` treats Repeat One like Repeat Off and no-ops at the last window, so this
- * mirrors [refreshUpcomingQueue]'s single-step `REPEAT_MODE_OFF` walk (shuffleModeEnabled
- * forced `false` for the same reason documented there: native media3 shuffle isn't used, so
- * the timeline is already in whatever order is actually live), wrapping to the first window
- * when already at the last one.
+ * Records to [QueueSlot]s via the engine's song cache. A slot with no cached song is skipped
+ * rather than faked — the same tolerance the old timeline walk had, though the cache is
+ * populated for every slot in the store, so it should never trigger.
  */
-internal fun ExoPlayerEngine.nextWindowIndexForRepeatOne(): Int? {
-    val ctrl = controller ?: return null
-    val timeline = ctrl.currentTimeline
-    if (timeline.windowCount == 0) return null
-    val startIndex = ctrl.currentMediaItemIndex
-    if (startIndex == C.INDEX_UNSET) return null
-    val next = timeline.getNextWindowIndex(startIndex, Player.REPEAT_MODE_OFF, /* shuffleModeEnabled= */ false)
-    return if (next != C.INDEX_UNSET) next else timeline.getFirstWindowIndex(/* shuffleModeEnabled= */ false)
-}
-
-internal fun ExoPlayerEngine.currentSlot(): QueueSlot? = _currentSlotId.value?.let { slotId ->
-    songsBySlotId[slotId]?.let { song -> QueueSlot(slotId, song) }
-}
-
-internal fun ExoPlayerEngine.currentSong(): Song? = currentSlot()?.song
+private fun ExoPlayerEngine.hydrate(records: List<QueueSlotRecord>): List<QueueSlot> =
+    records.mapNotNull { record ->
+        songsBySlotId[record.slotId]?.let { song -> QueueSlot(record.slotId, song) }
+    }
 
 /**
- * Stateless — takes the controller explicitly rather than as an [ExoPlayerEngine]
- * extension receiver, so [applyReorderViaMoves] (a top-level function with no
- * [ExoPlayerEngine] instance available at all) can call it too.
+ * Stateless — takes the controller explicitly rather than as an [ExoPlayerEngine] extension
+ * receiver, so callers with no engine instance in hand can use it too. Returns the item's index
+ * within the loaded window, or null when the slot is not currently loaded at all, which under
+ * windowing is an ordinary answer rather than an error.
  */
 internal fun indexOfMediaId(ctrl: MediaController, mediaId: String): Int? {
-    for (i in 0 until ctrl.mediaItemCount) {
-        if (ctrl.getMediaItemAt(i).mediaId == mediaId) return i
+    for (index in 0 until ctrl.mediaItemCount) {
+        if (ctrl.getMediaItemAt(index).mediaId == mediaId) return index
     }
     return null
 }

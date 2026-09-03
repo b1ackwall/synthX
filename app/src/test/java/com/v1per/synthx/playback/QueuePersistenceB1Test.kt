@@ -67,11 +67,12 @@ class QueuePersistenceB1Test {
     }
     private fun song(id: String) = Song(id, id, "", "", 0L, "")
     private fun slots(vararg ids: String) = ids.map { QueueSlot(slotId = it, song = song(it)) }
+    private fun records(vararg ids: String) = ids.map { QueueSlotRecord(slotId = it, songId = it) }
     private fun reset() = RestoreCoordinator.resetForTest()
 
     @Test fun acceptedWriteDrainsAfterPreparation() = runTest {
         reset(); val repo = QueueRepo(); repo.gate = CompletableDeferred(); val queue = QueuePersistence(repo)
-        queue.saveQueueState(slots("a"), "a", 0L); repo.started.await()
+        queue.saveQueueRecords(records("a"), "a", 0L); repo.started.await()
         val restore = async { RestoreCoordinator.exclusive { queue.quiesceForRestore(); RestoreCoordinator.awaitDrained() } }
         yield()
         repo.gate!!.complete(Unit); withTimeout(2_000) { restore.await() }
@@ -80,13 +81,13 @@ class QueuePersistenceB1Test {
 
     @Test fun multipleAcceptedWritesDrainFifoAndReleasePermits() = runTest {
         reset(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
-        queue.saveQueueState(slots("a"), "a", 0L); queue.saveQueueState(slots("b"), "b", 0L); queue.quiesceForRestore()
+        queue.saveQueueRecords(records("a"), "a", 0L); queue.saveQueueRecords(records("b"), "b", 0L); queue.quiesceForRestore()
         assertEquals(listOf(listOf("a"), listOf("b")), repo.persisted); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 
     @Test fun closedRejectsNewQueueWriteWithoutPermitLeak() = runTest {
         reset(); RestoreCoordinator.markClosed(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
-        queue.saveQueueState(slots("a"), "a", 0L); queue.quiesceForRestore()
+        queue.saveQueueRecords(records("a"), "a", 0L); queue.quiesceForRestore()
         assertTrue(repo.persisted.isEmpty()); assertEquals(0, RestoreCoordinator.activeOperationCountForTest()); reset()
     }
 
@@ -95,7 +96,7 @@ class QueuePersistenceB1Test {
             reset(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
             val preparation = async { RestoreCoordinator.exclusive { queue.quiesceForRestore(); RestoreCoordinator.awaitDrained() } }
             // The coordinator transition and save race through their real synchronization.
-            queue.saveQueueState(slots("$index"), "$index", 0L)
+            queue.saveQueueRecords(records("$index"), "$index", 0L)
             preparation.await()
             assertTrue(repo.persisted.isEmpty() || repo.persisted == listOf(listOf("$index")))
             assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
@@ -106,15 +107,15 @@ class QueuePersistenceB1Test {
     @Test fun unavailableEnqueueAfterPermitAcquisitionReleasesPermit() = runTest {
         reset(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
         queue.release()
-        // saveQueue acquires its permit first, then sees the closed admission gate and releases it.
-        queue.saveQueueState(slots("a"), "a", 0L)
+        // saveQueueRecords acquires its permit first, then sees the closed admission gate and releases it.
+        queue.saveQueueRecords(records("a"), "a", 0L)
         queue.quiesceForRestore()
         assertTrue(repo.persisted.isEmpty()); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 
     @Test fun mutationFailureStillDrainsAndReleasesPermit() = runTest {
         reset(); val repo = QueueRepo().also { it.failWrites = true }; val queue = QueuePersistence(repo)
-        queue.saveQueueState(slots("a"), "a", 0L); queue.quiesceForRestore()
+        queue.saveQueueRecords(records("a"), "a", 0L); queue.quiesceForRestore()
         assertEquals(listOf(listOf("a")), repo.persisted); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 
@@ -122,7 +123,7 @@ class QueuePersistenceB1Test {
         reset(); val first = QueueRepo(); val second = QueueRepo()
         val one = QueuePersistence(first); val two = QueuePersistence(second)
         assertTrue(QueuePersistence.activeInstanceCountForTest() >= 2)
-        one.saveQueueState(slots("one"), "one", 0L); two.saveQueueState(slots("two"), "two", 0L)
+        one.saveQueueRecords(records("one"), "one", 0L); two.saveQueueRecords(records("two"), "two", 0L)
         QueuePersistence.quiesceAllForRestore()
         assertEquals(listOf(listOf("one")), first.persisted); assertEquals(listOf(listOf("two")), second.persisted)
         assertEquals(0, QueuePersistence.activeInstanceCountForTest()); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
@@ -132,7 +133,7 @@ class QueuePersistenceB1Test {
     @Test fun releasedInstanceNeverAcceptsAgainOrBlocksGlobalQuiesce() = runTest {
         reset(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
         queue.release(); queue.quiesceForRestore(); assertEquals(0, QueuePersistence.activeInstanceCountForTest())
-        queue.saveQueueState(slots("late"), "late", 0L); QueuePersistence.quiesceAllForRestore()
+        queue.saveQueueRecords(records("late"), "late", 0L); QueuePersistence.quiesceAllForRestore()
         assertTrue(repo.persisted.isEmpty()); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 

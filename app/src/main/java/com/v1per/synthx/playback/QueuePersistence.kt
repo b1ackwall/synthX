@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Everything the playback engine needs to survive a process death: the queue structure,
  * resume cursor (index/position), and shuffle/repeat mode, all together in Room — see
- * [saveQueueState] — so a restore's whole-database-file swap carries every one of them
+ * [saveQueueRecords] — so a restore's whole-database-file swap carries every one of them
  * atomically (see data 2.4; shuffle/repeat previously lived in SharedPreferences, which a
  * restore never touches).
  *
@@ -44,7 +44,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class QueuePersistence(
     private val repository: SongRepository,
-) {
+) : BaselineOrderWriter {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -80,20 +80,13 @@ class QueuePersistence(
 
     /**
      * Replaces the saved queue AND the resume cursor in one atomic commit — this is the only
-     * write path for either, precisely so the two can never land independently. [slots] is
-     * the full queue structure at the moment of the call, [currentSlotId]/[positionMs] the cursor
-     * within it; every caller (a queue mutation, a pause, an app-backgrounded event, or a
-     * restore rewrite) already has both in hand, so there is no case where only one is known.
+     * write path for either, precisely so the two can never land independently. [slots] is the
+     * full intended play order at the moment of the call (the order store's, never the player's
+     * loaded window, which holds at most [WINDOW_SIZE] of it), and
+     * [currentSlotId]/[positionMs] the cursor within it; every caller (a queue mutation, a
+     * pause, an app-backgrounded event, or a restore rewrite) already has both in hand, so
+     * there is no case where only one is known.
      */
-    fun saveQueueState(slots: List<QueueSlot>, currentSlotId: String?, positionMs: Long) {
-        saveQueueRecords(
-            slots.map { QueueSlotRecord(slotId = it.slotId, songId = it.song.id) },
-            currentSlotId,
-            positionMs,
-        )
-    }
-
-    /** Service-side equivalent when the live MediaItems already carry both persisted ids. */
     internal fun saveQueueRecords(
         slots: List<QueueSlotRecord>,
         currentSlotId: String?,
@@ -123,7 +116,7 @@ class QueuePersistence(
      * where only the resume position moved and the queue itself is known not to have changed
      * (a track transition during ordinary playback), so as not to re-persist the whole queue
      * every few minutes for no reason. Goes through the same serialized [writeQueue] consumer
-     * as [saveQueueState], so a cursor-only write and a full write can never race each other or
+     * as [saveQueueRecords], so a cursor-only write and a full write can never race each other or
      * land out of order.
      */
     fun updateCursor(currentSlotId: String?, positionMs: Long) {
@@ -147,29 +140,14 @@ class QueuePersistence(
     }
 
     /**
-     * Resolves slot ids from a live player timeline back into [QueueSlot]s — used when reconnecting to
-     * a still-running playback service, where no in-memory cache already holds them. Returns
-     * an empty list on failure rather than throwing, matching [loadQueue]'s failure shape:
-     * the caller treats "nothing resolved" the same as "nothing to resolve."
-     */
-    suspend fun resolveSlots(slotIds: List<String>): List<QueueSlot> {
-        if (slotIds.isEmpty()) return emptyList()
-        return try {
-            val requested = slotIds.toHashSet()
-            repository.getQueueSlots().filter { it.slotId in requested }
-        } catch (e: Exception) {
-            Log.w(TAG, "Timeline slot resolution failed: ${e.message}")
-            emptyList()
-        }
-    }
-
-    /**
      * Persists the baseline order — see [BaselineQueueItemEntity][com.v1per.synthx.data.db.BaselineQueueItemEntity]'s
-     * kdoc for what this represents. Same fire-and-forget shape as [saveQueueState]; callers
+     * kdoc for what this represents. Same fire-and-forget shape as [saveQueueRecords]; callers
      * decide when a baseline mutation is worth persisting, this just writes it.
+     *
+     * This is the whole of [BaselineOrderWriter], which is how [QueueOrderStore] reaches
+     * persistence without depending on the rest of this class.
      */
-    fun saveBaselineQueue(slots: List<QueueSlot>) {
-        val records = slots.map { QueueSlotRecord(slotId = it.slotId, songId = it.song.id) }
+    override fun writeBaselineOrder(records: List<QueueSlotRecord>) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
             if (!acceptingWrites) { permit.release(); return }
@@ -192,7 +170,7 @@ class QueuePersistence(
     /**
      * Shuffle-only write — leaves the persisted queue/cursor untouched. A shuffle toggle
      * doesn't coincide with either changing, so this is its own narrow write rather than
-     * folded into [saveQueueState] or [updateCursor]; going through the same [writeQueue]
+     * folded into [saveQueueRecords] or [updateCursor]; going through the same [writeQueue]
      * consumer as those two still keeps every write serialized in call order.
      */
     fun updateShuffleEnabled(enabled: Boolean) {

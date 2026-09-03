@@ -9,6 +9,7 @@ class PlaybackController(private val engine: PlaybackEngine) {
     val isPlaying: Flow<Boolean> = engine.isPlaying
     val isBuffering: Flow<Boolean> = engine.isBuffering
     val currentSongId: Flow<String?> = engine.currentSongId
+    val currentSong: Flow<Song?> = engine.currentSong
     val currentPosition: Flow<Long> = engine.currentPosition
     val duration: Flow<Long> = engine.duration
     val errors: Flow<PlaybackError> = engine.errors
