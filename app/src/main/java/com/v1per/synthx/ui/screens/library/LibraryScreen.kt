@@ -1,5 +1,10 @@
 package com.v1per.synthx.ui.screens.library
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.ui.unit.LayoutDirection
@@ -56,6 +61,7 @@ import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -226,6 +232,8 @@ private fun LibraryScreenContent(
                     onSeeAllClick = onSeeAllClick,
                     onSongClick = onSongClick,
                 )
+            } else {
+                RecentlyAddedSectionEmpty()
             }
         }
 
@@ -288,6 +296,7 @@ private fun RecentlyAddedSection(
 // Matches RecentlyAddedSection's header/row shape while data is still loading. The "See
 // all" action is omitted rather than shown disabled — there's nothing to see all of yet.
 private const val SkeletonRowCount = 4
+private const val SkeletonPulseDurationMillis = 1400
 
 @Composable
 private fun RecentlyAddedSectionSkeleton() {
@@ -311,9 +320,52 @@ private fun RecentlyAddedSectionSkeleton() {
     }
 }
 
-/** Static placeholder matching a [SongRow]'s silhouette — no shimmer, no animation. */
+@Composable
+private fun RecentlyAddedSectionEmpty() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.library_recently_added),
+            style = MaterialTheme.typography.titleMedium,
+            color = TextPrimary,
+            modifier = Modifier
+                .padding(horizontal = Spacing.HorizontalPadding)
+                .padding(top = Spacing.lg),
+        )
+
+        Spacer(modifier = Modifier.height(Spacing.md))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(R.string.empty_recently_added),
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextSecondary,
+            )
+        }
+    }
+}
+
+/** Softly pulsing neutral placeholder matching a [SongRow]'s silhouette. */
 @Composable
 private fun RecentSongRowSkeleton() {
+    val pulseAlpha by rememberInfiniteTransition(label = "recentlyAddedSkeletonPulse")
+        .animateFloat(
+            initialValue = 0.65f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = SkeletonPulseDurationMillis,
+                    easing = Motion.EasingStandard,
+                ),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "recentlyAddedSkeletonAlpha",
+        )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -324,7 +376,7 @@ private fun RecentSongRowSkeleton() {
             modifier = Modifier
                 .size(48.dp)
                 .clip(MaterialTheme.shapes.small)
-                .background(SurfaceVariant),
+                .background(SurfaceVariant.copy(alpha = pulseAlpha)),
         )
         Spacer(modifier = Modifier.width(Spacing.md))
         Column {
@@ -333,7 +385,7 @@ private fun RecentSongRowSkeleton() {
                     .width(160.dp)
                     .height(10.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(TextSecondary.copy(alpha = 0.24f)),
+                    .background(TextSecondary.copy(alpha = 0.24f * pulseAlpha)),
             )
             Spacer(modifier = Modifier.height(Spacing.xs))
             Box(
@@ -341,7 +393,7 @@ private fun RecentSongRowSkeleton() {
                     .width(100.dp)
                     .height(8.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(TextSecondary.copy(alpha = 0.14f)),
+                    .background(TextSecondary.copy(alpha = 0.14f * pulseAlpha)),
             )
         }
     }

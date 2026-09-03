@@ -78,6 +78,7 @@
     <string name="filter_all">All</string>
 
     <!-- Empty states -->
+    <string name="empty_recently_added">No recently added songs</string>
     <string name="empty_no_songs">No songs found</string>
     <string name="empty_no_starred">Nothing starred right now. New songs land here until you add them to a playlist.</string>
     <string name="empty_no_artists">No artists found</string>
