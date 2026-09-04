@@ -35,6 +35,7 @@ import com.v1per.synthx.data.backup.MigrationRecoveryAction
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.UnsupportedLiveDatabaseVersionException
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.data.scanner.IssuesScanWorker
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.data.scanner.VerifyLibraryWorker
@@ -158,6 +159,7 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             backupDailyIfDue(preferences, backupManager)
+            scanIssuesDailyIfDue(preferences)
             // Ahead of verifyLibrary so the mini player comes back without waiting on a full
             // existence sweep — a song that vanished since last session fails on play with
             // the normal error snackbar.
@@ -238,6 +240,26 @@ class MainActivity : ComponentActivity() {
         // write), catching corruption a healthy write at the time wouldn't have caught.
         backupManager.verifyMostRecentBackup()
             .onFailure { e -> Log.w(TAG, "Backup verification failed: ${e.message}") }
+    }
+
+    /**
+     * The Issues screen's counterpart to [backupDailyIfDue], deliberately the same shape: one
+     * persisted last-run timestamp compared against the same [DAILY_INTERVAL_MS], with a
+     * never-run value (0) always counting as due.
+     *
+     * Differs in one respect only — the work is handed to WorkManager rather than done inline.
+     * A whole-library art sweep is far too long to hold up launch maintenance, and routing it
+     * through [IssuesScanWorker.UNIQUE_WORK_NAME] is also what lets the Issues screen observe
+     * this automatic run and honestly report "Scanning…" if the user happens to open it while
+     * this one is still going. [IssuesScanWorker] writes the timestamp itself, on completion,
+     * so an interrupted or failed run stays due rather than being marked done by the enqueue.
+     */
+    private fun scanIssuesDailyIfDue(preferences: PreferencesManager) {
+        val last = preferences.lastIssuesScanTimestamp
+        val now = System.currentTimeMillis()
+        if (last != 0L && now - last < DAILY_INTERVAL_MS) return
+
+        IssuesScanWorker.enqueue(applicationContext)
     }
 
     private companion object {

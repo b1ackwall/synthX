@@ -60,9 +60,15 @@ fun IssuesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
+    val scanStatus by viewModel.scanStatus.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
+
+        // Outside the scrolling area below on purpose: the last-scan summary and the Scan
+        // control must stay put and stay visible whether the list holds nothing or hundreds
+        // of rows.
+        ScanStatusBar(status = scanStatus, onScan = viewModel::startScan)
 
         IssuesContent(
             uiState = uiState,
@@ -70,6 +76,64 @@ fun IssuesScreen(
             onDelete = viewModel::deleteSong,
             onFixMissingArt = viewModel::fixMissingArt,
             onNavigateToBackups = onNavigateToBackups,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/**
+ * Fixed status area: what the last scan found, or that one is running right now, plus the
+ * manual trigger. Reads [IssuesScanStatus], which is derived from WorkManager rather than from
+ * anything this screen started, so a scan begun by the daily trigger or on a previous visit
+ * reports honestly here instead of being papered over with a stale summary.
+ */
+@Composable
+private fun ScanStatusBar(status: IssuesScanStatus, onScan: () -> Unit) {
+    val idle = status is IssuesScanStatus.Idle
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.HorizontalPadding, top = Spacing.md, bottom = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = scanStatusText(status),
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            // Disabled for Resolving as well as Scanning: until WorkManager has reported, a
+            // scan may already be running and this would be a second, pointless request.
+            Text(
+                text = stringResource(R.string.issues_scan),
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (idle) TextPrimary else TextTertiary,
+                modifier = Modifier
+                    .clickable(enabled = idle, onClick = onScan)
+                    .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
+            )
+        }
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = Hairline,
+        )
+    }
+}
+
+@Composable
+private fun scanStatusText(status: IssuesScanStatus): String = when (status) {
+    IssuesScanStatus.Resolving -> stringResource(R.string.issues_scan_status_checking)
+    IssuesScanStatus.Scanning -> stringResource(R.string.issues_scan_status_scanning)
+    is IssuesScanStatus.Idle -> if (status.lastScanTimestamp == 0L) {
+        stringResource(R.string.issues_scan_status_never)
+    } else {
+        stringResource(
+            R.string.issues_scan_status_last,
+            relativeTime(status.lastScanTimestamp).toString(),
+            status.issueCount,
         )
     }
 }
@@ -81,9 +145,13 @@ private fun IssuesContent(
     onDelete: (String) -> Unit,
     onFixMissingArt: (List<String>) -> Unit,
     onNavigateToBackups: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize()) {
         when (uiState) {
+            // A scan is running (or its status is still resolving) — no rows at all, and
+            // deliberately not the "No issues found" copy below: an in-progress check saying
+            // "no issues" is exactly the false all-clear this screen used to show.
             is UiState.Loading -> LoadingIndicator()
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_issues),
@@ -402,7 +470,15 @@ private fun IssuesPreview() {
             modifier = Modifier.fillMaxSize(),
             color = Background,
         ) {
-            IssuesContent(
+            Column(modifier = Modifier.fillMaxSize()) {
+                ScanStatusBar(
+                    status = IssuesScanStatus.Idle(
+                        lastScanTimestamp = now - 2 * DateUtils.HOUR_IN_MILLIS,
+                        issueCount = 6,
+                    ),
+                    onScan = {},
+                )
+                IssuesContent(
                 uiState = UiState.Success(
                     data = listOf(
                         Issue.BackupFolderGrantLost,
@@ -446,11 +522,14 @@ private fun IssuesPreview() {
                 onDelete = {},
                 onFixMissingArt = {},
                 onNavigateToBackups = {},
+                modifier = Modifier.weight(1f),
             )
+            }
         }
     }
 }
 
+/** Confirmed all-clear — note the copy differs from the scanning preview below. */
 @Preview(name = "Issues — Empty", showBackground = true)
 @Composable
 private fun IssuesEmptyPreview() {
@@ -459,13 +538,47 @@ private fun IssuesEmptyPreview() {
             modifier = Modifier.fillMaxSize(),
             color = Background,
         ) {
-            IssuesContent(
-                uiState = UiState.Empty,
-                deleteEnabled = true,
-                onDelete = {},
-                onFixMissingArt = {},
-                onNavigateToBackups = {},
-            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                ScanStatusBar(
+                    status = IssuesScanStatus.Idle(
+                        lastScanTimestamp = System.currentTimeMillis() - DateUtils.DAY_IN_MILLIS,
+                        issueCount = 0,
+                    ),
+                    onScan = {},
+                )
+                IssuesContent(
+                    uiState = UiState.Empty,
+                    deleteEnabled = true,
+                    onDelete = {},
+                    onFixMissingArt = {},
+                    onNavigateToBackups = {},
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+/** The state the old screen could not express: checking, with no claim either way yet. */
+@Preview(name = "Issues — Scanning", showBackground = true)
+@Composable
+private fun IssuesScanningPreview() {
+    SynthXTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Background,
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                ScanStatusBar(status = IssuesScanStatus.Scanning, onScan = {})
+                IssuesContent(
+                    uiState = UiState.Loading,
+                    deleteEnabled = true,
+                    onDelete = {},
+                    onFixMissingArt = {},
+                    onNavigateToBackups = {},
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }

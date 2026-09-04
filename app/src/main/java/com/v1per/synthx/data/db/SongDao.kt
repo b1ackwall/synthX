@@ -188,6 +188,11 @@ interface SongDao {
     @Query("SELECT COUNT(*) FROM songs WHERE is_missing = 1")
     fun getMissingSongCount(): Flow<Int>
 
+    /** One-shot counterpart to [getMissingSongCount], for callers that run once and finish
+     *  (IssuesScanWorker) rather than observing — nothing there to keep a Flow subscribed for. */
+    @Query("SELECT COUNT(*) FROM songs WHERE is_missing = 1")
+    suspend fun getMissingSongCountOnce(): Int
+
     // Art URI of any other song still in the album, for re-pointing albums.album_art_uri
     // when the song that supplied it is deleted. Prefers a song that actually has art so
     // the album doesn't lose its cover to a song that never had one.

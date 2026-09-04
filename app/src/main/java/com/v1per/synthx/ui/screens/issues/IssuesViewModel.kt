@@ -1,9 +1,12 @@
 package com.v1per.synthx.ui.screens.issues
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.v1per.synthx.data.backup.BackupAttemptOutcome
 import com.v1per.synthx.data.backup.BackupFolderLaunchCheck
 import com.v1per.synthx.data.backup.BackupOutcomeStore
@@ -12,15 +15,25 @@ import com.v1per.synthx.data.backup.VerificationAttemptOutcome
 import com.v1per.synthx.data.repository.MissingSongInfo
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.data.scanner.IssuesScanSnapshot
+import com.v1per.synthx.data.scanner.IssuesScanWorker
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.DestructiveActionTracker
+import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+
+private const val TAG = "SynthXIssues"
 
 /** Intermediate holder for the 5-source combine() leg — see [IssuesViewModel.init]. */
 private data class PartialSources(
@@ -31,9 +44,44 @@ private data class PartialSources(
     val destructiveCount: Int,
 )
 
+/**
+ * What the Issues screen's fixed status area renders. Three states, not two, because "we don't
+ * know yet whether a scan is running" is genuinely distinct from both: resolving WorkManager's
+ * WorkInfo is asynchronous, and showing a last-scan summary during that window would be exactly
+ * the stale-summary lie this whole rework exists to remove — briefly, but still a lie.
+ */
+sealed interface IssuesScanStatus {
+    /** WorkManager hasn't reported yet. Sub-frame in practice; the button stays disabled. */
+    data object Resolving : IssuesScanStatus
+
+    /** A scan is in flight, whichever of the three triggers started it. */
+    data object Scanning : IssuesScanStatus
+
+    /** No scan running. [lastScanTimestamp] of 0 means none has ever completed. */
+    data class Idle(val lastScanTimestamp: Long, val issueCount: Int) : IssuesScanStatus
+}
+
+/**
+ * Reads the Issues screen's seven categories from two places, by cost.
+ *
+ * The six cheap ones stay live: five are process-wide in-memory StateFlows and the sixth is a
+ * Room Flow, so they are always current and cost nothing to re-read on every visit. The
+ * seventh — missing album art — is a whole-library filesystem sweep, so it is never computed
+ * here at all any more. [IssuesScanWorker] computes it (daily, or on demand) and caches it in
+ * [PreferencesManager]; this ViewModel reads that cache.
+ *
+ * That split is what fixes the bug this replaced: the old init block kicked off the expensive
+ * sweep on every navigation to the screen and seeded its result with an empty list, so for the
+ * seconds-to-a-minute it ran the screen confidently reported "No issues found" — indistinguishable
+ * from a genuine all-clear — and then silently corrected itself.
+ */
 class IssuesViewModel(
+    private val context: Context,
     private val repository: SongRepository,
+    private val preferences: PreferencesManager,
 ) : ViewModel() {
+
+    private val workManager = WorkManager.getInstance(context)
 
     private val _uiState = MutableStateFlow<UiState<List<Issue>>>(UiState.Loading)
     val uiState: StateFlow<UiState<List<Issue>>> = _uiState.asStateFlow()
@@ -41,19 +89,53 @@ class IssuesViewModel(
     /** Gates the delete row in the menu below — see [DeleteSongsGate]. */
     val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
 
-    // Filesystem-backed, not DB-backed (see ArtRecovery), so unlike every other source above it
-    // has nothing Room can invalidate a Flow on — it's a plain one-shot check, re-run on this
-    // ViewModel's own init and again after fixMissingArt(), same "fresh ViewModel per visit,
-    // re-check on open" shape BackupsAndRestoreViewModel already uses for folder health.
-    private val _missingArtSongIds = MutableStateFlow<List<String>>(emptyList())
+    /**
+     * Covers the gap between "the user asked for a scan" and "WorkManager reports one running":
+     * enqueueing is asynchronous, so without this the list would flash its stale rows back for a
+     * frame or two after the Scan button is tapped. Also held for the whole of a Fix, which
+     * mutates art on disk and is therefore just as much "results are not to be trusted right
+     * now" as the rescan that follows it. Handed off (and bounded) by [startScan].
+     */
+    private val _pendingScan = MutableStateFlow(false)
+
+    /**
+     * Null until WorkManager first reports — see [IssuesScanStatus.Resolving]. Reads the same
+     * unique work name every trigger enqueues under, which is what makes the status honest for
+     * a scan this screen did not start (the daily automatic one, or one begun on an earlier
+     * visit): the state lives in WorkManager, not in this ViewModel, so it survives the
+     * ViewModel being destroyed and rebuilt by navigation.
+     *
+     * Same technique LibraryManagementViewModel already uses for its scan status row.
+     */
+    private val scanRunning: StateFlow<Boolean?> = workManager
+        .getWorkInfosForUniqueWorkFlow(IssuesScanWorker.UNIQUE_WORK_NAME)
+        .map<List<WorkInfo>, Boolean?> { infos -> infos.any { !it.state.isFinished } }
+        .catch { e ->
+            Log.w(TAG, "Issues scan status unavailable — treating as idle", e)
+            emit(false)
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val scanStatus: StateFlow<IssuesScanStatus> =
+        combine(scanRunning, _pendingScan) { running, pending ->
+            when {
+                running == null -> IssuesScanStatus.Resolving
+                running || pending -> IssuesScanStatus.Scanning
+                // Read at emission time rather than captured once, so the emission that follows
+                // a scan completing already carries that scan's freshly written summary.
+                else -> IssuesScanStatus.Idle(
+                    lastScanTimestamp = preferences.lastIssuesScanTimestamp,
+                    issueCount = preferences.lastIssuesScanIssueCount,
+                )
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, IssuesScanStatus.Resolving)
 
     init {
-        refreshMissingArtSongIds()
         viewModelScope.launch {
             // combine() only has overloads up to 5 flows of a shared type; these six carry
             // different types, so the 6th (grantLost) is folded in via a second combine() leg
-            // rather than forcing everything into one call. missingArtSongIds is folded in via
-            // a third leg for the same reason.
+            // rather than forcing everything into one call. scanStatus is folded in via a
+            // third leg for the same reason.
             combine(
                 repository.getMissingSongs(),
                 BackupOutcomeStore.lastBackupOutcome,
@@ -64,19 +146,28 @@ class IssuesViewModel(
                 PartialSources(missingSongs, backupOutcome, exportOutcome, verificationOutcome, destructiveCount)
             }.combine(BackupFolderLaunchCheck.grantLost) { partial, grantLost ->
                 partial to grantLost
-            }.combine(_missingArtSongIds) { (partial, grantLost), missingArtSongIds ->
-                buildIssues(partial, grantLost, missingArtSongIds)
+            }.combine(scanStatus) { (partial, grantLost), status ->
+                // Null means "nothing to show yet", NOT "nothing found" — while a scan is in
+                // flight the list is held completely empty rather than partially revealed or
+                // left showing rows the running scan may be about to contradict.
+                if (status !is IssuesScanStatus.Idle) {
+                    null
+                } else {
+                    buildIssues(
+                        partial,
+                        grantLost,
+                        IssuesScanSnapshot.stableOrder(preferences.missingArtSongIds),
+                    )
+                }
             }.catch { e ->
                 _uiState.value = UiState.Error(e.message ?: "Failed to load issues")
             }.collect { issues ->
-                _uiState.value = if (issues.isEmpty()) UiState.Empty else UiState.Success(data = issues)
+                _uiState.value = when {
+                    issues == null -> UiState.Loading
+                    issues.isEmpty() -> UiState.Empty
+                    else -> UiState.Success(data = issues)
+                }
             }
-        }
-    }
-
-    private fun refreshMissingArtSongIds() {
-        viewModelScope.launch {
-            _missingArtSongIds.value = runCatching { repository.findMissingArtSongIds() }.getOrDefault(emptyList())
         }
     }
 
@@ -88,6 +179,10 @@ class IssuesViewModel(
      * the three timestamped outcomes sort by recency in the middle, and the destructive-action
      * count sorts last (the softest signal — a plain count with no failure behind it). Missing
      * songs keep their existing most-recent-first order.
+     *
+     * [missingArtSongIds] now arrives from the scan cache rather than a fresh sweep, but nothing
+     * about the composition below changed with it — IssuesScanWorker.countIssues mirrors this
+     * exact shape to produce the status line's count.
      */
     private fun buildIssues(
         partial: PartialSources,
@@ -131,11 +226,36 @@ class IssuesViewModel(
         }
     }
 
-    /** Re-extracts art for [songIds] (the affected songs from one [Issue.MissingArt] entry). */
-    fun fixMissingArt(songIds: List<String>) {
+    /** The Scan button. Same work, same queue, same policy as the daily automatic trigger. */
+    fun startScan() {
+        _pendingScan.value = true
+        IssuesScanWorker.enqueue(context)
         viewModelScope.launch {
-            repository.recoverMissingArt(songIds)
-            refreshMissingArtSongIds()
+            // Hand off to the real WorkInfo signal the moment it appears, so the two never
+            // both go false at once and flash the old list back. The timeout is a safety net
+            // for the case where the run finishes between two emissions and no active state is
+            // ever observed — without it, a stuck flag would disable the button indefinitely.
+            withTimeoutOrNull(PendingScanHandoffMs) { scanRunning.first { it == true } }
+            _pendingScan.value = false
+        }
+    }
+
+    /**
+     * Re-extracts art for [songIds] (the affected songs from one [Issue.MissingArt] entry), then
+     * triggers a full rescan rather than re-checking missing art alone: the cache the screen
+     * reads is written by [IssuesScanWorker] and nothing else, so letting the fix update it
+     * directly would give the screen a second, divergent source of truth. The scan flag is held
+     * across the recovery itself, not just the rescan — art is being rewritten on disk, so the
+     * cached rows are no more trustworthy during the fix than during the scan that follows it.
+     */
+    fun fixMissingArt(songIds: List<String>) {
+        _pendingScan.value = true
+        viewModelScope.launch {
+            runCatching { repository.recoverMissingArt(songIds) }
+                .onFailure { e -> Log.w(TAG, "Art recovery failed for ${songIds.size} song(s)", e) }
+            // Runs on both outcomes: a partial or failed recovery still needs the cache
+            // reconciled with whatever is actually on disk now.
+            startScan()
         }
     }
 
@@ -144,8 +264,18 @@ class IssuesViewModel(
             if (!modelClass.isAssignableFrom(IssuesViewModel::class.java)) {
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
+            val appContext = context.applicationContext
             @Suppress("UNCHECKED_CAST")
-            return IssuesViewModel(SongRepositoryImpl.create(context)) as T
+            return IssuesViewModel(
+                context = appContext,
+                repository = SongRepositoryImpl.create(appContext),
+                preferences = PreferencesManager(appContext),
+            ) as T
         }
+    }
+
+    private companion object {
+        /** Upper bound on how long [_pendingScan] can hold the UI before WorkInfo takes over. */
+        const val PendingScanHandoffMs = 5_000L
     }
 }

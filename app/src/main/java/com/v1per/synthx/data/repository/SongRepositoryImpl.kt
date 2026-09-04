@@ -292,8 +292,17 @@ class SongRepositoryImpl(
     // even though it writes nothing — RestoreCoordinator still needs to know this work is in
     // flight so a restore can drain it before touching filesDir/art/ or the songs table.
     override suspend fun findMissingArtSongIds(): List<String> = dbOperation {
-        ArtRecovery.findMissingArt(context, songDao.getAllSongsOnce()).map { it.id }
+        findMissingArtSongIdsAlreadyAdmitted()
     }
+
+    /** [findMissingArtSongIds] for callers already holding admission — see [verifyLibrary] for
+     *  the same split, used by the workers that go through [WorkerDatabaseAccess]. */
+    internal suspend fun findMissingArtSongIdsAlreadyAdmitted(): List<String> =
+        ArtRecovery.findMissingArt(context, songDao.getAllSongsOnce()).map { it.id }
+
+    /** One-shot missing-song count for [WorkerDatabaseAccess]-admitted callers. The Flow-based
+     *  [getMissingSongCount] above is for screens that need to keep observing; a worker doesn't. */
+    internal suspend fun getMissingSongCountAlreadyAdmitted(): Int = songDao.getMissingSongCountOnce()
 
     override suspend fun recoverMissingArt(songIds: List<String>?): ArtRecoveryResult = dbOperation {
         ArtRecovery.recover(context, songDao, songIds)
