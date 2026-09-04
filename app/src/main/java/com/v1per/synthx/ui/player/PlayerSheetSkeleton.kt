@@ -51,10 +51,9 @@ import com.v1per.synthx.ui.theme.SurfaceVariant
 import kotlinx.coroutines.launch
 
 /**
- * Height reserved below the art for the title/artist row. Canonical declaration — also used
- * by PlayerSkeletonExpandedContent.kt (the title row's current home) and, in this package,
- * by PlayerSkeletonQueueMetrics.kt's QueueHeaderRowHeight and QueueArtPositioning.kt's
- * computeArtPosition.
+ * Height reserved below the art for the regular player's title/artist row. Canonical
+ * declaration used by PlayerSkeletonExpandedContent.kt (the title row's current home) and
+ * the regular-player geometry in QueueArtPositioning.kt's computeArtPosition.
  *
  * Internal rather than private: `internal` in Kotlin is module-wide, not package-scoped, so
  * this is importable from ui/components/ despite the different package.

@@ -7,21 +7,17 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTypography
 
 /**
- * Queue-mode header art size (44dp) — same size as the mini-player thumbnail, matching the
- * other layout constants declared in PlayerSheetSkeleton.kt (TitleRowReservedHeight,
- * ExpandedTopMargin, ControlsOverlayHeight).
+ * Queue-mode header art size (44dp) — same size as the mini-player thumbnail.
  */
 val QueueModeArtSize: Dp = 44.dp
 
 /**
- * Approximate height of the (not yet ported) queue-mode header row, used only to vertically
- * center the 44dp queue art within it. The old QueueModeHeader's height was content-driven
- * (sized by its tallest child — effectively the two-line title/artist column), not a fixed
- * constant, so there is no exact source value to mirror here. [TitleRowReservedHeight] (52dp)
- * is reused as the closest existing approximation already declared in PlayerSheetSkeleton.kt
- * for a two-line title/artist block, rather than inventing a new number.
+ * Queue-mode-only positioning height used to establish the header Column's top anchor. This
+ * deliberately remains independent of the regular player's title-row reservation: the two
+ * layouts have separate spacing requirements and must be free to change without moving each
+ * other. Restoring 68dp preserves the queue thumbnail's intended 72dp resting position.
  */
-val QueueHeaderRowHeight: Dp = TitleRowReservedHeight
+val QueueHeaderRowHeight: Dp = 68.dp
 
 /**
  * Height of the queue-mode header-to-playback-row region — a real Column (header Row +
@@ -30,9 +26,8 @@ val QueueHeaderRowHeight: Dp = TitleRowReservedHeight
  * spacer has real slack to distribute. Composed from existing [Spacing] tokens rather than a
  * bespoke literal: [Spacing.xxl] for the header row's own footprint, [Spacing.RowHeight] for
  * the playback row's, and [Spacing.xl] as the slack absorbed entirely by the one leading
- * spacer. Still an approximation of the two children's real intrinsic heights — same as
- * [QueueHeaderRowHeight] above — just sourced from named tokens instead of an untethered dp
- * literal, and tunable the same way.
+ * spacer. It is independent of both [QueueHeaderRowHeight] and the regular player's title-row
+ * reservation, so those concerns can be tuned without changing this region's height.
  */
 val QueueHeaderRegionHeight: Dp = Spacing.xxl + Spacing.RowHeight + Spacing.xl
 
@@ -69,13 +64,14 @@ val Density.QueueHeaderRowIntrinsicHeight: Dp
 /**
  * [com.v1per.synthx.ui.components.QueuePlaybackModeRow]'s real intrinsic height, as rendered
  * in PlayerSkeletonQueueContent — its own `Spacing.sm` (8dp) vertical padding on both sides of
- * its default-sized (48dp) `IconButton`s: 8 + 48 + 8 = 64dp. Not measured at runtime, same
+ * its default-sized (40dp) `DragResistantIconButton`s: 8 + 40 + 8 = 56dp. Not measured at
+ * runtime, same
  * reasoning as [QueueHeaderRowIntrinsicHeight] above.
  *
  * MUST be kept in sync with QueuePlaybackModeRow.kt's actual layout: if its padding or icon
  * size changes, update this to match, for the same reason as [QueueHeaderRowIntrinsicHeight].
  */
-val QueuePlaybackModeRowIntrinsicHeight: Dp = 64.dp
+val QueuePlaybackModeRowIntrinsicHeight: Dp = 56.dp
 
 /**
  * The queue-mode Column's single leading weight(1f) spacer's real height — [QueueHeaderRegionHeight]
