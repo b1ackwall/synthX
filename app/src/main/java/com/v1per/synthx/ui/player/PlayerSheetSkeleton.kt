@@ -140,8 +140,9 @@ fun PlayerSheetSkeleton(
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val collapsedHeightPx = with(density) { CollapsedPlayerHeight.toPx() }
-    // Same tuning as the current PlayerSheet — higher friction lets the fling decelerate
-    // before handing off to the snap spring.
+    // Higher-than-default friction (stock exponentialDecay is 1.0f) lets a fling decelerate
+    // before handing off to the snap spring, so a fast release reads as one continuous motion
+    // rather than a coast that stops dead and is then yanked the rest of the way.
     val decayAnimationSpec = remember { exponentialDecay<Float>(frictionMultiplier = 1.8f) }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -150,8 +151,14 @@ fun PlayerSheetSkeleton(
         val draggableState = remember {
             AnchoredDraggableState(
                 initialValue = PlayerSheetValue.Collapsed,
-                positionalThreshold = { totalDistance -> totalDistance * 0.4f },
-                velocityThreshold = { with(density) { 200.dp.toPx() } },
+                // 20% of the full collapsed↔expanded travel, not the 0.4f used by
+                // RefinedBottomSheet/QueueRow. That convention is tuned for short sheets and
+                // single-row swipes; here the travel is nearly the whole screen, so 0.4f meant
+                // a slow, non-flick drag had to cover ~294dp before it would snap — far more
+                // than a deliberate drag feels like it should need. Fast flicks are unaffected:
+                // velocityThreshold below short-circuits the positional test entirely.
+                positionalThreshold = { totalDistance -> totalDistance * 0.2f },
+                velocityThreshold = { with(density) { 40.dp.toPx() } },
                 snapAnimationSpec = Motion.SpringStandard,
                 decayAnimationSpec = decayAnimationSpec,
             )
