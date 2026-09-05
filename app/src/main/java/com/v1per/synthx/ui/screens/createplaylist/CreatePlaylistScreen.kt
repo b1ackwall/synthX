@@ -183,7 +183,10 @@ fun CreatePlaylistScreen(
                     .fillMaxWidth()
                     .height(Spacing.xxl),
                 shape = MaterialTheme.shapes.small,
-                colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SurfaceVariant,
+                    contentColor = TextPrimary,
+                ),
             ) {
                 if (isCreating) {
                     CircularProgressIndicator(

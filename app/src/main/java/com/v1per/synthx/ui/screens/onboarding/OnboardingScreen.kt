@@ -121,7 +121,10 @@ private fun ChoiceStep(
             onClick = onFreshInstall,
             modifier = Modifier.fillMaxWidth().height(Spacing.xxl),
             shape = MaterialTheme.shapes.small,
-            colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SurfaceVariant,
+                contentColor = TextPrimary,
+            ),
         ) {
             Text(
                 text = stringResource(R.string.onboarding_fresh_install),
@@ -277,7 +280,10 @@ private fun FolderSetupStep(
                 .padding(Spacing.HorizontalPadding)
                 .height(Spacing.xxl),
             shape = MaterialTheme.shapes.small,
-            colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SurfaceVariant,
+                contentColor = TextPrimary,
+            ),
         ) {
             Text(
                 text = stringResource(R.string.action_done),

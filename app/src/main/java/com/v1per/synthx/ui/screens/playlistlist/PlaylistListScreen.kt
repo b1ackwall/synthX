@@ -128,6 +128,7 @@ fun PlaylistListScreen(
                 onClick = onCreatePlaylistClick,
                 border = BorderStroke(1.dp, TextSecondary),
                 shape = MaterialTheme.shapes.small,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -145,6 +146,7 @@ fun PlaylistListScreen(
                 onClick = viewModel::onCreateGroupClick,
                 border = BorderStroke(1.dp, TextSecondary),
                 shape = MaterialTheme.shapes.small,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
             ) {
                 Icon(
                     imageVector = Icons.Default.CreateNewFolder,
@@ -298,14 +300,20 @@ private fun CreateGroupCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
-                TextButton(onClick = onDismiss) {
+                TextButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
+                ) {
                     Text(text = stringResource(R.string.action_cancel), color = TextSecondary)
                 }
                 Spacer(modifier = Modifier.width(Spacing.sm))
                 Button(
                     onClick = { onConfirm(name) },
                     shape = MaterialTheme.shapes.small,
-                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceVariant),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SurfaceVariant,
+                        contentColor = TextPrimary,
+                    ),
                 ) {
                     Text(text = stringResource(R.string.action_create), color = TextPrimary)
                 }
