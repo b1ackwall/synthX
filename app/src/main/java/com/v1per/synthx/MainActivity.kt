@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
@@ -44,6 +45,7 @@ import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.MainScaffold
 import com.v1per.synthx.ui.theme.SynthXTheme
+import com.v1per.synthx.ui.theme.TextPrimary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
@@ -285,7 +287,12 @@ private fun DatabaseStartupFailureContent(
             onDismissRequest = {},
             title = { Text("Database startup paused") },
             text = { Text(message) },
-            confirmButton = { TextButton(onClick = onRetry) { Text("Retry") } },
+            confirmButton = {
+                TextButton(
+                    onClick = onRetry,
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                ) { Text("Retry") }
+            },
         )
     }
 }
@@ -318,6 +325,7 @@ private fun MigrationRecoveryContent(applicationContext: android.content.Context
             confirmButton = {
                 TextButton(
                     enabled = !isRestoring,
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
                     onClick = {
                         isRestoring = true
                         scope.launch(Dispatchers.IO) {
@@ -351,7 +359,12 @@ private fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
         AlertDialog(onDismissRequest = {}, title = {
             Text(if (state == RestoreCoordinator.Terminal.EMERGENCY) "Database recovery required" else "Restart required")
         }, text = { Text(message) },
-            confirmButton = { TextButton(onClick = { exitProcess(0) }) { Text("Close") } })
+            confirmButton = {
+                TextButton(
+                    onClick = { exitProcess(0) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                ) { Text("Close") }
+            })
     }
 }
 

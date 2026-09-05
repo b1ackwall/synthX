@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -82,13 +83,17 @@ internal fun VerifyRootOrganizationSection(
                     onClick = {
                         showConfirmDialog = false
                         onCheckRootLibraryOrganization()
-                    }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
                 ) {
                     Text("Check")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmDialog = false }) {
+                TextButton(
+                    onClick = { showConfirmDialog = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
+                ) {
                     Text("Cancel")
                 }
             },
@@ -177,7 +182,10 @@ private fun RootOrganizationResultDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+            ) {
                 Text("OK")
             }
         },

@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -90,15 +91,21 @@ fun BackupsAndRestoreScreen(
             title = { Text(stringResource(R.string.restore_music_folder_required_title)) },
             text = { Text(stringResource(R.string.restore_music_folder_required_message)) },
             confirmButton = {
-                TextButton(onClick = {
-                    showMusicFolderRequiredDialog = false
-                    onManageLibraryClick()
-                }) {
+                TextButton(
+                    onClick = {
+                        showMusicFolderRequiredDialog = false
+                        onManageLibraryClick()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                ) {
                     Text(stringResource(R.string.restore_music_folder_required_action))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showMusicFolderRequiredDialog = false }) {
+                TextButton(
+                    onClick = { showMusicFolderRequiredDialog = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
+                ) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },

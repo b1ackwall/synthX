@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.screens.developersettings
 
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -103,12 +104,18 @@ private fun ConfirmPlaylistSeedDialog(
         title = { Text(stringResource(R.string.playlist_seed_confirm_title)) },
         text = { Text(stringResource(R.string.playlist_seed_confirm_message)) },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+            ) {
                 Text(stringResource(R.string.playlist_seed_confirm_action))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
+            ) {
                 Text(stringResource(R.string.action_cancel))
             }
         },
@@ -155,7 +162,10 @@ private fun PlaylistSeedResultDialog(
         title = { Text(title) },
         text = { Text(message) },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+            ) {
                 Text(stringResource(R.string.action_ok))
             }
         },
@@ -175,12 +185,18 @@ private fun ConfirmRegenerateSeedManifestDialog(
         title = { Text(stringResource(R.string.seed_manifest_regenerate_confirm_title)) },
         text = { Text(stringResource(R.string.seed_manifest_regenerate_confirm_message)) },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+            ) {
                 Text(stringResource(R.string.seed_manifest_regenerate_confirm_action))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
+            ) {
                 Text(stringResource(R.string.action_cancel))
             }
         },
@@ -224,7 +240,10 @@ private fun RegenerateSeedManifestResultDialog(
         title = { Text(title) },
         text = { Text(message) },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+            ) {
                 Text(stringResource(R.string.action_ok))
             }
         },

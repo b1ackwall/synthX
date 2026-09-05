@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.components
 
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,12 +30,18 @@ fun QueuePromptDialog(
         title = { Text(stringResource(R.string.queue_prompt_title)) },
         text = { Text(stringResource(R.string.queue_prompt_message)) },
         confirmButton = {
-            TextButton(onClick = onKeep) {
+            TextButton(
+                onClick = onKeep,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+            ) {
                 Text(stringResource(R.string.action_keep))
             }
         },
         dismissButton = {
-            TextButton(onClick = onClear) {
+            TextButton(
+                onClick = onClear,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
+            ) {
                 Text(stringResource(R.string.action_clear))
             }
         },

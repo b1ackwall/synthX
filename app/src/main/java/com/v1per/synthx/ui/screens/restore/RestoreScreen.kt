@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -108,7 +109,10 @@ fun RestoreScreen(
             title = { Text(stringResource(R.string.restore_preview_error_title)) },
             text = { Text(current.message) },
             confirmButton = {
-                TextButton(onClick = viewModel::dismissPreview) {
+                TextButton(
+                    onClick = viewModel::dismissPreview,
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                ) {
                     Text(stringResource(R.string.action_ok))
                 }
             },
@@ -143,7 +147,10 @@ fun RestoreScreen(
             title = { Text(stringResource(R.string.restore_done_title)) },
             text = { Text(stringResource(R.string.restore_done_message)) },
             confirmButton = {
-                TextButton(onClick = { exitProcess(0) }) {
+                TextButton(
+                    onClick = { exitProcess(0) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                ) {
                     Text(stringResource(R.string.action_ok))
                 }
             },
@@ -156,7 +163,10 @@ fun RestoreScreen(
             title = { Text(stringResource(R.string.restore_failed_title)) },
             text = { Text(current.message) },
             confirmButton = {
-                TextButton(onClick = viewModel::dismissFailure) {
+                TextButton(
+                    onClick = viewModel::dismissFailure,
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                ) {
                     Text(stringResource(R.string.action_ok))
                 }
             },
@@ -295,12 +305,18 @@ private fun ConfirmRestoreDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(text = stringResource(R.string.restore_confirm_action), color = Error)
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = Error),
+            ) {
+                Text(text = stringResource(R.string.restore_confirm_action))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
+            ) {
                 Text(stringResource(R.string.action_cancel))
             }
         },

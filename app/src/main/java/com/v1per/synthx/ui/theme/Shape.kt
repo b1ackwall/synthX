@@ -9,4 +9,5 @@ val SynthXShapes = Shapes(
     small = RoundedCornerShape(2.dp),
     medium = RoundedCornerShape(2.dp),
     large = RoundedCornerShape(2.dp),
+    extraLarge = RoundedCornerShape(2.dp),
 )
