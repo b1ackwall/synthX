@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.screens.songs.SortOrder
@@ -28,6 +29,13 @@ fun SynthXNavHost(
     // Rendering lives at MainScaffold level (above BottomChromeOverlay) so the sheet draws
     // above the bottom nav/player as a structural sibling, not a descendant of this NavHost.
     onShowSortSheet: (currentOrder: SortOrder, onOrderSelected: (SortOrder) -> Unit) -> Unit,
+    // Same arrangement, same reason, for the playlist-group picker: the screen supplies the
+    // groups, the playlist's current group (null when ungrouped) and what to do with the pick.
+    onShowGroupPicker: (
+        groups: List<PlaylistGroup>,
+        currentGroupId: String?,
+        onGroupSelected: (groupId: String) -> Unit,
+    ) -> Unit,
     // Resolved once in MainActivity from PreferencesManager.musicFolderUri == null and threaded
     // down through MainScaffold/NormalShell — Screen.Onboarding.route on a first run/reinstall/
     // cleared-data launch, Screen.Home.route otherwise.
@@ -81,6 +89,7 @@ fun SynthXNavHost(
                 navController = navController,
                 playbackViewModel = playbackViewModel,
                 chromeBottomPadding = chromeBottomPadding,
+                onShowGroupPicker = onShowGroupPicker,
             )
         }
     }

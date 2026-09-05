@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
+import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.PlaylistRow
@@ -36,12 +37,20 @@ fun GroupDetailScreen(
     topBar: @Composable () -> Unit,
     onPlaylistClick: (playlistId: String, playlistName: String) -> Unit,
     groupId: String,
+    // Opens the group picker, hosted by MainScaffold above the bottom nav/player — see
+    // PlaylistRoutes/SynthXNavHost.
+    onShowGroupPicker: (
+        groups: List<PlaylistGroup>,
+        currentGroupId: String?,
+        onGroupSelected: (groupId: String) -> Unit,
+    ) -> Unit = { _, _, _ -> },
     viewModel: GroupDetailViewModel = viewModel(
         key = groupId,
         factory = GroupDetailViewModel.factory(LocalContext.current, groupId),
     ),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val groups by viewModel.groups.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -51,6 +60,7 @@ fun GroupDetailScreen(
                 GroupDetailViewModel.ActionError.RenameFailed -> R.string.error_rename_playlist
                 GroupDetailViewModel.ActionError.DeleteFailed -> R.string.error_delete_playlist
                 GroupDetailViewModel.ActionError.RemoveFromGroupFailed -> R.string.error_remove_from_group
+                GroupDetailViewModel.ActionError.MoveToGroupFailed -> R.string.error_move_playlist
             }
             snackbarHostState.showSnackbar(context.getString(messageRes))
         }
@@ -72,12 +82,24 @@ fun GroupDetailScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(state.data, key = { it.id }) { playlist ->
+                        // Every playlist here is in this group, so its menu offers "Move to
+                        // group" (picker, current group checked and inert) and "Remove from
+                        // group" (direct) as two separate items. Both used to collapse into one
+                        // onMoveToGroup that discarded its argument and always ungrouped, and
+                        // availableGroups was never passed at all — so the move item never even
+                        // rendered here.
                         PlaylistRow(
                             playlist = playlist,
                             onClick = { onPlaylistClick(playlist.id, playlist.name) },
                             onRename = { name -> viewModel.renamePlaylist(playlist.id, name) },
                             onDelete = { viewModel.deletePlaylist(playlist.id) },
-                            onMoveToGroup = { viewModel.removeFromGroup(playlist.id) },
+                            onShowGroupPicker = {
+                                onShowGroupPicker(groups, playlist.groupId) { targetGroupId ->
+                                    viewModel.moveToGroup(playlist.id, targetGroupId)
+                                }
+                            },
+                            onRemoveFromGroup = { viewModel.removeFromGroup(playlist.id) },
+                            availableGroups = groups,
                         )
                     }
                 }

@@ -12,6 +12,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.v1per.synthx.R
+import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.common.isReady
@@ -30,6 +31,13 @@ fun NavGraphBuilder.playlistRoutes(
     navController: NavHostController,
     playbackViewModel: PlaybackViewModel,
     chromeBottomPadding: Dp,
+    // Rendered at MainScaffold level, above the bottom nav/player — see SynthXNavHost's own
+    // parameter and MainScaffold's GroupPickerTarget.
+    onShowGroupPicker: (
+        groups: List<PlaylistGroup>,
+        currentGroupId: String?,
+        onGroupSelected: (groupId: String) -> Unit,
+    ) -> Unit,
 ) {
     composable(Screen.PlaylistList.route) {
         RouteContent(chromeBottomPadding) {
@@ -56,6 +64,7 @@ fun NavGraphBuilder.playlistRoutes(
                 onCreatePlaylistClick = {
                     navController.navigate(Screen.CreatePlaylist.route)
                 },
+                onShowGroupPicker = onShowGroupPicker,
                 viewModel = playlistListViewModel,
             )
         }
@@ -109,6 +118,7 @@ fun NavGraphBuilder.playlistRoutes(
                         )
                     },
                     groupId = groupId,
+                    onShowGroupPicker = onShowGroupPicker,
                     viewModel = groupDetailViewModel,
                 )
             }

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -49,7 +48,15 @@ internal fun PlaylistRow(
     onClick: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
-    onMoveToGroup: (String?) -> Unit = {},
+    // Opens the group picker sheet. Hosted by MainScaffold, not by this row: a sheet composed
+    // inside the NavHost draws *under* BottomChromeOverlay, so the bottom nav and player would
+    // paint over its lower rows — the same reason the sort sheet is hoisted (see MainScaffold).
+    onShowGroupPicker: () -> Unit = {},
+    // Direct, sheet-less ungrouping. Separate from the picker: "remove" is a one-tap answer, not
+    // a choice among groups, and the picker has no "no group" row to express it.
+    onRemoveFromGroup: () -> Unit = {},
+    // Read only to decide whether offering a group at all makes sense — the rows themselves are
+    // rendered by the picker sheet now, not by this menu.
     availableGroups: List<PlaylistGroup> = emptyList(),
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -113,13 +120,17 @@ internal fun PlaylistRow(
             }
             PlaylistThreeDotsMenu(
                 playlistName = playlist.name,
-                availableGroups = availableGroups,
+                // "Somewhere else to put it", not merely "groups exist": for a playlist that is
+                // already grouped, a library whose only group is that one has nothing to offer,
+                // and the picker would open showing a single checked, inert row.
+                hasGroupsToChooseFrom = availableGroups.any { it.id != playlist.groupId },
                 currentGroupId = playlist.groupId,
                 onRename = {
                     renameValue = playlist.name
                     isRenaming = true
                 },
-                onMoveToGroup = onMoveToGroup,
+                onShowGroupPicker = onShowGroupPicker,
+                onRemoveFromGroup = onRemoveFromGroup,
                 onDelete = onDelete,
             )
         }
@@ -130,17 +141,28 @@ internal fun PlaylistRow(
     }
 }
 
+/**
+ * Group membership is a single nullable column, so a playlist is in exactly one group or none —
+ * which gives this menu two shapes, never a third:
+ * - ungrouped: "Add to group" alone. There is nothing to remove it from, and "move" would be a
+ *   misnomer for a first assignment.
+ * - grouped: "Move to group" and "Remove from group" as two separate items. They used to be one
+ *   overloaded callback where the group picker also carried the null (ungroup) case; splitting
+ *   them keeps the direct action out of a sheet whose whole content is groups to move *into*.
+ *
+ * Both group entries are gated on at least one group existing — creating one stays the main
+ * Playlists screen's own "New Group" flow and is deliberately not shortcut from here.
+ */
 @Composable
 private fun PlaylistThreeDotsMenu(
     playlistName: String,
-    availableGroups: List<PlaylistGroup>,
+    hasGroupsToChooseFrom: Boolean,
     currentGroupId: String?,
     onRename: () -> Unit,
-    onMoveToGroup: (String?) -> Unit,
+    onShowGroupPicker: () -> Unit,
+    onRemoveFromGroup: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    var showGroupMenu by remember { mutableStateOf(false) }
-
     ThreeDotMenuWithConfirm(
         menuItems = { closeMenu, requestConfirm ->
             DropdownMenuItem(
@@ -150,7 +172,7 @@ private fun PlaylistThreeDotsMenu(
                     onRename()
                 },
             )
-            if (availableGroups.isNotEmpty()) {
+            if (hasGroupsToChooseFrom) {
                 DropdownMenuItem(
                     text = {
                         Text(
@@ -163,7 +185,7 @@ private fun PlaylistThreeDotsMenu(
                     },
                     onClick = {
                         closeMenu()
-                        showGroupMenu = true
+                        onShowGroupPicker()
                     },
                 )
             }
@@ -172,7 +194,7 @@ private fun PlaylistThreeDotsMenu(
                     text = { Text(stringResource(R.string.action_remove_from_group)) },
                     onClick = {
                         closeMenu()
-                        onMoveToGroup(null)
+                        onRemoveFromGroup()
                     },
                 )
             }
@@ -190,24 +212,6 @@ private fun PlaylistThreeDotsMenu(
                 },
                 onDismiss = onDismiss,
             )
-        },
-        // Independent of the confirm-dialog flow — a second dropdown anchored at the same
-        // 3-dot button, not a destructive-action confirmation.
-        extraMenuContent = {
-            DropdownMenu(
-                expanded = showGroupMenu,
-                onDismissRequest = { showGroupMenu = false },
-            ) {
-                availableGroups.forEach { group ->
-                    DropdownMenuItem(
-                        text = { Text(group.name) },
-                        onClick = {
-                            showGroupMenu = false
-                            onMoveToGroup(group.id)
-                        },
-                    )
-                }
-            }
         },
     )
 }

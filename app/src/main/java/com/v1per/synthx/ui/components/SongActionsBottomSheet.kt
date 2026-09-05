@@ -1,5 +1,11 @@
 package com.v1per.synthx.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,6 +48,7 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -87,37 +94,62 @@ fun SongActionsBottomSheet(
         sheetState = sheetState,
         containerColor = SurfaceColor,
         shape = MaterialTheme.shapes.small,
+        showDragHandle = false,
+        enableDragToDismiss = false,
     ) {
-        when (page) {
-            SheetPage.Actions -> ActionsPage(
-                song = song,
-                currentPlaylistId = currentPlaylistId,
-                showDeleteRow = showDeleteRow,
-                deleteEnabled = deleteEnabled,
-                showRemoveFromStarredRow = showRemoveFromStarredRow,
-                removeFromStarredEnabled = removeFromStarredEnabled,
-                isCurrentlyPlaying = isCurrentlyPlaying,
-                onDeleteSong = { showDeleteConfirm = true },
-                onGoToAlbum = onGoToAlbum,
-                onGoToArtist = onGoToArtist,
-                onRemoveFromPlaylist = onRemoveFromPlaylist,
-                onRemoveFromStarred = onRemoveFromStarred,
-                onPlayNext = onPlayNext,
-                onAddToQueue = onAddToQueue,
-                onShowPlaylists = { page = SheetPage.Playlists },
-                onShowArtists = { page = SheetPage.Artists },
-            )
-            SheetPage.Artists -> SubPage(
-                title = stringResource(R.string.actions_go_to_artist),
-                items = song.artists.map { it.id to it.name },
-                onSelect = onGoToArtist,
-            )
-            SheetPage.Playlists -> SubPage(
-                title = stringResource(R.string.actions_add_to_playlist),
-                items = playlists.map { it.id to it.name },
-                emptyText = stringResource(R.string.empty_no_playlists),
-                onSelect = onAddToPlaylist,
-            )
+        AnimatedContent(
+            targetState = page,
+            transitionSpec = {
+                // Rises+fades in, never slides sideways — this is a bottom sheet, so incoming
+                // content reads as arriving from below (matching RefinedBottomSheet's own
+                // slide-up entrance) rather than fighting it with horizontal motion. Outgoing
+                // content only fades — a competing slide on both layers reads as busy. Same in
+                // both directions: a content swap this small doesn't need push/pop semantics.
+                // Incoming timing/easing reuses RefinedBottomSheet's own entrance spec
+                // (Motion.kt). Outgoing fade runs on the faster token instead of matching
+                // duration — running both at DurationNormal left old/new content visibly
+                // overlapping mid-transition; a quicker exit clears the old page before the
+                // incoming one becomes prominent, without reading as an instant cut.
+                (fadeIn(tween(Motion.DurationNormal, easing = Motion.EasingDecelerate)) +
+                    slideInVertically(
+                        tween(Motion.DurationNormal, easing = Motion.EasingDecelerate),
+                        initialOffsetY = { height -> height / 8 },
+                    )) togetherWith
+                    fadeOut(tween(Motion.DurationFast, easing = Motion.EasingAccelerate))
+            },
+            label = "SongActionsSheetPage",
+        ) { targetPage ->
+            when (targetPage) {
+                SheetPage.Actions -> ActionsPage(
+                    song = song,
+                    currentPlaylistId = currentPlaylistId,
+                    showDeleteRow = showDeleteRow,
+                    deleteEnabled = deleteEnabled,
+                    showRemoveFromStarredRow = showRemoveFromStarredRow,
+                    removeFromStarredEnabled = removeFromStarredEnabled,
+                    isCurrentlyPlaying = isCurrentlyPlaying,
+                    onDeleteSong = { showDeleteConfirm = true },
+                    onGoToAlbum = onGoToAlbum,
+                    onGoToArtist = onGoToArtist,
+                    onRemoveFromPlaylist = onRemoveFromPlaylist,
+                    onRemoveFromStarred = onRemoveFromStarred,
+                    onPlayNext = onPlayNext,
+                    onAddToQueue = onAddToQueue,
+                    onShowPlaylists = { page = SheetPage.Playlists },
+                    onShowArtists = { page = SheetPage.Artists },
+                )
+                SheetPage.Artists -> SubPage(
+                    title = stringResource(R.string.actions_go_to_artist),
+                    items = song.artists.map { it.id to it.name },
+                    onSelect = onGoToArtist,
+                )
+                SheetPage.Playlists -> SubPage(
+                    title = stringResource(R.string.actions_add_to_playlist),
+                    items = playlists.map { it.id to it.name },
+                    emptyText = stringResource(R.string.empty_no_playlists),
+                    onSelect = onAddToPlaylist,
+                )
+            }
         }
     }
 

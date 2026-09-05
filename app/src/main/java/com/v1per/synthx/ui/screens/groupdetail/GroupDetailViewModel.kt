@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Playlist
+import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.ui.common.LoadError
@@ -27,7 +28,7 @@ class GroupDetailViewModel(
 ) : ViewModel() {
 
     /** Resolved to app-voice strings.xml copy by the screen. */
-    enum class ActionError { RenameFailed, DeleteFailed, RemoveFromGroupFailed }
+    enum class ActionError { RenameFailed, DeleteFailed, RemoveFromGroupFailed, MoveToGroupFailed }
 
     private val _uiState = MutableStateFlow<UiState<List<Playlist>>>(UiState.Loading)
     val uiState: StateFlow<UiState<List<Playlist>>> = _uiState.asStateFlow()
@@ -41,6 +42,14 @@ class GroupDetailViewModel(
     )
     val actionErrors: SharedFlow<ActionError> = _actionErrors.asSharedFlow()
 
+    // Every group, including this one — the picker shows the current group checked and inert
+    // rather than hiding it, so the list is not filtered here. Kept separate from [uiState]
+    // (which drives this screen's own readiness cover) because a group-list load failure must
+    // not blank out a perfectly good playlist list; an empty list simply means the "Move to
+    // group" menu item doesn't render.
+    private val _groups = MutableStateFlow<List<PlaylistGroup>>(emptyList())
+    val groups: StateFlow<List<PlaylistGroup>> = _groups.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.getPlaylistsForGroup(groupId)
@@ -51,6 +60,23 @@ class GroupDetailViewModel(
                     _uiState.value =
                         if (playlists.isEmpty()) UiState.Empty else UiState.Success(data = playlists)
                 }
+        }
+        viewModelScope.launch {
+            repository.getAllGroups()
+                .catch { _groups.value = emptyList() }
+                .collect { _groups.value = it }
+        }
+    }
+
+    // Reassignment only: the picker never offers the null (ungroup) case, so this cannot be
+    // reached with anything but a real group id. Non-destructive and unconfirmed by design —
+    // movePlaylistToGroup overwrites group_id outright, and Room's invalidation drops the row
+    // from this group's list once the write lands, exactly as removeFromGroup below does.
+    // targetGroupId, not groupId: the constructor property of that name is the group being
+    // *viewed*, and shadowing it here is exactly the confusion this call is fixing.
+    fun moveToGroup(id: String, targetGroupId: String) {
+        launchCatching(onError = { _actionErrors.tryEmit(ActionError.MoveToGroupFailed) }) {
+            repository.movePlaylistToGroup(id, targetGroupId)
         }
     }
 

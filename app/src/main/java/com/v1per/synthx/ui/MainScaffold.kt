@@ -42,12 +42,14 @@ import androidx.navigation.compose.rememberNavController
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupFolderLaunchCheck
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackError
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.playback.QueuePromptEvent
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
+import com.v1per.synthx.ui.components.GroupPickerBottomSheet
 import com.v1per.synthx.ui.components.QueuePromptDialog
 import com.v1per.synthx.ui.components.hiddenFromAccessibilityWhileSheetShown
 import com.v1per.synthx.ui.components.SongActionsHost
@@ -284,6 +286,21 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
         }
     }
 
+    // The playlist-group picker, hoisted for exactly the reason the sort sheet above is: it is
+    // opened from a PlaylistRow deep inside the NavHost, and a sheet composed there would draw
+    // under the bottom nav/player. The screens hand over the groups to list, where the playlist
+    // currently sits, and what to do with the pick — this shell holds no playlist state of its
+    // own and never touches the repository, same contract as SortSheetTarget.
+    var groupPickerTarget by remember { mutableStateOf<GroupPickerTarget?>(null) }
+    val groupPickerSheetState = rememberRefinedBottomSheetState()
+
+    fun dismissGroupPicker(after: () -> Unit = {}) {
+        scope.launch { groupPickerSheetState.hide() }.invokeOnCompletion {
+            groupPickerTarget = null
+            after()
+        }
+    }
+
     // Hosted here so every SongRow inside the NavHost, and the PlayerSheet below it,
     // share one sheet instance with navigation already wired.
     SongActionsHost(
@@ -306,7 +323,9 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .hiddenFromAccessibilityWhileSheetShown(hidden = sortSheetTarget != null),
+                .hiddenFromAccessibilityWhileSheetShown(
+                    hidden = sortSheetTarget != null || groupPickerTarget != null,
+                ),
         ) {
             SynthXNavHost(
                 navController = navController,
@@ -315,6 +334,9 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
                 searchReselectEvents = searchReselectEvents,
                 onShowSortSheet = { order, onOrderSelected ->
                     sortSheetTarget = SortSheetTarget(order, onOrderSelected)
+                },
+                onShowGroupPicker = { groups, currentGroupId, onGroupSelected ->
+                    groupPickerTarget = GroupPickerTarget(groups, currentGroupId, onGroupSelected)
                 },
                 startDestination = startDestination,
             )
@@ -350,6 +372,22 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
                 sheetState = sortSheetState,
                 onOrderSelected = { order -> dismissSortSheet { target.onOrderSelected(order) } },
                 onDismiss = { dismissSortSheet() },
+            )
+        }
+
+        // Same structural position, and the same reason for it, as the sort sheet above.
+        groupPickerTarget?.let { target ->
+            GroupPickerBottomSheet(
+                groups = target.groups,
+                currentGroupId = target.currentGroupId,
+                sheetState = groupPickerSheetState,
+                // Reassigning a group is non-destructive and instantaneous, so the pick closes
+                // the sheet and applies — no confirmation step, matching the picker's other
+                // single-tap consumers.
+                onGroupSelected = { groupId ->
+                    dismissGroupPicker { target.onGroupSelected(groupId) }
+                },
+                onDismiss = { dismissGroupPicker() },
             )
         }
 
@@ -397,4 +435,15 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
 private data class SortSheetTarget(
     val selectedOrder: SortOrder,
     val onOrderSelected: (SortOrder) -> Unit,
+)
+
+/**
+ * One open group picker: the groups to offer, the group the playlist is already in (null when it
+ * is ungrouped, which is also what decides the sheet's title and whether any row is checked), and
+ * the screen's own move-to-group call to run on the pick.
+ */
+private data class GroupPickerTarget(
+    val groups: List<PlaylistGroup>,
+    val currentGroupId: String?,
+    val onGroupSelected: (groupId: String) -> Unit,
 )

@@ -29,8 +29,10 @@ import com.v1per.synthx.ui.theme.TextTertiary
  *   destructive action).
  * @param confirmDialog receives `onConfirm`/`onDismiss` that close the confirm dialog; wrap
  *   `onConfirm` with the caller's own destructive action, e.g. `{ onConfirm(); onDelete() }`.
- * @param extraMenuContent an escape hatch for call sites with a second, independent dropdown
- *   (e.g. PlaylistRow's "move to group" submenu) that needs to live in the same anchor [Box].
+ *
+ * There was also an `extraMenuContent` escape hatch here, for a second dropdown anchored at the
+ * same button — PlaylistRow's nested "move to group" submenu was its only user, and that is now
+ * a bottom sheet ([GroupPickerBottomSheet]), so the hatch is gone with it.
  */
 @Composable
 internal fun ThreeDotMenuWithConfirm(
@@ -38,7 +40,6 @@ internal fun ThreeDotMenuWithConfirm(
     tint: Color = TextTertiary,
     menuItems: @Composable (closeMenu: () -> Unit, requestConfirm: () -> Unit) -> Unit,
     confirmDialog: @Composable (onConfirm: () -> Unit, onDismiss: () -> Unit) -> Unit,
-    extraMenuContent: @Composable () -> Unit = {},
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showConfirm by remember { mutableStateOf(false) }
@@ -63,7 +64,6 @@ internal fun ThreeDotMenuWithConfirm(
                 },
             )
         }
-        extraMenuContent()
     }
 
     if (showConfirm) {

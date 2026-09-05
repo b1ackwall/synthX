@@ -85,6 +85,13 @@ fun PlaylistListScreen(
     onGroupClick: (groupId: String, groupName: String) -> Unit,
     onPlaylistClick: (playlistId: String, playlistName: String) -> Unit,
     onCreatePlaylistClick: () -> Unit,
+    // Opens the group picker, which MainScaffold hosts above the bottom nav/player — see
+    // PlaylistRoutes/SynthXNavHost for why it can't be composed from inside this screen.
+    onShowGroupPicker: (
+        groups: List<PlaylistGroup>,
+        currentGroupId: String?,
+        onGroupSelected: (groupId: String) -> Unit,
+    ) -> Unit = { _, _, _ -> },
     viewModel: PlaylistListViewModel = viewModel(
         factory = PlaylistListViewModel.factory(LocalContext.current),
     ),
@@ -204,13 +211,20 @@ fun PlaylistListScreen(
                         key = { it.id },
                         contentType = { "playlist" },
                     ) { playlist ->
+                        // Every playlist in this section is ungrouped by definition
+                        // (getUngroupedPlaylists), so the picker opens with no current
+                        // selection and the row's menu offers only "Add to group" —
+                        // onRemoveFromGroup is left at its no-op default because the item
+                        // that would call it never renders for a null groupId.
                         PlaylistRow(
                             playlist = playlist,
                             onClick = { onPlaylistClick(playlist.id, playlist.name) },
                             onRename = { name -> viewModel.renamePlaylist(playlist.id, name) },
                             onDelete = { viewModel.deletePlaylist(playlist.id) },
-                            onMoveToGroup = { groupId ->
-                                viewModel.movePlaylistToGroup(playlist.id, groupId)
+                            onShowGroupPicker = {
+                                onShowGroupPicker(uiState.groups, playlist.groupId) { groupId ->
+                                    viewModel.movePlaylistToGroup(playlist.id, groupId)
+                                }
                             },
                             availableGroups = uiState.groups,
                         )

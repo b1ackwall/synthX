@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -104,6 +106,30 @@ class RefinedBottomSheetState {
 fun rememberRefinedBottomSheetState(): RefinedBottomSheetState = remember { RefinedBottomSheetState() }
 
 /**
+ * Ceiling on the sheet's own height, as a fraction of the height actually available at runtime
+ * (never a fixed dp, so it scales with the device instead of over/under-shooting small and large
+ * screens differently).
+ *
+ * Without it the sheet is purely content-sized with no upper bound at all: a long enough list
+ * (the playlist picker on a large library, the group picker below) grows all the way to the top
+ * of the window and — since this sheet applies no window insets, the app being edge-to-edge —
+ * slides its first rows under the status bar. Capping here rather than at each call site fixes
+ * it once for every consumer; a list that exceeds the cap simply scrolls inside its own
+ * LazyColumn, and anything shorter than the cap is unaffected and still sizes to its content.
+ */
+private const val MaxHeightFraction = 0.7f
+
+/**
+ * Floor on the sheet's own height, same fraction-of-available-height reasoning as
+ * [MaxHeightFraction]. Without it a very short list (e.g. a 2-artist "go to artist" picker)
+ * shrinks the sheet down to just its content size, which reads as a cramped, oddly small sheet
+ * hugging the bottom of the screen. Content shorter than this floor is padded up to it rather
+ * than the sheet shrinking to fit; content between the floor and [MaxHeightFraction] is
+ * unaffected either way.
+ */
+private const val MinHeightFraction = 0.3f
+
+/**
  * A bottom sheet that lives in normal composition — no [androidx.compose.ui.window.Dialog] or
  * Popup wrapping. `ModalBottomSheet` renders inside its own Android Window, which blocks touches
  * app-wide for the entire close animation regardless of visual state; this sheet has no such
@@ -117,10 +143,20 @@ fun rememberRefinedBottomSheetState(): RefinedBottomSheetState = remember { Refi
  * Animation contract:
  * - Open and tap-outside-close: fade + slide together, `tween(`[Motion.DurationNormal]`)`,
  *   decelerate/accelerate easing.
- * - Drag-to-dismiss: velocity-based slide only (no fade, no fixed duration) — a target-based
- *   spring ([Motion.SpringSnappy]) animates to fully closed with the release velocity fed in as
- *   the spring's initial velocity, so a fast flick still feels fast without ever stalling short
- *   of closed the way a pure decay animation can on a slow release.
+ * - Drag-to-dismiss (only when [enableDragToDismiss] is true): velocity-based slide only (no
+ *   fade, no fixed duration) — a target-based spring ([Motion.SpringSnappy]) animates to fully
+ *   closed with the release velocity fed in as the spring's initial velocity, so a fast flick
+ *   still feels fast without ever stalling short of closed the way a pure decay animation can on
+ *   a slow release.
+ *
+ * [enableDragToDismiss] defaults to true to preserve prior behavior for any future consumer that
+ * wants it, but every current consumer (SongActionsBottomSheet, GroupPickerBottomSheet,
+ * SortBottomSheet) disables it: the drag gesture is applied to the whole outer Column, so it sits
+ * underneath any scrollable content() (a LazyColumn on a sub-page or picker) and loses the touch
+ * to that list's own scrolling whenever the list can still scroll in that direction — an
+ * unresolved nestedScroll conflict that made drag-to-dismiss behave inconsistently depending on
+ * list length/scroll position/touch location. Scrim-tap and system back remain the dismiss paths
+ * for those consumers, both already independent of this gesture.
  *
  * Accessibility: the scrim is reachable as a labeled dismiss target and system back closes the
  * sheet via [BackHandler]. Since there's no separate Dialog window to give `ModalBottomSheet`'s
@@ -139,6 +175,7 @@ fun RefinedBottomSheet(
     scrimColor: Color = Color.Black.copy(alpha = 0.32f),
     shape: Shape = MaterialTheme.shapes.small,
     showDragHandle: Boolean = true,
+    enableDragToDismiss: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -176,6 +213,10 @@ fun RefinedBottomSheet(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                // Read from this same BoxWithConstraints scope that already supplies heightPx
+                // above, so the floor/cap track the real available height — see
+                // MinHeightFraction/MaxHeightFraction.
+                .heightIn(min = maxHeight * MinHeightFraction, max = maxHeight * MaxHeightFraction)
                 // Groups the sheet's own nodes into one accessibility region distinct from
                 // whatever's behind it — see this composable's kdoc.
                 .semantics { isTraversalGroup = true }
@@ -183,31 +224,38 @@ fun RefinedBottomSheet(
                     translationY = sheetState.offsetY.value
                     alpha = sheetState.alpha.value
                 }
-                .draggable(
-                    orientation = Orientation.Vertical,
-                    state = rememberDraggableState { delta ->
-                        val next = (sheetState.offsetY.value + delta).coerceIn(0f, heightPx)
-                        scope.launch { sheetState.offsetY.snapTo(next) }
-                    },
-                    onDragStopped = { velocity ->
-                        val positionalThreshold = heightPx * 0.4f
-                        if (sheetState.offsetY.value > positionalThreshold || velocity > velocityThresholdPx) {
-                            sheetState.markHiddenByDrag()
-                            // Target-based, not animateDecay: decay has no target position and
-                            // only coasts on the release velocity, so a slow release with little
-                            // velocity to coast on stalls short of fully closed. Feeding the
-                            // release velocity in as the spring's initialVelocity keeps a fast
-                            // flick feeling fast while guaranteeing every release still animates
-                            // all the way to fully closed in one continuous motion.
-                            sheetState.offsetY.animateTo(
-                                targetValue = heightPx,
-                                animationSpec = Motion.SpringSnappy,
-                                initialVelocity = velocity,
-                            )
-                            onDismissRequest()
-                        } else {
-                            sheetState.offsetY.animateTo(0f, Motion.SpringStandard)
-                        }
+                .then(
+                    if (enableDragToDismiss) {
+                        Modifier.draggable(
+                            orientation = Orientation.Vertical,
+                            state = rememberDraggableState { delta ->
+                                val next = (sheetState.offsetY.value + delta).coerceIn(0f, heightPx)
+                                scope.launch { sheetState.offsetY.snapTo(next) }
+                            },
+                            onDragStopped = { velocity ->
+                                val positionalThreshold = heightPx * 0.4f
+                                if (sheetState.offsetY.value > positionalThreshold || velocity > velocityThresholdPx) {
+                                    sheetState.markHiddenByDrag()
+                                    // Target-based, not animateDecay: decay has no target position
+                                    // and only coasts on the release velocity, so a slow release
+                                    // with little velocity to coast on stalls short of fully
+                                    // closed. Feeding the release velocity in as the spring's
+                                    // initialVelocity keeps a fast flick feeling fast while
+                                    // guaranteeing every release still animates all the way to
+                                    // fully closed in one continuous motion.
+                                    sheetState.offsetY.animateTo(
+                                        targetValue = heightPx,
+                                        animationSpec = Motion.SpringSnappy,
+                                        initialVelocity = velocity,
+                                    )
+                                    onDismissRequest()
+                                } else {
+                                    sheetState.offsetY.animateTo(0f, Motion.SpringStandard)
+                                }
+                            },
+                        )
+                    } else {
+                        Modifier
                     },
                 )
                 .clip(shape)
@@ -215,6 +263,17 @@ fun RefinedBottomSheet(
         ) {
             if (showDragHandle) {
                 RefinedSheetDragHandle()
+            } else {
+                // The handle isn't purely a drag affordance — its own vertical padding plus the
+                // pill (Spacing.sm + 4.dp + Spacing.sm) was incidentally the only top breathing
+                // room every consumer's content had above it. Consumers that hide the handle
+                // (all current ones) still need *some* top spacing of their own, or content sits
+                // flush against the sheet's clipped top edge. Spacing.md rather than Spacing.sm
+                // because at least two consumers (ActionsPage, SortBottomSheet) have zero top
+                // padding of their own on their header content, so this spacer is their only
+                // source of top spacing and needs to read as adequate on its own, not just a
+                // top-up on top of an existing caption padding.
+                Spacer(modifier = Modifier.height(Spacing.md))
             }
             content()
         }
