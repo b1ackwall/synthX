@@ -149,9 +149,11 @@ fun PlayerSheetSkeleton(
     var blobs by remember {
         mutableStateOf(
             listOf(
-                BlobParams(sizeFraction = 1.0f, opacity = 0.4f, gradientFalloffFraction = 0.25f),
-                BlobParams(sizeFraction = 0.8f, opacity = 0.6f, gradientFalloffFraction = 0.5f),
-                BlobParams(sizeFraction = 0.6f, opacity = 0.8f, gradientFalloffFraction = 0.75f),
+                // Opacity and falloff are derived per blob from its own extracted lightness
+                // on every song change below; only sizeFraction is fixed per slot.
+                BlobParams(sizeFraction = 1.0f),
+                BlobParams(sizeFraction = 0.8f),
+                BlobParams(sizeFraction = 0.6f),
             ),
         )
     }
@@ -163,10 +165,16 @@ fun PlayerSheetSkeleton(
         if (swatches.size != 3) return@LaunchedEffect
         blobs = blobs.mapIndexed { index, blob ->
             val swatch = swatches[index]
+            // Additive (BlendMode.Plus) blending blows out light colours, so intensity
+            // scales inversely with this blob's own extracted lightness.
+            val derivedOpacity = (1f - swatch.lightness).coerceIn(0f, 1f)
+            val derivedFalloff = (1f - swatch.lightness).coerceIn(0f, 0.9f)
             blob.copy(
                 hue = swatch.hue,
                 saturation = swatch.saturation,
                 lightness = swatch.lightness,
+                opacity = derivedOpacity,
+                gradientFalloffFraction = derivedFalloff,
             )
         }
         // The base shares Blob 1's hue, with its own fixed saturation and lightness.

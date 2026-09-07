@@ -43,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.AmbientBlobBackground
 import com.v1per.synthx.ui.components.BlobParams
-import com.v1per.synthx.ui.components.ExtractedSwatchHsl
 import com.v1per.synthx.ui.components.RefinedBottomSheet
 import com.v1per.synthx.ui.components.extractArtworkSwatches
 import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
@@ -55,17 +54,15 @@ import kotlin.math.roundToInt
 
 // Temporary Home-only tuning controls; AmbientBlobBackground is the reusable renderer.
 internal data class BlobBackgroundDebugState(
-    // Size/opacity randomizers stay disabled so these Home testbed values remain fixed.
+    // Size/opacity randomizers stay disabled; these are the editable testbed defaults.
     val blobs: List<BlobParams> = listOf(
         BlobParams(sizeFraction = 1.0f, opacity = 0.4f, gradientFalloffFraction = 0.25f),
         BlobParams(sizeFraction = 0.8f, opacity = 0.6f, gradientFalloffFraction = 0.5f),
         BlobParams(sizeFraction = 0.6f, opacity = 0.8f, gradientFalloffFraction = 0.75f),
     ),
     val baseSurfaceHue: Float = 125f,
-    // Reference values by blob index, separate from the editable rendering parameters.
-    val extractedSwatches: List<ExtractedSwatchHsl> = emptyList(),
+    val blurRadiusDp: Float = 150f,
 ) {
-    val blurRadiusDp: Float = 150f
     val baseSurfaceSaturation: Float = 0.5f
     val baseSurfaceLightness: Float = 0.1f
 }
@@ -95,9 +92,20 @@ fun HomeScreen(playbackViewModel: PlaybackViewModel) {
             // Base and Blob 1 deliberately share the most populous selected hue.
             baseSurfaceHue = swatches[0].hue,
             blobs = debugState.blobs.mapIndexed { index, blob ->
-                swatches.getOrNull(index)?.let { blob.copy(hue = it.hue) } ?: blob
+                swatches.getOrNull(index)?.let {
+                    // Additive (BlendMode.Plus) blending blows out light colours, so
+                    // intensity scales inversely with this blob's own extracted lightness.
+                    val derivedOpacity = (1f - it.lightness).coerceIn(0f, 1f)
+                    val derivedFalloff = (1f - it.lightness).coerceIn(0f, 0.9f)
+                    blob.copy(
+                        hue = it.hue,
+                        saturation = it.saturation,
+                        lightness = it.lightness,
+                        opacity = derivedOpacity,
+                        gradientFalloffFraction = derivedFalloff,
+                    )
+                } ?: blob
             },
-            extractedSwatches = swatches,
         )
         HomeBlobDebugStateHolder.lastPaletteSongId = song.id
     }
@@ -168,13 +176,19 @@ fun HomeScreen(playbackViewModel: PlaybackViewModel) {
                         DebugColorSwatch(baseSurfaceColor)
                     }
                     DebugHueLabel(debugState.baseSurfaceHue)
-                    DebugValueLabel("Blur", debugState.blurRadiusDp, suffix = " dp")
+                    DebugSlider(
+                        label = "Blur",
+                        value = debugState.blurRadiusDp,
+                        valueRange = 0f..600f,
+                        suffix = " dp",
+                    ) { value ->
+                        debugState = debugState.copy(blurRadiusDp = value)
+                    }
                     debugState.blobs.forEachIndexed { index, blob ->
                         key(index) {
                             BlobDebugSection(
                                 index = index,
                                 blob = blob,
-                                extractedSwatch = debugState.extractedSwatches.getOrNull(index),
                             ) { update ->
                                 debugState = debugState.copy(
                                     blobs = debugState.blobs.mapIndexed { currentIndex, current ->
@@ -194,7 +208,6 @@ fun HomeScreen(playbackViewModel: PlaybackViewModel) {
 private fun BlobDebugSection(
     index: Int,
     blob: BlobParams,
-    extractedSwatch: ExtractedSwatchHsl?,
     onChange: ((BlobParams) -> BlobParams) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -228,21 +241,22 @@ private fun BlobDebugSection(
         ) {
             Column {
                 DebugHueLabel(blob.hue)
-                Text(
-                    text = extractedSwatch?.let {
-                        "Extracted: S ${"%.2f".format(it.saturation)}, L ${"%.2f".format(it.lightness)}"
-                    } ?: "Extracted: unavailable",
-                    style = MaterialTheme.typography.labelSmall,
-                )
                 DebugSlider("Saturation", blob.saturation) { value ->
                     onChange { it.copy(saturation = value) }
                 }
                 DebugSlider("Lightness", blob.lightness) { value ->
                     onChange { it.copy(lightness = value) }
                 }
-                DebugValueLabel("Size", blob.sizeFraction)
-                DebugValueLabel("Opacity", blob.opacity)
-                DebugValueLabel("Gradient falloff", blob.gradientFalloffFraction)
+                DebugSlider("Size", blob.sizeFraction) { value ->
+                    onChange { it.copy(sizeFraction = value) }
+                }
+                DebugSlider("Opacity", blob.opacity) { value ->
+                    onChange { it.copy(opacity = value) }
+                }
+                // BlobParams documents the solid-color radius fraction as 0f..0.9f.
+                DebugSlider("Gradient falloff", blob.gradientFalloffFraction, 0f..0.9f) { value ->
+                    onChange { it.copy(gradientFalloffFraction = value) }
+                }
             }
         }
     }
@@ -253,10 +267,11 @@ private fun DebugSlider(
     label: String,
     value: Float,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    suffix: String = "",
     onValueChange: (Float) -> Unit,
 ) {
     Column {
-        DebugValueLabel(label, value)
+        DebugValueLabel(label, value, suffix)
         Slider(
             value = value,
             onValueChange = onValueChange,
