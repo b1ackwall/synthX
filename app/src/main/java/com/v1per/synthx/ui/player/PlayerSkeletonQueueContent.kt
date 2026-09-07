@@ -22,7 +22,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -42,6 +47,8 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.collections.immutable.toPersistentList
+
+private val ControlsMaskFadeHeight = 48.dp
 
 /**
  * Queue-mode header + Up Next list: title/artist bound to real, live song data, trailing
@@ -97,7 +104,6 @@ fun PlayerSkeletonQueueContent(
     headerRegionHeight: Dp,
     queueListState: LazyListState,
     queueScrollConnection: NestedScrollConnection,
-    surfaceColor: Color,
     expandedContentAlpha: Float,
     queueProgressValue: Float,
     expandedContentEnabled: Boolean,
@@ -111,6 +117,8 @@ fun PlayerSkeletonQueueContent(
     onQueueMove: (Int, Int) -> Unit,
     onQueueRemove: (songId: String) -> Unit,
     controlsOverlayHeight: Dp,
+    controlsOverlayAlpha: Float,
+    bottomInset: Dp,
     modifier: Modifier = Modifier,
 ) {
     val queueContentAlpha = expandedContentAlpha * queueProgressValue
@@ -137,6 +145,9 @@ fun PlayerSkeletonQueueContent(
     // changed. Both children take the identical offset, so the header-to-list gap is constant
     // throughout the slide rather than the two drifting apart.
     val queueContentSlideOffset = lerpDp(ContentSlideDistance, 0.dp, queueContentAlpha)
+    // Match the controls' placement, which slides on expansion alone and compensates for
+    // the sheet's bottom inset. Queue content has a separate slide during its crossfade.
+    val controlsOverlayOffsetY = lerpDp(ContentSlideDistance, 0.dp, expandedContentAlpha) + bottomInset
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         Column(
@@ -222,7 +233,6 @@ fun PlayerSkeletonQueueContent(
                 onSongClick = onQueueSongClick,
                 onMove = onQueueMove,
                 onRemove = { index -> upcomingQueue.getOrNull(index)?.let { onQueueRemove(it.slotId) } },
-                surfaceColor = surfaceColor,
                 state = queueListState,
                 enabled = queueContentEnabled,
                 contentPadding = PaddingValues(bottom = controlsOverlayHeight),
@@ -236,7 +246,34 @@ fun PlayerSkeletonQueueContent(
                     .nestedScroll(queueScrollConnection)
                     .fillMaxWidth()
                     .fillMaxHeight()
-                    .alpha(queueContentAlpha),
+                    .graphicsLayer {
+                        alpha = queueContentAlpha
+                        // DstIn must multiply only the queue pixels, never the blobs or
+                        // sibling controls. Keep its existing crossfade in the same layer.
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithCache {
+                        // The list measures at sheet height, then is offset downward. Its
+                        // measured bottom is below the sheet's visible bottom: subtract
+                        // the list origin to express the controls' top in list coordinates.
+                        val overlayHeightPx = controlsOverlayHeight.toPx().coerceAtMost(size.height)
+                        val controlsTop = size.height - overlayHeightPx + controlsOverlayOffsetY.toPx()
+                        val fadeEnd = controlsTop - (queueListOffsetY + queueContentSlideOffset).toPx()
+                        val strength = controlsOverlayAlpha.coerceIn(0f, 1f)
+                        val mask = Brush.verticalGradient(
+                            colors = listOf(Color.Black, Color.Black.copy(alpha = 1f - strength)),
+                            startY = fadeEnd - ControlsMaskFadeHeight.toPx(),
+                            endY = fadeEnd,
+                        )
+                        onDrawWithContent {
+                            drawContent()
+                            // An opaque mask preserves alpha; transparent removes it.
+                            // Release only the lower region, not the whole list's opacity.
+                            if (strength > 0f) {
+                                drawRect(brush = mask, blendMode = BlendMode.DstIn)
+                            }
+                        }
+                    },
             )
         }
     }

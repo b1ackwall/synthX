@@ -1,9 +1,10 @@
 package com.v1per.synthx.ui.player
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.animateTo
@@ -18,21 +19,26 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -41,13 +47,14 @@ import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
+import com.v1per.synthx.ui.components.AmbientBlobBackground
+import com.v1per.synthx.ui.components.BlobParams
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.PlayerAlbumArt
 import com.v1per.synthx.ui.components.PlayerSheetValue
+import com.v1per.synthx.ui.components.extractArtworkSwatches
 import com.v1per.synthx.ui.theme.Motion
-import com.v1per.synthx.ui.theme.Surface
-import com.v1per.synthx.ui.theme.SurfaceVariant
 import kotlinx.coroutines.launch
 
 /**
@@ -138,6 +145,34 @@ fun PlayerSheetSkeleton(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
+    val context = LocalContext.current.applicationContext
+    var blobs by remember {
+        mutableStateOf(
+            listOf(
+                BlobParams(sizeFraction = 1.0f, opacity = 0.4f, gradientFalloffFraction = 0.25f),
+                BlobParams(sizeFraction = 0.8f, opacity = 0.6f, gradientFalloffFraction = 0.5f),
+                BlobParams(sizeFraction = 0.6f, opacity = 0.8f, gradientFalloffFraction = 0.75f),
+            ),
+        )
+    }
+    var baseSurfaceColor by remember { mutableStateOf(Color.hsl(125f, 0.5f, 0.1f)) }
+
+    LaunchedEffect(song.id) {
+        val uri = song.albumArtFullUri ?: song.albumArtUri ?: return@LaunchedEffect
+        val swatches = extractArtworkSwatches(context, uri)
+        if (swatches.size != 3) return@LaunchedEffect
+        blobs = blobs.mapIndexed { index, blob ->
+            val swatch = swatches[index]
+            blob.copy(
+                hue = swatch.hue,
+                saturation = swatch.saturation,
+                lightness = swatch.lightness,
+            )
+        }
+        // The base shares Blob 1's hue, with its own fixed saturation and lightness.
+        baseSurfaceColor = Color.hsl(swatches[0].hue, 0.5f, 0.1f)
+    }
+
     val scope = rememberCoroutineScope()
     val collapsedHeightPx = with(density) { CollapsedPlayerHeight.toPx() }
     // Higher-than-default friction (stock exponentialDecay is 1.0f) lets a fling decelerate
@@ -220,12 +255,17 @@ fun PlayerSheetSkeleton(
             onShuffleClick = onShuffleClick,
         )
 
+        // One animation drives both the controls and the queue mask, including reversals.
+        // Player mode always shows controls; QueueModeState keeps its directional toggle.
+        val overlayVisibleAlpha by animateFloatAsState(
+            targetValue = if (!queueModeState.isQueueMode || queueModeState.controlsVisible) 1f else 0f,
+            animationSpec = tween(Motion.DurationInstant, easing = Motion.EasingStandard),
+            label = "controlsOverlayScrollVisibility",
+        )
+
         val sheetHeight = lerpDp(CollapsedPlayerHeight, maxHeight, progress)
         val cornerRadius = lerpDp(0.dp, 24.dp, progress)
         val bottomInset = lerpDp(BottomNavHeight, 0.dp, progress)
-        // No visible content, but a subtle structural-color shift confirms mini vs. expanded
-        // state at a glance without touching the accent color or any real UI.
-        val surfaceColor = lerp(Surface, SurfaceVariant, progress)
 
         // Identical formulas to the old (dead) PlayerSheetContent.kt — not a fresh judgment
         // call, reused verbatim: mini content fades out over the first third of the drag,
@@ -286,7 +326,6 @@ fun PlayerSheetSkeleton(
                     .height(sheetHeight)
                     .align(Alignment.BottomCenter)
                     .clip(RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius))
-                    .background(surfaceColor)
                     // Single unified detector driving draggableState directly — replaces the
                     // anchoredDraggable + dragResistantClickable pairing, which silently
                     // swallowed touches when co-located on one node (anchoredDraggable's
@@ -401,6 +440,20 @@ fun PlayerSheetSkeleton(
                         }
                     },
             ) {
+                AmbientBlobBackground(
+                    blobs = blobs,
+                    baseSurfaceColor = baseSurfaceColor,
+                    blurRadiusDp = 150f.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        // Escape the animated sheet's height constraint and bottom-anchor
+                        // the overflow. The renderer always measures at full height, so
+                        // dragging only changes the outer clip, never its animation clock.
+                        .wrapContentHeight(align = Alignment.Bottom, unbounded = true)
+                        .requiredHeight(this@BoxWithConstraints.maxHeight),
+                )
+
                 PlayerSkeletonMiniContent(
                     song = song,
                     isPlaying = isPlaying,
@@ -438,7 +491,6 @@ fun PlayerSheetSkeleton(
                     headerRegionHeight = QueueHeaderRegionHeight,
                     queueListState = queueModeState.queueListState,
                     queueScrollConnection = queueModeState.queueScrollConnection,
-                    surfaceColor = surfaceColor,
                     expandedContentAlpha = expandedContentAlpha,
                     queueProgressValue = queueModeState.queueProgress.value,
                     expandedContentEnabled = expandedContentEnabled,
@@ -452,6 +504,8 @@ fun PlayerSheetSkeleton(
                     onQueueMove = onQueueMove,
                     onQueueRemove = onQueueRemove,
                     controlsOverlayHeight = actualOverlayHeight,
+                    controlsOverlayAlpha = expandedContentAlpha * overlayVisibleAlpha,
+                    bottomInset = bottomInset,
                 )
 
                 PlayerSkeletonControlsOverlay(
@@ -459,7 +513,6 @@ fun PlayerSheetSkeleton(
                     // Passed so the overlay can cancel this padding back out of its own
                     // placement — it is bottom-anchored to the very edge this inset moves.
                     bottomInset = bottomInset,
-                    surfaceColor = surfaceColor,
                     expandedContentAlpha = expandedContentAlpha,
                     expandedContentEnabled = expandedContentEnabled,
                     currentPosition = currentPosition,
@@ -473,7 +526,7 @@ fun PlayerSheetSkeleton(
                     isBuffering = isBuffering,
                     onPlayPauseClick = onPlayPauseClick,
                     isQueueMode = queueModeState.isQueueMode,
-                    controlsVisible = queueModeState.controlsVisible,
+                    overlayVisibleAlpha = overlayVisibleAlpha,
                     onQueueClick = queueModeState.onQueueClick,
                 )
             }

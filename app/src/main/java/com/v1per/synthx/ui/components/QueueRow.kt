@@ -30,7 +30,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -104,7 +106,6 @@ fun QueueRow(
     queue: ImmutableList<QueueSlot>,
     onClick: () -> Unit,
     onRemove: () -> Unit,
-    surfaceColor: Color,
     dragHandleModifier: Modifier,
     enabled: Boolean = true,
     onMoveUp: (() -> Unit)? = null,
@@ -200,6 +201,20 @@ fun QueueRow(
         Box(
             modifier = Modifier
                 .matchParentSize()
+                // Transparent rows cannot hide the removal cue. Draw it only in the
+                // strip exposed by the swipe, leaving the shared blobs visible at rest.
+                .drawWithContent {
+                    val offset = swipeState.offset
+                    val x = if (offset.isNaN()) 0f else offset.roundToInt().toFloat()
+                    if (x != 0f) {
+                        clipRect(
+                            left = if (x > 0f) 0f else (size.width + x).coerceAtLeast(0f),
+                            right = if (x > 0f) x.coerceAtMost(size.width) else size.width,
+                        ) {
+                            this@drawWithContent.drawContent()
+                        }
+                    }
+                }
                 .background(Error),
         ) {
             Icon(
@@ -224,7 +239,6 @@ fun QueueRow(
                 }
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
-                .background(surfaceColor)
                 .clickable(onClick = onClick)
                 // start = Spacing.md, not Spacing.HorizontalPadding: combines with
                 // SongIdentity's own internal Spacer(Spacing.md) to reach the 32dp

@@ -1,8 +1,5 @@
 package com.v1per.synthx.ui.player
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -24,12 +21,10 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -39,7 +34,6 @@ import com.v1per.synthx.ui.components.DragResistantIconButton
 import com.v1per.synthx.ui.components.PlayerSeekBar
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Alpha
-import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -49,9 +43,8 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * Queue-mode content (PlayerSkeletonQueueContent's QueueList) now sits
  * beneath this overlay in the same screen region, so the source file's no-op
  * `.clickable(indication = null, onClick = {})` touch-blocker is restored on the outer
- * Column, in the same position PlayerControlsSection.kt used it: opaque background alone
- * doesn't stop touches reaching the queue rows underneath — Compose hit-tests every
- * overlapping pointer input handler at a position, not just the topmost drawn one. Real
+ * Column, in the same position PlayerControlsSection.kt used it, to keep taps in the
+ * transparent controls area from reaching the queue rows underneath. Real
  * controls (seek bar, transport, queue button) still consume their own touches first —
  * child-before-parent dispatch — so this only ever swallows taps on the overlay's empty
  * background.
@@ -60,14 +53,11 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * this Column can cancel it back out of its own placement — see the offset's doc comment below
  * for why this is the one child of the sheet that compensates for it.
  *
- * [controlsVisible] is the gesture-direction term computed by
- * `QueueModeState.queueScrollConnection` in QueueModeState.kt (a `NestedScrollConnection`
- * observing the queue list's own drag deltas — see that property's doc comment). Combined
- * here as `!isQueueMode || controlsVisible` — the overlay always shows in player mode, and is
- * gesture-gated only once queue mode is entered, driven by swipe direction rather than
- * scroll position.
+ * [overlayVisibleAlpha] is animated by PlayerSheetSkeleton from QueueModeState's directional
+ * controlsVisible toggle. Player mode always shows controls. The queue opacity mask shares
+ * this exact animation so it releases and hides rows in step with the controls.
  *
- * The result is animated via `animateFloatAsState` rather than wrapping this Column in
+ * The shared value uses `animateFloatAsState` rather than wrapping this Column in
  * `AnimatedVisibility`: this file already expresses every other visibility term
  * ([expandedContentAlpha]) as a plain multiplied-in float via `.alpha()`, not as composition
  * enter/exit, and `overlayVisibleAlpha * expandedContentAlpha` composes with that existing
@@ -99,7 +89,6 @@ import com.v1per.synthx.ui.theme.TextSecondary
 fun BoxScope.PlayerSkeletonControlsOverlay(
     height: Dp,
     bottomInset: Dp,
-    surfaceColor: Color,
     expandedContentAlpha: Float,
     expandedContentEnabled: Boolean,
     currentPosition: Long,
@@ -113,20 +102,10 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
     isBuffering: Boolean,
     onPlayPauseClick: () -> Unit,
     isQueueMode: Boolean,
-    controlsVisible: Boolean,
+    overlayVisibleAlpha: Float,
     onQueueClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Player mode: always shown. Queue mode: scroll-gated by controlsVisible.
-    val overlayVisible = !isQueueMode || controlsVisible
-    // Fast, not Normal: this is scroll-driven chrome show/hide, not a content reveal — it
-    // should track the queue-scroll gesture snappily rather than visibly lag behind it.
-    val overlayVisibleAlpha by animateFloatAsState(
-        targetValue = if (overlayVisible) 1f else 0f,
-        animationSpec = tween(Motion.DurationInstant, easing = Motion.EasingStandard),
-        label = "controlsOverlayScrollVisibility",
-    )
-
     // Gates every real control in this overlay (seek bar, transport, queue button) — not
     // just the background shield above. expandedContentEnabled alone only tracks the
     // collapse/expand axis; without overlayVisibleAlpha too, these controls' own gesture
@@ -196,7 +175,6 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
             .fillMaxWidth()
             .height(height)
             .alpha(expandedContentAlpha * overlayVisibleAlpha)
-            .background(surfaceColor)
             // Only attached once the overlay is meaningfully visible/interactive — at low
             // progress this Column's fixed height overflows past the collapsed sheet's small
             // bounds and overlaps the mini bar's own screen region (Compose doesn't clip a
@@ -211,7 +189,7 @@ fun BoxScope.PlayerSkeletonControlsOverlay(
             // shield from what's actually on screen in both directions (confirmed): fading in,
             // the shield attaches before the overlay is visibly there, swallowing taps meant
             // for the QueueList rows still visible underneath; fading out, the shield detaches
-            // before the overlay has visibly faded, leaking taps through a still-opaque
+            // before the overlay has visibly faded, leaking taps through a still-visible
             // overlay. Reading overlayVisibleAlpha here instead ties the shield's presence to
             // the same continuous value the Column's own .alpha() below already renders from,
             // so hand-off matches the actual visual state at every frame of the fade, not just

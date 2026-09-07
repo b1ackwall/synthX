@@ -11,7 +11,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.data.repository.QueueSlot
 import kotlinx.collections.immutable.ImmutableList
@@ -48,7 +47,6 @@ fun QueueList(
     onSongClick: (index: Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
     onRemove: (index: Int) -> Unit,
-    surfaceColor: Color,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     state: LazyListState = rememberLazyListState(),
@@ -93,7 +91,6 @@ fun QueueList(
                         val queueIndex = queue.indexOfFirst { it.slotId == slot.slotId }
                         if (enabled && queueIndex != -1) onRemove(queueIndex)
                     },
-                    surfaceColor = surfaceColor,
                     enabled = enabled,
                     dragHandleModifier = Modifier.draggableHandle(
                         onDragStarted = {
