@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.animateTo
@@ -20,8 +21,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -33,7 +37,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -51,8 +58,10 @@ import com.v1per.synthx.ui.components.AmbientBlobBackground
 import com.v1per.synthx.ui.components.BlobParams
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
+import com.v1per.synthx.ui.components.ExtractedSwatchHsl
 import com.v1per.synthx.ui.components.PlayerAlbumArt
 import com.v1per.synthx.ui.components.PlayerSheetValue
+import com.v1per.synthx.ui.components.animatedPlayerAlbumArtScale
 import com.v1per.synthx.ui.components.extractArtworkSwatches
 import com.v1per.synthx.ui.theme.Motion
 import kotlinx.coroutines.launch
@@ -71,6 +80,9 @@ internal val TitleRowReservedHeight: Dp = 52.dp
  * Gap between the expanded sheet's top edge and the art region.
  */
 private val ExpandedTopMargin: Dp = 32.dp
+
+// Shared by the background color and its complementary album-art glow lightness.
+private const val BaseSurfaceLightness = 0.1f
 
 /**
  * Weight ratio (above : below) the art is split by within its region in expanded state —
@@ -157,12 +169,22 @@ fun PlayerSheetSkeleton(
             ),
         )
     }
-    var baseSurfaceColor by remember { mutableStateOf(Color.hsl(125f, 0.5f, 0.1f)) }
+    var baseSurfaceColor by remember {
+        mutableStateOf(Color.hsl(125f, 0.5f, BaseSurfaceLightness))
+    }
+    // Always three entries, including before artwork loads or when extraction fails.
+    // Keep the same fallback tones as the player's existing blobs.
+    var artworkSwatches by remember {
+        mutableStateOf(blobs.map { ExtractedSwatchHsl(it.hue, it.saturation, it.lightness) })
+    }
+    val currentSongId by rememberUpdatedState(song.id)
 
     LaunchedEffect(song.id) {
         val uri = song.albumArtFullUri ?: song.albumArtUri ?: return@LaunchedEffect
         val swatches = extractArtworkSwatches(context, uri)
         if (swatches.size != 3) return@LaunchedEffect
+        if (currentSongId != song.id) return@LaunchedEffect
+        artworkSwatches = swatches
         blobs = blobs.mapIndexed { index, blob ->
             val swatch = swatches[index]
             // Additive (BlendMode.Plus) blending blows out light colours, so intensity
@@ -178,7 +200,7 @@ fun PlayerSheetSkeleton(
             )
         }
         // The base shares Blob 1's hue, with its own fixed saturation and lightness.
-        baseSurfaceColor = Color.hsl(swatches[0].hue, 0.5f, 0.1f)
+        baseSurfaceColor = Color.hsl(swatches[0].hue, 0.5f, BaseSurfaceLightness)
     }
 
     val scope = rememberCoroutineScope()
@@ -472,15 +494,41 @@ fun PlayerSheetSkeleton(
                     height = CollapsedPlayerHeight,
                 )
 
-                // Positioned per the lerped artPosition above. PlayerAlbumArt itself needs no
-                // adaptation: it already takes exactly (song, isPlaying, size, fullResolution)
-                // and owns its own real-art-vs-glitch-placeholder branch.
-                Box(modifier = Modifier.offset(x = artPosition.artOffsetX, y = artPosition.artOffsetY)) {
+                // Keep the layout footprint equal to the art throughout the morph. The larger
+                // glow overflows symmetrically without moving the art or changing its size.
+                Box(
+                    modifier = Modifier
+                        .offset(x = artPosition.artOffsetX, y = artPosition.artOffsetY)
+                        .size(artPosition.finalArtSize),
+                ) {
+                    val artScale = animatedPlayerAlbumArtScale(isPlaying)
+                    val glowLightness = (1f - BaseSurfaceLightness).coerceIn(0f, 1f)
+                    val glowColor = Color.hsl(
+                        artworkSwatches[0].hue,
+                        1.0f,
+                        glowLightness,
+                        0.9f,
+                    )
+                    val glowSize = artPosition.finalArtSize + 2f.dp * 2
+                    Box(
+                        modifier = Modifier
+                            // requiredSize preserves the spread even under the mini art's
+                            // tight constraints; Compose centers the overflow automatically.
+                            .requiredSize(glowSize)
+                            .align(Alignment.Center)
+                            .scale(artScale)
+                            .blur(
+                                radius = 5f.dp,
+                                edgeTreatment = BlurredEdgeTreatment.Unbounded,
+                            )
+                            .background(color = glowColor, shape = MaterialTheme.shapes.small),
+                    )
                     PlayerAlbumArt(
                         song = song,
                         isPlaying = isPlaying,
                         size = artPosition.finalArtSize,
                         fullResolution = true,
+                        scale = artScale,
                     )
                 }
 
@@ -517,6 +565,7 @@ fun PlayerSheetSkeleton(
                 )
 
                 PlayerSkeletonControlsOverlay(
+                    swatches = artworkSwatches,
                     height = actualOverlayHeight,
                     // Passed so the overlay can cancel this padding back out of its own
                     // placement — it is bottom-anchored to the very edge this inset moves.

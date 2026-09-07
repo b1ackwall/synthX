@@ -22,13 +22,8 @@ fun PlayerAlbumArt(
     isPlaying: Boolean,
     size: Dp,
     fullResolution: Boolean = false,
+    scale: Float = animatedPlayerAlbumArtScale(isPlaying),
 ) {
-    // "Breathe" — the art relaxes inward when paused and springs back on play.
-    val scale by animateFloatAsState(
-        targetValue = if (isPlaying) 1.0f else 0.90f,
-        animationSpec = Motion.SpringStandard,
-        label = "artScale",
-    )
     Box(
         modifier = Modifier
             .size(size)
@@ -50,4 +45,16 @@ fun PlayerAlbumArt(
             ArtPlaceholder(size = size)
         }
     }
+}
+
+// The player supplies this same animated value to the art and its sibling glow.
+@Composable
+internal fun animatedPlayerAlbumArtScale(isPlaying: Boolean): Float {
+    // "Breathe" — the art relaxes inward when paused and springs back on play.
+    val scale by animateFloatAsState(
+        targetValue = if (isPlaying) 1.0f else 0.90f,
+        animationSpec = Motion.SpringStandard,
+        label = "artScale",
+    )
+    return scale
 }
