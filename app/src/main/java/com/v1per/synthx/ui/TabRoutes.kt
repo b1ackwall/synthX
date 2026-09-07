@@ -29,7 +29,7 @@ fun NavGraphBuilder.tabRoutes(
 ) {
     composable(Screen.Home.route) {
         RouteContent(chromeBottomPadding) {
-            HomeScreen()
+            HomeScreen(playbackViewModel = playbackViewModel)
         }
     }
     composable(Screen.Library.route) {
