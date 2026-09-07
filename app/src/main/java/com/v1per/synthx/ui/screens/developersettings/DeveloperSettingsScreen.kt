@@ -1,5 +1,7 @@
 package com.v1per.synthx.ui.screens.developersettings
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -9,7 +11,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -17,10 +21,13 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.playlistseed.PlaylistSeedBootstrapResult
 import com.v1per.synthx.data.playlistseed.PlaylistSeedManifestRegenerationResult
 import com.v1per.synthx.ui.components.SettingsDetailScaffold
+import com.v1per.synthx.ui.components.hiddenFromAccessibilityWhileSheetShown
+import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
 import com.v1per.synthx.ui.screens.settings.SettingsRow
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
+import kotlinx.coroutines.launch
 
 @Composable
 fun DeveloperSettingsScreen(
@@ -38,25 +45,52 @@ fun DeveloperSettingsScreen(
     val rootOrganizationCheckResult by viewModel.rootOrganizationCheckResult.collectAsState()
     var showConfirmation by remember { mutableStateOf(false) }
     var showRegenerateConfirmation by remember { mutableStateOf(false) }
+    var showBlobDebugSheet by remember { mutableStateOf(false) }
+    val blobDebugSheetState = rememberRefinedBottomSheetState()
+    val scope = rememberCoroutineScope()
 
-    SettingsDetailScaffold(topBar = topBar) {
-        SettingsRow(
-            title = stringResource(R.string.settings_seed_playlists_from_manifest),
-            enabled = !isSeeding,
-            onClick = { showConfirmation = true },
-        )
-        SettingsRow(
-            title = stringResource(R.string.settings_regenerate_seed_manifest),
-            enabled = !isRegeneratingSeedManifest,
-            onClick = { showRegenerateConfirmation = true },
-        )
-        VerifyRootOrganizationSection(
-            checkStatus = rootOrganizationCheckStatus,
-            isChecking = isCheckingRootOrganization,
-            result = rootOrganizationCheckResult,
-            onCheckRootLibraryOrganization = viewModel::checkRootLibraryOrganization,
-            onDismissResult = viewModel::dismissRootOrganizationCheckResult,
-        )
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .hiddenFromAccessibilityWhileSheetShown(showBlobDebugSheet),
+        ) {
+            SettingsDetailScaffold(topBar = topBar) {
+                SettingsRow(
+                    title = stringResource(R.string.settings_seed_playlists_from_manifest),
+                    enabled = !isSeeding,
+                    onClick = { showConfirmation = true },
+                )
+                SettingsRow(
+                    title = stringResource(R.string.settings_regenerate_seed_manifest),
+                    enabled = !isRegeneratingSeedManifest,
+                    onClick = { showRegenerateConfirmation = true },
+                )
+                SettingsRow(
+                    title = "Tune blob background",
+                    onClick = { showBlobDebugSheet = true },
+                )
+                VerifyRootOrganizationSection(
+                    checkStatus = rootOrganizationCheckStatus,
+                    isChecking = isCheckingRootOrganization,
+                    result = rootOrganizationCheckResult,
+                    onCheckRootLibraryOrganization = viewModel::checkRootLibraryOrganization,
+                    onDismissResult = viewModel::dismissRootOrganizationCheckResult,
+                )
+            }
+        }
+
+        if (showBlobDebugSheet) {
+            BlobBackgroundDebugSheet(
+                sheetState = blobDebugSheetState,
+                onDismissRequest = {
+                    scope.launch {
+                        blobDebugSheetState.hide()
+                        showBlobDebugSheet = false
+                    }
+                },
+            )
+        }
     }
 
     if (showConfirmation) {
