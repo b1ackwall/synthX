@@ -424,7 +424,6 @@ fun PlayerSheetSkeleton(
                     song = song,
                     isPlaying = isPlaying,
                     size = artPosition.finalArtSize,
-                    hue = ambientState.artworkSwatches[0].hue,
                     modifier = Modifier.offset(x = artPosition.artOffsetX, y = artPosition.artOffsetY),
                 )
 

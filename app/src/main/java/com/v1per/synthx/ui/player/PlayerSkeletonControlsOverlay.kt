@@ -33,7 +33,6 @@ import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.DragResistantIconButton
 import com.v1per.synthx.ui.components.PlayerSeekBar
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -273,7 +272,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                             } else {
                                 stringResource(R.string.cd_play)
                             },
-                            tint = if (isPlaying) Accent else TextPrimary,
+                            tint = TextPrimary,
                             modifier = Modifier.size(64.dp),
                         )
                     }

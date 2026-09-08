@@ -3,18 +3,18 @@ package com.v1per.synthx.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // Structure
-val Background = Color(0xFF050F06)
-val Surface = Color(0xFF0A1F0C)
-val SurfaceVariant = Color(0xFF0F2E12)
+val Background = Color(0xFF080C09)
+val Surface = Color(0xFF101811)
+val SurfaceVariant = Color(0xFF182519)
 
 // Brand
 val Accent = Color(0xFF1AE62B)   // HSL(125, 80%, 50%) — electric neon green, the sacred color
 val OnAccent = Color(0xFF0F2E12)
 
 // Text
-val TextPrimary = Color(0xFFF0FAF1)
-val TextSecondary = Color(0xFFE0F5E2)
-val TextTertiary = Color(0xFFD1F0D4)
+val TextPrimary = Color(0xFFF3F7F3)
+val TextSecondary = Color(0xFFE7EFE7)
+val TextTertiary = Color(0xFFDAE7DC)
 
 // Structural
 // Derived from Accent, never a standalone hex — it must follow the accent automatically.
