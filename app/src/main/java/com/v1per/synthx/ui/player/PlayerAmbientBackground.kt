@@ -13,6 +13,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -68,6 +70,8 @@ internal fun BoxScope.PlayerAmbientBackground(
     fullHeight: Dp,
     progress: Float,
 ) {
+    val scrimColor = Color.hsl(state.artworkSwatches[0].hue, 0.3f, 0.05f).copy(alpha = 0.5f)
+
     AmbientBlobBackground(
         blobs = state.blobs,
         baseSurfaceColor = state.baseSurfaceColor,
@@ -81,6 +85,12 @@ internal fun BoxScope.PlayerAmbientBackground(
             // the overflow. The renderer always measures at full height, so
             // dragging changes the outer clip; only full collapse pauses motion.
             .wrapContentHeight(align = Alignment.Bottom, unbounded = true)
-            .requiredHeight(fullHeight),
+            .requiredHeight(fullHeight)
+            .drawWithContent {
+                // Composite the opaque base and already-blurred blobs first. Player art and
+                // controls are later siblings, outside this background-only draw pass.
+                drawContent()
+                drawRect(color = scrimColor, blendMode = BlendMode.SrcOver)
+            },
     )
 }

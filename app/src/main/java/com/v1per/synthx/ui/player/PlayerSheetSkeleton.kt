@@ -461,7 +461,6 @@ fun PlayerSheetSkeleton(
                 )
 
                 PlayerSkeletonControlsOverlay(
-                    swatches = ambientState.artworkSwatches,
                     height = actualOverlayHeight,
                     // Passed so the overlay can cancel this padding back out of its own
                     // placement — it is bottom-anchored to the very edge this inset moves.

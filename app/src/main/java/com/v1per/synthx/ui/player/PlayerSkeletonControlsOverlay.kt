@@ -25,17 +25,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.DragResistantIconButton
-import com.v1per.synthx.ui.components.ExtractedSwatchHsl
 import com.v1per.synthx.ui.components.PlayerSeekBar
+import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -90,7 +87,6 @@ import com.v1per.synthx.ui.theme.TextSecondary
  */
 @Composable
 internal fun BoxScope.PlayerSkeletonControlsOverlay(
-    swatches: List<ExtractedSwatchHsl>,
     height: Dp,
     bottomInset: Dp,
     expandedContentAlpha: Float,
@@ -225,25 +221,11 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
         // mid-fade, so this is invisible to the animation and only closes the dead-swipe
         // window past that point.
         if (overlayVisibleAlpha > 0f) {
-            // The track and both play/pause icons share this fixed-lightness base tone.
-            val baseTrackColor = Color.hsl(
-                swatches[0].hue,
-                swatches[0].saturation,
-                0.60f,
-            )
-            val playedBrush = remember(baseTrackColor) {
-                SolidColor(
-                    // White is the foreground; reversing these operands hides the overlay.
-                    Color.White.copy(alpha = 0.90f).compositeOver(baseTrackColor),
-                )
-            }
             Spacer(modifier = Modifier.height(Spacing.sm))
             PlayerSeekBar(
                 currentPosition = currentPosition,
                 duration = duration,
                 onSeek = onSeek,
-                unplayedColor = baseTrackColor.copy(alpha = 1.0f),
-                playedBrush = playedBrush,
                 enabled = overlayControlsEnabled,
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -288,7 +270,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                             } else {
                                 stringResource(R.string.cd_play)
                             },
-                            tint = baseTrackColor,
+                            tint = if (isPlaying) Accent else TextPrimary,
                             modifier = Modifier.size(64.dp),
                         )
                     }

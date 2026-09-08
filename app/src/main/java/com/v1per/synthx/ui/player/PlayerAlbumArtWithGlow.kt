@@ -32,7 +32,7 @@ internal fun PlayerAlbumArtWithGlow(
     Box(modifier = modifier.size(size)) {
         val artScale = animatedPlayerAlbumArtScale(isPlaying)
         val glowLightness = (1f - BaseSurfaceLightness).coerceIn(0f, 1f)
-        val glowColor = Color.hsl(hue, 1.0f, glowLightness, 0.9f)
+        val glowColor = Color.hsl(hue, 1.0f, glowLightness, 0.1f)
         val glowSize = size + 2f.dp * 2
         Box(
             modifier = Modifier
