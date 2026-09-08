@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
+import com.v1per.synthx.ui.components.ArtPositionTuneStateHolder
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.PlayerSheetValue
@@ -61,13 +62,6 @@ internal val TitleRowReservedHeight: Dp = 52.dp
  * Gap between the expanded sheet's top edge and the art region.
  */
 private val ExpandedTopMargin: Dp = 32.dp
-
-/**
- * Weight ratio (above : below) the art is split by within its region in expanded state —
- * the art sits slightly off-centre in that region, not dead-centered.
- */
-private const val ArtWeightAbove = 1.5f
-private const val ArtWeightBelow = 1f
 
 /**
  * Fixed footprint of the bottom controls overlay (seek bar, transport controls, queue
@@ -249,6 +243,15 @@ fun PlayerSheetSkeleton(
             (maxHeight - ExpandedTopMargin - TitleRowReservedHeight).coerceAtLeast(0.dp),
         )
 
+        // Read shared Compose state here so Home's sliders update the live geometry.
+        val artPositionSettings = ArtPositionTuneStateHolder.state.value
+        val aboveFraction = artPositionSettings.aboveFraction.coerceIn(0f, 1f)
+        val artWeightAbove = aboveFraction
+        val artWeightBelow = 1f - aboveFraction
+        val titleTightness = artPositionSettings.titleTightnessFraction.coerceIn(0f, 1f)
+        val titleGapWeightAboveTitle = titleTightness
+        val titleGapWeightBelowTitle = 1f - titleTightness
+
         // Album art offset/size, the title row's Y, and the two queue-mode anchors
         // (artOffsetYQueue, queueListOffsetY) PlayerSkeletonQueueContent needs — see
         // QueueArtPositioning.kt for the full mini↔expanded↔queue derivation.
@@ -260,8 +263,10 @@ fun PlayerSheetSkeleton(
             sheetHeight = sheetHeight,
             titleRowReservedHeight = TitleRowReservedHeight,
             expandedTopMargin = ExpandedTopMargin,
-            artWeightAbove = ArtWeightAbove,
-            artWeightBelow = ArtWeightBelow,
+            artWeightAbove = artWeightAbove,
+            artWeightBelow = artWeightBelow,
+            titleGapWeightAboveTitle = titleGapWeightAboveTitle,
+            titleGapWeightBelowTitle = titleGapWeightBelowTitle,
             controlsOverlayHeight = actualOverlayHeight,
             density = density,
         )
