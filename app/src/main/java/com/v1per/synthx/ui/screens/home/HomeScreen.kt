@@ -17,7 +17,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.AmbientBlobBackground
+import com.v1per.synthx.ui.components.BaseSurfaceLightness
+import com.v1per.synthx.ui.components.BaseSurfaceSaturation
 import com.v1per.synthx.ui.components.HomeBlobDebugStateHolder
+import com.v1per.synthx.ui.components.deriveBlobColors
 import com.v1per.synthx.ui.components.extractArtworkSwatches
 import com.v1per.synthx.ui.components.rememberWordmark
 
@@ -35,33 +38,19 @@ fun HomeScreen(playbackViewModel: PlaybackViewModel) {
         if (swatches.isEmpty()) return@LaunchedEffect
         // Also guard against a playback change before its recomposition cancels this effect.
         if (playbackViewModel.currentSong.value?.id != song.id) return@LaunchedEffect
+        val colors = deriveBlobColors(swatches) ?: return@LaunchedEffect
         // Read the current singleton value after loading, preserving edits made meanwhile.
         debugState = debugState.copy(
-            // Base and Blob 1 deliberately share the most populous selected hue.
-            baseSurfaceHue = swatches[0].hue,
-            blobs = debugState.blobs.mapIndexed { index, blob ->
-                swatches.getOrNull(index)?.let {
-                    // Additive (BlendMode.Plus) blending blows out light colours, so
-                    // intensity scales inversely with this blob's own extracted lightness.
-                    val derivedOpacity = (1f - it.lightness).coerceIn(0f, 1f)
-                    val derivedFalloff = (1f - it.lightness).coerceIn(0f, 0.9f)
-                    blob.copy(
-                        hue = it.hue,
-                        saturation = it.saturation,
-                        lightness = it.lightness,
-                        opacity = derivedOpacity,
-                        gradientFalloffFraction = derivedFalloff,
-                    )
-                } ?: blob
-            },
+            baseSurfaceHue = colors.baseSurfaceHue,
+            blobs = colors.applyTo(debugState.blobs),
         )
         HomeBlobDebugStateHolder.lastPaletteSongId = song.id
     }
 
     val baseSurfaceColor = Color.hsl(
         debugState.baseSurfaceHue,
-        debugState.baseSurfaceSaturation,
-        debugState.baseSurfaceLightness,
+        BaseSurfaceSaturation,
+        BaseSurfaceLightness,
     )
 
     // MainScaffold's innerPadding already confines this screen to the safe area between

@@ -34,6 +34,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.isActive
 
@@ -67,25 +68,26 @@ fun AmbientBlobBackground(
     baseSurfaceColor: Color,
     blurRadiusDp: Dp,
     modifier: Modifier = Modifier,
+    paused: Boolean = false,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
     val animations = blobs.mapIndexed { index, blob ->
         key(index) {
             if (blob.enabled) {
-                rememberBlobAnimation(index, blob, layerSize)
+                rememberBlobAnimation(index, blob, layerSize, paused)
             } else {
                 null
             }
         }
     }
     // Wobble lives separately from movement and opacity/size randomizers.
-    val wobbleOffsets = blobs.mapIndexed { index, blob ->
+    val wobbles = blobs.mapIndexed { index, blob ->
         key(index) {
             if (blob.enabled) {
-                rememberOrganicWobble(index, blob)
+                rememberOrganicWobble(index, blob, layerSize, paused)
             } else {
-                emptyList()
+                null
             }
         }
     }
@@ -95,32 +97,35 @@ fun AmbientBlobBackground(
             modifier = Modifier
                 .fillMaxSize()
                 .clipToBounds()
+                // Keep the blur's graphics layer while paused. Frozen animation state
+                // stops frame-driven draw invalidations without changing its appearance.
                 .blur(radius = blurRadiusDp)
                 .onSizeChanged { layerSize = it }
                 .drawWithCache {
                     val colors = blobs.map { blob ->
                         Color.hsl(blob.hue, blob.saturation, blob.lightness)
                     }
+                    val falloffs = blobs.map { it.gradientFalloffFraction.coerceIn(0f, 0.9f) }
                     val organicPath = Path()
                     onDrawBehind {
                         // All shapes share this blurred drawing layer. Read animated
                         // state only here, so drifting invalidates drawing, not composition.
                         animations.forEachIndexed { index, animation ->
                             if (animation == null) return@forEachIndexed
+                            val wobble = wobbles[index] ?: return@forEachIndexed
                             val radius = animation.sizeFraction.value * size.minDimension
                             if (radius <= 0f) return@forEachIndexed
 
                             val center = animation.motion.position.value
                             val color = colors[index].copy(alpha = animation.opacity.value)
                             val gradientRadius = updateOrganicPath(
-                                organicPath, center, radius, wobbleOffsets[index],
+                                organicPath, center, radius, wobble.offsets.value, wobble.directions,
                             )
-                            val falloff = blobs[index].gradientFalloffFraction.coerceIn(0f, 0.9f)
                             drawPath(
                                 path = organicPath,
                                 brush = Brush.radialGradient(
                                     0f to color,
-                                    falloff to color,
+                                    falloffs[index] to color,
                                     1f to color.copy(alpha = 0f),
                                     center = center,
                                     radius = gradientRadius,
@@ -136,12 +141,19 @@ fun AmbientBlobBackground(
 }
 
 @Composable
-private fun rememberOrganicWobble(blobIndex: Int, blob: BlobParams): List<State<Float>> {
+private fun rememberOrganicWobble(
+    blobIndex: Int,
+    blob: BlobParams,
+    layerSize: IntSize,
+    paused: Boolean,
+): OrganicWobble {
     val pointCount = blob.pointCount.coerceIn(6, 8)
     var phase by remember { mutableStateOf(0.0) }
     val speed by rememberUpdatedState(blob.wobbleSpeed)
     val amount by rememberUpdatedState(blob.wobbleAmountFraction.coerceIn(0f, 0.5f))
-    LaunchedEffect(blobIndex) {
+    LaunchedEffect(blobIndex, layerSize, paused) {
+        if (paused || layerSize.width <= 0 || layerSize.height <= 0) return@LaunchedEffect
+        // Restart only the frame baseline; the remembered phase survives pauses/resizes.
         var previousFrame = 0L
         while (isActive) {
             withFrameNanos { frameTime ->
@@ -154,28 +166,52 @@ private fun rememberOrganicWobble(blobIndex: Int, blob: BlobParams): List<State<
             }
         }
     }
-    return remember(blobIndex, pointCount) {
-        List(pointCount) { pointIndex ->
-            val startingAngle = 2.0 * PI * pointIndex / pointCount + blobIndex * 0.731
-            derivedStateOf {
-                val angle = phase + startingAngle
-                ((sin(angle) * 0.7 + sin(angle * 1.618 + pointIndex) * 0.3) * amount).toFloat()
-            }
+    val directions = remember(pointCount) {
+        List(pointCount) { index ->
+            val angle = 2f * PI.toFloat() * index / pointCount
+            Offset(cos(angle), sin(angle))
         }
+    }
+    return remember(blobIndex, pointCount) {
+        val startingAngles = DoubleArray(pointCount) { pointIndex ->
+            2.0 * PI * pointIndex / pointCount + blobIndex * 0.731
+        }
+        OrganicWobble(
+            directions = directions,
+            offsets = derivedStateOf {
+                // One snapshot reader/pass per blob, retaining both original sine terms.
+                val currentPhase = phase
+                val currentAmount = amount
+                FloatArray(pointCount) { pointIndex ->
+                    val angle = currentPhase + startingAngles[pointIndex]
+                    ((sin(angle) * 0.7 + sin(angle * 1.618 + pointIndex) * 0.3) * currentAmount).toFloat()
+                }
+            },
+        )
     }
 }
 
-private fun updateOrganicPath(path: Path, center: Offset, radius: Float, offsets: List<State<Float>>): Float {
+private class OrganicWobble(
+    val directions: List<Offset>,
+    val offsets: State<FloatArray>,
+)
+
+private fun updateOrganicPath(
+    path: Path,
+    center: Offset,
+    radius: Float,
+    offsets: FloatArray,
+    directions: List<Offset>,
+): Float {
     path.reset()
     val count = offsets.size
     if (count < 3) return radius
     val points = List(count) { index ->
-        val angle = 2f * PI.toFloat() * index / count
-        val pointRadius = radius * (1f + offsets[index].value)
-        center + Offset(cos(angle) * pointRadius, sin(angle) * pointRadius)
+        val pointRadius = radius * (1f + offsets[index])
+        center + directions[index] * pointRadius
     }
     path.moveTo(points[0].x, points[0].y)
-    var gradientRadius = points.maxOf { (it - center).getDistance() }
+    var gradientRadiusSquared = points.maxOf { (it - center).getDistanceSquared() }
     for (index in points.indices) {
         val previous = points[(index - 1 + count) % count]
         val current = points[index]
@@ -185,11 +221,15 @@ private fun updateOrganicPath(path: Path, center: Offset, radius: Float, offsets
         val cp2 = next - (nextNext - current) / 6f
         // A cubic stays inside its control-point hull. Include the handles so the
         // gradient also covers any curve overshoot beyond the live perimeter points.
-        gradientRadius = maxOf(gradientRadius, (cp1 - center).getDistance(), (cp2 - center).getDistance())
+        gradientRadiusSquared = maxOf(
+            gradientRadiusSquared,
+            (cp1 - center).getDistanceSquared(),
+            (cp2 - center).getDistanceSquared(),
+        )
         path.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, next.x, next.y)
     }
     path.close()
-    return gradientRadius
+    return sqrt(gradientRadiusSquared)
 }
 
 private class BlobMotionState {
@@ -205,11 +245,17 @@ private class BlobAnimation(
 )
 
 @Composable
-private fun rememberBlobAnimation(index: Int, blob: BlobParams, layerSize: IntSize): BlobAnimation {
+private fun rememberBlobAnimation(
+    index: Int,
+    blob: BlobParams,
+    layerSize: IntSize,
+    paused: Boolean,
+): BlobAnimation {
     val motion = remember { BlobMotionState() }
-    val opacity = rememberRandomizedValue(index, blob.opacity, blob.opacityRandomizer)
-    val sizeFraction = rememberRandomizedValue(index, blob.sizeFraction, blob.sizeRandomizer)
-    LaunchedEffect(index, blob.speedFraction, blob.enabled, layerSize) {
+    val inactive = paused || layerSize.width <= 0 || layerSize.height <= 0
+    val opacity = rememberRandomizedValue(index, blob.opacity, blob.opacityRandomizer, inactive)
+    val sizeFraction = rememberRandomizedValue(index, blob.sizeFraction, blob.sizeRandomizer, inactive)
+    LaunchedEffect(index, blob.speedFraction, blob.enabled, layerSize, paused) {
         if (layerSize.width <= 0 || layerSize.height <= 0) return@LaunchedEffect
         val width = layerSize.width.toFloat()
         val height = layerSize.height.toFloat()
@@ -219,6 +265,8 @@ private fun rememberBlobAnimation(index: Int, blob: BlobParams, layerSize: IntSi
             motion.position.value = Offset(Random.nextFloat() * width, Random.nextFloat() * height)
             motion.initialized = true
         }
+        // Even an initially collapsed player needs its full-canvas static spawn positions.
+        if (paused) return@LaunchedEffect
         var previousFrame = 0L
         while (isActive) {
             withFrameNanos { frameTime ->
@@ -266,12 +314,18 @@ private fun moveBlob(motion: BlobMotionState, distance: Float, width: Float, hei
 }
 
 @Composable
-private fun rememberRandomizedValue(index: Int, baseValue: Float, config: RandomizerConfig): State<Float> {
+private fun rememberRandomizedValue(
+    index: Int,
+    baseValue: Float,
+    config: RandomizerConfig,
+    paused: Boolean,
+): State<Float> {
     return if (config.enabled) {
         // Each opacity/size call remembers its own phase, independently across blobs.
         var phase by remember(index) { mutableStateOf(Random.nextDouble() * 2.0 * PI) }
         val currentConfig by rememberUpdatedState(config)
-        LaunchedEffect(index) {
+        LaunchedEffect(index, paused) {
+            if (paused) return@LaunchedEffect
             var previousFrame = 0L
             while (isActive) {
                 withFrameNanos { frameTime ->

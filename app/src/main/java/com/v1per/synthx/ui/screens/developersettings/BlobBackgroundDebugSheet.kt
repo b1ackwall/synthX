@@ -34,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.v1per.synthx.ui.components.BaseSurfaceLightness
+import com.v1per.synthx.ui.components.BaseSurfaceSaturation
 import com.v1per.synthx.ui.components.BlobParams
 import com.v1per.synthx.ui.components.HomeBlobDebugStateHolder
 import com.v1per.synthx.ui.components.RefinedBottomSheet
@@ -50,8 +52,8 @@ internal fun BlobBackgroundDebugSheet(
     var debugState by HomeBlobDebugStateHolder.state
     val baseSurfaceColor = Color.hsl(
         debugState.baseSurfaceHue,
-        debugState.baseSurfaceSaturation,
-        debugState.baseSurfaceLightness,
+        BaseSurfaceSaturation,
+        BaseSurfaceLightness,
     )
 
     // RefinedBottomSheet calls show() after measuring its available height.
