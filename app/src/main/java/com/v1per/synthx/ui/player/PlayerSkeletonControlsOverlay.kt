@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -226,6 +227,8 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 currentPosition = currentPosition,
                 duration = duration,
                 onSeek = onSeek,
+                unplayedColor = Color.White.copy(alpha = 0.25f),
+                playedColor = Color.White.copy(alpha = 0.75f),
                 enabled = overlayControlsEnabled,
             )
             Spacer(modifier = Modifier.weight(1f))
