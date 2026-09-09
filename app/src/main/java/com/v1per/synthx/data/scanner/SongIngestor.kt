@@ -14,6 +14,9 @@ import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.toPaletteSwatches
+import com.v1per.synthx.ui.components.ExtractedSwatchHsl
+import com.v1per.synthx.ui.components.extractArtworkSwatches
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -67,7 +70,7 @@ internal class SongIngestor(
 ) {
 
     /**
-     * Reads one file's tags — and, when [includeArt], its embedded cover — into memory.
+     * Reads one file's tags — and, when [includeArt], its embedded cover and raw swatches.
      *
      * **Touches no database.** This is the entire file-in/data-out half of what
      * [insertNewSong] and [retagIfChanged] used to do inline, lifted out so a scan can run it
@@ -93,8 +96,8 @@ internal class SongIngestor(
         songId: String,
         includeArt: Boolean,
     ): ExtractedMetadata {
-        // The only cancellation check this call can offer: everything below is blocking
-        // native work that never observes it. Cancelling therefore costs at most one file.
+        // Native metadata/art work is blocking; the subsequent URI palette load also
+        // cooperates with cancellation through its coroutine dispatcher.
         currentCoroutineContext().ensureActive()
 
         val retriever = MediaMetadataRetriever()
@@ -107,6 +110,7 @@ internal class SongIngestor(
         var rawTrackNumber: String? = null
         var albumArtUri: String? = null
         var albumArtFullUri: String? = null
+        var swatches: List<ExtractedSwatchHsl>? = null
         try {
             retriever.setDataSource(context, file.uri)
             rawTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
@@ -122,6 +126,11 @@ internal class SongIngestor(
                 val (compressedArtUri, fullArtUri) = AlbumArtExtractor.extract(context, retriever, songId)
                 albumArtUri = compressedArtUri
                 albumArtFullUri = fullArtUri
+                // Reuse the URI-based extractor while still holding this file's scan permit.
+                // Store raw swatches; assigning them to blobs belongs to rendering.
+                swatches = compressedArtUri?.let { uri ->
+                    extractArtworkSwatches(context, uri).takeIf { it.size == 3 }
+                }
             }
         } catch (e: CancellationException) {
             throw e
@@ -164,6 +173,15 @@ internal class SongIngestor(
             trackNumber = trackNumber,
             albumArtUri = albumArtUri,
             albumArtFullUri = albumArtFullUri,
+            swatch1Hue = swatches?.get(0)?.hue,
+            swatch1Saturation = swatches?.get(0)?.saturation,
+            swatch1Lightness = swatches?.get(0)?.lightness,
+            swatch2Hue = swatches?.get(1)?.hue,
+            swatch2Saturation = swatches?.get(1)?.saturation,
+            swatch2Lightness = swatches?.get(1)?.lightness,
+            swatch3Hue = swatches?.get(2)?.hue,
+            swatch3Saturation = swatches?.get(2)?.saturation,
+            swatch3Lightness = swatches?.get(2)?.lightness,
         )
     }
 
@@ -192,24 +210,32 @@ internal class SongIngestor(
         val albumId = album?.id
         val dateAdded = System.currentTimeMillis()
 
-        songDao.upsertSong(
-            SongEntity(
-                id = id,
-                title = meta.title,
-                albumId = albumId,
-                duration = meta.duration,
-                filePath = path,
-                albumArtUri = meta.albumArtUri,
-                albumArtFullUri = meta.albumArtFullUri,
-                year = meta.year,
-                trackNumber = meta.trackNumber,
-                dateAdded = dateAdded,
-                // Explicit, not the entity's constructor default — this song's starred
-                // state is derived from which root it was found under, not "every new
-                // song starts starred".
-                isStarred = isStarred,
-            )
+        val entity = SongEntity(
+            id = id,
+            title = meta.title,
+            albumId = albumId,
+            duration = meta.duration,
+            filePath = path,
+            albumArtUri = meta.albumArtUri,
+            albumArtFullUri = meta.albumArtFullUri,
+            swatch1Hue = meta.swatch1Hue,
+            swatch1Saturation = meta.swatch1Saturation,
+            swatch1Lightness = meta.swatch1Lightness,
+            swatch2Hue = meta.swatch2Hue,
+            swatch2Saturation = meta.swatch2Saturation,
+            swatch2Lightness = meta.swatch2Lightness,
+            swatch3Hue = meta.swatch3Hue,
+            swatch3Saturation = meta.swatch3Saturation,
+            swatch3Lightness = meta.swatch3Lightness,
+            year = meta.year,
+            trackNumber = meta.trackNumber,
+            dateAdded = dateAdded,
+            // Explicit, not the entity's constructor default — this song's starred
+            // state is derived from which root it was found under, not "every new
+            // song starts starred".
+            isStarred = isStarred,
         )
+        songDao.upsertSong(entity)
 
         songArtistDao.deleteSongArtists(id)
         val artists = meta.artistNames.mapIndexed { index, name ->
@@ -229,6 +255,7 @@ internal class SongIngestor(
             filePath = path,
             albumArtUri = meta.albumArtUri,
             albumArtFullUri = meta.albumArtFullUri,
+            paletteSwatches = entity.toPaletteSwatches(),
             isMissing = false,
             dateAdded = dateAdded,
             albumId = albumId,

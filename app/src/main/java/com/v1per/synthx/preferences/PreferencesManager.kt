@@ -148,18 +148,15 @@ class PreferencesManager(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_ART_SWEEP_PENDING, value).apply()
 
     // ------------------------------------------------- issues scan cache (see IssuesScanWorker)
-    // Six of the Issues screen's seven categories are already-warm in-memory StateFlows or a
-    // live Room Flow, so they cost nothing to read and are never cached. The seventh —
-    // missing album art — is a whole-library filesystem sweep, which is why its result is
-    // cached here instead of recomputed on every visit to the screen. Persisted rather than
-    // held in memory so the screen has something to show on the first visit of a cold process.
+    // Six categories stay live. Missing-art and missing-palette aggregate IDs are persisted
+    // so the screen and both Fix actions share the last worker snapshot across cold starts.
 
     /** Epoch millis the last [IssuesScanWorker] run completed. 0 means never scanned. */
     var lastIssuesScanTimestamp: Long
         get() = prefs.getLong(KEY_LAST_ISSUES_SCAN_TIMESTAMP, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_ISSUES_SCAN_TIMESTAMP, value).apply()
 
-    /** Total issue rows the last scan found, across all seven categories — status-line summary only. */
+    /** Total issue rows the last scan found, across all eight categories — status-line summary only. */
     var lastIssuesScanIssueCount: Int
         get() = prefs.getInt(KEY_LAST_ISSUES_SCAN_ISSUE_COUNT, 0)
         set(value) = prefs.edit().putInt(KEY_LAST_ISSUES_SCAN_ISSUE_COUNT, value).apply()
@@ -174,6 +171,15 @@ class PreferencesManager(context: Context) {
     var missingArtSongIds: Set<String>
         get() = prefs.getStringSet(KEY_MISSING_ART_SONG_IDS, null)?.toSet() ?: emptySet()
         set(value) = prefs.edit().putStringSet(KEY_MISSING_ART_SONG_IDS, value).apply()
+
+    /** Fixable songs with artwork but no stored palette; copy the preference-owned set. */
+    var missingPaletteSongIds: Set<String>
+        get() = prefs.getStringSet(KEY_MISSING_PALETTE_SONG_IDS, null)?.toSet() ?: emptySet()
+        set(value) = prefs.edit().putStringSet(KEY_MISSING_PALETTE_SONG_IDS, value).apply()
+
+    var lastIssuesScanMissingPaletteCount: Int
+        get() = prefs.getInt(KEY_LAST_ISSUES_SCAN_MISSING_PALETTE_COUNT, 0)
+        set(value) = prefs.edit().putInt(KEY_LAST_ISSUES_SCAN_MISSING_PALETTE_COUNT, value).apply()
 
     companion object {
         private const val PREFS_NAME = "synthx_prefs"
@@ -202,5 +208,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_ISSUES_SCAN_TIMESTAMP = "last_issues_scan_timestamp"
         private const val KEY_LAST_ISSUES_SCAN_ISSUE_COUNT = "last_issues_scan_issue_count"
         private const val KEY_MISSING_ART_SONG_IDS = "missing_art_song_ids"
+        private const val KEY_MISSING_PALETTE_SONG_IDS = "missing_palette_song_ids"
+        private const val KEY_LAST_ISSUES_SCAN_MISSING_PALETTE_COUNT = "last_issues_scan_missing_palette_count"
     }
 }

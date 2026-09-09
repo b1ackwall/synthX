@@ -1,6 +1,5 @@
 package com.v1per.synthx.ui.components
 
-import android.content.Context
 import kotlin.random.Random
 
 internal const val BaseSurfaceSaturation = 0.25f
@@ -42,15 +41,13 @@ internal data class BlobColorUpdate(
     val gradientFalloffFraction: Float,
 )
 
-internal suspend fun resolveArtworkBackground(context: Context, uri: String): DerivedBlobColors? =
-    deriveBlobColors(extractArtworkSwatches(context, uri))
-
 internal fun deriveBlobColors(
     swatches: List<ExtractedSwatchHsl>,
     random: Random = Random.Default,
 ): DerivedBlobColors? {
     if (swatches.size != 3) return null
-    // NOTE: Random assignment is recomputed on every extraction call (i.e. every song change during live playback). A future scan-time-extraction migration must decide and PERSIST this random assignment once, at scan time — not re-randomize on every playback, since there will be no live re-extraction step to trigger it.
+    // Only raw swatches are persisted. Home and Player assign them afresh when the song
+    // or its stored palette changes, and retain that assignment across recompositions.
     val doubledIndex = random.nextInt(swatches.size)
     // Select by index: the extractor may reuse colors when artwork has a limited palette.
     val slots = (listOf(swatches[doubledIndex], swatches[doubledIndex]) +

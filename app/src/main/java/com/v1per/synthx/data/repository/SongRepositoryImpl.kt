@@ -23,6 +23,8 @@ import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import com.v1per.synthx.data.scanner.ArtRecovery
 import com.v1per.synthx.data.scanner.ArtRecoveryResult
+import com.v1per.synthx.data.scanner.PaletteRecovery
+import com.v1per.synthx.data.scanner.PaletteRecoveryResult
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
@@ -41,6 +43,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -102,6 +105,12 @@ class SongRepositoryImpl(
         )
 
     override fun getSongs(): Flow<List<Song>> = songsFlow
+
+    /** Refresh only the playing song's stored palette; no artwork I/O or artist joins. */
+    internal fun observePaletteSwatches(songId: String): Flow<List<SongPaletteSwatch>?> =
+        RepositoryDbFlow.observe { songDao.observeSongById(songId) }
+            .map { it?.toPaletteSwatches() }
+            .distinctUntilChanged()
 
     // Same caching rationale as songsFlow above — shared across every getArtists()
     // subscriber (Artists list, Search) instead of re-querying per collector.
@@ -306,6 +315,16 @@ class SongRepositoryImpl(
 
     override suspend fun recoverMissingArt(songIds: List<String>?): ArtRecoveryResult = dbOperation {
         ArtRecovery.recover(context, songDao, songIds)
+    }
+
+    /** Both cache values describe the same database snapshot. Caller owns worker admission. */
+    internal suspend fun getMissingPaletteSnapshotAlreadyAdmitted(): Pair<List<String>, Int> =
+        database.withTransaction {
+            songDao.getSongIdsMissingPalette() to songDao.getMissingPaletteCountOnce()
+        }
+
+    override suspend fun recoverPaletteData(songIds: List<String>): PaletteRecoveryResult = dbOperation {
+        PaletteRecovery.recover(context, database, songIds)
     }
 
     override fun getAllGroups(): Flow<List<PlaylistGroup>> =
@@ -543,6 +562,7 @@ class SongRepositoryImpl(
             filePath = song.filePath,
             albumArtUri = song.albumArtUri,
             albumArtFullUri = song.albumArtFullUri,
+            paletteSwatches = song.toPaletteSwatches(),
             isMissing = song.isMissing,
             dateAdded = song.dateAdded,
             albumId = song.albumId,

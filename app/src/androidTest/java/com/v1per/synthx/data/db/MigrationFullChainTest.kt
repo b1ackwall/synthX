@@ -124,6 +124,15 @@ class MigrationFullChainTest {
                 assertTrue(cursor.moveToFirst())
                 assertEquals("Pre-chain album", cursor.getString(0))
             }
+            // The v12->v13 leg must also compose with the complete historical chain.
+            database.query(
+                "SELECT swatch1_hue, swatch1_saturation, swatch1_lightness, " +
+                    "swatch2_hue, swatch2_saturation, swatch2_lightness, " +
+                    "swatch3_hue, swatch3_saturation, swatch3_lightness FROM songs",
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                repeat(9) { index -> assertTrue("New swatch component $index must be NULL", cursor.isNull(index)) }
+            }
         }
     }
 

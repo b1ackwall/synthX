@@ -16,6 +16,9 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE id = :id")
     suspend fun getSongById(id: String): SongEntity?
 
+    @Query("SELECT * FROM songs WHERE id = :id")
+    fun observeSongById(id: String): Flow<SongEntity?>
+
     @Query("SELECT * FROM songs WHERE file_path = :path")
     suspend fun getSongByPath(path: String): SongEntity?
 
@@ -192,6 +195,12 @@ interface SongDao {
      *  (IssuesScanWorker) rather than observing — nothing there to keep a Flow subscribed for. */
     @Query("SELECT COUNT(*) FROM songs WHERE is_missing = 1")
     suspend fun getMissingSongCountOnce(): Int
+
+    @Query("SELECT COUNT(*) FROM songs WHERE is_missing = 0 AND (album_art_uri IS NOT NULL OR album_art_full_uri IS NOT NULL) AND swatch1_hue IS NULL")
+    suspend fun getMissingPaletteCountOnce(): Int
+
+    @Query("SELECT id FROM songs WHERE is_missing = 0 AND (album_art_uri IS NOT NULL OR album_art_full_uri IS NOT NULL) AND swatch1_hue IS NULL ORDER BY id")
+    suspend fun getSongIdsMissingPalette(): List<String>
 
     // Art URI of any other song still in the album, for re-pointing albums.album_art_uri
     // when the song that supplied it is deleted. Prefers a song that actually has art so

@@ -48,4 +48,14 @@ data class SongEntity(
      * exactly or Room's schema validation fails at open time — same contract as [isMissing].
      */
     @ColumnInfo(name = "in_inbox", defaultValue = "1") val isStarred: Boolean = true,
+    // Written together: three raw HSL swatches, or NULL when extraction is unavailable.
+    @ColumnInfo(name = "swatch1_hue", defaultValue = "NULL") val swatch1Hue: Float? = null,
+    @ColumnInfo(name = "swatch1_saturation", defaultValue = "NULL") val swatch1Saturation: Float? = null,
+    @ColumnInfo(name = "swatch1_lightness", defaultValue = "NULL") val swatch1Lightness: Float? = null,
+    @ColumnInfo(name = "swatch2_hue", defaultValue = "NULL") val swatch2Hue: Float? = null,
+    @ColumnInfo(name = "swatch2_saturation", defaultValue = "NULL") val swatch2Saturation: Float? = null,
+    @ColumnInfo(name = "swatch2_lightness", defaultValue = "NULL") val swatch2Lightness: Float? = null,
+    @ColumnInfo(name = "swatch3_hue", defaultValue = "NULL") val swatch3Hue: Float? = null,
+    @ColumnInfo(name = "swatch3_saturation", defaultValue = "NULL") val swatch3Saturation: Float? = null,
+    @ColumnInfo(name = "swatch3_lightness", defaultValue = "NULL") val swatch3Lightness: Float? = null,
 )

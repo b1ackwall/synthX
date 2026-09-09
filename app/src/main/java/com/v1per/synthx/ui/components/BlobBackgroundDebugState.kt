@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.components
 
 import androidx.compose.runtime.mutableStateOf
+import com.v1per.synthx.data.repository.SongPaletteSwatch
 
 // Shared by Home's background renderer and the controls in Developer Settings.
 internal data class BlobBackgroundDebugState(
@@ -14,4 +15,5 @@ internal data class BlobBackgroundDebugState(
 internal object HomeBlobDebugStateHolder {
     val state = mutableStateOf(BlobBackgroundDebugState())
     var lastPaletteSongId: String? = null
+    var lastPaletteSwatches: List<SongPaletteSwatch>? = null
 }

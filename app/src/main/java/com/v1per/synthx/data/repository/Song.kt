@@ -20,6 +20,8 @@ data class Song(
     val albumId: String? = null,
     /** Individual artists in position order — [artist] is these joined for display. */
     val artists: List<Artist> = emptyList(),
+    /** Three raw artwork swatches, or null unless all nine stored components are present. */
+    val paletteSwatches: List<SongPaletteSwatch>? = null,
 )
 
 /** One independently addressable occurrence of a [Song] in the playback queue. */

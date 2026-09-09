@@ -6,10 +6,8 @@ import com.v1per.synthx.data.backup.VerificationAttemptOutcome
 import com.v1per.synthx.data.repository.MissingSongInfo
 
 /**
- * One entry on the broadened Issues screen. The five safety-net variants (everything but
- * [MissingSong]) are surfaced from BackupOutcomeStore/DestructiveActionTracker/
- * BackupFolderLaunchCheck — see IssuesViewModel for the filtering that turns a "healthy" source
- * emission into the absence of an Issue rather than into a variant here.
+ * Live missing-song/safety signals and two cached artwork-related aggregates.
+ * See IssuesViewModel for filtering and ordering.
  */
 sealed class Issue {
     data class MissingSong(val info: MissingSongInfo) : Issue()
@@ -25,4 +23,7 @@ sealed class Issue {
      * excluded from backups. See [com.v1per.synthx.data.scanner.ArtRecovery].
      */
     data class MissingArt(val songIds: List<String>) : Issue()
+
+    /** Songs with an art URI and available audio, but no stored background swatches. */
+    data class MissingPalette(val songIds: List<String>) : Issue()
 }

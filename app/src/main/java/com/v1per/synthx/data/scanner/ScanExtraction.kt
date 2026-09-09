@@ -89,6 +89,15 @@ internal data class ExtractedMetadata(
     val trackNumber: Int?,
     val albumArtUri: String?,
     val albumArtFullUri: String?,
+    val swatch1Hue: Float? = null,
+    val swatch1Saturation: Float? = null,
+    val swatch1Lightness: Float? = null,
+    val swatch2Hue: Float? = null,
+    val swatch2Saturation: Float? = null,
+    val swatch2Lightness: Float? = null,
+    val swatch3Hue: Float? = null,
+    val swatch3Saturation: Float? = null,
+    val swatch3Lightness: Float? = null,
 )
 
 /**
@@ -265,7 +274,12 @@ private suspend fun extractOneFile(
         // Art is extracted only on the insert path, exactly as before: retagIfChanged has
         // always skipped AlbumArtExtractor deliberately, since decoding and rewriting a
         // bitmap is the cost that path exists to avoid paying when nothing changed.
-        ScanBranch.INSERT -> ingestor.extractMetadata(file, id, includeArt = true)
+        ScanBranch.INSERT -> {
+            // Register before extraction: palette loading can suspend after art files are
+            // written, so cancellation must still let the caller clean up those files.
+            artWrittenIds.add(id)
+            ingestor.extractMetadata(file, id, includeArt = true)
+        }
         ScanBranch.RETAG_CHECK -> ingestor.extractMetadata(file, id, includeArt = false)
         ScanBranch.HASH_FAILED, ScanBranch.PATH_MOVED, ScanBranch.REAPPEARED -> null
     }

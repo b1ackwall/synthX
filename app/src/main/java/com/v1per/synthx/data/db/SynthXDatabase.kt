@@ -22,7 +22,7 @@ import com.v1per.synthx.data.backup.RestoreStartup
         BaselineQueueItemEntity::class,
         PlaybackCursorEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -36,7 +36,7 @@ abstract class SynthXDatabase : RoomDatabase() {
 
     companion object {
         /** Must track the `version` in the @Database annotation above. */
-        const val VERSION = 12
+        const val VERSION = 13
 
         const val DB_NAME = "synthx.db"
 
@@ -341,6 +341,39 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        // Raw artwork swatches only. Existing rows stay NULL until the Issues palette fix runs.
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN swatch1_hue REAL DEFAULT NULL"
+                )
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN swatch1_saturation REAL DEFAULT NULL"
+                )
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN swatch1_lightness REAL DEFAULT NULL"
+                )
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN swatch2_hue REAL DEFAULT NULL"
+                )
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN swatch2_saturation REAL DEFAULT NULL"
+                )
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN swatch2_lightness REAL DEFAULT NULL"
+                )
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN swatch3_hue REAL DEFAULT NULL"
+                )
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN swatch3_saturation REAL DEFAULT NULL"
+                )
+                database.execSQL(
+                    "ALTER TABLE songs ADD COLUMN swatch3_lightness REAL DEFAULT NULL"
+                )
+            }
+        }
+
         /**
          * The canonical migration chain, in order. Single source of truth for every Room
          * builder in this file — the live singleton in [getOrCreate] and the offline
@@ -361,7 +394,7 @@ abstract class SynthXDatabase : RoomDatabase() {
         internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
             MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-            MIGRATION_11_12,
+            MIGRATION_11_12, MIGRATION_12_13,
         )
 
         fun getInstance(context: Context): SynthXDatabase {

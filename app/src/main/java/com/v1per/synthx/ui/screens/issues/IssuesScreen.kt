@@ -75,6 +75,7 @@ fun IssuesScreen(
             deleteEnabled = deleteSongsEnabled,
             onDelete = viewModel::deleteSong,
             onFixMissingArt = viewModel::fixMissingArt,
+            onFixMissingPalette = viewModel::fixMissingPalette,
             onNavigateToBackups = onNavigateToBackups,
             modifier = Modifier.weight(1f),
         )
@@ -144,6 +145,7 @@ private fun IssuesContent(
     deleteEnabled: Boolean,
     onDelete: (String) -> Unit,
     onFixMissingArt: (List<String>) -> Unit,
+    onFixMissingPalette: (List<String>) -> Unit,
     onNavigateToBackups: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -198,6 +200,10 @@ private fun IssuesContent(
                             songIds = issue.songIds,
                             onFix = { onFixMissingArt(issue.songIds) },
                         )
+                        is Issue.MissingPalette -> MissingPaletteRow(
+                            songIds = issue.songIds,
+                            onFix = { onFixMissingPalette(issue.songIds) },
+                        )
                     }
                 }
             }
@@ -214,6 +220,7 @@ private fun Issue.rowKey(): String = when (this) {
     is Issue.DestructiveActionsSinceBackup -> "destructive_actions"
     is Issue.BackupFolderGrantLost -> "backup_folder_grant_lost"
     is Issue.MissingArt -> "missing_art"
+    is Issue.MissingPalette -> "missing_palette"
 }
 
 /** The row body is inert — a missing song has no file to play. Actions live in the menu. */
@@ -296,6 +303,25 @@ private fun MissingSongMenu(deleteEnabled: Boolean, onDelete: () -> Unit) {
  */
 @Composable
 private fun MissingArtRow(songIds: List<String>, onFix: () -> Unit) {
+    ArtworkIssueRow(
+        title = stringResource(R.string.issues_missing_art_title, songIds.size),
+        subtitle = stringResource(R.string.issues_missing_art_subtitle),
+        onFix = onFix,
+    )
+}
+
+@Composable
+private fun MissingPaletteRow(songIds: List<String>, onFix: () -> Unit) {
+    ArtworkIssueRow(
+        title = stringResource(R.string.issues_missing_palette_title, songIds.size),
+        subtitle = stringResource(R.string.issues_missing_palette_subtitle),
+        onFix = onFix,
+    )
+}
+
+/** Both aggregates have an inert body and the same non-destructive Fix menu. */
+@Composable
+private fun ArtworkIssueRow(title: String, subtitle: String, onFix: () -> Unit) {
     Column {
         Row(
             modifier = Modifier
@@ -305,7 +331,7 @@ private fun MissingArtRow(songIds: List<String>, onFix: () -> Unit) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.issues_missing_art_title, songIds.size),
+                    text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     color = TextPrimary,
                     maxLines = 1,
@@ -313,14 +339,14 @@ private fun MissingArtRow(songIds: List<String>, onFix: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = stringResource(R.string.issues_missing_art_subtitle),
+                    text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            MissingArtMenu(onFix = onFix)
+            ArtworkFixMenu(onFix = onFix)
         }
         HorizontalDivider(
             thickness = 1.dp,
@@ -330,7 +356,7 @@ private fun MissingArtRow(songIds: List<String>, onFix: () -> Unit) {
 }
 
 @Composable
-private fun MissingArtMenu(onFix: () -> Unit) {
+private fun ArtworkFixMenu(onFix: () -> Unit) {
     ThreeDotMenuWithConfirm(
         menuItems = { closeMenu, _ ->
             DropdownMenuItem(
@@ -474,7 +500,7 @@ private fun IssuesPreview() {
                 ScanStatusBar(
                     status = IssuesScanStatus.Idle(
                         lastScanTimestamp = now - 2 * DateUtils.HOUR_IN_MILLIS,
-                        issueCount = 6,
+                        issueCount = 7,
                     ),
                     onScan = {},
                 )
@@ -492,6 +518,7 @@ private fun IssuesPreview() {
                             ),
                         ),
                         Issue.DestructiveActionsSinceBackup(count = 4),
+                        Issue.MissingPalette(listOf("a", "b")),
                         Issue.MissingSong(
                             MissingSongInfo(
                                 id = "1",
@@ -521,6 +548,7 @@ private fun IssuesPreview() {
                 deleteEnabled = true,
                 onDelete = {},
                 onFixMissingArt = {},
+                onFixMissingPalette = {},
                 onNavigateToBackups = {},
                 modifier = Modifier.weight(1f),
             )
@@ -551,6 +579,7 @@ private fun IssuesEmptyPreview() {
                     deleteEnabled = true,
                     onDelete = {},
                     onFixMissingArt = {},
+                    onFixMissingPalette = {},
                     onNavigateToBackups = {},
                     modifier = Modifier.weight(1f),
                 )
@@ -575,6 +604,7 @@ private fun IssuesScanningPreview() {
                     deleteEnabled = true,
                     onDelete = {},
                     onFixMissingArt = {},
+                    onFixMissingPalette = {},
                     onNavigateToBackups = {},
                     modifier = Modifier.weight(1f),
                 )

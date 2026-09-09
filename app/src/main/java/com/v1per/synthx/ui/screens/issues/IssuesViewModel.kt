@@ -62,12 +62,12 @@ sealed interface IssuesScanStatus {
 }
 
 /**
- * Reads the Issues screen's seven categories from two places, by cost.
+ * Reads the Issues screen's eight categories from live signals and the worker cache.
  *
  * The six cheap ones stay live: five are process-wide in-memory StateFlows and the sixth is a
  * Room Flow, so they are always current and cost nothing to re-read on every visit. The
- * seventh — missing album art — is a whole-library filesystem sweep, so it is never computed
- * here at all any more. [IssuesScanWorker] computes it (daily, or on demand) and caches it in
+ * artwork aggregates are read from a shared snapshot. [IssuesScanWorker] computes missing art
+ * and missing palette data (daily, or on demand) and caches them in
  * [PreferencesManager]; this ViewModel reads that cache.
  *
  * That split is what fixes the bug this replaced: the old init block kicked off the expensive
@@ -157,6 +157,7 @@ class IssuesViewModel(
                         partial,
                         grantLost,
                         IssuesScanSnapshot.stableOrder(preferences.missingArtSongIds),
+                        IssuesScanSnapshot.stableOrder(preferences.missingPaletteSongIds),
                     )
                 }
             }.catch { e ->
@@ -180,14 +181,14 @@ class IssuesViewModel(
      * count sorts last (the softest signal — a plain count with no failure behind it). Missing
      * songs keep their existing most-recent-first order.
      *
-     * [missingArtSongIds] now arrives from the scan cache rather than a fresh sweep, but nothing
-     * about the composition below changed with it — IssuesScanWorker.countIssues mirrors this
-     * exact shape to produce the status line's count.
+     * The two artwork aggregates arrive from the worker cache and stay adjacent.
+     * IssuesScanSnapshot.issueCount mirrors this shape for the status line's count.
      */
     private fun buildIssues(
         partial: PartialSources,
         grantLost: Boolean,
         missingArtSongIds: List<String>,
+        missingPaletteSongIds: List<String>,
     ): List<Issue> {
         val timestampedIssues = listOfNotNull(
             partial.backupOutcome
@@ -209,6 +210,9 @@ class IssuesViewModel(
             }
             if (missingArtSongIds.isNotEmpty()) {
                 add(Issue.MissingArt(missingArtSongIds))
+            }
+            if (missingPaletteSongIds.isNotEmpty()) {
+                add(Issue.MissingPalette(missingPaletteSongIds))
             }
         }
 
@@ -255,6 +259,16 @@ class IssuesViewModel(
                 .onFailure { e -> Log.w(TAG, "Art recovery failed for ${songIds.size} song(s)", e) }
             // Runs on both outcomes: a partial or failed recovery still needs the cache
             // reconciled with whatever is actually on disk now.
+            startScan()
+        }
+    }
+
+    /** Keep the scan status active throughout the fix and refresh the shared cache afterward. */
+    fun fixMissingPalette(songIds: List<String>) {
+        _pendingScan.value = true
+        viewModelScope.launch {
+            runCatching { repository.recoverPaletteData(songIds) }
+                .onFailure { e -> Log.w(TAG, "Palette recovery failed for ${songIds.size} song(s)", e) }
             startScan()
         }
     }

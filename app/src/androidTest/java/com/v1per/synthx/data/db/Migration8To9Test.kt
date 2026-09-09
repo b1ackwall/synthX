@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 /**
  * Covers the 8→9 leg specifically: the schema shape MIGRATION_8_9 produces, and the fact that
  * [SynthXDatabase.createStandalone] — the builder the offline restore candidate is migrated
- * through — actually carries a v8 database all the way to v9.
+ * through — actually carries a v8 database all the way to the current schema.
  *
  * 8_9 is purely additive with no backfill, so nothing is asserted about `album_art_full_uri`
  * *preserving* data: no writer for it existed before this migration. What is asserted is that
@@ -148,10 +148,10 @@ class Migration8To9Test {
         }
     }
 
-    // ------------------------------------------------- standalone v8 -> v9 candidate
+    // ------------------------------------------------- standalone v8 -> current candidate
 
     @Test
-    fun standaloneBuilderMigratesV8CandidateToV9AndValidatesAsCurrent() {
+    fun standaloneBuilderMigratesV8CandidateToCurrentAndValidatesAsCurrent() {
         val name = databaseName("standalone-v8")
         migrationHelper.createDatabase(name, 8).use { seedV8Song(it) }
 
@@ -168,7 +168,6 @@ class Migration8To9Test {
             migrationSnapshot = false,
         )
 
-        assertEquals(9, validated.schema.userVersion)
         assertEquals(SynthXDatabase.VERSION, validated.schema.userVersion)
     }
 

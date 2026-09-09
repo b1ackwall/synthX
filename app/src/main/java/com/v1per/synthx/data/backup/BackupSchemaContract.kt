@@ -110,6 +110,14 @@ internal object BackupSchemaContracts {
                 setOf("queue_items", "queue_baseline_items", "playback_cursor"),
             hasMigrationPathToCurrent = true,
         ),
+        // 12_13 adds raw palette columns to songs; managed tables are unchanged.
+        BackupSchemaContract(
+            userVersion = 13,
+            roomIdentityHash = "bedc7519ead944e2cf36a52bbe4af509",
+            expectedTables = coreTables +
+                setOf("queue_items", "queue_baseline_items", "playback_cursor"),
+            hasMigrationPathToCurrent = true,
+        ),
     ).associateBy { it.userVersion }
 
     val current: BackupSchemaContract

@@ -11,6 +11,7 @@ import androidx.media3.session.SessionToken
 import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.SongRepositoryImpl
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -170,6 +173,30 @@ class ExoPlayerEngine(
 
     init {
         instances += this
+        // Queue Songs are cached independently of Room. Observe the current song so an
+        // Issues backfill becomes visible immediately, including on a later transition
+        // to a previously queued song. This only changes swatches, never MediaItems.
+        engineScope.launch {
+            _currentSongId.collectLatest { songId ->
+                if (songId == null) return@collectLatest
+                SongRepositoryImpl.create(appContext).observePaletteSwatches(songId)
+                    .catch { error -> Log.w(TAG, "Could not observe stored palette for $songId", error) }
+                    .collect { swatches ->
+                        var changed = false
+                        songsBySlotId.entries.forEach { entry ->
+                            if (entry.value.id == songId && entry.value.paletteSwatches != swatches) {
+                                entry.setValue(entry.value.copy(paletteSwatches = swatches))
+                                changed = true
+                            }
+                        }
+                        if (changed) {
+                            refreshQueue()
+                            refreshUpcomingQueue()
+                            publishCurrentSlot(_currentSlotId.value)
+                        }
+                    }
+            }
+        }
         // A rescan can replace one content id while several independently keyed queue slots
         // reference it. Refresh every matching value without changing any stable slot key.
         engineScope.launch {

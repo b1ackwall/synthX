@@ -60,6 +60,11 @@ class MigrationCompletenessTest {
         )
 
         (oldestSupportedVersion..SynthXDatabase.VERSION).forEach { version ->
+            val schemaPath = "schemas/com.v1per.synthx.data.db.SynthXDatabase/$version.json"
+            assertTrue(
+                listOf(File(schemaPath), File("app/$schemaPath")).any { it.isFile },
+                "Missing exported Room schema for version $version",
+            )
             assertTrue(
                 BackupSchemaContracts.forVersion(version) != null,
                 "BackupSchemaContracts has no entry for version $version",

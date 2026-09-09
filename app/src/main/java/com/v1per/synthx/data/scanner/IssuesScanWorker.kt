@@ -21,15 +21,16 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Computes the Issues screen's full seven-category snapshot in one pass and caches the result,
+ * Computes the Issues screen's full eight-category snapshot in one pass and caches the result,
  * so opening the screen is a cache read rather than a whole-library filesystem sweep.
  *
- * Six of the seven categories are effectively free to read — five are process-wide in-memory
+ * Six categories stay live on the screen — five are process-wide in-memory
  * StateFlows ([BackupOutcomeStore]'s three outcomes, [DestructiveActionTracker.count],
- * [BackupFolderLaunchCheck.grantLost]) and the sixth is one indexed Room query. The seventh,
- * missing album art, is the expensive one: it walks every song row against `filesDir/art/`
+ * [BackupFolderLaunchCheck.grantLost]) and the sixth is a Room query. Missing palette data is
+ * a SQL-only check, cached alongside missing art so both Fix actions use this worker's snapshot.
+ * Missing album art is the expensive aggregate: it walks every song row against `filesDir/art/`
  * (see [ArtRecovery.findMissingArt]), which is what this worker exists to move off the screen's
- * critical path. Only that result is persisted; the other six stay live reads on the screen,
+ * critical path. Both aggregate results are persisted; the other six stay live reads on the screen,
  * where they cost nothing and are always current.
  *
  * Scheduled once a day from MainActivity's launch maintenance (the same due-check shape as the
@@ -59,25 +60,26 @@ class IssuesScanWorker(
         DestructiveActionTracker.initialize(applicationContext)
 
         return try {
-            val repository = SongRepositoryImpl.create(applicationContext)
-            val (missingArtSongIds, missingSongCount) = WorkerDatabaseAccess.run {
-                repository.findMissingArtSongIdsAlreadyAdmitted() to
-                    repository.getMissingSongCountAlreadyAdmitted()
+            val (snapshot, missingPaletteCount) = WorkerDatabaseAccess.run {
+                val repository = SongRepositoryImpl.create(applicationContext)
+                val (paletteIds, paletteCount) = repository.getMissingPaletteSnapshotAlreadyAdmitted()
+                IssuesScanSnapshot(
+                    missingArtSongIds = repository.findMissingArtSongIdsAlreadyAdmitted(),
+                    missingSongCount = repository.getMissingSongCountAlreadyAdmitted(),
+                    missingPaletteSongIds = paletteIds,
+                    grantLost = BackupFolderLaunchCheck.grantLost.value,
+                    backupUnhealthy = BackupOutcomeStore.lastBackupOutcome.value?.succeeded == false,
+                    exportUnhealthy = BackupOutcomeStore.lastExportOutcome.value?.succeeded == false,
+                    verificationFailed = BackupOutcomeStore.lastVerificationOutcome.value?.succeeded == false,
+                    destructiveActionCount = DestructiveActionTracker.count.value,
+                ) to paletteCount
             }
-
-            val snapshot = IssuesScanSnapshot(
-                missingArtSongIds = missingArtSongIds,
-                missingSongCount = missingSongCount,
-                grantLost = BackupFolderLaunchCheck.grantLost.value,
-                backupUnhealthy = BackupOutcomeStore.lastBackupOutcome.value?.succeeded == false,
-                exportUnhealthy = BackupOutcomeStore.lastExportOutcome.value?.succeeded == false,
-                verificationFailed = BackupOutcomeStore.lastVerificationOutcome.value?.succeeded == false,
-                destructiveActionCount = DestructiveActionTracker.count.value,
-            )
             val issueCount = snapshot.issueCount
             val completedAt = System.currentTimeMillis()
             PreferencesManager(applicationContext).apply {
-                this.missingArtSongIds = missingArtSongIds.toSet()
+                missingArtSongIds = snapshot.missingArtSongIds.toSet()
+                missingPaletteSongIds = snapshot.missingPaletteSongIds.toSet()
+                lastIssuesScanMissingPaletteCount = missingPaletteCount
                 lastIssuesScanIssueCount = issueCount
                 // Written last: it is the timestamp both the daily due-check and the screen's
                 // status line read, so it must never advance past a half-written cache.
@@ -86,13 +88,14 @@ class IssuesScanWorker(
 
             Log.d(
                 TAG,
-                "Issues scan complete — issues=$issueCount missingSongs=$missingSongCount " +
-                    "missingArt=${missingArtSongIds.size}",
+                "Issues scan complete — issues=$issueCount missingSongs=${snapshot.missingSongCount} " +
+                    "missingArt=${snapshot.missingArtSongIds.size} missingPalette=$missingPaletteCount",
             )
             Result.success(
                 workDataOf(
                     KEY_ISSUE_COUNT to issueCount,
-                    KEY_MISSING_ART_COUNT to missingArtSongIds.size,
+                    KEY_MISSING_ART_COUNT to snapshot.missingArtSongIds.size,
+                    KEY_MISSING_PALETTE_COUNT to missingPaletteCount,
                     KEY_COMPLETED_AT to completedAt,
                 ),
             )
@@ -130,6 +133,7 @@ class IssuesScanWorker(
         /** Total issue rows found. Absent on retry/failure — neither has a count to report. */
         const val KEY_ISSUE_COUNT = "issue_count"
         const val KEY_MISSING_ART_COUNT = "missing_art_count"
+        const val KEY_MISSING_PALETTE_COUNT = "missing_palette_count"
         const val KEY_COMPLETED_AT = "completed_at"
         const val KEY_ERROR = "error"
 
