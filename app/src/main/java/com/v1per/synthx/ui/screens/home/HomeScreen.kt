@@ -22,9 +22,8 @@ import com.v1per.synthx.ui.components.AmbientBlobBackground
 import com.v1per.synthx.ui.components.BaseSurfaceLightness
 import com.v1per.synthx.ui.components.BaseSurfaceSaturation
 import com.v1per.synthx.ui.components.HomeBlobDebugStateHolder
-import com.v1per.synthx.ui.components.deriveBlobColors
-import com.v1per.synthx.ui.components.extractArtworkSwatches
 import com.v1per.synthx.ui.components.rememberWordmark
+import com.v1per.synthx.ui.components.resolveArtworkBackground
 
 @Composable
 fun HomeScreen(playbackViewModel: PlaybackViewModel) {
@@ -36,11 +35,9 @@ fun HomeScreen(playbackViewModel: PlaybackViewModel) {
         val song = currentSong ?: return@LaunchedEffect
         if (HomeBlobDebugStateHolder.lastPaletteSongId == song.id) return@LaunchedEffect
         val uri = song.albumArtFullUri ?: song.albumArtUri ?: return@LaunchedEffect
-        val swatches = extractArtworkSwatches(context, uri)
-        if (swatches.isEmpty()) return@LaunchedEffect
+        val colors = resolveArtworkBackground(context, uri) ?: return@LaunchedEffect
         // Also guard against a playback change before its recomposition cancels this effect.
         if (playbackViewModel.currentSong.value?.id != song.id) return@LaunchedEffect
-        val colors = deriveBlobColors(swatches) ?: return@LaunchedEffect
         // Read the current singleton value after loading, preserving edits made meanwhile.
         debugState = debugState.copy(
             baseSurfaceHue = colors.baseSurfaceHue,

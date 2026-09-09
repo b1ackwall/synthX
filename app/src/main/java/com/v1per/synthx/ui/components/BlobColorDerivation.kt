@@ -1,6 +1,9 @@
 package com.v1per.synthx.ui.components
 
-internal const val BaseSurfaceSaturation = 0.5f
+import android.content.Context
+import kotlin.random.Random
+
+internal const val BaseSurfaceSaturation = 0.25f
 internal const val BaseSurfaceLightness = 0.1f
 
 // Shared starting tones; palette updates preserve each slot's other tuned parameters.
@@ -13,9 +16,10 @@ internal val DefaultInitialBlobs = listOf(
 internal data class DerivedBlobColors(
     val baseSurfaceHue: Float,
     val blobs: List<BlobColorUpdate>,
+    // Original extraction order, retained for consumers such as the player's locked scrim.
+    val artworkSwatches: List<ExtractedSwatchHsl>,
 ) {
-    // Swatch 0 colors the base and Blob 1; subsequent swatches follow slot order.
-    // Missing swatches retain the slot's current values, including debug edits.
+    // Apply assigned colors in slot order, preserving every other tuned parameter.
     fun applyTo(currentBlobs: List<BlobParams>): List<BlobParams> =
         currentBlobs.mapIndexed { index, blob ->
             blobs.getOrNull(index)?.let { update ->
@@ -38,11 +42,22 @@ internal data class BlobColorUpdate(
     val gradientFalloffFraction: Float,
 )
 
-internal fun deriveBlobColors(swatches: List<ExtractedSwatchHsl>): DerivedBlobColors? {
-    if (swatches.isEmpty()) return null
+internal suspend fun resolveArtworkBackground(context: Context, uri: String): DerivedBlobColors? =
+    deriveBlobColors(extractArtworkSwatches(context, uri))
+
+internal fun deriveBlobColors(
+    swatches: List<ExtractedSwatchHsl>,
+    random: Random = Random.Default,
+): DerivedBlobColors? {
+    if (swatches.size != 3) return null
+    // NOTE: Random assignment is recomputed on every extraction call (i.e. every song change during live playback). A future scan-time-extraction migration must decide and PERSIST this random assignment once, at scan time — not re-randomize on every playback, since there will be no live re-extraction step to trigger it.
+    val doubledIndex = random.nextInt(swatches.size)
+    // Select by index: the extractor may reuse colors when artwork has a limited palette.
+    val slots = (listOf(swatches[doubledIndex], swatches[doubledIndex]) +
+        swatches.filterIndexed { index, _ -> index != doubledIndex }).shuffled(random)
     return DerivedBlobColors(
-        baseSurfaceHue = swatches[0].hue,
-        blobs = swatches.map { swatch ->
+        baseSurfaceHue = slots[0].hue,
+        blobs = slots.drop(1).map { swatch ->
             // Additive blending blows out light colors, so intensity scales inversely
             // with each swatch's lightness. Falloff has a separate, lower ceiling.
             BlobColorUpdate(
@@ -53,5 +68,6 @@ internal fun deriveBlobColors(swatches: List<ExtractedSwatchHsl>): DerivedBlobCo
                 gradientFalloffFraction = (1f - swatch.lightness).coerceIn(0f, 0.9f),
             )
         },
+        artworkSwatches = swatches,
     )
 }

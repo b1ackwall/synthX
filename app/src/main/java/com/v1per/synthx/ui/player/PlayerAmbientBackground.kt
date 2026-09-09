@@ -26,8 +26,7 @@ import com.v1per.synthx.ui.components.BaseSurfaceSaturation
 import com.v1per.synthx.ui.components.BlobParams
 import com.v1per.synthx.ui.components.DefaultInitialBlobs
 import com.v1per.synthx.ui.components.ExtractedSwatchHsl
-import com.v1per.synthx.ui.components.deriveBlobColors
-import com.v1per.synthx.ui.components.extractArtworkSwatches
+import com.v1per.synthx.ui.components.resolveArtworkBackground
 
 internal data class PlayerAmbientBackgroundState(
     val blobs: List<BlobParams>,
@@ -51,13 +50,11 @@ internal fun rememberPlayerAmbientBackgroundState(song: Song): PlayerAmbientBack
 
     LaunchedEffect(song.id) {
         val uri = song.albumArtFullUri ?: song.albumArtUri ?: return@LaunchedEffect
-        val swatches = extractArtworkSwatches(context, uri)
-        if (swatches.size != 3) return@LaunchedEffect
+        val colors = resolveArtworkBackground(context, uri) ?: return@LaunchedEffect
         if (currentSongId != song.id) return@LaunchedEffect
-        val colors = deriveBlobColors(swatches) ?: return@LaunchedEffect
-        artworkSwatches = swatches
+        artworkSwatches = colors.artworkSwatches
         blobs = colors.applyTo(blobs)
-        // The base shares Blob 1's hue, with its own fixed saturation and lightness.
+        // The assigned base hue uses its own fixed saturation and lightness.
         baseSurfaceColor = Color.hsl(colors.baseSurfaceHue, BaseSurfaceSaturation, BaseSurfaceLightness)
     }
 

@@ -116,6 +116,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
     // reach (they consume their own touches first, child-before-parent). Same 0.5f
     // threshold convention as the shield fix, for the same reason.
     val overlayControlsEnabled = expandedContentEnabled && overlayVisibleAlpha > 0.5f
+    val transportGap = 40f.dp
 
     // Slide-up: the overlay rises [ContentSlideDistance] into its resting place as it fades
     // in, rather than materialising in position. Compose's +Y is downward, so the positive
@@ -230,7 +231,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 playedColor = Color.White.copy(alpha = 0.75f),
                 enabled = overlayControlsEnabled,
             )
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(transportGap))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -295,8 +296,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 Spacer(modifier = Modifier.weight(2f))
             }
 
-            // The overlay's only flexible gap — the remainder of ControlsOverlayHeight.
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(transportGap))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -320,9 +320,8 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 }
             }
 
-            // Fixed bottom edge only — no navBarInset term, see ControlsOverlayHeight's
-            // doc comment (in PlayerSheetSkeleton.kt) for why.
-            Spacer(modifier = Modifier.height(Spacing.md))
+            // Fills the remaining height; 44dp remains at 300dp height with 40dp gaps.
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
