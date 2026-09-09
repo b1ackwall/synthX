@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
-import com.v1per.synthx.ui.components.ArtPositionTuneStateHolder
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.PlayerSheetValue
@@ -243,12 +242,11 @@ fun PlayerSheetSkeleton(
             (maxHeight - ExpandedTopMargin - TitleRowReservedHeight).coerceAtLeast(0.dp),
         )
 
-        // Read shared Compose state here so Home's sliders update the live geometry.
-        val artPositionSettings = ArtPositionTuneStateHolder.state.value
-        val aboveFraction = artPositionSettings.aboveFraction.coerceIn(0f, 1f)
+        // Finalized art balance and title spacing.
+        val aboveFraction = 0.6f
         val artWeightAbove = aboveFraction
         val artWeightBelow = 1f - aboveFraction
-        val titleTightness = artPositionSettings.titleTightnessFraction.coerceIn(0f, 1f)
+        val titleTightness = 0.85f
         val titleGapWeightAboveTitle = titleTightness
         val titleGapWeightBelowTitle = 1f - titleTightness
 

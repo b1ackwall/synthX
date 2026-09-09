@@ -4,25 +4,18 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
-import com.v1per.synthx.ui.components.ArtPositionTuneSettings
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class QueueArtPositioningTest {
     @Test
-    fun `default tuning preserves the original expanded layout`() {
-        val settings = ArtPositionTuneSettings()
-        val position = position(
-            aboveFraction = settings.aboveFraction,
-            titleTightness = settings.titleTightnessFraction,
-        )
+    fun `fixed production weights produce the finalized expanded layout`() {
+        val position = position()
 
-        assertEquals(0.6f, settings.aboveFraction)
-        assertEquals(1f, settings.titleTightnessFraction)
         assertDpEquals(80.dp, position.artOffsetY)
         assertDpEquals(336.dp, position.finalArtSize)
-        assertDpEquals(448.dp, position.titleRowY)
+        assertDpEquals(443.2.dp, position.titleRowY)
     }
 
     @Test
@@ -64,15 +57,15 @@ class QueueArtPositioningTest {
     }
 
     @Test
-    fun `art balance moves both art and a tightened title while preserving the default title anchor`() {
+    fun `art balance moves both art and a tightened title while preserving the full gap title anchor`() {
         val upperArt = position(aboveFraction = 0.25f, titleTightness = 0.5f)
         val lowerArt = position(aboveFraction = 0.75f, titleTightness = 0.5f)
 
         assertDpEquals(40.dp, lowerArt.artOffsetY - upperArt.artOffsetY)
         assertDpEquals(20.dp, lowerArt.titleRowY - upperArt.titleRowY)
         assertDpEquals(
-            position(aboveFraction = 0.25f).titleRowY,
-            position(aboveFraction = 0.75f).titleRowY,
+            position(aboveFraction = 0.25f, titleTightness = 1f).titleRowY,
+            position(aboveFraction = 0.75f, titleTightness = 1f).titleRowY,
         )
     }
 
@@ -107,7 +100,7 @@ class QueueArtPositioningTest {
 
     private fun position(
         aboveFraction: Float = 0.6f,
-        titleTightness: Float = 1f,
+        titleTightness: Float = 0.85f,
         height: Dp = 800.dp,
         progress: Float = 1f,
         queueProgress: Float = 0f,

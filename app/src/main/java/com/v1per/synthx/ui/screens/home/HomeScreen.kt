@@ -6,14 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,19 +24,13 @@ import com.v1per.synthx.ui.components.BaseSurfaceSaturation
 import com.v1per.synthx.ui.components.HomeBlobDebugStateHolder
 import com.v1per.synthx.ui.components.deriveBlobColors
 import com.v1per.synthx.ui.components.extractArtworkSwatches
-import com.v1per.synthx.ui.components.hiddenFromAccessibilityWhileSheetShown
-import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
 import com.v1per.synthx.ui.components.rememberWordmark
-import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(playbackViewModel: PlaybackViewModel) {
     var debugState by HomeBlobDebugStateHolder.state
     val currentSong by playbackViewModel.currentSong.collectAsState()
     val context = LocalContext.current.applicationContext
-    var showArtPositionTuneSheet by remember { mutableStateOf(false) }
-    val artPositionTuneSheetState = rememberRefinedBottomSheetState()
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(currentSong?.id) {
         val song = currentSong ?: return@LaunchedEffect
@@ -77,28 +67,12 @@ fun HomeScreen(playbackViewModel: PlaybackViewModel) {
             contentAlignment = Alignment.Center,
         ) {
             Column(
-                modifier = Modifier.hiddenFromAccessibilityWhileSheetShown(showArtPositionTuneSheet),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text(
                     text = rememberWordmark(),
                     style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                )
-                TextButton(onClick = { showArtPositionTuneSheet = true }) {
-                    Text("Tune art position")
-                }
-            }
-
-            if (showArtPositionTuneSheet) {
-                ArtPositionTuneSheet(
-                    sheetState = artPositionTuneSheetState,
-                    onDismissRequest = {
-                        scope.launch {
-                            artPositionTuneSheetState.hide()
-                            showArtPositionTuneSheet = false
-                        }
-                    },
                 )
             }
         }
