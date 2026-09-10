@@ -79,6 +79,9 @@ interface PlaylistDao {
     )
     suspend fun getSongIdsForPlaylist(playlistId: String): List<String>
 
+    @Query("SELECT playlist_id FROM playlist_songs WHERE song_id = :songId")
+    suspend fun getPlaylistIdsForSong(songId: String): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylistSong(playlistSong: PlaylistSongEntity)
 

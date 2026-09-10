@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlaylistRemove
@@ -83,6 +84,12 @@ fun SongActionsBottomSheet(
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
     onDismiss: () -> Unit,
+    // Ids of playlists the song already belongs to — drives the checkmark/disabled state on
+    // the Playlists sub-page. Resolved lazily by the caller: see onPlaylistsPageOpened.
+    playlistMemberships: Set<String>,
+    // Fired when the Playlists sub-page is navigated to, so the caller can resolve
+    // playlistMemberships just-in-time rather than on every sheet open.
+    onPlaylistsPageOpened: () -> Unit,
 ) {
     // Keyed to the song so reopening on a different row always starts on Actions, while
     // paging within one sheet session is preserved.
@@ -135,17 +142,22 @@ fun SongActionsBottomSheet(
                     onRemoveFromStarred = onRemoveFromStarred,
                     onPlayNext = onPlayNext,
                     onAddToQueue = onAddToQueue,
-                    onShowPlaylists = { page = SheetPage.Playlists },
+                    onShowPlaylists = {
+                        page = SheetPage.Playlists
+                        onPlaylistsPageOpened()
+                    },
                     onShowArtists = { page = SheetPage.Artists },
                 )
                 SheetPage.Artists -> SubPage(
                     title = stringResource(R.string.actions_go_to_artist),
-                    items = song.artists.map { it.id to it.name },
+                    items = song.artists.map { PickableItem(it.id, it.name) },
                     onSelect = onGoToArtist,
                 )
                 SheetPage.Playlists -> SubPage(
                     title = stringResource(R.string.actions_add_to_playlist),
-                    items = playlists.map { it.id to it.name },
+                    items = playlists.map {
+                        PickableItem(it.id, it.name, alreadyMember = it.id in playlistMemberships)
+                    },
                     emptyText = stringResource(R.string.empty_no_playlists),
                     onSelect = onAddToPlaylist,
                 )
@@ -210,13 +222,16 @@ private fun ActionsPage(
                 label = stringResource(R.string.actions_remove_from_playlist),
                 onClick = onRemoveFromPlaylist,
             )
-        } else {
-            ActionRow(
-                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
-                label = stringResource(R.string.actions_add_to_playlist),
-                onClick = onShowPlaylists,
-            )
         }
+        // Shown regardless of currentPlaylistId: a song can belong to multiple playlists, so
+        // "add to a different one" and "remove from this one" are independent actions rather
+        // than mutually exclusive — see SongActionsBottomSheet's playlistMemberships, which
+        // shows the current playlist (if any) as already-a-member inside the picker itself.
+        ActionRow(
+            icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+            label = stringResource(R.string.actions_add_to_playlist),
+            onClick = onShowPlaylists,
+        )
 
         // Starred screen only. Stays visible but disabled until the song is in at least one
         // playlist: the action exists to file away something already organized, and showing
@@ -271,11 +286,19 @@ private fun ActionsPage(
     }
 }
 
+/** One row in a [SubPage] list: an id/name pair, plus (Playlists page only) whether the
+ *  song is already a member — drives the trailing checkmark and disabled state below. */
+private data class PickableItem(
+    val id: String,
+    val name: String,
+    val alreadyMember: Boolean = false,
+)
+
 /** Shared shape for the Artists and Playlists pages: a caption plus a pickable list. */
 @Composable
 private fun SubPage(
     title: String,
-    items: List<Pair<String, String>>,
+    items: List<PickableItem>,
     onSelect: (String) -> Unit,
     emptyText: String? = null,
 ) {
@@ -303,22 +326,36 @@ private fun SubPage(
             )
         } else {
             LazyColumn {
-                items(items, key = { it.first }) { (id, name) ->
+                items(items, key = { it.id }) { item ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(Spacing.xxl)
-                            .clickable { onSelect(id) }
+                            .alpha(if (item.alreadyMember) Alpha.Disabled else 1f)
+                            .then(
+                                if (item.alreadyMember) Modifier
+                                else Modifier.clickable { onSelect(item.id) }
+                            )
                             .padding(horizontal = Spacing.HorizontalPadding),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = name,
+                            text = item.name,
                             style = MaterialTheme.typography.bodyLarge,
                             color = TextPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
                         )
+                        if (item.alreadyMember) {
+                            Spacer(modifier = Modifier.width(Spacing.md))
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = stringResource(R.string.cd_already_in_playlist),
+                                tint = TextPrimary,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
                     }
                 }
             }

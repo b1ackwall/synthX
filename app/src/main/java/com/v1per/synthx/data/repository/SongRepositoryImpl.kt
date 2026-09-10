@@ -447,6 +447,10 @@ class SongRepositoryImpl(
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
 
+    override suspend fun getPlaylistIdsForSong(songId: String): List<String> = dbOperation {
+        playlistDao.getPlaylistIdsForSong(songId)
+    }
+
     override suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean = dbOperation {
         // P7.6/N9/6.6: contains-check, max-position read, and insert live in one
         // @Transaction DAO method so concurrent adds to the same playlist can't race on

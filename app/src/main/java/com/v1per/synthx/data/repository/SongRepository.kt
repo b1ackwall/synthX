@@ -95,6 +95,10 @@ interface SongRepository {
     // Playlist songs
     fun getSongsForPlaylist(playlistId: String): Flow<List<Song>>
 
+    /** Ids of every playlist [songId] currently belongs to — drives the "already in this
+     *  playlist" indicator in the Add-to-Playlist picker. */
+    suspend fun getPlaylistIdsForSong(songId: String): List<String>
+
     /**
      * Appends to the end of the playlist.
      * @return false when the song was already a member, in which case nothing changed.

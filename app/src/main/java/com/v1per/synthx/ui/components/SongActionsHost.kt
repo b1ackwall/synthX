@@ -121,6 +121,7 @@ fun SongActionsHost(
     val songs by viewModel.songs.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
     val removeFromStarredEnabled by viewModel.removeFromStarredEnabled.collectAsState()
+    val playlistMemberships by viewModel.playlistMemberships.collectAsState()
 
     // context.getString rather than stringResource: the collect lambda is not a composable
     // scope, and the playlist name is only known at emit time.
@@ -263,6 +264,8 @@ fun SongActionsHost(
                 dismiss { viewModel.removeFromStarred(songId) }
             },
             onDismiss = { dismiss() },
+            playlistMemberships = playlistMemberships,
+            onPlaylistsPageOpened = { viewModel.resolvePlaylistMemberships(current.song.id) },
         )
     }
 
@@ -380,6 +383,34 @@ class SongActionsViewModel(
             // this is still the song the gate was last asked to resolve.
             if (starredGateSongId == songId) {
                 _removeFromStarredEnabled.value = result
+            }
+        }
+    }
+
+    private val _playlistMemberships = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * Ids of playlists the sheet's current song already belongs to — drives the
+     * checkmark/disabled state on the Playlists sub-page. Resolved on demand (see
+     * [resolvePlaylistMemberships]) rather than eagerly per sheet-open, since most sheet
+     * opens never navigate to that sub-page.
+     */
+    val playlistMemberships: StateFlow<Set<String>> = _playlistMemberships.asStateFlow()
+
+    // Same songId/Job-cancellation shape as starredGateSongId/starredGateJob above, so a
+    // stale result for a previous song can't land after a newer lookup starts.
+    private var membershipsSongId: String? = null
+    private var membershipsJob: Job? = null
+
+    /** Called when the Playlists sub-page is opened for [songId]. */
+    fun resolvePlaylistMemberships(songId: String) {
+        _playlistMemberships.value = emptySet()
+        membershipsJob?.cancel()
+        membershipsSongId = songId
+        membershipsJob = viewModelScope.launch {
+            val result = repository.getPlaylistIdsForSong(songId).toSet()
+            if (membershipsSongId == songId) {
+                _playlistMemberships.value = result
             }
         }
     }

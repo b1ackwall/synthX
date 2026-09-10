@@ -311,6 +311,7 @@
     <string name="cd_remove_from_queue">Remove from queue</string>
     <string name="cd_seek_bar">Playback position</string>
     <string name="cd_current_group">Current group</string>
+    <string name="cd_already_in_playlist">Already in playlist</string>
 
     <!-- Accessibility actions -->
     <string name="action_move_up">Move up</string>

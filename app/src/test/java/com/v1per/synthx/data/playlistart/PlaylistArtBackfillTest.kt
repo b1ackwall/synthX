@@ -115,6 +115,7 @@ class PlaylistArtBackfillTest {
         override suspend fun movePlaylistToGroup(id: String, groupId: String?, updatedAt: Long) = unused()
         override suspend fun deletePlaylist(playlistId: String) = unused()
         override suspend fun getSongIdsForPlaylist(playlistId: String): List<String> = unused()
+        override suspend fun getPlaylistIdsForSong(songId: String): List<String> = unused()
         override suspend fun insertPlaylistSong(playlistSong: PlaylistSongEntity) = unused()
         override suspend fun removePlaylistSong(playlistId: String, songId: String) = unused()
         override suspend fun getMaxPosition(playlistId: String): Int? = unused()

@@ -64,7 +64,7 @@ class QueuePersistenceB1Test {
         override fun getAllGroups(): Flow<List<PlaylistGroup>> = emptyFlow(); override suspend fun createGroup(name: String) {}; override suspend fun renameGroup(id: String,name: String) {}; override suspend fun deleteGroup(id: String) {}
         override fun getAllPlaylists(): Flow<List<Playlist>> = emptyFlow(); override fun getUngroupedPlaylists(): Flow<List<Playlist>> = emptyFlow(); override fun getPlaylistsForGroup(groupId: String): Flow<List<Playlist>> = emptyFlow()
         override suspend fun createPlaylist(name: String, groupId: String?) = ""; override suspend fun renamePlaylist(id: String,name: String) {}; override suspend fun movePlaylistToGroup(id: String,groupId: String?) {}; override suspend fun deletePlaylist(id: String) {}
-        override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> = emptyFlow(); override suspend fun addSongToPlaylist(playlistId: String,songId: String) = false; override suspend fun removeSongFromPlaylist(playlistId: String,songId: String) {}
+        override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> = emptyFlow(); override suspend fun getPlaylistIdsForSong(songId: String) = emptyList<String>(); override suspend fun addSongToPlaylist(playlistId: String,songId: String) = false; override suspend fun removeSongFromPlaylist(playlistId: String,songId: String) {}
         override suspend fun getSongsByIds(ids: List<String>) = emptyList<Song>()
         override suspend fun getQueueSlots() = emptyList<QueueSlot>()
         override suspend fun getQueueSnapshot() = snapshot
