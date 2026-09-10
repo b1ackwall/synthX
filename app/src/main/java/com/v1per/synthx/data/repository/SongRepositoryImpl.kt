@@ -205,19 +205,23 @@ class SongRepositoryImpl(
      * cannot be rolled back alongside the DB. Same shared cleanup FolderScanner's internal
      * evictions use, so both deletion paths stay in sync.
      */
-    override suspend fun deleteSong(id: String) = dbOperation { withContext(Dispatchers.IO) {
+    override suspend fun deleteSong(id: String) = withContext(Dispatchers.IO) {
         // Backup-then-act: a failed backup (no folder configured) must not block the
         // delete the user explicitly asked for.
+        // Backup waits for finite operations to drain, so it must precede our own permit.
         backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_SONG)
 
-        database.withTransaction {
-            deleteSongRowWithArtRepoint(songDao, albumDao, id)
-        }
+        // Recheck admission: restore may have begun while the backup was running.
+        dbOperation {
+            database.withTransaction {
+                deleteSongRowWithArtRepoint(songDao, albumDao, id)
+            }
 
-        deleteSongArtFile(context, id)
-        DestructiveActionTracker.recordDestructiveAction(context)
-        Unit
-    } }
+            deleteSongArtFile(context, id)
+            DestructiveActionTracker.recordDestructiveAction(context)
+            Unit
+        }
+    }
 
     // Sort order (date_added DESC) and the starred/missing filters stay in the DAO query;
     // this only resolves artist order, same as the playlist/album/artist song lists above.
@@ -423,11 +427,15 @@ class SongRepositoryImpl(
 
     // Hooked here rather than in the ViewModels because both PlaylistListViewModel and
     // GroupDetailViewModel delete playlists through this one call.
-    override suspend fun deletePlaylist(id: String) = dbOperation {
+    override suspend fun deletePlaylist(id: String) {
+        // Backup waits for finite operations to drain, so it must precede our own permit.
         backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_PLAYLIST)
-        playlistDao.deletePlaylist(id)
-        playlistExportManager.scheduleExport()
-        DestructiveActionTracker.recordDestructiveAction(context)
+        // Recheck admission: restore may have begun while the backup was running.
+        dbOperation {
+            playlistDao.deletePlaylist(id)
+            playlistExportManager.scheduleExport()
+            DestructiveActionTracker.recordDestructiveAction(context)
+        }
     }
 
     // Joins straight to playlist_songs (position order, is_missing filter) rather than
