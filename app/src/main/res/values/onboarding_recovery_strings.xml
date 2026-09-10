@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_recovery_folder_title">Set up recovery folders</string>
+    <string name="onboarding_recovery_folder_subtitle">Choose the music folder for your restored library. New Arrivals is optional and can be set up later.</string>
+    <string name="onboarding_recovery_backup_title">Choose a backup</string>
+    <string name="onboarding_recovery_backup_subtitle">Choose your backup folder, then select a backup to review and restore.</string>
+</resources>

@@ -18,9 +18,6 @@ fun NavGraphBuilder.onboardingRoutes(
 ) {
     composable(Screen.Onboarding.route) {
         OnboardingScreen(
-            onRecoverFromBackup = {
-                navController.navigate(Screen.BackupsAndRestore.route)
-            },
             onOnboardingComplete = {
                 // Pops the whole wizard off the back stack so pressing back from Home can
                 // never return to it.

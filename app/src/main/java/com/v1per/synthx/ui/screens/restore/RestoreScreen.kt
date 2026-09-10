@@ -61,6 +61,7 @@ fun RestoreScreen(
     viewModel: RestoreViewModel = viewModel(
         factory = RestoreViewModel.Factory(LocalContext.current),
     ),
+    onRestoreInitiated: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val outcome by viewModel.outcome.collectAsState()
@@ -99,7 +100,7 @@ fun RestoreScreen(
             backup = current.backup,
             counts = current.counts,
             onConfirm = {
-                viewModel.restore(current.backup)
+                viewModel.restore(current.backup, onInitiated = onRestoreInitiated)
                 viewModel.dismissPreview()
             },
             onDismiss = { viewModel.dismissPreview() },

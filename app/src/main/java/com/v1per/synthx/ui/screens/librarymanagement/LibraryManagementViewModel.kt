@@ -315,6 +315,44 @@ class LibraryManagementViewModel(
         }
     }
 
+    /** Recovery setup only: validate and persist without backing up or scanning the empty library. */
+    fun saveRecoveryMusicFolder(uri: Uri) {
+        launchCatching(onError = {
+            _folderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
+        }) {
+            val rejected = rejectIfNested(
+                candidate = uri,
+                other = _newArrivalsFolderUri.value,
+                onError = { _folderError.value = it },
+            )
+            if (rejected) return@launchCatching
+
+            releaseGrantIfSuperseded(old = _musicFolderUri.value, new = uri)
+            preferencesManager.musicFolderUri = uri.toString()
+            _musicFolderUri.value = uri
+            clearFolderError()
+        }
+    }
+
+    /** The optional recovery root also waits until after restore for its first scan. */
+    fun saveRecoveryNewArrivalsFolder(uri: Uri) {
+        launchCatching(onError = {
+            _newArrivalsFolderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
+        }) {
+            val rejected = rejectIfNested(
+                candidate = uri,
+                other = _musicFolderUri.value,
+                onError = { _newArrivalsFolderError.value = it },
+            )
+            if (rejected) return@launchCatching
+
+            releaseGrantIfSuperseded(old = _newArrivalsFolderUri.value, new = uri)
+            preferencesManager.newArrivalsFolderUri = uri.toString()
+            _newArrivalsFolderUri.value = uri
+            _newArrivalsFolderError.value = null
+        }
+    }
+
     /**
      * Deliberately diverges from [saveMusicFolder]: no [BackupReason.FOLDER_CHANGE] snapshot
      * (nothing about the existing library is invalidated by pointing at a different arrivals

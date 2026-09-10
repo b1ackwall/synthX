@@ -13,6 +13,9 @@ import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.data.backup.RestoreWorker
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.UiState
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -99,18 +102,27 @@ class RestoreViewModel(
     private val _preview = MutableStateFlow<RestorePreview>(RestorePreview.Idle)
     val preview: StateFlow<RestorePreview> = _preview.asStateFlow()
 
+    private var refreshJob: Job? = null
+
     init {
         refresh()
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            _uiState.value = try {
+        // Recovery can change the backup folder while an earlier SAF listing is still running.
+        refreshJob?.cancel()
+        _uiState.value = UiState.Loading
+        refreshJob = viewModelScope.launch {
+            val result = try {
                 val backups = backupManager.listBackups()
                 if (backups.isEmpty()) UiState.Empty else UiState.Success(backups)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 UiState.Error(e.message ?: "Failed to read backups")
             }
+            ensureActive()
+            _uiState.value = result
         }
     }
 
@@ -134,7 +146,8 @@ class RestoreViewModel(
         _preview.value = RestorePreview.Idle
     }
 
-    fun restore(backup: BackupInfo) {
+    /** [onInitiated] runs after submission, before the app shell can dispose this route. */
+    fun restore(backup: BackupInfo, onInitiated: () -> Unit = {}) {
         // ExistingWorkPolicy.KEEP on the enqueue itself already makes a second call while
         // one is in flight a no-op at the WorkManager level; this mirrors that at the UI
         // level too so a double-tap doesn't even reach the enqueue call, and resets the
@@ -142,8 +155,7 @@ class RestoreViewModel(
         // suppress this attempt's own outcome once it lands.
         if (outcome.value == RestoreOutcome.InProgress) return
 
-        // Backstop for BackupsAndRestoreScreen's primary gate — this ViewModel has no other
-        // caller today, but nothing here should be able to enqueue a restore for a library
+        // Backstop for both the settings screen and onboarding: never enqueue for a library
         // with nowhere configured to find its songs, regardless of how this got reached.
         if (preferencesManager.musicFolderUri == null) {
             _dismissedFailure.value = false
@@ -154,6 +166,7 @@ class RestoreViewModel(
         _dismissedFailure.value = false
         _localBlockReason.value = null
         RestoreWorker.enqueue(context, backup)
+        onInitiated()
     }
 
     fun dismissFailure() {

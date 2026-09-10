@@ -48,19 +48,18 @@ import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
  * First-run wizard shown by [com.v1per.synthx.ui.onboardingRoutes] whenever
- * [com.v1per.synthx.preferences.PreferencesManager.musicFolderUri] is null. Three internal
- * steps (see [OnboardingStep]) rather than three nav routes — a short, linear, one-time flow
- * with nothing that benefits from its own back-stack entries.
+ * [com.v1per.synthx.preferences.PreferencesManager.musicFolderUri] is null. Internal steps
+ * (see [OnboardingStep]) share one nav route, including the recovery branch.
  *
  * Deliberately reuses [LibraryManagementViewModel] and [BackupsAndRestoreViewModel] wholesale
  * (constructed here, scoped to this route like any other screen's ViewModel) rather than
  * reimplementing folder validation/persistence/scan-triggering — saveMusicFolder's existing
  * safety-backup + [com.v1per.synthx.data.scanner.LibraryScanWorker] REPLACE-enqueue side effect
- * is exactly the first-scan trigger this wizard needs.
+ * is exactly the first-scan trigger fresh install needs. Recovery calls separate persistence
+ * methods on the same ViewModel, so changing branches also retains the current folder state.
  */
 @Composable
 fun OnboardingScreen(
-    onRecoverFromBackup: () -> Unit,
     onOnboardingComplete: () -> Unit,
     viewModel: OnboardingViewModel = viewModel(),
 ) {
@@ -76,8 +75,17 @@ fun OnboardingScreen(
 
     when (step) {
         OnboardingStep.Choice -> ChoiceStep(
-            onFreshInstall = viewModel::goToFolderSetup,
-            onRecoverFromBackup = onRecoverFromBackup,
+            onFreshInstall = {
+                // Recovery may have persisted a root without ever scanning it. Switching to
+                // fresh install must start its usual scan before Done can enter ScanningStep.
+                if (viewModel.returningFromRecovery) {
+                    libraryManagementViewModel.musicFolderUri.value?.let {
+                        libraryManagementViewModel.saveMusicFolder(it)
+                    }
+                }
+                viewModel.goToFolderSetup()
+            },
+            onRecoverFromBackup = viewModel::goToRecoveryFolderSetup,
         )
         OnboardingStep.FolderSetup -> FolderSetupStep(
             libraryManagementViewModel = libraryManagementViewModel,
@@ -87,6 +95,16 @@ fun OnboardingScreen(
         )
         OnboardingStep.Scanning -> ScanningStep(
             libraryManagementViewModel = libraryManagementViewModel,
+            onComplete = onOnboardingComplete,
+        )
+        OnboardingStep.RecoveryFolderSetup -> RecoveryFolderSetupStep(
+            libraryManagementViewModel = libraryManagementViewModel,
+            onBack = viewModel::goToChoice,
+            onDone = viewModel::goToRecoveryBackupSelect,
+        )
+        OnboardingStep.RecoveryBackupSelect -> RecoveryBackupSelectStep(
+            backupsAndRestoreViewModel = backupsAndRestoreViewModel,
+            onBack = viewModel::goToRecoveryFolderSetup,
             onComplete = onOnboardingComplete,
         )
     }
