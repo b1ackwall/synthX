@@ -49,6 +49,14 @@ class QueueModeState internal constructor(
             isQueueModeState.value = value
         }
 
+    /**
+     * Whether the controls overlay is showing. Hidden only by a net upward drag on the queue
+     * list ([queueScrollConnection]); restored by a net downward one, by the shuffle handler
+     * below, and — unconditionally — whenever the queue is empty. See the
+     * `LaunchedEffect(upcomingQueue.isEmpty())` in [rememberQueueModeState] for why that last
+     * one is load-bearing rather than cosmetic: with an empty queue there is no list left to
+     * drag on, so a `false` latched here would otherwise be permanent.
+     */
     var controlsVisible: Boolean by mutableStateOf(true)
         internal set
 
@@ -178,6 +186,41 @@ fun rememberQueueModeState(
         QueueModeState(queueProgress, queueListState, scope, overlayToggleThresholdPx, isQueueModeState)
     }
     state.onShuffleClick = onShuffleClick
+
+    // Restores the controls overlay whenever the queue has nothing left to scroll on.
+    //
+    // The only path that sets controlsVisible = false is queueScrollConnection.onPreScroll, and
+    // that connection is attached to QueueList's own modifier — but PlayerSkeletonQueueContent
+    // swaps QueueList out of composition entirely, for a static "Nothing queued after this" Box
+    // with no gesture handling at all, the moment upcomingQueue goes empty. So the hide becomes
+    // one-way from there: no list, no nested-scroll dispatch, no way back to true. And with the
+    // overlay hidden, PlayerSkeletonControlsOverlay drops its own controls (and its touch shield)
+    // out of composition once overlayVisibleAlpha reaches 0f, while PlayerSheetSkeleton's sheet
+    // detector already declines every touch below queueListOffsetY while in queue mode — so the
+    // whole lower region goes inert and the user is left with no transport controls and no
+    // gesture that can bring them back (confirmed root cause).
+    //
+    // Keyed on the emptiness boolean rather than on upcomingQueue itself so it re-runs exactly
+    // when that condition flips, not on every unrelated queue edit. Because LaunchedEffect also
+    // runs its body on first composition, this equally covers the "already empty" case, not just
+    // the live non-empty → empty transition — which matters because controlsVisible is a plain
+    // remembered field: deliberately not rememberSaveable (see isQueueModeState's kdoc above),
+    // but it does survive leaving queue mode, collapsing the sheet, and navigating to a route
+    // where PlayerSheetSkeleton is merely zero-sized rather than removed from composition, so a
+    // stale false can outlive the interaction that set it and still be waiting on re-entry.
+    //
+    // Deliberately a separate effect from the LaunchedEffect(upcomingQueue) below rather than
+    // folded into it: that one is scoped to the shuffle scroll-reset race and keyed accordingly,
+    // and the two conditions are unrelated.
+    //
+    // Only ever writes `true` — hiding stays entirely gesture-driven, and this branch cannot run
+    // while upcomingQueue has items, so a populated queue's scroll-to-hide/show behaves exactly
+    // as it did before.
+    LaunchedEffect(upcomingQueue.isEmpty()) {
+        if (upcomingQueue.isEmpty()) {
+            state.controlsVisible = true
+        }
+    }
 
     // Defers queueListState.scrollToItem(0) until upcomingQueue has actually changed following
     // a shuffle click, instead of firing it inline in the click handler. onShuffleClick()
