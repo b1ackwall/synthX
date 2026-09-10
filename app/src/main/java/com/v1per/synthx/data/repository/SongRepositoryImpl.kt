@@ -21,6 +21,7 @@ import android.util.Log
 import androidx.room.withTransaction
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
+import com.v1per.synthx.data.playlistart.selectDistancedHue
 import com.v1per.synthx.data.scanner.ArtRecovery
 import com.v1per.synthx.data.scanner.ArtRecoveryResult
 import com.v1per.synthx.data.scanner.PaletteRecovery
@@ -34,6 +35,7 @@ import com.v1per.synthx.data.scanner.graduateSong as graduateSongFile
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import java.util.UUID
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -385,6 +387,12 @@ class SongRepositoryImpl(
     override suspend fun createPlaylist(name: String, groupId: String?): String = dbOperation {
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
+        // The playlist's generated cover art, decided once here and never again (see
+        // PlaylistEntity.artHue). Done on the creation path rather than left to
+        // PlaylistArtBackfill so a user-created playlist already has its art the first time
+        // the list redraws, with no placeholder flash.
+        val hue = selectDistancedHue(playlistDao.getExistingArtHues())
+        val structureSeed = Random.nextLong()
         playlistDao.insertPlaylist(
             PlaylistEntity(
                 id = id,
@@ -395,6 +403,8 @@ class SongRepositoryImpl(
                 createdAt = now,
                 updatedAt = now,
                 coverArtUri = null,
+                artHue = hue,
+                artStructureSeed = structureSeed,
             )
         )
         playlistExportManager.scheduleExport()
@@ -542,6 +552,8 @@ class SongRepositoryImpl(
             name = name,
             groupId = groupId,
             albumArtUri = coverArtUri,
+            artHue = artHue,
+            artStructureSeed = artStructureSeed,
         )
 
     private fun SongWithDetails.toDomain(refs: List<SongArtistEntity>): Song {

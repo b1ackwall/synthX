@@ -127,7 +127,7 @@ class BackupSnapshotInstrumentedTest {
         // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist) — this
         // literal previously went stale (pinned to v9's hash while VERSION had moved to 11)
         // without being caught, which is exactly what this comment exists to prevent.
-        assertEquals("bedc7519ead944e2cf36a52bbe4af509", validated.schema.roomIdentityHash)
+        assertEquals("0c6e349e42c3acb1c0d2fb907a1706df", validated.schema.roomIdentityHash)
         assertTrue(
             validated.schema.expectedTables.containsAll(
                 setOf("songs", "queue_items", "queue_baseline_items", "playback_cursor"),

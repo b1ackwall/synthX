@@ -118,6 +118,14 @@ internal object BackupSchemaContracts {
                 setOf("queue_items", "queue_baseline_items", "playback_cursor"),
             hasMigrationPathToCurrent = true,
         ),
+        // 13_14 adds art_hue/art_structure_seed to playlists; managed tables are unchanged.
+        BackupSchemaContract(
+            userVersion = 14,
+            roomIdentityHash = "0c6e349e42c3acb1c0d2fb907a1706df",
+            expectedTables = coreTables +
+                setOf("queue_items", "queue_baseline_items", "playback_cursor"),
+            hasMigrationPathToCurrent = true,
+        ),
     ).associateBy { it.userVersion }
 
     val current: BackupSchemaContract

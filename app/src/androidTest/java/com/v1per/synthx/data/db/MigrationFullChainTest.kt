@@ -99,7 +99,10 @@ class MigrationFullChainTest {
         // surviving every later migration. Seeding at v1 instead would make this a test of
         // 2_3/3_4's *intentional* wipe behavior, which is the wrong thing to assert here.
         val name = databaseName("full-chain-data")
-        migrationHelper.createDatabase(name, 4).use { seedV4Song(it) }
+        migrationHelper.createDatabase(name, 4).use {
+            seedV4Song(it)
+            seedV4Playlist(it)
+        }
 
         val migrated = migrationHelper.runMigrationsAndValidate(
             name,
@@ -132,6 +135,18 @@ class MigrationFullChainTest {
             ).use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 repeat(9) { index -> assertTrue("New swatch component $index must be NULL", cursor.isNull(index)) }
+            }
+            // ...and so must the v13->v14 leg: a playlist seeded at v4 keeps its name and
+            // group, and picks up both art columns as NULL for PlaylistArtBackfill to fill.
+            database.query(
+                "SELECT name, group_id, art_hue, art_structure_seed FROM playlists WHERE id = ?",
+                arrayOf(PLAYLIST_ID),
+            ).use { cursor ->
+                assertTrue("The playlist seeded at v4 did not survive the full chain", cursor.moveToFirst())
+                assertEquals("Pre-chain playlist", cursor.getString(0))
+                assertEquals(GROUP_ID, cursor.getString(1))
+                assertTrue("art_hue must be NULL", cursor.isNull(2))
+                assertTrue("art_structure_seed must be NULL", cursor.isNull(3))
             }
         }
     }
@@ -167,8 +182,32 @@ class MigrationFullChainTest {
         )
     }
 
+    /** A grouped v4 playlist — the playlists/playlist_groups shape is unchanged from v4 to v13. */
+    private fun seedV4Playlist(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "INSERT INTO playlist_groups (id, name, position, created_at) VALUES (?, ?, ?, ?)",
+            arrayOf<Any?>(GROUP_ID, "Pre-chain group", 0, 1_700_000_000_000L),
+        )
+        database.execSQL(
+            "INSERT INTO playlists (id, name, description, group_id, position, created_at, " +
+                "updated_at, cover_art_uri) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            arrayOf<Any?>(
+                PLAYLIST_ID,
+                "Pre-chain playlist",
+                "Pre-chain notes",
+                GROUP_ID,
+                0,
+                1_700_000_000_000L,
+                1_700_000_000_000L,
+                null,
+            ),
+        )
+    }
+
     private companion object {
         const val SONG_ID = "song-pre-chain"
         const val ALBUM_ID = "album-pre-chain"
+        const val GROUP_ID = "group-pre-chain"
+        const val PLAYLIST_ID = "playlist-pre-chain"
     }
 }

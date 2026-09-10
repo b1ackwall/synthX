@@ -1,0 +1,126 @@
+package com.v1per.synthx.data.playlistart
+
+import com.v1per.synthx.data.db.PlaylistDao
+import com.v1per.synthx.data.db.PlaylistEntity
+import com.v1per.synthx.data.db.PlaylistGroupEntity
+import com.v1per.synthx.data.db.PlaylistSongEntity
+import kotlin.random.Random
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.test.runTest
+
+class PlaylistArtBackfillTest {
+
+    @Test
+    fun `a library with nothing missing costs one query and no writes`() = runTest {
+        val dao = FakePlaylistDao(missing = emptyList(), existingHues = listOf(0, 120, 240))
+
+        assertEquals(0, PlaylistArtBackfill.backfill(dao, Random(1)))
+
+        assertEquals(0, dao.existingHueQueries)
+        assertTrue(dao.writes.isEmpty())
+    }
+
+    @Test
+    fun `every playlist missing art is written exactly once, in the order given`() = runTest {
+        val dao = FakePlaylistDao(missing = listOf("oldest", "middle", "newest"))
+
+        assertEquals(3, PlaylistArtBackfill.backfill(dao, Random(1)))
+
+        assertContentEquals(listOf("oldest", "middle", "newest"), dao.writes.map { it.id })
+        assertTrue(dao.writes.all { it.hue in PlaylistArtHues })
+    }
+
+    @Test
+    fun `a batch spreads against itself, not all against the same starting set`() = runTest {
+        // The regression this guards: reading the used hues once and distancing every row in
+        // the batch against that same snapshot makes selectDistancedHue return the identical
+        // answer every time, and a whole library ends up one colour. The seed hue matters —
+        // distancing against a *non-empty* set is the deterministic branch, so without the
+        // running accumulation every one of these twenty rows gets the identical answer.
+        val dao = FakePlaylistDao(missing = (1..20).map { "playlist-$it" }, existingHues = listOf(0))
+
+        PlaylistArtBackfill.backfill(dao, Random(1))
+
+        val assigned = dao.writes.map { it.hue }
+        assertEquals(20, assigned.size)
+        assertEquals(20, assigned.toSet().size, "Backfilled hues repeated: $assigned")
+    }
+
+    @Test
+    fun `hues already in the library are avoided, not handed out again`() = runTest {
+        val existing = listOf(0, 4, 8, 12)
+        val dao = FakePlaylistDao(missing = listOf("a", "b", "c"), existingHues = existing)
+
+        PlaylistArtBackfill.backfill(dao, Random(1))
+
+        val assigned = dao.writes.map { it.hue }
+        assertEquals(1, dao.existingHueQueries, "The used-hue set must be read once, not per row")
+        assertTrue(assigned.none { it in existing }, "Reused an in-use hue: $assigned")
+        assertEquals(3, assigned.toSet().size, "Backfilled hues repeated each other: $assigned")
+        assertTrue(
+            assigned.all { hue -> existing.minOf { circularHueDistance(hue, it) } > 20 },
+            "Backfilled hues should sit clear of the crowded 0..12 block: $assigned",
+        )
+    }
+
+    @Test
+    fun `structure seeds are drawn per playlist rather than shared`() = runTest {
+        val dao = FakePlaylistDao(missing = (1..20).map { "playlist-$it" })
+
+        PlaylistArtBackfill.backfill(dao, Random(99))
+
+        val seeds = dao.writes.map { it.seed }
+        assertEquals(20, seeds.toSet().size, "Structure seeds repeated: $seeds")
+    }
+
+    private data class ArtWrite(val id: String, val hue: Int, val seed: Long)
+
+    /**
+     * Only the three art members carry behaviour — everything else on [PlaylistDao] is outside
+     * this routine's reach, and a call to one of them would be the bug worth failing on.
+     */
+    private class FakePlaylistDao(
+        private val missing: List<String>,
+        private val existingHues: List<Int> = emptyList(),
+    ) : PlaylistDao {
+        val writes = mutableListOf<ArtWrite>()
+        var existingHueQueries = 0
+            private set
+
+        override suspend fun getPlaylistIdsMissingArt(): List<String> = missing
+
+        override suspend fun getExistingArtHues(): List<Int> {
+            existingHueQueries++
+            return existingHues
+        }
+
+        override suspend fun setPlaylistArt(id: String, hue: Int, seed: Long) {
+            writes += ArtWrite(id, hue, seed)
+        }
+
+        override fun getAllGroups(): Flow<List<PlaylistGroupEntity>> = unused()
+        override suspend fun insertGroup(group: PlaylistGroupEntity) = unused()
+        override suspend fun deleteGroup(groupId: String) = unused()
+        override suspend fun renameGroup(id: String, name: String) = unused()
+        override fun getAllPlaylists(): Flow<List<PlaylistEntity>> = unused()
+        override suspend fun getPlaylistCount(): Int = unused()
+        override fun getUngroupedPlaylists(): Flow<List<PlaylistEntity>> = unused()
+        override fun getPlaylistsForGroup(groupId: String): Flow<List<PlaylistEntity>> = unused()
+        override suspend fun insertPlaylist(playlist: PlaylistEntity) = unused()
+        override suspend fun renamePlaylist(id: String, name: String, updatedAt: Long) = unused()
+        override suspend fun movePlaylistToGroup(id: String, groupId: String?, updatedAt: Long) = unused()
+        override suspend fun deletePlaylist(playlistId: String) = unused()
+        override suspend fun getSongIdsForPlaylist(playlistId: String): List<String> = unused()
+        override suspend fun insertPlaylistSong(playlistSong: PlaylistSongEntity) = unused()
+        override suspend fun removePlaylistSong(playlistId: String, songId: String) = unused()
+        override suspend fun getMaxPosition(playlistId: String): Int? = unused()
+        override suspend fun containsSong(playlistId: String, songId: String): Boolean = unused()
+
+        private fun unused(): Nothing =
+            error("PlaylistArtBackfill must only touch the playlist art queries")
+    }
+}

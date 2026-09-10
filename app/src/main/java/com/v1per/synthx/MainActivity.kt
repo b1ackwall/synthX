@@ -35,6 +35,7 @@ import com.v1per.synthx.data.backup.MigrationInvariantFailedException
 import com.v1per.synthx.data.backup.MigrationRecoveryAction
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.UnsupportedLiveDatabaseVersionException
+import com.v1per.synthx.data.playlistart.PlaylistArtBackfill
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.IssuesScanWorker
 import com.v1per.synthx.data.scanner.LibraryScanWorker
@@ -167,6 +168,7 @@ class MainActivity : ComponentActivity() {
             // the normal error snackbar.
             playback.restoreSavedQueue()
             runArtSweepIfPending(preferences)
+            backfillPlaylistArt()
             // Nothing to scan yet if onboarding hasn't configured a root folder — running this
             // chain here would be pointless, and pending Onboarding's own saveMusicFolder call
             // to enqueue LibraryScanWorker directly instead, this way it can't race it either.
@@ -198,6 +200,25 @@ class MainActivity : ComponentActivity() {
         }.onFailure { e ->
             Log.w(TAG, "Post-restore art sweep failed: ${e.message}", e)
         }
+    }
+
+    /**
+     * Gives any playlist still missing its generated cover art (rows that predate the v13->v14
+     * schema, plus anything PlaylistSeedBootstrapper inserted) a hue and structure seed. Placed
+     * after the queue restore for the same reason the art sweep is: the mini player coming back
+     * matters more than a cover that is currently drawing the flat placeholder, and the playlist
+     * lists redraw on their own the moment the rows land, since they observe Room.
+     *
+     * Unconditional every launch and a single SELECT when there is nothing to do — see
+     * [PlaylistArtBackfill]. A failure here is cosmetic, never data loss, so it is logged and
+     * the rest of launch maintenance continues.
+     */
+    private suspend fun backfillPlaylistArt() {
+        runCatching { PlaylistArtBackfill.run(applicationContext) }
+            .onSuccess { assigned ->
+                if (assigned > 0) Log.d(TAG, "Playlist art backfill assigned $assigned playlists")
+            }
+            .onFailure { e -> Log.w(TAG, "Playlist art backfill failed: ${e.message}", e) }
     }
 
     /**

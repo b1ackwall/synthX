@@ -50,6 +50,28 @@ interface PlaylistDao {
     @Query("DELETE FROM playlists WHERE id = :playlistId")
     suspend fun deletePlaylist(playlistId: String)
 
+    // Playlist art (see PlaylistEntity.artHue)
+
+    /** Feeds the farthest-point spreading in PlaylistArtHue.selectDistancedHue. */
+    @Query("SELECT art_hue FROM playlists WHERE art_hue IS NOT NULL")
+    suspend fun getExistingArtHues(): List<Int>
+
+    /**
+     * PlaylistArtBackfill's work list. Either column being NULL counts as missing — both are
+     * needed to render, and they are only ever written together. Ordered by creation so the
+     * backfill assigns hues to a library's oldest playlists first, giving the same result
+     * whatever order the rows happen to sit in.
+     */
+    @Query(
+        "SELECT id FROM playlists WHERE art_hue IS NULL OR art_structure_seed IS NULL " +
+            "ORDER BY created_at ASC"
+    )
+    suspend fun getPlaylistIdsMissingArt(): List<String>
+
+    /** Written once per playlist and immutable afterwards — there is deliberately no regenerate path. */
+    @Query("UPDATE playlists SET art_hue = :hue, art_structure_seed = :seed WHERE id = :id")
+    suspend fun setPlaylistArt(id: String, hue: Int, seed: Long)
+
     // Playlist songs
 
     @Query(

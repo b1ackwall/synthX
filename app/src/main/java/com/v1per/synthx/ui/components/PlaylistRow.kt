@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,13 +25,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.PlaylistGroup
@@ -76,18 +72,15 @@ internal fun PlaylistRow(
                 .padding(horizontal = Spacing.HorizontalPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (playlist.albumArtUri != null) {
-                AsyncImage(
-                    model = crossfadeModel(playlist.albumArtUri),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(MaterialTheme.shapes.small),
-                )
-            } else {
-                ArtPlaceholder(size = 40.dp)
-            }
+            // playlist.albumArtUri (playlists.cover_art_uri) has never been written by any
+            // path in this app, so the old "image if set, placeholder otherwise" branch only
+            // ever took its placeholder arm. Generated art replaces both — it falls back to
+            // ArtPlaceholder itself while artHue/artStructureSeed are still null.
+            PlaylistArt(
+                hue = playlist.artHue,
+                structureSeed = playlist.artStructureSeed,
+                size = 40.dp,
+            )
             Spacer(modifier = Modifier.width(Spacing.md))
             if (isRenaming) {
                 OutlinedTextField(

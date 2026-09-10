@@ -112,7 +112,7 @@ class BackupPrimitivesTest {
         // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist) — this
         // literal going stale (previously pinned to v9's hash while VERSION had moved to 11)
         // is exactly the bug this comment exists to prevent from recurring silently.
-        assertEquals("bedc7519ead944e2cf36a52bbe4af509", current.roomIdentityHash)
+        assertEquals("0c6e349e42c3acb1c0d2fb907a1706df", current.roomIdentityHash)
         assertTrue("songs" in current.expectedTables)
         assertTrue("queue_items" in current.expectedTables)
         assertTrue("queue_baseline_items" in current.expectedTables)
