@@ -12,6 +12,7 @@ import com.v1per.synthx.data.db.ArtistDao
 import com.v1per.synthx.data.db.PlaylistDao
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
+import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.QueueDao
 import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
@@ -19,7 +20,10 @@ import com.v1per.synthx.data.db.SongWithDetails
 import com.v1per.synthx.data.db.SynthXDatabase
 import android.util.Log
 import androidx.room.withTransaction
+import com.v1per.synthx.data.AudioFileDeletion
+import com.v1per.synthx.data.SongDeletionEvents
 import com.v1per.synthx.data.deleteSongArtFile
+import com.v1per.synthx.data.deleteSongAudioFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import com.v1per.synthx.data.playlistart.selectDistancedHue
 import com.v1per.synthx.data.scanner.ArtRecovery
@@ -201,11 +205,14 @@ class SongRepositoryImpl(
      * FK CASCADE — nothing here deletes them explicitly.
      *
      * The album-art re-point + row delete (via [deleteSongRowWithArtRepoint]) share one
-     * transaction; the art file is unlinked only after it commits, since a file delete
-     * cannot be rolled back alongside the DB. Same shared cleanup FolderScanner's internal
-     * evictions use, so both deletion paths stay in sync.
+     * transaction; the art file, the audio file, and the live-playback notice all follow only
+     * after it commits, since none of the three can be rolled back alongside the DB. Same shared
+     * cleanup FolderScanner's internal evictions use, so both deletion paths stay in sync.
+     *
+     * The `file_path` is read inside the same transaction that deletes the row — afterwards there
+     * is nothing left to read it from.
      */
-    override suspend fun deleteSong(id: String) = withContext(Dispatchers.IO) {
+    override suspend fun deleteSong(id: String): SongDeletionOutcome = withContext(Dispatchers.IO) {
         // Backup-then-act: a failed backup (no folder configured) must not block the
         // delete the user explicitly asked for.
         // Backup waits for finite operations to drain, so it must precede our own permit.
@@ -213,14 +220,180 @@ class SongRepositoryImpl(
 
         // Recheck admission: restore may have begun while the backup was running.
         dbOperation {
-            database.withTransaction {
+            val filePath = database.withTransaction {
+                val existing = songDao.getSongById(id)
                 deleteSongRowWithArtRepoint(songDao, albumDao, id)
+                existing?.filePath
             }
-
-            deleteSongArtFile(context, id)
-            DestructiveActionTracker.recordDestructiveAction(context)
-            Unit
+            finishSongDeletion(id, filePath)
         }
+    }
+
+    /**
+     * The after-commit half of a complete delete, shared by [deleteSong] and [replaceSong].
+     *
+     * Extracted rather than having [replaceSong] call [deleteSong]: that one opens its own
+     * `database.withTransaction`, and [replaceSong]'s membership transplant plus row delete have
+     * to be a single atomic unit — so the transaction-scoped part ([deleteSongRowWithArtRepoint])
+     * and this out-of-transaction part are called separately by each caller, which also keeps the
+     * backup-before-permit ordering from the deadlock fix intact on both paths.
+     *
+     * **Must be called with the deleting transaction already committed, from inside the
+     * [dbOperation] permit.** Order within it is deliberate: live playback is told first so it can
+     * skip off the song before its file disappears underneath the player, then the files go, then
+     * the destructive-action counter records that a backup is now stale.
+     */
+    private suspend fun finishSongDeletion(id: String, filePath: String?): SongDeletionOutcome {
+        SongDeletionEvents.notifyDeleted(id)
+        val fileOutcome = filePath?.let { deleteSongAudioFile(context, it) }
+            ?: AudioFileDeletion.NotFound
+        deleteSongArtFile(context, id)
+        DestructiveActionTracker.recordDestructiveAction(context)
+        return if (fileOutcome == AudioFileDeletion.Failed) {
+            SongDeletionOutcome.FileRemained
+        } else {
+            SongDeletionOutcome.Deleted
+        }
+    }
+
+    override suspend fun previewReplaceSong(
+        oldSongId: String,
+        newSongId: String,
+    ): ReplaceSongPreview? = dbOperation { withContext(Dispatchers.IO) {
+        // One read of both songs, hydrated the same way every other song list is, so the review
+        // step renders them with the ordinary SongRow/SongIdentity treatment.
+        val details = songDao.getSongsWithDetailsByIds(listOf(oldSongId, newSongId))
+        val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+            .groupBy { it.songId }
+        val songsById = details.associate { it.song.id to it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+        val oldSong = songsById[oldSongId] ?: return@withContext null
+        val newSong = songsById[newSongId] ?: return@withContext null
+
+        val oldPlaylistIds = playlistDao.getPlaylistIdsForSong(oldSongId).toSet()
+        val newPlaylistIds = playlistDao.getPlaylistIdsForSong(newSongId).toSet()
+        val namesById = playlistDao.getPlaylistsByIds((oldPlaylistIds + newPlaylistIds).toList())
+            .associate { it.id to it.name }
+        // A membership whose playlist row can't be named is skipped rather than shown as blank —
+        // it cannot happen (playlist_songs has an FK to playlists) but the review step must not
+        // present an unnamed line item as something the user is about to act on.
+        fun names(ids: Set<String>) = ids.mapNotNull(namesById::get).sorted()
+
+        ReplaceSongPreview(
+            oldSong = oldSong,
+            newSong = newSong,
+            transferringPlaylists = names(oldPlaylistIds - newPlaylistIds),
+            conflictingPlaylists = names(oldPlaylistIds intersect newPlaylistIds),
+            newSongOnlyPlaylists = names(newPlaylistIds - oldPlaylistIds),
+        )
+    } }
+
+    /**
+     * See [SongRepository.replaceSong]. Structure mirrors [deleteSong] — it ends in one, after
+     * all — including the backup-before-permit ordering that avoids the self-deadlock a backup
+     * taken inside an operation permit causes.
+     *
+     * Everything that must be atomic (the membership transplant, the starred/date_added writes,
+     * and the old row's deletion) is in the single transaction below. Everything that cannot be
+     * rolled back (files, the live-playback notice) is in [finishSongDeletion] afterwards.
+     */
+    override suspend fun replaceSong(
+        oldSongId: String,
+        newSongId: String,
+        conflictResolution: PlaylistConflictResolution,
+    ): ReplaceSongResult = withContext(Dispatchers.IO) {
+        // Cheapest guardrail first, and the one the UI already prevents by excluding the old song
+        // from the new-song picker — checked here anyway so the contract holds for any caller.
+        if (oldSongId == newSongId) return@withContext ReplaceSongResult.SameSong
+
+        backupManager.createBackup(BackupTier.Auto, BackupReason.REPLACE_SONG)
+
+        dbOperation {
+            val transplant = database.withTransaction {
+                transplantIdentity(oldSongId, newSongId, conflictResolution)
+            }
+            when (transplant) {
+                is Transplant.OldMissing -> ReplaceSongResult.OldSongMissing
+                is Transplant.NewMissing -> ReplaceSongResult.NewSongMissing
+                is Transplant.Done -> {
+                    val outcome = finishSongDeletion(oldSongId, transplant.oldFilePath)
+                    playlistExportManager.scheduleExport()
+                    ReplaceSongResult.Success(
+                        playlistsAffected = transplant.playlistsAffected,
+                        oldAudioFileRemoved = outcome == SongDeletionOutcome.Deleted,
+                    )
+                }
+            }
+        }
+    }
+
+    /** [transplantIdentity]'s result, carrying what the out-of-transaction half still needs. */
+    private sealed interface Transplant {
+        data class Done(val oldFilePath: String, val playlistsAffected: Int) : Transplant
+        data object OldMissing : Transplant
+        data object NewMissing : Transplant
+    }
+
+    /**
+     * The whole atomic body of [replaceSong]. **Caller must already be inside a transaction** —
+     * same contract as [deleteSongRowWithArtRepoint], which this ends by calling.
+     */
+    private suspend fun transplantIdentity(
+        oldSongId: String,
+        newSongId: String,
+        conflictResolution: PlaylistConflictResolution,
+    ): Transplant {
+        val oldSong = songDao.getSongById(oldSongId) ?: return Transplant.OldMissing
+        songDao.getSongById(newSongId) ?: return Transplant.NewMissing
+
+        val oldMemberships = playlistDao.getPlaylistMembershipsForSong(oldSongId)
+        val newMembershipPlaylistIds = playlistDao.getPlaylistMembershipsForSong(newSongId)
+            .mapTo(HashSet()) { it.playlistId }
+
+        for (membership in oldMemberships) {
+            val isConflict = membership.playlistId in newMembershipPlaylistIds
+            // The old song's row goes either way — it is deleted outright below, and FK CASCADE
+            // would take it regardless. Removed explicitly and first so the row is gone before
+            // the new one is written, rather than relying on cascade ordering.
+            playlistDao.removePlaylistSong(membership.playlistId, oldSongId)
+
+            // KeepNew is the only case where the new song stays where it already was; every
+            // other case (no conflict at all, KeepOld, Merge) puts it in the old song's exact
+            // slot. On a conflict that insert lands on an existing (playlist_id, song_id) row,
+            // which insertPlaylistSong's REPLACE-on-conflict turns into a move rather than a
+            // duplicate — see its kdoc.
+            if (isConflict && conflictResolution == PlaylistConflictResolution.KeepNew) continue
+
+            playlistDao.insertPlaylistSong(
+                PlaylistSongEntity(
+                    playlistId = membership.playlistId,
+                    songId = newSongId,
+                    position = membership.position,
+                    // Inherited, not stamped as now: the replacement steps into the old song's
+                    // membership wholesale, the same way it inherits date_added below.
+                    addedAt = membership.addedAt,
+                )
+            )
+        }
+
+        // date_added before the starred rule, and both before the old row is deleted, purely so
+        // this reads in the order the feature is specified.
+        songDao.updateDateAdded(newSongId, oldSong.dateAdded)
+
+        // Starred means "not yet organized into a playlist" (see SongEntity.isStarred), so a song
+        // that now belongs to at least one is by definition organized. Asked of the database
+        // after the transplant rather than computed from oldMemberships: on KeepNew with no
+        // transferring playlists the new song may already have been a member of something the old
+        // song never touched, and that still counts. Deliberately one-way — a new song that ends
+        // up in no playlist keeps its own value untouched, and the old song's is never copied.
+        if (songDao.isInAnyPlaylist(newSongId)) {
+            songDao.dismissFromStarred(newSongId)
+        }
+
+        deleteSongRowWithArtRepoint(songDao, albumDao, oldSongId)
+        return Transplant.Done(
+            oldFilePath = oldSong.filePath,
+            playlistsAffected = oldMemberships.size,
+        )
     }
 
     // Sort order (date_added DESC) and the starred/missing filters stay in the DAO query;

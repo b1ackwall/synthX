@@ -30,6 +30,7 @@ object BackupReason {
     const val FOLDER_CHANGE = "folder_change"
     const val DELETE_SONG = "delete_song"
     const val DELETE_PLAYLIST = "delete_playlist"
+    const val REPLACE_SONG = "replace_song"
     const val RESCAN = "rescan"
     const val PRE_RESTORE_SAFETY = "pre_restore_safety"
 }

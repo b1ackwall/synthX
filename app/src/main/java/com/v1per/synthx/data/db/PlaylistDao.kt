@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import com.v1per.synthx.data.repository.PlaylistMembership
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -82,6 +83,26 @@ interface PlaylistDao {
     @Query("SELECT playlist_id FROM playlist_songs WHERE song_id = :songId")
     suspend fun getPlaylistIdsForSong(songId: String): List<String>
 
+    /**
+     * Richer counterpart to [getPlaylistIdsForSong] — the whole membership row, not just which
+     * playlist it names. Kept separate rather than widening that one, which drives the
+     * Add-to-Playlist indicator and only ever needs the ids. See [PlaylistMembership].
+     */
+    @Query("SELECT playlist_id, position, added_at FROM playlist_songs WHERE song_id = :songId")
+    suspend fun getPlaylistMembershipsForSong(songId: String): List<PlaylistMembership>
+
+    /** Names for a known set of playlist ids — for describing a membership set without
+     *  collecting the whole [getAllPlaylists] Flow. */
+    @Query("SELECT * FROM playlists WHERE id IN (:ids)")
+    suspend fun getPlaylistsByIds(ids: List<String>): List<PlaylistEntity>
+
+    /**
+     * The only primitive that writes an *explicit* position — [addSongToPlaylist] below always
+     * appends. REPLACE-on-conflict is load-bearing for Replace Song: the primary key is
+     * (playlist_id, song_id), so re-inserting a song already in the playlist moves it to the
+     * given position rather than failing or duplicating it. Ordinary "add to playlist" must not
+     * use this directly for exactly that reason — see [addSongToPlaylist]'s kdoc.
+     */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylistSong(playlistSong: PlaylistSongEntity)
 

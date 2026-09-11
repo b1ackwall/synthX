@@ -13,6 +13,7 @@ import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.screens.issues.IssuesScreen
 import com.v1per.synthx.ui.screens.issues.IssuesViewModel
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementScreen
+import com.v1per.synthx.ui.screens.replacesong.ReplaceSongScreen
 
 fun NavGraphBuilder.libraryManagementRoutes(
     navController: NavHostController,
@@ -30,6 +31,19 @@ fun NavGraphBuilder.libraryManagementRoutes(
                 onIssuesClick = {
                     navController.navigate(Screen.Issues.route)
                 },
+                onReplaceSongClick = {
+                    navController.navigate(Screen.ReplaceSong.route)
+                },
+            )
+        }
+    }
+    composable(Screen.ReplaceSong.route) {
+        RouteContent(chromeBottomPadding) {
+            // No DetailTopBar supplied from here, unlike every other route in this file: the
+            // wizard's back button has to mean "previous step" on two of its three steps, so the
+            // screen owns its own bar. See ReplaceSongScreen's kdoc.
+            ReplaceSongScreen(
+                onExit = { navController.popBackStack() },
             )
         }
     }

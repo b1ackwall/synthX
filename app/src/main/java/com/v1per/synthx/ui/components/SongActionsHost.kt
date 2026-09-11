@@ -29,6 +29,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
+import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.playback.QueueAddResult
@@ -75,6 +76,15 @@ sealed class SongActionEvent {
     data object RemovedFromStarred : SongActionEvent()
     /** A mutation threw (Room/SAF failure) — see [SongActionsViewModel.launchCatching] use. */
     data object ActionFailed : SongActionEvent()
+
+    /**
+     * The delete committed — row, references and art are all gone — but the audio file itself
+     * could not be removed from disk. Distinct from both success (nothing to say) and
+     * [ActionFailed] (nothing happened): the library change is real and irreversible, only the
+     * on-disk cleanup is outstanding. See
+     * [com.v1per.synthx.data.repository.SongDeletionOutcome].
+     */
+    data object DeletedButFileRemained : SongActionEvent()
 }
 
 /**
@@ -135,6 +145,8 @@ fun SongActionsHost(
                 SongActionEvent.RemovedFromStarred ->
                     context.getString(R.string.actions_removed_from_starred)
                 SongActionEvent.ActionFailed -> context.getString(R.string.actions_failed)
+                SongActionEvent.DeletedButFileRemained ->
+                    context.getString(R.string.actions_delete_file_remained)
             }
             snackbarHostState.showSnackbar(message)
         }
@@ -425,7 +437,12 @@ class SongActionsViewModel(
 
     fun deleteSong(songId: String) {
         launchCatching(onError = { _events.tryEmit(SongActionEvent.ActionFailed) }) {
-            repository.deleteSong(songId)
+            // Silent on the ordinary success: the row vanishing from every list is its own
+            // feedback. Only the file-remained case has something the user could not otherwise
+            // tell from the UI.
+            if (repository.deleteSong(songId) == SongDeletionOutcome.FileRemained) {
+                _events.tryEmit(SongActionEvent.DeletedButFileRemained)
+            }
         }
     }
 

@@ -31,6 +31,7 @@ private fun LibraryManagementWithFolderPreview() {
                 onRescan = {},
                 onCancelScan = {},
                 onIssuesClick = {},
+                onReplaceSongClick = {},
                 onToggleDeleteSongs = {},
             )
         }
@@ -60,6 +61,7 @@ private fun LibraryManagementEmptyPreview() {
                 onRescan = {},
                 onCancelScan = {},
                 onIssuesClick = {},
+                onReplaceSongClick = {},
                 onToggleDeleteSongs = {},
             )
         }
@@ -89,6 +91,7 @@ private fun LibraryManagementScanningPreview() {
                 onRescan = {},
                 onCancelScan = {},
                 onIssuesClick = {},
+                onReplaceSongClick = {},
                 onToggleDeleteSongs = {},
             )
         }

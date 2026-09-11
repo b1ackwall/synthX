@@ -30,8 +30,40 @@ interface SongRepository {
     /** Extracts missing background swatches from the affected songs' existing artwork. */
     suspend fun recoverPaletteData(songIds: List<String>): PaletteRecoveryResult
 
-    /** Permanently deletes a song, its art file, and (via CASCADE) all rows referencing it. */
-    suspend fun deleteSong(id: String)
+    /**
+     * Permanently deletes a song: its row, its art files, its **audio file on disk**, and (via
+     * CASCADE) every row referencing it. Also notifies live playback so a queued or playing
+     * occurrence is removed rather than left pointing at a file that no longer exists — see
+     * [com.v1per.synthx.data.SongDeletionEvents].
+     *
+     * @return [SongDeletionOutcome.FileRemained] when everything above succeeded except removing
+     *   the audio file, which the caller should surface distinctly from an ordinary success.
+     */
+    suspend fun deleteSong(id: String): SongDeletionOutcome
+
+    /**
+     * Read-only dry run of [replaceSong], for the review step's "here is what will happen"
+     * screen. Never writes.
+     *
+     * @return null when either song's row no longer exists.
+     */
+    suspend fun previewReplaceSong(oldSongId: String, newSongId: String): ReplaceSongPreview?
+
+    /**
+     * Transplants the old song's library identity onto the new song, then completely deletes the
+     * old song (row + audio file, exactly as [deleteSong] does).
+     *
+     * "Identity" is: every playlist membership the old song held, at the same position (see
+     * [PlaylistConflictResolution] for what happens where both songs are already members), and
+     * its `date_added`. Starred status is *not* copied — the new song's own value is kept, except
+     * that a new song which ends up in at least one playlist is un-starred, since starred means
+     * "not yet organized into a playlist".
+     */
+    suspend fun replaceSong(
+        oldSongId: String,
+        newSongId: String,
+        conflictResolution: PlaylistConflictResolution,
+    ): ReplaceSongResult
 
     // Starred — songs not yet organized into a playlist
 
@@ -129,6 +161,16 @@ interface SongRepository {
     /** The saved baseline, retaining each occurrence's slot identity. */
     suspend fun getBaselineQueueSlots(): List<QueueSlot>
 }
+
+/**
+ * How much of a complete delete actually landed. The row is gone in both cases — the database is
+ * the source of truth and its transaction has already committed by the time the file is touched —
+ * so this only distinguishes "nothing left behind" from "the audio file is still on disk".
+ *
+ * A file that was already absent counts as [Deleted]: the intended end state holds, and that is
+ * the normal answer for the missing-song rows the Issues screen deletes.
+ */
+enum class SongDeletionOutcome { Deleted, FileRemained }
 
 /** The saved resume position: an exact slot id plus position and playback modes. */
 data class QueueCursor(

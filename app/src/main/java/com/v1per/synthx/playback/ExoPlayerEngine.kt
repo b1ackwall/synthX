@@ -8,6 +8,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.v1per.synthx.data.SongDeletionEvents
 import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
@@ -232,6 +233,15 @@ class ExoPlayerEngine(
                     persistQueue()
                     prefetchArtwork()
                 }
+            }
+        }
+        // Complete delete removes the song's file as well as its row, so a queue slot still
+        // pointing at it is not merely stale (the remap case above) — it is unplayable. Every
+        // live engine subscribes independently, which is what makes one emission reach all of
+        // them; see SongDeletionEvents.
+        engineScope.launch {
+            SongDeletionEvents.events.collect { songId ->
+                removeDeletedSongInternal(songId)
             }
         }
     }

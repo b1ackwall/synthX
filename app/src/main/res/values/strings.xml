@@ -30,6 +30,7 @@
     <string name="screen_issues">Issues</string>
     <string name="screen_restore">Restore</string>
     <string name="screen_new_playlist">New Playlist</string>
+    <string name="screen_replace_song">Replace Song</string>
 
     <!-- Library -->
     <string name="library_title">Library</string>
@@ -65,6 +66,7 @@
     <string name="actions_remove_from_starred">Remove from Starred (Graduate)</string>
     <string name="actions_removed_from_starred">Moved to library</string>
     <string name="actions_failed">Couldn\'t complete that action. Try again.</string>
+    <string name="actions_delete_file_remained">Removed from your library, but the audio file couldn\'t be deleted from your device.</string>
 
     <!-- Graduation (moving a song's file from New Arrivals into the root library) -->
     <string name="graduation_dialog_title">Moving to Library</string>
@@ -125,6 +127,9 @@
     <string name="settings_new_arrivals_folder">New arrivals folder</string>
     <string name="settings_rescan_library">Rescan library</string>
     <string name="settings_delete_songs">Delete Songs</string>
+    <string name="settings_replace_song">Replace Song</string>
+    <string name="settings_replace_song_subtitle">Swap in a better copy, keeping its playlists and date added</string>
+    <string name="settings_replace_song_disabled">Turn on Delete Songs to use this</string>
     <string name="section_music_library">Music Library</string>
     <string name="section_backups_and_restore">Backups and Restore</string>
 
@@ -171,7 +176,39 @@
     <string name="issues_scan_status_never">Not checked yet — tap Scan</string>
     <string name="issues_scan_status_last">Last checked %1$s — %2$d issue(s) found</string>
     <string name="delete_song_dialog_title">Delete this song?</string>
-    <string name="delete_song_dialog_message">This permanently removes the song from your library, along with its playlist entries, listen history, and artist and album links. The file on disk is not affected. This cannot be undone.</string>
+    <string name="delete_song_dialog_message">This permanently removes the song from your library, along with its playlist entries and artist and album links, and permanently deletes the audio file from your device. This cannot be undone.</string>
+    <string name="typed_confirmation_label">Type %1$s to confirm</string>
+
+    <!-- Replace Song -->
+    <string name="replace_song_step_pick_old">Song to replace</string>
+    <string name="replace_song_step_pick_new">Replacement song</string>
+    <string name="replace_song_step_review">Review replacement</string>
+    <string name="replace_song_pick_old_subtitle">Pick the wrong or lower-quality copy. It will be deleted at the end.</string>
+    <string name="replace_song_pick_new_subtitle">Pick the copy to keep. It inherits the other song\'s playlists and date added.</string>
+    <string name="replace_song_no_results">No songs match that search</string>
+    <string name="replace_song_search_empty">Start typing to find a song</string>
+    <string name="replace_song_section_old">Replacing</string>
+    <string name="replace_song_section_new">With</string>
+    <string name="replace_song_section_transferring">Playlists that transfer (%1$d)</string>
+    <string name="replace_song_section_conflicts">In both songs\' playlists (%1$d)</string>
+    <string name="replace_song_section_new_only">Replacement is already in (left untouched) (%1$d)</string>
+    <string name="replace_song_no_playlists">Not in any playlist.</string>
+    <string name="replace_song_conflict_prompt">Both songs are already in the playlists above. Which one\'s place should the replacement take?</string>
+    <string name="replace_song_conflict_keep_old">Keep the old song\'s place</string>
+    <string name="replace_song_conflict_keep_old_detail">The replacement moves to the position the old song held.</string>
+    <string name="replace_song_conflict_keep_new">Keep the replacement\'s place</string>
+    <string name="replace_song_conflict_keep_new_detail">The replacement stays exactly where it already is.</string>
+    <string name="replace_song_conflict_merge">Merge</string>
+    <string name="replace_song_conflict_merge_detail">Fold the two entries into one at the old song\'s position.</string>
+    <string name="replace_song_summary">The replacement also inherits the old song\'s date added. The old song is then permanently deleted from your library and its audio file removed from your device. This cannot be undone.</string>
+    <string name="replace_song_action_replace">Replace</string>
+    <string name="replace_song_preview_loading">Working out what will change…</string>
+    <string name="replace_song_working">Replacing…</string>
+    <string name="replace_song_failed_generic">Couldn\'t complete the replacement. Nothing was changed.</string>
+    <string name="replace_song_failed_old_missing">The song being replaced is no longer in your library. Nothing was changed.</string>
+    <string name="replace_song_failed_new_missing">The replacement song is no longer in your library. Nothing was changed.</string>
+    <string name="replace_song_failed_same_song">A song can\'t replace itself.</string>
+    <string name="replace_song_done_file_remained">The replacement is done, but the old song\'s audio file couldn\'t be deleted from your device. Its library entry is gone either way.</string>
 
     <!-- Playlists -->
     <string name="delete_playlist_dialog_title">Delete this playlist?</string>
@@ -213,6 +250,7 @@
     <string name="restore_music_folder_required_message">Select your root music folder before restoring a backup — without it, a restored library has no songs to find.</string>
     <string name="restore_music_folder_required_action">Select folder</string>
     <string name="action_ok">OK</string>
+    <string name="action_retry">Retry</string>
     <string name="action_keep">Keep</string>
     <string name="action_clear">Clear</string>
 

@@ -17,6 +17,7 @@ import com.v1per.synthx.ui.components.SettingsDetailScaffold
 fun LibraryManagementScreen(
     topBar: @Composable () -> Unit,
     onIssuesClick: () -> Unit,
+    onReplaceSongClick: () -> Unit,
 ) {
     val context = LocalContext.current
     val viewModel: LibraryManagementViewModel = viewModel(
@@ -91,6 +92,7 @@ fun LibraryManagementScreen(
             onRescan = viewModel::rescanLibrary,
             onCancelScan = viewModel::cancelScan,
             onIssuesClick = onIssuesClick,
+            onReplaceSongClick = onReplaceSongClick,
             onToggleDeleteSongs = viewModel::setDeleteSongsEnabled,
         )
     }
@@ -112,6 +114,7 @@ internal fun LibraryManagementScreenContent(
     onRescan: () -> Unit,
     onCancelScan: () -> Unit,
     onIssuesClick: () -> Unit,
+    onReplaceSongClick: () -> Unit,
     onToggleDeleteSongs: (Boolean) -> Unit,
 ) {
     Column {
@@ -140,6 +143,11 @@ internal fun LibraryManagementScreenContent(
         DeleteSongsRow(
             enabled = deleteSongsEnabled,
             onToggle = onToggleDeleteSongs,
+        )
+        // Below the toggle that gates it, so the reason it is inert is directly above it.
+        ReplaceSongRow(
+            enabled = deleteSongsEnabled,
+            onClick = onReplaceSongClick,
         )
     }
 }

@@ -4,6 +4,7 @@ import com.v1per.synthx.data.db.PlaylistDao
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.PlaylistSongEntity
+import com.v1per.synthx.data.repository.PlaylistMembership
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -116,6 +117,8 @@ class PlaylistArtBackfillTest {
         override suspend fun deletePlaylist(playlistId: String) = unused()
         override suspend fun getSongIdsForPlaylist(playlistId: String): List<String> = unused()
         override suspend fun getPlaylistIdsForSong(songId: String): List<String> = unused()
+        override suspend fun getPlaylistMembershipsForSong(songId: String): List<PlaylistMembership> = unused()
+        override suspend fun getPlaylistsByIds(ids: List<String>): List<PlaylistEntity> = unused()
         override suspend fun insertPlaylistSong(playlistSong: PlaylistSongEntity) = unused()
         override suspend fun removePlaylistSong(playlistId: String, songId: String) = unused()
         override suspend fun getMaxPosition(playlistId: String): Int? = unused()

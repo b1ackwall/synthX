@@ -1,9 +1,14 @@
 package com.v1per.synthx.data
 
 import android.content.Context
+import android.net.Uri
+import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.SongDao
 import java.io.File
+
+private const val TAG = "SongDeletion"
 
 /**
  * Re-points the song's album cover if this song was the one supplying it, then deletes the
@@ -53,6 +58,52 @@ fun deleteSongArtFile(context: Context, songId: String): Boolean {
     val artDir = File(context.filesDir, "art")
     val matches = artDir.listFiles { file -> songIdOfArtFile(file.name) == songId } ?: return false
     return matches.fold(false) { deletedAny, file -> file.delete() || deletedAny }
+}
+
+/**
+ * Outcome of [deleteSongAudioFile]. Only [Failed] is worth telling the user about — [NotFound]
+ * already satisfies the intent (nothing is left on disk), which is the normal answer for a song
+ * whose file was moved or removed outside the app, i.e. exactly the missing-song rows the Issues
+ * screen deletes.
+ */
+enum class AudioFileDeletion { Deleted, NotFound, Failed }
+
+/**
+ * Permanently deletes the song's own audio file from disk, given the `file_path` its row carried.
+ *
+ * Follows [com.v1per.synthx.data.scanner.graduateSong]'s established SAF pattern exactly — parse
+ * the stored path as a [Uri], resolve it with [DocumentFile.fromSingleUri], check existence, then
+ * call `delete()` guarded by try/catch **and** with its Boolean return checked, since a provider
+ * can refuse a delete without throwing. That is the whole reason this cannot be a bare
+ * `doc.delete()`: a silently-false return would otherwise read as success.
+ *
+ * Must only be called after the transaction that deleted the song row has committed, and never
+ * from inside a [com.v1per.synthx.data.repository.RepositoryDbOperation] transaction — same rule
+ * (and same reason) as [deleteSongArtFile]: a file delete cannot be rolled back alongside the DB.
+ * The database stays the source of truth either way; a [Failed] result leaves an orphaned file on
+ * disk, never an orphaned row.
+ */
+fun deleteSongAudioFile(context: Context, filePath: String): AudioFileDeletion {
+    val uri = runCatching { Uri.parse(filePath) }.getOrNull()
+        ?: return AudioFileDeletion.Failed.also { Log.w(TAG, "Unparseable song file path") }
+    // The whole resolve-and-probe is guarded, not just delete(): a stale/foreign-scheme path can
+    // make the ContentResolver throw on exists() alone, which must read as "nothing to delete"
+    // rather than crashing the deletion that already committed.
+    val document = runCatching { DocumentFile.fromSingleUri(context, uri) }.getOrNull()
+        ?: return AudioFileDeletion.NotFound
+    if (!runCatching { document.exists() }.getOrDefault(false)) return AudioFileDeletion.NotFound
+
+    val deleted = try {
+        document.delete()
+    } catch (e: Exception) {
+        Log.w(TAG, "Audio file delete threw", e)
+        false
+    }
+    if (deleted) return AudioFileDeletion.Deleted
+    // Distinguished from NotFound: the file is still there and the row is already gone, so the
+    // caller has something real to report.
+    Log.w(TAG, "Provider refused to delete the song's audio file")
+    return AudioFileDeletion.Failed
 }
 
 /**

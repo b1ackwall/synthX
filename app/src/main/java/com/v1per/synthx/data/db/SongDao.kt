@@ -121,6 +121,15 @@ interface SongDao {
     @Query("UPDATE songs SET in_inbox = 0 WHERE id = :id")
     suspend fun dismissFromStarred(id: String)
 
+    /**
+     * Narrow single-column write, deliberately not an [upsertSong] of a read-modify-written row:
+     * Replace Song only transplants this one value onto the replacement, and rewriting the whole
+     * entity would clobber anything else touched between the read and the write (palette
+     * backfill, a missing-flag flip, an art re-extraction).
+     */
+    @Query("UPDATE songs SET date_added = :dateAdded WHERE id = :id")
+    suspend fun updateDateAdded(id: String, dateAdded: Long)
+
     @Query("SELECT * FROM song_artists WHERE song_id = :songId ORDER BY position ASC")
     suspend fun getSongArtistRefs(songId: String): List<SongArtistEntity>
 

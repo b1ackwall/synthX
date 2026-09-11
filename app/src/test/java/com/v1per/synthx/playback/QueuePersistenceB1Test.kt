@@ -7,12 +7,16 @@ import com.v1per.synthx.data.repository.Album
 import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.data.repository.MissingSongInfo
 import com.v1per.synthx.data.repository.Playlist
+import com.v1per.synthx.data.repository.PlaylistConflictResolution
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.data.repository.QueueCursor
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.QueueSlotRecord
 import com.v1per.synthx.data.repository.QueueSnapshot
+import com.v1per.synthx.data.repository.ReplaceSongPreview
+import com.v1per.synthx.data.repository.ReplaceSongResult
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -57,7 +61,10 @@ class QueuePersistenceB1Test {
             com.v1per.synthx.data.scanner.PaletteRecoveryResult(0, 0, 0)
         override suspend fun recoverMissingArt(songIds: List<String>?) =
             com.v1per.synthx.data.scanner.ArtRecoveryResult(checked = 0, recovered = 0, skipped = 0)
-        override suspend fun deleteSong(id: String) {}; override fun getStarredSongs(): Flow<List<Song>> = emptyFlow(); override fun getStarredSongCount(): Flow<Int> = emptyFlow()
+        override suspend fun deleteSong(id: String) = SongDeletionOutcome.Deleted
+        override suspend fun previewReplaceSong(oldSongId: String, newSongId: String): ReplaceSongPreview? = null
+        override suspend fun replaceSong(oldSongId: String, newSongId: String, conflictResolution: PlaylistConflictResolution): ReplaceSongResult = ReplaceSongResult.SameSong
+        override fun getStarredSongs(): Flow<List<Song>> = emptyFlow(); override fun getStarredSongCount(): Flow<Int> = emptyFlow()
         override fun getRecentSongs(limit: Int): Flow<List<Song>> = emptyFlow()
         override suspend fun dismissFromStarred(songId: String) {}; override suspend fun isInAnyPlaylist(songId: String) = false; override suspend fun checkRootLibraryOrganization(musicFolderUri: Uri) = null
         override fun graduateSong(songId: String, rootMusicFolderUri: Uri): Flow<com.v1per.synthx.data.scanner.GraduationStage> = emptyFlow()
