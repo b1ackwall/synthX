@@ -194,9 +194,12 @@ private fun FolderSetupStep(
     ) { uri ->
         uri?.let { newUri ->
             try {
+                // Read + write — graduation moves files into this tree. See
+                // LibraryManagementScreen's music folder picker.
                 context.contentResolver.takePersistableUriPermission(
                     newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
                 libraryManagementViewModel.saveMusicFolder(newUri)
             } catch (e: SecurityException) {
@@ -210,9 +213,12 @@ private fun FolderSetupStep(
     ) { uri ->
         uri?.let { newUri ->
             try {
+                // Read + write — graduation deletes the original from this tree. See
+                // LibraryManagementScreen's New Arrivals picker.
                 context.contentResolver.takePersistableUriPermission(
                     newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
                 libraryManagementViewModel.saveNewArrivalsFolder(newUri)
             } catch (e: SecurityException) {

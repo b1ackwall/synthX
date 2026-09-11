@@ -7,19 +7,38 @@ class PreferencesManager(context: Context) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    /**
+     * The root library tree. Read almost exclusively — scanning, missing-detection and playback
+     * never write here — but held with **write** access for the one exception: graduation
+     * ("Remove from Starred") moves a file out of [newArrivalsFolderUri] and into this tree, so
+     * it has to be able to create a file under it.
+     *
+     * A grant taken before that was true persists read-only and does not upgrade itself; the
+     * folder has to be re-picked once. `AudioFileWalk.isRootWritable` is the check that catches
+     * it, and graduation reports it as something to act on rather than as a create failure.
+     */
     var musicFolderUri: String?
         get() = prefs.getString(KEY_MUSIC_FOLDER_URI, null)
         set(value) = prefs.edit().putString(KEY_MUSIC_FOLDER_URI, value).apply()
 
-    /** Separate tree from [musicFolderUri] — held with write access, unlike the music folder. */
+    /** Separate tree from [musicFolderUri] — holds database snapshots, not audio. Write access,
+     *  same as the music folder but for an unrelated reason. */
     var backupFolderUri: String?
         get() = prefs.getString(KEY_BACKUP_FOLDER_URI, null)
         set(value) = prefs.edit().putString(KEY_BACKUP_FOLDER_URI, value).apply()
 
     /**
-     * Second read-only tree, scanned in full on every launch — where the  companion
-     * app drops downloads. Separate from [musicFolderUri]: songs found here become ordinary
-     * library songs, but the tree is never used to reconcile `is_missing`.
+     * Second audio tree, scanned in full on every launch — where the  companion app drops
+     * downloads. Separate from [musicFolderUri]: songs found here become ordinary library songs,
+     * but the tree is never used to reconcile `is_missing`.
+     *
+     * Held with **write** access, like [musicFolderUri] and for the other half of the same
+     * reason: graduation deletes the original from this tree once its copy under the music root
+     * is verified, and complete-delete removes a file from whichever tree holds it. Neither is
+     * possible against a read-only grant.
+     *
+     * Same caveat as [musicFolderUri]: a grant taken before that was true persists read-only and
+     * does not upgrade itself — the folder has to be re-picked once.
      */
     var newArrivalsFolderUri: String?
         get() = prefs.getString(KEY_NEW_ARRIVALS_FOLDER_URI, null)
@@ -29,9 +48,11 @@ class PreferencesManager(context: Context) {
      * Every tree that can hold library audio, in no particular order — currently
      * [musicFolderUri] and [newArrivalsFolderUri], skipping whichever aren't set.
      *
-     * [backupFolderUri] is deliberately excluded and must stay excluded: it's a write-access
-     * tree holding database snapshots, never scanned for audio. Including it would make the
-     * scanner walk `.db` files and, worse, imply that songs could legitimately live there.
+     * [backupFolderUri] is deliberately excluded and must stay excluded: it holds database
+     * snapshots and is never scanned for audio. Including it would make the scanner walk `.db`
+     * files and, worse, imply that songs could legitimately live there. (Write access is no
+     * longer what sets it apart — all three trees hold one now — but the exclusion never rested
+     * on that.)
      *
      * Exists so missing-detection can reconcile against *all* configured roots rather than
      * only the one being walked — see FolderScanner.scan's `otherRootUris`.

@@ -741,33 +741,6 @@ class SongRepositoryImpl(
             artStructureSeed = artStructureSeed,
         )
 
-    private fun SongWithDetails.toDomain(refs: List<SongArtistEntity>): Song {
-        // @Relation via Junction returns artists unordered — restore song_artists.position
-        val positionByArtistId = refs.associate { it.artistId to it.position }
-        val orderedArtists = artists.sortedBy { positionByArtistId[it.id] ?: Int.MAX_VALUE }
-        val artist = if (orderedArtists.isEmpty()) {
-            "Unknown Artist"
-        } else {
-            orderedArtists.joinToString(", ") { it.name }
-        }
-        return Song(
-            id = song.id,
-            title = song.title,
-            artist = artist,
-            album = album?.title ?: "Unknown Album",
-            duration = song.duration,
-            filePath = song.filePath,
-            albumArtUri = song.albumArtUri,
-            albumArtFullUri = song.albumArtFullUri,
-            paletteSwatches = song.toPaletteSwatches(),
-            isMissing = song.isMissing,
-            dateAdded = song.dateAdded,
-            albumId = song.albumId,
-            // Same ordered list the display string is built from — no extra query.
-            artists = orderedArtists.map { Artist(id = it.id, name = it.name) },
-        )
-    }
-
     companion object {
         private const val SQLITE_IN_BATCH_SIZE = 900
 

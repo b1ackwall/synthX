@@ -6,14 +6,40 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
-/** A song row was replaced under a new id; [newSong] is what now lives at [oldId]'s old spot. */
+/**
+ * The song a consumer holding [oldId] should now be holding instead.
+ *
+ * `newSong.id` is usually a *different* id from [oldId] (a rescan replaced the row), but it is
+ * legitimately the **same** id on graduation's path-only change — see the second emitter in
+ * [SongRemapEvents]' KDoc. Consumers must therefore not assume the two differ; matching slots
+ * by `it.id == oldId` and overwriting them with [newSong] is correct either way.
+ */
 data class SongRemap(val oldId: String, val newSong: Song)
 
 /**
- * Process-wide notice that a scan replaced a song row under a new id while the old id may
- * still be held in memory elsewhere — currently just
+ * Process-wide notice that the [Song] a consumer cached under [SongRemap.oldId] no longer
+ * describes what is actually in the library — currently only
  * [com.v1per.synthx.playback.ExoPlayerEngine.songsBySlotId], which has no other way to learn its
- * cached [Song] for the currently-playing (or queued) item just went stale.
+ * cached [Song] for the currently-playing (or queued) item just went stale, and which bakes that
+ * cached `filePath` into every `MediaItem` it builds.
+ *
+ * Two distinct emitters, both legitimate:
+ *  - **A rescan replaced the row under a new id** ([com.v1per.synthx.data.scanner.FolderScanner]).
+ *    ID3 tags were edited without touching the byte ranges the content hash covers, so the row
+ *    is reinserted under a new id with refreshed title/art. `oldId != newSong.id`.
+ *  - **Graduation moved the file** ([com.v1per.synthx.data.scanner.graduateSong] — the
+ *    "Remove from Starred" action, which physically moves a file out of New Arrivals into the
+ *    root library folder). The bytes are copied verbatim and hash-verified, so the content id is
+ *    unchanged and only `file_path` moves: **`oldId == newSong.id`**. That is not a degenerate
+ *    case to guard against — it is the whole point. The row, and every queue slot, playlist
+ *    membership and FK hanging off it, stays alive under the same id; what went stale is the
+ *    path, and a consumer still holding the old one is pointing at a file graduation has already
+ *    deleted.
+ *
+ * The two share one bus rather than splitting because the required handling is identical —
+ * refresh the cached [Song] for every slot matching [SongRemap.oldId], swap the URI of any
+ * `MediaItem` already loaded for it, keep every slot key — which is exactly what distinguishes
+ * this from [SongDeletionEvents], where slots are *removed* and the playback cursor can move.
  *
  * A singleton bus rather than a constructor-injected dependency because the emitting side
  * ([com.v1per.synthx.data.scanner.FolderScanner]) runs from a WorkManager Worker with no path
@@ -27,8 +53,9 @@ data class SongRemap(val oldId: String, val newSong: Song)
  * (nothing here is speculative or superseded the way, say, a StateFlow's latest-value-wins model
  * assumes), dropping one silently reintroduces the exact staleness bug this event exists to
  * prevent. [notifyRemap] is called from the scanner's own coroutine after its transaction
- * commits, so suspending there briefly (only if 64 remaps are already unconsumed) costs nothing
- * a caller depends on.
+ * commits — and from graduation's own coroutine after its DB write lands, outside its
+ * `RepositoryDbOperation` permit — so suspending there briefly (only if 64 remaps are already
+ * unconsumed) costs nothing a caller depends on, and never suspends while holding a DB permit.
  */
 object SongRemapEvents {
     private const val BUFFER_CAPACITY = 64

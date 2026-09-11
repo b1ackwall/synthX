@@ -38,6 +38,36 @@ internal fun isRootReachable(context: Context, uri: Uri): DocumentFile? {
 }
 
 /**
+ * [isRootReachable]'s write-capable counterpart: same resolution, but the grant must include
+ * write, not merely read. Returns the resolved [DocumentFile] on success, `null` otherwise.
+ *
+ * A separate function rather than a flag on [isRootReachable] because the two answer genuinely
+ * different questions and almost every caller wants the read one — scanning and missing-detection
+ * only ever read, and must keep working against a read-only grant. Only graduation
+ * ([com.v1per.synthx.data.scanner.graduateSong]) creates a file under an audio root.
+ *
+ * Mirrors [com.v1per.synthx.data.backup.BackupFolderHealth]'s grant check, which has made the
+ * same read-vs-write distinction for the backup tree since before this existed. It stops short of
+ * that class's second step — probing writability by actually creating something — because
+ * graduation's very next act *is* the real write, and its failure is already reported distinctly;
+ * a speculative probe here would only duplicate it.
+ *
+ * A `null` here does not mean the root is unreachable. Callers that want to tell "no write grant"
+ * apart from "gone entirely" should fall back to [isRootReachable] to distinguish the two — the
+ * difference is the whole reason this exists, since only the former is fixable by the user
+ * re-picking the folder.
+ */
+internal fun isRootWritable(context: Context, uri: Uri): DocumentFile? {
+    val hasWriteGrant = context.contentResolver.persistedUriPermissions.any {
+        it.uri == uri && it.isWritePermission
+    }
+    if (!hasWriteGrant) return null
+
+    val root = runCatching { DocumentFile.fromTreeUri(context, uri) }.getOrNull()
+    return root?.takeIf { it.isDirectory }
+}
+
+/**
  * Enumerates every [otherRootUri][otherRootUris] into [into], and returns whether
  * missing-detection may proceed.
  *

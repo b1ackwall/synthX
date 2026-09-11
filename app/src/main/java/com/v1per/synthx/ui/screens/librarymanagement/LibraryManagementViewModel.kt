@@ -430,11 +430,23 @@ class LibraryManagementViewModel(
         if (old != null && old != new) releaseGrant(old)
     }
 
+    /**
+     * Both flags, matching what both audio roots are now taken with — graduation writes into the
+     * music folder and deletes out of New Arrivals, so each picker takes read+write. Releasing
+     * only read would strand a superseded root's write grant permanently, against a URI nothing
+     * points at any more.
+     *
+     * Kept as the wider set rather than something per-root: this one function serves both roots
+     * and [rejectIfNested]'s rejected candidate, and naming a flag that was never held is not an
+     * error — the platform releases the intersection of what is asked for and what is actually
+     * persisted, so a grant predating the write widening still releases cleanly.
+     */
     private fun releaseGrant(uri: Uri) {
         try {
             context.contentResolver.releasePersistableUriPermission(
                 uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
             )
         } catch (e: SecurityException) {
             // Already gone — nothing to release

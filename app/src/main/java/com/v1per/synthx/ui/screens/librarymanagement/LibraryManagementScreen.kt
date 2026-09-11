@@ -46,9 +46,12 @@ fun LibraryManagementScreen(
             // would be unrecoverable on rejection, since a persistable grant can only be
             // taken from a fresh activity result.
             try {
+                // Write as well as read: graduation ("Remove from Starred") moves a file into
+                // this tree. Every other use of it is read-only — see PreferencesManager.
                 context.contentResolver.takePersistableUriPermission(
                     newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
                 viewModel.saveMusicFolder(newUri)
             } catch (e: SecurityException) {
@@ -57,7 +60,9 @@ fun LibraryManagementScreen(
         }
     }
 
-    // Second read-only tree — same grant handling as the music folder picker above.
+    // Second audio tree — same read+write grant as the music folder picker above. Write is
+    // needed for the other half of graduation: the original is deleted from this tree once the
+    // copy under the music root is verified.
     val newArrivalsFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
@@ -65,7 +70,8 @@ fun LibraryManagementScreen(
             try {
                 context.contentResolver.takePersistableUriPermission(
                     newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
                 viewModel.saveNewArrivalsFolder(newUri)
             } catch (e: SecurityException) {

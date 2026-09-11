@@ -4,8 +4,11 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.repository.RepositoryDbOperation
+import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.toDomain
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -82,8 +85,41 @@ suspend fun graduateSong(
         val source = DocumentFile.fromSingleUri(context, sourceUri)?.takeIf { it.exists() }
             ?: return@withContext fail("Source file could not be found")
 
-        val destinationRoot = isRootReachable(context, rootMusicFolderUri)
-            ?: return@withContext fail("Library folder is unreachable")
+        // Graduation writes to *two* trees, not one: it creates the copy under the music root
+        // and then deletes the original, which lives under whichever root the song was scanned
+        // from — New Arrivals, for every song the Starred list can reach. That delete needs a
+        // write grant on that tree just as much as the create needs one on the destination.
+        // Probed here rather than left to `source.delete()` below, because by then the verified
+        // copy already exists and the failure reads as "try again" — advice that can never work
+        // while the grant is the problem. canWrite() is a real provider query (permission plus
+        // the document's own FLAG_SUPPORTS_DELETE), so it also catches a file the provider
+        // simply refuses to remove.
+        if (!runCatching { source.canWrite() }.getOrDefault(false)) {
+            return@withContext fail(
+                "synthX doesn't have write access to the folder this song is in. Reselect " +
+                    "your New Arrivals folder in Settings > Library Management.",
+            )
+        }
+
+        // Write-capable, not merely reachable. Until graduation shipped, nothing ever created a
+        // file under an audio root, so both roots used to be held with a read-only SAF grant —
+        // and any grant taken back then is still read-only, since a persisted grant never
+        // widens on its own. DocumentFile.createFile swallows the resulting
+        // SecurityException into a bare null, surfacing as the opaque "Could not create
+        // destination file" further down. Checked up front instead, so a permission-scope
+        // problem says what to do about it, and that downstream message is left to mean what it
+        // actually should: a genuine provider-level refusal.
+        val destinationRoot = isRootWritable(context, rootMusicFolderUri)
+            ?: return@withContext fail(
+                // Distinguished deliberately: a readable-but-unwritable root is the user's to
+                // fix by re-picking the folder, an unreachable one is not.
+                if (isRootReachable(context, rootMusicFolderUri) != null) {
+                    "synthX doesn't have write access to your library folder. Reselect it in " +
+                        "Settings > Library Management."
+                } else {
+                    "Library folder is unreachable"
+                },
+            )
 
         val displayName = source.name
             ?: return@withContext fail("Source file has no name")
@@ -159,8 +195,9 @@ suspend fun graduateSong(
         safeToCleanupDestination = false
 
         onStage(GraduationStage.UpdatingDatabase)
+        val graduated: Song?
         try {
-            RepositoryDbOperation.run {
+            graduated = RepositoryDbOperation.run {
                 // Re-fetched rather than reusing `existing`: something else may have touched
                 // this row while the file I/O above was running.
                 val fresh = songDao.getSongById(songId)
@@ -171,11 +208,23 @@ suspend fun graduateSong(
                             isStarred = false,
                         ),
                     )
+                    // Read back through the same album/artist-joined path the repository maps
+                    // every other domain Song from, inside this same permit. A Song assembled
+                    // by hand from `fresh` alone would be missing artists/album/palette, and
+                    // the remap consumer below replaces the engine's whole cached Song for the
+                    // slot — so a degraded one here would trade a stale path for stale
+                    // metadata in the player UI.
+                    songDao.getSongsWithDetailsByIds(listOf(songId))
+                        .firstOrNull()
+                        ?.toDomain(songDao.getSongArtistRefs(songId))
+                } else {
+                    null
                 }
                 // fresh == null: the row was deleted elsewhere mid-graduation. The physically
                 // graduated file is still valid on disk, just unlinked from any row now — a
                 // future library scan will pick it back up under its new path. Not treated as
-                // this action's failure since the file move itself fully succeeded.
+                // this action's failure since the file move itself fully succeeded. Nothing is
+                // emitted below either — there is no row left for the event to describe.
             }
         } catch (e: Exception) {
             Log.e(TAG, "Database update failed after verified file move", e)
@@ -187,6 +236,20 @@ suspend fun graduateSong(
             )
             return@withContext GraduationResult.Failure("Database update failed")
         }
+
+        // The live playback engine caches a Song per queue slot and bakes its file_path into
+        // every MediaItem it builds; neither re-reads the row. Without this notice the original
+        // path — a file this function just deleted — stays loaded for the rest of the process,
+        // and the next forced re-open of it (a long seek, stepping back into it, a window
+        // rebuild) fails with no recovery. Emitted outside the RepositoryDbOperation permit,
+        // after the write lands, matching FolderScanner's post-commit flush: the consumer
+        // persists the queue in response, which takes a permit of its own.
+        //
+        // oldId == newSong.id is correct and deliberate here, not a degenerate case — see
+        // SongRemapEvents' KDoc. Graduation is a pure path change; the content hash the id is
+        // derived from is unchanged (and verified so above), so every queue slot, playlist
+        // membership and FK survives under the same id.
+        graduated?.let { SongRemapEvents.notifyRemap(oldId = songId, newSong = it) }
 
         onStage(GraduationStage.Done)
         GraduationResult.Success

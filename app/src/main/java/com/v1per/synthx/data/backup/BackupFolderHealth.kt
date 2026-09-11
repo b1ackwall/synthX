@@ -9,9 +9,11 @@ import androidx.documentfile.provider.DocumentFile
  * picked folder ([BackupsAndRestoreViewModel]) and for re-checking an already-persisted one
  * (on screen entry, and once at app launch via [BackupFolderLaunchCheck]).
  *
- * Unlike AudioFileWalk.isRootReachable (read-only roots), the backup folder is held with write
- * access — see PreferencesManager.backupFolderUri's kdoc — so the grant check here looks for
- * [android.content.UriPermission.isWritePermission], not just read.
+ * The grant check here looks for [android.content.UriPermission.isWritePermission], not just
+ * read — the backup folder is written to on every snapshot. AudioFileWalk.isRootReachable is the
+ * read-only counterpart, used where only readability matters (scanning, missing-detection); its
+ * sibling `isRootWritable` makes the same write-grant check for the audio roots, which are also
+ * write-held now.
  */
 internal object BackupFolderHealth {
 

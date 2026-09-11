@@ -248,4 +248,36 @@ class QueueOrderStoreTest {
         assertEquals(listOf("song-new", "song-new", "song-keep"), subject.baseline.map { it.songId })
         assertFalse(subject.remapSong("song-absent", "song-whatever"))
     }
+
+    /**
+     * Graduation ("Remove from Starred") emits a [com.v1per.synthx.data.SongRemapEvents] remap
+     * whose new id equals the old one — it moves the file and rewrites `file_path` while the
+     * content hash the id derives from is unchanged. The engine's remap handler calls through to
+     * [QueueOrderStore.remapSong] unconditionally, so that same-id call has to be an inert
+     * no-op: every slot key and song id untouched, and — since nothing changed — no baseline
+     * persist triggered.
+     */
+    @Test fun remapSongToTheSameIdChangesNothingAndPersistsNothing() {
+        val writer = RecordingWriter()
+        val subject = store(writer)
+        subject.captureFresh(
+            listOf(
+                QueueSlotRecord("slot-1", "song-same"),
+                QueueSlotRecord("slot-2", "song-same"),
+                QueueSlotRecord("slot-3", "song-other"),
+            )
+        )
+        val writesAfterCapture = writer.writes.size
+
+        assertFalse(subject.remapSong("song-same", "song-same"))
+
+        assertEquals(listOf("slot-1", "slot-2", "slot-3"), subject.liveIds())
+        assertEquals(listOf("slot-1", "slot-2", "slot-3"), subject.baselineIds())
+        assertEquals(listOf("song-same", "song-same", "song-other"), subject.live.map { it.songId })
+        assertEquals(
+            listOf("song-same", "song-same", "song-other"),
+            subject.baseline.map { it.songId },
+        )
+        assertEquals(writesAfterCapture, writer.writes.size)
+    }
 }

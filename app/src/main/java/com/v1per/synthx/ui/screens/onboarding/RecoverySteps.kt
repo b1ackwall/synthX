@@ -64,9 +64,12 @@ internal fun RecoveryFolderSetupStep(
     ) { uri ->
         uri?.let { newUri ->
             try {
+                // Read + write — graduation moves files into this tree. See
+                // LibraryManagementScreen's music folder picker.
                 context.contentResolver.takePersistableUriPermission(
                     newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
                 libraryManagementViewModel.saveRecoveryMusicFolder(newUri)
             } catch (e: SecurityException) {
@@ -80,9 +83,12 @@ internal fun RecoveryFolderSetupStep(
     ) { uri ->
         uri?.let { newUri ->
             try {
+                // Read + write — graduation deletes the original from this tree. See
+                // LibraryManagementScreen's New Arrivals picker.
                 context.contentResolver.takePersistableUriPermission(
                     newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
                 libraryManagementViewModel.saveRecoveryNewArrivalsFolder(newUri)
             } catch (e: SecurityException) {
