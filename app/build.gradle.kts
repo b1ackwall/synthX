@@ -6,6 +6,41 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+val productionMigrationDbAssetName = "production-v11-migration.db"
+val productionMigrationDbPath = providers.gradleProperty("productionDbPath")
+val productionMigrationDbAssetDir =
+    layout.buildDirectory.dir("generated/productionMigrationDbTestAssets")
+
+val stageProductionMigrationDb = tasks.register("stageProductionMigrationDb") {
+    group = "verification"
+    description = "Stages an external production DB copy for the opt-in migration test"
+    inputs.property("productionDbPath", productionMigrationDbPath.orElse(""))
+    outputs.dir(productionMigrationDbAssetDir)
+    outputs.upToDateWhen { false }
+
+    doLast {
+        val outputDir = productionMigrationDbAssetDir.get().asFile
+        val destination = outputDir.resolve(productionMigrationDbAssetName)
+        if (destination.exists()) {
+            check(destination.delete()) { "Could not remove stale production migration fixture" }
+        }
+
+        val suppliedPath = productionMigrationDbPath.orNull ?: return@doLast
+        val source = file(suppliedPath)
+        require(source.isFile) { "productionDbPath is not a file: $suppliedPath" }
+
+        check(outputDir.mkdirs() || outputDir.isDirectory) {
+            "Could not create production migration staging directory"
+        }
+        require(source.canonicalFile != destination.canonicalFile) {
+            "Production migration source and staging destination must differ"
+        }
+        source.inputStream().use { input ->
+            destination.outputStream().use(input::copyTo)
+        }
+    }
+}
+
 android {
     namespace = "com.v1per.synthx"
     compileSdk = 37
@@ -57,6 +92,13 @@ android {
     }
 
     sourceSets.getByName("androidTest").assets.srcDir("schemas")
+    sourceSets.getByName("androidTest").assets.srcDir(productionMigrationDbAssetDir.get().asFile)
+}
+
+tasks.matching {
+    it.name.startsWith("merge") && it.name.endsWith("AndroidTestAssets")
+}.configureEach {
+    dependsOn(stageProductionMigrationDb)
 }
 
 composeCompiler {
