@@ -23,6 +23,18 @@ internal data class ExtractedSwatchHsl(
     val lightness: Float,
 )
 
+/**
+ * Coerces HSL components into the range [Color.hsl] requires. The Palette/HSL extraction below
+ * always emits in-range values today, but this is the construction chokepoint for this type, so
+ * it's cheap insurance against a future extraction change producing an out-of-range swatch.
+ */
+internal fun clampedExtractedSwatch(hue: Float, saturation: Float, lightness: Float) =
+    ExtractedSwatchHsl(
+        hue = hue.coerceIn(0f, 360f),
+        saturation = saturation.coerceIn(0f, 1f),
+        lightness = lightness.coerceIn(0f, 1f),
+    )
+
 internal suspend fun extractArtworkSwatches(context: Context, uri: String): List<ExtractedSwatchHsl> =
     withContext(Dispatchers.Default) {
         try {
@@ -39,7 +51,7 @@ internal suspend fun extractArtworkSwatches(context: Context, uri: String): List
             val hsl = FloatArray(3)
             val candidates = swatches.sortedByDescending { it.population }.map { swatch ->
                 ColorUtils.colorToHSL(swatch.rgb, hsl)
-                ExtractedSwatchHsl(hsl[0], hsl[1], hsl[2])
+                clampedExtractedSwatch(hsl[0], hsl[1], hsl[2])
             }
             val selected = mutableListOf<ExtractedSwatchHsl>()
             for (threshold in 20 downTo 1) {

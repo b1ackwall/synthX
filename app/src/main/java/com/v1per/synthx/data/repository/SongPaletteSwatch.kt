@@ -18,8 +18,19 @@ internal fun SongEntity.toPaletteSwatches(): List<SongPaletteSwatch>? {
     val swatch3Saturation = swatch3Saturation ?: return null
     val swatch3Lightness = swatch3Lightness ?: return null
     return listOf(
-        SongPaletteSwatch(swatch1Hue, swatch1Saturation, swatch1Lightness),
-        SongPaletteSwatch(swatch2Hue, swatch2Saturation, swatch2Lightness),
-        SongPaletteSwatch(swatch3Hue, swatch3Saturation, swatch3Lightness),
+        clampedPaletteSwatch(swatch1Hue, swatch1Saturation, swatch1Lightness),
+        clampedPaletteSwatch(swatch2Hue, swatch2Saturation, swatch2Lightness),
+        clampedPaletteSwatch(swatch3Hue, swatch3Saturation, swatch3Lightness),
     )
 }
+
+/**
+ * Coerces persisted (or hand-edited/restored) HSL components into the range [Color.hsl]
+ * requires, so nothing downstream needs to re-check values that already came from storage.
+ */
+private fun clampedPaletteSwatch(hue: Float, saturation: Float, lightness: Float) =
+    SongPaletteSwatch(
+        hue = hue.coerceIn(0f, 360f),
+        saturation = saturation.coerceIn(0f, 1f),
+        lightness = lightness.coerceIn(0f, 1f),
+    )

@@ -46,4 +46,20 @@ class SongPaletteSwatchTest {
         )
         assertEquals(List(3) { SongPaletteSwatch(10f, 0.1f, 0.2f) }, repeated.toPaletteSwatches())
     }
+
+    @Test fun outOfRangePersistedComponentsAreClampedToWhatColorHslAccepts() {
+        val outOfRange = complete.copy(
+            swatch1Hue = 400f, swatch1Saturation = 1.5f, swatch1Lightness = -0.2f,
+            swatch2Hue = -10f, swatch2Saturation = -0.5f, swatch2Lightness = 1.8f,
+            swatch3Hue = 360f, swatch3Saturation = 0.5f, swatch3Lightness = 0.6f,
+        )
+        assertEquals(
+            listOf(
+                SongPaletteSwatch(360f, 1f, 0f),
+                SongPaletteSwatch(0f, 0f, 1f),
+                SongPaletteSwatch(360f, 0.5f, 0.6f),
+            ),
+            outOfRange.toPaletteSwatches(),
+        )
+    }
 }

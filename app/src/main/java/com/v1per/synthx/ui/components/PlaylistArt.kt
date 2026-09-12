@@ -33,7 +33,9 @@ internal fun PlaylistArt(
     size: Dp,
     modifier: Modifier = Modifier,
 ) {
-    if (hue == null || structureSeed == null) {
+    if (hue == null || structureSeed == null || hue !in 0..359) {
+        // Out-of-range hue (hand-edited row, restore from a divergent writer) falls back the
+        // same as missing art rather than crashing Color.hsl, which requires 0f..360f.
         ArtPlaceholder(size = size, modifier = modifier)
         return
     }
