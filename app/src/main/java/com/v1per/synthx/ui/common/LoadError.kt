@@ -20,9 +20,14 @@ enum class LoadError(@StringRes private val messageRes: Int) {
     ArtistSongs(R.string.error_load_artist_songs),
     PlaylistSongs(R.string.error_load_playlist),
     GroupPlaylists(R.string.error_load_group_playlists),
+    PlaylistList(R.string.error_load_playlists_list),
     RecentlyAdded(R.string.error_load_recently_added),
     Search(R.string.error_search),
     ;
 
     fun message(context: Context): String = context.getString(messageRes)
+
+    /** Same resolution, without a real [Context] — lets a plain unit test supply a fake
+     *  string resolver instead of needing Robolectric just to call [Context.getString]. */
+    fun message(resolve: (Int) -> String): String = resolve(messageRes)
 }

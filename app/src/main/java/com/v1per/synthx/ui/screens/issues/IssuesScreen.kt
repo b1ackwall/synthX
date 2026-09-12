@@ -42,10 +42,10 @@ import com.v1per.synthx.data.backup.VerificationAttemptOutcome
 import com.v1per.synthx.data.repository.MissingSongInfo
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.DeleteSongDialog
+import com.v1per.synthx.ui.components.LoadErrorText
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.ThreeDotMenuWithConfirm
 import com.v1per.synthx.ui.theme.Background
-import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -195,10 +195,8 @@ private fun IssuesContent(
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
-            is UiState.Error -> Text(
-                text = uiState.message,
-                style = MaterialTheme.typography.bodyLarge,
-                color = Error,
+            is UiState.Error -> LoadErrorText(
+                message = uiState.message,
                 modifier = Modifier.align(Alignment.Center),
             )
             is UiState.Success -> LazyColumn(

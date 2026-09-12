@@ -8,6 +8,8 @@ import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.ui.common.LoadError
+import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.common.launchCatching
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -16,11 +18,20 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
+/** The screen's two lists, loaded together — see [PlaylistListViewModel.uiState]. */
+data class PlaylistListData(
+    val groups: List<PlaylistGroup>,
+    val ungroupedPlaylists: List<Playlist>,
+)
+
 class PlaylistListViewModel(
     private val repository: SongRepository,
+    private val appContext: Context,
+    private val stringResource: (Int) -> String = { id -> appContext.getString(id) },
 ) : ViewModel() {
 
     /** Resolved to app-voice strings.xml copy by the screen — see
@@ -30,14 +41,8 @@ class PlaylistListViewModel(
         RenameGroupFailed, DeleteGroupFailed, CreateGroupFailed,
     }
 
-    data class PlaylistListUiState(
-        val groups: List<PlaylistGroup> = emptyList(),
-        val ungroupedPlaylists: List<Playlist> = emptyList(),
-        val isLoading: Boolean = true,
-    )
-
-    private val _uiState = MutableStateFlow(PlaylistListUiState())
-    val uiState: StateFlow<PlaylistListUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow<UiState<PlaylistListData>>(UiState.Loading)
+    val uiState: StateFlow<UiState<PlaylistListData>> = _uiState.asStateFlow()
 
     // Inline group creation card state
     private val _showCreateGroup = MutableStateFlow(false)
@@ -57,12 +62,18 @@ class PlaylistListViewModel(
                 repository.getAllGroups(),
                 repository.getUngroupedPlaylists(),
             ) { groups, playlists ->
-                PlaylistListUiState(
-                    groups = groups,
-                    ungroupedPlaylists = playlists,
-                    isLoading = false,
-                )
-            }.collect { _uiState.value = it }
+                PlaylistListData(groups = groups, ungroupedPlaylists = playlists)
+            }
+                .catch { e ->
+                    _uiState.value = UiState.Error(LoadError.PlaylistList.message(stringResource))
+                }
+                .collect { data ->
+                    _uiState.value = if (data.groups.isEmpty() && data.ungroupedPlaylists.isEmpty()) {
+                        UiState.Empty
+                    } else {
+                        UiState.Success(data)
+                    }
+                }
         }
     }
 
@@ -124,9 +135,10 @@ class PlaylistListViewModel(
         fun factory(context: Context): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val repository = SongRepositoryImpl.create(context)
+                    val appContext = context.applicationContext
+                    val repository = SongRepositoryImpl.create(appContext)
                     @Suppress("UNCHECKED_CAST")
-                    return PlaylistListViewModel(repository) as T
+                    return PlaylistListViewModel(repository, appContext) as T
                 }
             }
     }

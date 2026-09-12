@@ -65,7 +65,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistGroup
+import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.DeleteGroupDialog
+import com.v1per.synthx.ui.components.LoadErrorText
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Accent
@@ -178,77 +180,73 @@ fun PlaylistListScreen(
         }
 
         Box(modifier = Modifier.weight(1f)) {
-            LazyColumn {
-                if (uiState.isLoading) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(160.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            LoadingIndicator(modifier = Modifier.fillMaxWidth())
+            when (val state = uiState) {
+                is UiState.Loading -> Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LoadingIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                is UiState.Empty -> Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.xxl),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.empty_no_playlists),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = TextSecondary,
+                    )
+                }
+                is UiState.Success -> LazyColumn {
+                    if (state.data.groups.isNotEmpty()) {
+                        items(
+                            state.data.groups,
+                            key = { it.id },
+                            contentType = { "group" },
+                        ) { group ->
+                            GroupRow(
+                                group = group,
+                                onClick = { onGroupClick(group.id, group.name) },
+                                onRename = { name -> viewModel.renameGroup(group.id, name) },
+                                onDelete = { viewModel.deleteGroup(group.id) },
+                            )
                         }
                     }
-                }
 
-                if (uiState.groups.isNotEmpty()) {
-                    items(
-                        uiState.groups,
-                        key = { it.id },
-                        contentType = { "group" },
-                    ) { group ->
-                        GroupRow(
-                            group = group,
-                            onClick = { onGroupClick(group.id, group.name) },
-                            onRename = { name -> viewModel.renameGroup(group.id, name) },
-                            onDelete = { viewModel.deleteGroup(group.id) },
-                        )
-                    }
-                }
-
-                if (uiState.ungroupedPlaylists.isNotEmpty()) {
-                    items(
-                        uiState.ungroupedPlaylists,
-                        key = { it.id },
-                        contentType = { "playlist" },
-                    ) { playlist ->
-                        // Every playlist in this section is ungrouped by definition
-                        // (getUngroupedPlaylists), so the picker opens with no current
-                        // selection and the row's menu offers only "Add to group" —
-                        // onRemoveFromGroup is left at its no-op default because the item
-                        // that would call it never renders for a null groupId.
-                        PlaylistRow(
-                            playlist = playlist,
-                            onClick = { onPlaylistClick(playlist.id, playlist.name) },
-                            onRename = { name -> viewModel.renamePlaylist(playlist.id, name) },
-                            onDelete = { viewModel.deletePlaylist(playlist.id) },
-                            onShowGroupPicker = {
-                                onShowGroupPicker(uiState.groups, playlist.groupId) { groupId ->
-                                    viewModel.movePlaylistToGroup(playlist.id, groupId)
-                                }
-                            },
-                            availableGroups = uiState.groups,
-                        )
-                    }
-                }
-
-                if (uiState.groups.isEmpty() && uiState.ungroupedPlaylists.isEmpty() && !uiState.isLoading) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.xxl),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.empty_no_playlists),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = TextSecondary,
+                    if (state.data.ungroupedPlaylists.isNotEmpty()) {
+                        items(
+                            state.data.ungroupedPlaylists,
+                            key = { it.id },
+                            contentType = { "playlist" },
+                        ) { playlist ->
+                            // Every playlist in this section is ungrouped by definition
+                            // (getUngroupedPlaylists), so the picker opens with no current
+                            // selection and the row's menu offers only "Add to group" —
+                            // onRemoveFromGroup is left at its no-op default because the item
+                            // that would call it never renders for a null groupId.
+                            PlaylistRow(
+                                playlist = playlist,
+                                onClick = { onPlaylistClick(playlist.id, playlist.name) },
+                                onRename = { name -> viewModel.renamePlaylist(playlist.id, name) },
+                                onDelete = { viewModel.deletePlaylist(playlist.id) },
+                                onShowGroupPicker = {
+                                    onShowGroupPicker(state.data.groups, playlist.groupId) { groupId ->
+                                        viewModel.movePlaylistToGroup(playlist.id, groupId)
+                                    }
+                                },
+                                availableGroups = state.data.groups,
                             )
                         }
                     }
                 }
+                is UiState.Error -> LoadErrorText(
+                    message = state.message,
+                    modifier = Modifier.align(Alignment.Center),
+                )
             }
 
             SnackbarHost(

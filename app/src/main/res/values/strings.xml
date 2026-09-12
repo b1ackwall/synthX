@@ -328,6 +328,7 @@
     <string name="error_load_artists">Couldn\'t load your artists. Try again.</string>
     <string name="error_load_artist_songs">Couldn\'t load this artist\'s songs. Try again.</string>
     <string name="error_load_group_playlists">Couldn\'t load this group\'s playlists. Try again.</string>
+    <string name="error_load_playlists_list">Couldn\'t load your playlists. Try again.</string>
     <string name="error_load_recently_added">Couldn\'t load recently added songs. Try again.</string>
     <string name="error_search">Search failed. Try again.</string>
 

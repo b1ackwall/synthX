@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
@@ -20,16 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.components.LoadErrorText
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Background
-import com.v1per.synthx.ui.theme.Error
-import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextSecondary
 
 @Composable
@@ -103,14 +100,9 @@ fun GroupDetailScreen(
                         )
                     }
                 }
-                is UiState.Error -> Text(
-                    text = state.message,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Error,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(horizontal = Spacing.HorizontalPadding),
+                is UiState.Error -> LoadErrorText(
+                    message = state.message,
+                    modifier = Modifier.align(Alignment.Center),
                 )
             }
 
