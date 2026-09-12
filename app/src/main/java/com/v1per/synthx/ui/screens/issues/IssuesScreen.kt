@@ -65,6 +65,7 @@ fun IssuesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
+    val deleteInProgress by viewModel.deleteInProgress.collectAsState()
     val scanStatus by viewModel.scanStatus.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val actionFailedMessage by rememberUpdatedState(stringResource(R.string.actions_failed))
@@ -99,6 +100,7 @@ fun IssuesScreen(
             IssuesContent(
                 uiState = uiState,
                 deleteEnabled = deleteSongsEnabled,
+                deleteInProgress = deleteInProgress,
                 onDelete = viewModel::deleteSong,
                 onFixMissingArt = viewModel::fixMissingArt,
                 onFixMissingPalette = viewModel::fixMissingPalette,
@@ -174,6 +176,7 @@ private fun scanStatusText(status: IssuesScanStatus): String = when (status) {
 private fun IssuesContent(
     uiState: UiState<List<Issue>>,
     deleteEnabled: Boolean,
+    deleteInProgress: Boolean,
     onDelete: (String) -> Unit,
     onFixMissingArt: (List<String>) -> Unit,
     onFixMissingPalette: (List<String>) -> Unit,
@@ -206,6 +209,7 @@ private fun IssuesContent(
                         is Issue.MissingSong -> MissingSongRow(
                             song = issue.info,
                             deleteEnabled = deleteEnabled,
+                            deleteInProgress = deleteInProgress,
                             onDelete = { onDelete(issue.info.id) },
                         )
                         is Issue.BackupUnhealthy -> BackupUnhealthyRow(
@@ -259,6 +263,7 @@ private fun Issue.rowKey(): String = when (this) {
 private fun MissingSongRow(
     song: MissingSongInfo,
     deleteEnabled: Boolean,
+    deleteInProgress: Boolean,
     onDelete: () -> Unit,
 ) {
     Column {
@@ -296,7 +301,11 @@ private fun MissingSongRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            MissingSongMenu(deleteEnabled = deleteEnabled, onDelete = onDelete)
+            MissingSongMenu(
+                deleteEnabled = deleteEnabled,
+                deleteInProgress = deleteInProgress,
+                onDelete = onDelete,
+            )
         }
         HorizontalDivider(
             thickness = 1.dp,
@@ -306,7 +315,11 @@ private fun MissingSongRow(
 }
 
 @Composable
-private fun MissingSongMenu(deleteEnabled: Boolean, onDelete: () -> Unit) {
+private fun MissingSongMenu(
+    deleteEnabled: Boolean,
+    deleteInProgress: Boolean,
+    onDelete: () -> Unit,
+) {
     ThreeDotMenuWithConfirm(
         menuItems = { _, requestConfirm ->
             DropdownMenuItem(
@@ -322,6 +335,7 @@ private fun MissingSongMenu(deleteEnabled: Boolean, onDelete: () -> Unit) {
                     onDelete()
                 },
                 onDismiss = onDismiss,
+                confirmEnabled = !deleteInProgress,
             )
         },
     )
@@ -577,6 +591,7 @@ private fun IssuesPreview() {
                     ),
                 ),
                 deleteEnabled = true,
+                deleteInProgress = false,
                 onDelete = {},
                 onFixMissingArt = {},
                 onFixMissingPalette = {},
@@ -608,6 +623,7 @@ private fun IssuesEmptyPreview() {
                 IssuesContent(
                     uiState = UiState.Empty,
                     deleteEnabled = true,
+                    deleteInProgress = false,
                     onDelete = {},
                     onFixMissingArt = {},
                     onFixMissingPalette = {},
@@ -633,6 +649,7 @@ private fun IssuesScanningPreview() {
                 IssuesContent(
                     uiState = UiState.Loading,
                     deleteEnabled = true,
+                    deleteInProgress = false,
                     onDelete = {},
                     onFixMissingArt = {},
                     onFixMissingPalette = {},

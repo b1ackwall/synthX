@@ -242,15 +242,33 @@ class IssuesViewModel(
         return safetyNetIssues + missingSongIssues
     }
 
+    private val _deleteInProgress = MutableStateFlow(false)
+
+    /**
+     * Guards against a double-tap invoking [deleteSong] twice — see
+     * [com.v1per.synthx.ui.components.SongActionsViewModel.deleteInProgress]'s twin for the
+     * song-actions sheet, both mirroring [com.v1per.synthx.ui.screens.replacesong
+     * .ReplaceSongViewModel]'s `InProgress` outcome. A second call is inert for the row/file
+     * (Room delete is idempotent), but without this it would still take a second automatic
+     * backup and record a second [DestructiveActionTracker] entry (P1-T3 / R4-F-E2).
+     */
+    val deleteInProgress: StateFlow<Boolean> = _deleteInProgress.asStateFlow()
+
     // The list is Flow-backed, so Room's invalidation drops the row from the UI on its own.
     fun deleteSong(id: String) {
+        if (_deleteInProgress.value) return
+        _deleteInProgress.value = true
         launchCatching(onError = { _events.tryEmit(IssuesActionEvent.ActionFailed) }) {
-            when (repository.deleteSong(id)) {
-                SongDeletionOutcome.Deleted -> Unit
-                SongDeletionOutcome.FileRemained ->
-                    _events.tryEmit(IssuesActionEvent.DeletedButFileRemained)
-                SongDeletionOutcome.CleanupUncertain ->
-                    _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain)
+            try {
+                when (repository.deleteSong(id)) {
+                    SongDeletionOutcome.Deleted -> Unit
+                    SongDeletionOutcome.FileRemained ->
+                        _events.tryEmit(IssuesActionEvent.DeletedButFileRemained)
+                    SongDeletionOutcome.CleanupUncertain ->
+                        _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain)
+                }
+            } finally {
+                _deleteInProgress.value = false
             }
         }
     }

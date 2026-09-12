@@ -42,6 +42,12 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 fun DeleteSongDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    // P1-T3: cosmetic reinforcement of the caller's own in-flight guard (e.g.
+    // SongActionsViewModel.deleteInProgress) — a double-tap is already prevented at the
+    // ViewModel level regardless of whether this has a chance to take visible effect first.
+    // Defaults to true so a future caller that doesn't have its own in-flight state isn't
+    // forced to wire this up.
+    confirmEnabled: Boolean = true,
 ) {
     val destructiveActionCount by DestructiveActionTracker.count.collectAsState()
     // The button's own label is the word to type, read from the one resource that provides both.
@@ -74,7 +80,7 @@ fun DeleteSongDialog(
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = typedConfirmationMatches(typedConfirmation, requiredWord),
+                enabled = typedConfirmationMatches(typedConfirmation, requiredWord) && confirmEnabled,
                 colors = ButtonDefaults.textButtonColors(contentColor = Error),
             ) {
                 Text(text = requiredWord)

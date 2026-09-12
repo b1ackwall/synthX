@@ -72,6 +72,7 @@ fun SongActionsBottomSheet(
     currentPlaylistId: String?,
     showDeleteRow: Boolean,
     deleteEnabled: Boolean,
+    deleteInProgress: Boolean,
     showRemoveFromStarredRow: Boolean,
     removeFromStarredEnabled: Boolean,
     isCurrentlyPlaying: Boolean,
@@ -174,6 +175,7 @@ fun SongActionsBottomSheet(
                 onDeleteSong()
             },
             onDismiss = { showDeleteConfirm = false },
+            confirmEnabled = !deleteInProgress,
         )
     }
 }

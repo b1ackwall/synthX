@@ -134,6 +134,7 @@ fun SongActionsHost(
     val playlists by viewModel.playlists.collectAsState()
     val songs by viewModel.songs.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
+    val deleteInProgress by viewModel.deleteInProgress.collectAsState()
     val removeFromStarredEnabled by viewModel.removeFromStarredEnabled.collectAsState()
     val playlistMemberships by viewModel.playlistMemberships.collectAsState()
 
@@ -236,6 +237,7 @@ fun SongActionsHost(
             currentPlaylistId = current.playlistId,
             showDeleteRow = current.source != SongActionSource.Player,
             deleteEnabled = deleteSongsEnabled,
+            deleteInProgress = deleteInProgress,
             showRemoveFromStarredRow = current.source == SongActionSource.Starred,
             removeFromStarredEnabled = removeFromStarredEnabled,
             isCurrentlyPlaying = current.song.id == currentSongId,
@@ -444,17 +446,34 @@ class SongActionsViewModel(
     )
     val events: SharedFlow<SongActionEvent> = _events.asSharedFlow()
 
+    private val _deleteInProgress = MutableStateFlow(false)
+
+    /**
+     * Guards against a double-tap invoking [deleteSong] twice — see [ReplaceSongViewModel][
+     * com.v1per.synthx.ui.screens.replacesong.ReplaceSongViewModel]'s `InProgress` outcome for
+     * the pattern this mirrors. A second call is inert for the row/file (Room delete is
+     * idempotent), but without this it would still take a second automatic backup and record a
+     * second [com.v1per.synthx.preferences.DestructiveActionTracker] entry (P1-T3 / R4-F-E2).
+     */
+    val deleteInProgress: StateFlow<Boolean> = _deleteInProgress.asStateFlow()
+
     fun deleteSong(songId: String) {
+        if (_deleteInProgress.value) return
+        _deleteInProgress.value = true
         launchCatching(onError = { _events.tryEmit(SongActionEvent.ActionFailed) }) {
-            // Silent on the ordinary success: the row vanishing from every list is its own
-            // feedback. Physical cleanup warnings contain information the user could not otherwise
-            // infer from the UI.
-            when (repository.deleteSong(songId)) {
-                SongDeletionOutcome.Deleted -> Unit
-                SongDeletionOutcome.FileRemained ->
-                    _events.tryEmit(SongActionEvent.DeletedButFileRemained)
-                SongDeletionOutcome.CleanupUncertain ->
-                    _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain)
+            try {
+                // Silent on the ordinary success: the row vanishing from every list is its own
+                // feedback. Physical cleanup warnings contain information the user could not
+                // otherwise infer from the UI.
+                when (repository.deleteSong(songId)) {
+                    SongDeletionOutcome.Deleted -> Unit
+                    SongDeletionOutcome.FileRemained ->
+                        _events.tryEmit(SongActionEvent.DeletedButFileRemained)
+                    SongDeletionOutcome.CleanupUncertain ->
+                        _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain)
+                }
+            } finally {
+                _deleteInProgress.value = false
             }
         }
     }
