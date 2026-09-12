@@ -37,6 +37,7 @@ import com.v1per.synthx.data.scanner.ScanResult
 import com.v1per.synthx.data.scanner.walkAndClassifyRootOrganization
 import com.v1per.synthx.data.scanner.graduateSong as graduateSongFile
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.repository.RepositoryDbFlow.retryOnFailure
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import java.util.UUID
 import kotlin.random.Random
@@ -128,14 +129,16 @@ class SongRepositoryImpl(
     // process — instant navigation matters more here than releasing this one cache early.
     // Room's Flow still auto-invalidates on real table changes, so this stays correct
     // across scans/edits regardless of how long the cache is held.
-    // general 7.3: nothing upstream of this .stateIn can ever catch a failure here — once the
-    // upstream Flow (including the extra getAllSongArtistRefs() query below) throws, the
-    // stateIn producer coroutine dies and no downstream .catch{} on this StateFlow's consumers
-    // can ever see it. The .catch below is the only point that can intercept it: it logs, then
-    // degrades to the last successfully computed song list rather than crashing the process or
-    // freezing on an empty list. The producer coroutine still ends after that — Room's live
-    // invalidation is not resumed, so this is a one-time degrade-to-last-known-good, not a
-    // recoverable retry; a fresh app process is what actually restores live updates.
+    // general 7.3 / P1-T6 (R1-F10): nothing upstream of this .stateIn can ever catch a failure
+    // here — once the upstream Flow (including the extra getAllSongArtistRefs() query below)
+    // throws, the stateIn producer coroutine dies and no downstream .catch{} on this StateFlow's
+    // consumers can ever see it. .retryOnFailure resubscribes to the whole upstream chain (a
+    // genuine re-acquire-permit + re-subscribe-to-DAO-flow retry, with exponential backoff) on any
+    // non-cancellation failure, so a transient DAO error no longer permanently freezes this
+    // StateFlow. The .catch below is now a last-resort backstop only reachable if retryOnFailure
+    // itself is bypassed by a downstream cancellation — it logs and degrades to the last
+    // successfully computed song list rather than crashing the process or freezing on an empty
+    // list.
     private var lastKnownSongs: List<Song> = emptyList()
     private val songsFlow: StateFlow<List<Song>> =
         RepositoryDbFlow.observe { songDao.getAllSongsWithDetails() }.map { entries ->
@@ -143,7 +146,7 @@ class SongRepositoryImpl(
             val refsBySongId = songDao.getAllSongArtistRefs().groupBy { it.songId }
             entries.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
                 .also { lastKnownSongs = it }
-        }.catch { e ->
+        }.retryOnFailure(TAG, "songsFlow").catch { e ->
             Log.e(TAG, "songsFlow upstream failure — degrading to last known songs", e)
             emit(lastKnownSongs)
         }.stateIn(
@@ -162,14 +165,14 @@ class SongRepositoryImpl(
 
     // Same caching rationale as songsFlow above — shared across every getArtists()
     // subscriber (Artists list, Search) instead of re-querying per collector.
-    // See songsFlow above for why the .catch must sit here, upstream of .stateIn.
+    // See songsFlow above for why .retryOnFailure/.catch must sit here, upstream of .stateIn.
     private var lastKnownArtists: List<Artist> = emptyList()
     private val artistsFlow: StateFlow<List<Artist>> =
         RepositoryDbFlow.observe { artistDao.getAllArtists() }.map { entities ->
             entities.map {
                 Artist(id = it.id, name = it.name, allSongsMissing = it.allSongsMissing)
             }.also { lastKnownArtists = it }
-        }.catch { e ->
+        }.retryOnFailure(TAG, "artistsFlow").catch { e ->
             Log.e(TAG, "artistsFlow upstream failure — degrading to last known artists", e)
             emit(lastKnownArtists)
         }.stateIn(
@@ -190,7 +193,7 @@ class SongRepositoryImpl(
 
     // Same caching rationale as songsFlow above — shared across every getAlbums()
     // subscriber (Albums list, Search) instead of re-querying per collector.
-    // See songsFlow above for why the .catch must sit here, upstream of .stateIn.
+    // See songsFlow above for why .retryOnFailure/.catch must sit here, upstream of .stateIn.
     private var lastKnownAlbums: List<Album> = emptyList()
     private val albumsFlow: StateFlow<List<Album>> =
         RepositoryDbFlow.observe { albumDao.getAllAlbums() }.map { entries ->
@@ -203,7 +206,7 @@ class SongRepositoryImpl(
                     allSongsMissing = it.allSongsMissing,
                 )
             }.also { lastKnownAlbums = it }
-        }.catch { e ->
+        }.retryOnFailure(TAG, "albumsFlow").catch { e ->
             Log.e(TAG, "albumsFlow upstream failure — degrading to last known albums", e)
             emit(lastKnownAlbums)
         }.stateIn(
@@ -599,12 +602,12 @@ class SongRepositoryImpl(
 
     // Same caching rationale as songsFlow above — shared across every getAllPlaylists()
     // subscriber (SongActionsHost, Search) instead of re-querying per collector.
-    // See songsFlow above for why the .catch must sit here, upstream of .stateIn.
+    // See songsFlow above for why .retryOnFailure/.catch must sit here, upstream of .stateIn.
     private var lastKnownPlaylists: List<Playlist> = emptyList()
     private val allPlaylistsFlow: StateFlow<List<Playlist>> =
         RepositoryDbFlow.observe { playlistDao.getAllPlaylists() }.map { entities ->
             entities.map { it.toDomain() }.also { lastKnownPlaylists = it }
-        }.catch { e ->
+        }.retryOnFailure(TAG, "allPlaylistsFlow").catch { e ->
             Log.e(TAG, "allPlaylistsFlow upstream failure — degrading to last known playlists", e)
             emit(lastKnownPlaylists)
         }.stateIn(
