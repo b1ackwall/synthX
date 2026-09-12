@@ -47,10 +47,14 @@ internal fun PlaylistRow(
     // Opens the group picker sheet. Hosted by MainScaffold, not by this row: a sheet composed
     // inside the NavHost draws *under* BottomChromeOverlay, so the bottom nav and player would
     // paint over its lower rows — the same reason the sort sheet is hoisted (see MainScaffold).
-    onShowGroupPicker: () -> Unit = {},
+    // Null means the caller doesn't support grouping actions at all (e.g. Search) — distinct
+    // from "supports it but nothing to show right now", which is instead expressed via
+    // availableGroups being empty/all-current-group.
+    onShowGroupPicker: (() -> Unit)? = null,
     // Direct, sheet-less ungrouping. Separate from the picker: "remove" is a one-tap answer, not
-    // a choice among groups, and the picker has no "no group" row to express it.
-    onRemoveFromGroup: () -> Unit = {},
+    // a choice among groups, and the picker has no "no group" row to express it. Null means the
+    // caller doesn't support grouping actions at all — see onShowGroupPicker above.
+    onRemoveFromGroup: (() -> Unit)? = null,
     // Read only to decide whether offering a group at all makes sense — the rows themselves are
     // rendered by the picker sheet now, not by this menu.
     availableGroups: List<PlaylistGroup> = emptyList(),
@@ -152,8 +156,8 @@ private fun PlaylistThreeDotsMenu(
     hasGroupsToChooseFrom: Boolean,
     currentGroupId: String?,
     onRename: () -> Unit,
-    onShowGroupPicker: () -> Unit,
-    onRemoveFromGroup: () -> Unit,
+    onShowGroupPicker: (() -> Unit)?,
+    onRemoveFromGroup: (() -> Unit)?,
     onDelete: () -> Unit,
 ) {
     ThreeDotMenuWithConfirm(
@@ -165,7 +169,11 @@ private fun PlaylistThreeDotsMenu(
                     onRename()
                 },
             )
-            if (hasGroupsToChooseFrom) {
+            // Captured into locals so the smart-cast to non-null survives inside each
+            // DropdownMenuItem's onClick lambda — referencing the parameter itself there
+            // would not smart-cast across the lambda boundary.
+            val showGroupPicker = onShowGroupPicker
+            if (showGroupPicker != null && hasGroupsToChooseFrom) {
                 DropdownMenuItem(
                     text = {
                         Text(
@@ -178,16 +186,17 @@ private fun PlaylistThreeDotsMenu(
                     },
                     onClick = {
                         closeMenu()
-                        onShowGroupPicker()
+                        showGroupPicker()
                     },
                 )
             }
-            if (currentGroupId != null) {
+            val removeFromGroup = onRemoveFromGroup
+            if (removeFromGroup != null && currentGroupId != null) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.action_remove_from_group)) },
                     onClick = {
                         closeMenu()
-                        onRemoveFromGroup()
+                        removeFromGroup()
                     },
                 )
             }
