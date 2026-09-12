@@ -36,8 +36,8 @@ interface SongRepository {
      * occurrence is removed rather than left pointing at a file that no longer exists — see
      * [com.v1per.synthx.data.SongDeletionEvents].
      *
-     * @return [SongDeletionOutcome.FileRemained] when everything above succeeded except removing
-     *   the audio file, which the caller should surface distinctly from an ordinary success.
+     * @return the post-commit cleanup state. [SongDeletionOutcome.FileRemained] confirms that the
+     *   audio remains; [SongDeletionOutcome.CleanupUncertain] means cleanup could not be verified.
      */
     suspend fun deleteSong(id: String): SongDeletionOutcome
 
@@ -163,14 +163,17 @@ interface SongRepository {
 }
 
 /**
- * How much of a complete delete actually landed. The row is gone in both cases — the database is
+ * How much of a complete delete actually landed. The row is gone in every case — the database is
  * the source of truth and its transaction has already committed by the time the file is touched —
- * so this only distinguishes "nothing left behind" from "the audio file is still on disk".
+ * so this describes the physical cleanup that followed the commit.
  *
- * A file that was already absent counts as [Deleted]: the intended end state holds, and that is
- * the normal answer for the missing-song rows the Issues screen deletes.
+ * [Deleted] means the audio was deleted or confirmed already absent and every other cleanup step
+ * completed. [FileRemained] means the provider confirmed the audio existed but refused or failed
+ * its deletion. [CleanupUncertain] means the audio's state could not be established, or another
+ * post-commit side effect failed; callers must not describe that state as a complete success or as
+ * a rolled-back operation.
  */
-enum class SongDeletionOutcome { Deleted, FileRemained }
+enum class SongDeletionOutcome { Deleted, FileRemained, CleanupUncertain }
 
 /** The saved resume position: an exact slot id plus position and playback modes. */
 data class QueueCursor(

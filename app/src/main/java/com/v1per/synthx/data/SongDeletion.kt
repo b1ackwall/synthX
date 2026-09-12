@@ -2,11 +2,13 @@ package com.v1per.synthx.data
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.SongDao
 import java.io.File
+import kotlinx.coroutines.CancellationException
 
 private const val TAG = "SongDeletion"
 
@@ -61,12 +63,11 @@ fun deleteSongArtFile(context: Context, songId: String): Boolean {
 }
 
 /**
- * Outcome of [deleteSongAudioFile]. Only [Failed] is worth telling the user about — [NotFound]
- * already satisfies the intent (nothing is left on disk), which is the normal answer for a song
- * whose file was moved or removed outside the app, i.e. exactly the missing-song rows the Issues
- * screen deletes.
+ * Outcome of [deleteSongAudioFile]. [ConfirmedAbsent] means the provider resolved the document and
+ * positively reported that it does not exist. [Unknown] means resolution or the existence probe
+ * failed, so no claim can be made about whether the file remains on disk.
  */
-enum class AudioFileDeletion { Deleted, NotFound, Failed }
+enum class AudioFileDeletion { Deleted, ConfirmedAbsent, Unknown, Failed }
 
 /**
  * Permanently deletes the song's own audio file from disk, given the `file_path` its row carried.
@@ -80,28 +81,51 @@ enum class AudioFileDeletion { Deleted, NotFound, Failed }
  * Must only be called after the transaction that deleted the song row has committed, and never
  * from inside a [com.v1per.synthx.data.repository.RepositoryDbOperation] transaction — same rule
  * (and same reason) as [deleteSongArtFile]: a file delete cannot be rolled back alongside the DB.
- * The database stays the source of truth either way; a [Failed] result leaves an orphaned file on
- * disk, never an orphaned row.
+ * The database stays the source of truth either way; [Failed] confirms an orphaned file, while
+ * [Unknown] preserves an inaccessible or otherwise unverifiable state instead of claiming success.
  */
 fun deleteSongAudioFile(context: Context, filePath: String): AudioFileDeletion {
     val uri = runCatching { Uri.parse(filePath) }.getOrNull()
         ?: return AudioFileDeletion.Failed.also { Log.w(TAG, "Unparseable song file path") }
-    // The whole resolve-and-probe is guarded, not just delete(): a stale/foreign-scheme path can
-    // make the ContentResolver throw on exists() alone, which must read as "nothing to delete"
-    // rather than crashing the deletion that already committed.
-    val document = runCatching { DocumentFile.fromSingleUri(context, uri) }.getOrNull()
-        ?: return AudioFileDeletion.NotFound
-    if (!runCatching { document.exists() }.getOrDefault(false)) return AudioFileDeletion.NotFound
+    val document = try {
+        DocumentFile.fromSingleUri(context, uri)
+    } catch (e: Throwable) {
+        if (e is CancellationException) throw e
+        Log.w(TAG, "Audio document resolution threw", e)
+        return AudioFileDeletion.Unknown
+    } ?: return AudioFileDeletion.Unknown.also { Log.w(TAG, "Could not resolve song audio document") }
+
+    // DocumentFile.exists() catches provider-query exceptions internally and returns false, which
+    // makes a revoked grant indistinguishable from a confirmed absence. Query directly so only a
+    // successful, empty result earns ConfirmedAbsent; a null cursor or throwable stays Unknown.
+    val exists = try {
+        context.contentResolver.query(
+            document.uri,
+            arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
+            null,
+            null,
+            null,
+        )?.use { cursor -> cursor.count > 0 }
+            ?: return AudioFileDeletion.Unknown.also {
+                Log.w(TAG, "Audio file existence check returned no result")
+            }
+    } catch (e: Throwable) {
+        if (e is CancellationException) throw e
+        Log.w(TAG, "Audio file existence check threw", e)
+        return AudioFileDeletion.Unknown
+    }
+    if (!exists) return AudioFileDeletion.ConfirmedAbsent
 
     val deleted = try {
         document.delete()
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
+        if (e is CancellationException) throw e
         Log.w(TAG, "Audio file delete threw", e)
         false
     }
     if (deleted) return AudioFileDeletion.Deleted
-    // Distinguished from NotFound: the file is still there and the row is already gone, so the
-    // caller has something real to report.
+    // Distinguished from ConfirmedAbsent and Unknown: exists() succeeded and confirmed the file
+    // before the provider refused its deletion.
     Log.w(TAG, "Provider refused to delete the song's audio file")
     return AudioFileDeletion.Failed
 }

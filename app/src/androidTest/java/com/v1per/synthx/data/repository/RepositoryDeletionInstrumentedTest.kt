@@ -96,7 +96,8 @@ class RepositoryDeletionInstrumentedTest {
     }
 
     @Test fun songDeletionCompletesThroughRealBackupDrain() = runBlocking {
-        withTimeout(3_000) { repository.deleteSong("song") }
+        val outcome = withTimeout(3_000) { repository.deleteSong("song") }
+        assertEquals(SongDeletionOutcome.CleanupUncertain, outcome)
         assertNull(database.songDao().getSongById("song"))
         assertTrue(database.playlistDao().getSongIdsForPlaylist("playlist").isEmpty())
         assertEquals(1, database.playlistDao().getPlaylistCount())

@@ -9,6 +9,7 @@ import com.v1per.synthx.data.repository.PlaylistConflictResolution
 import com.v1per.synthx.data.repository.ReplaceSongPreview
 import com.v1per.synthx.data.repository.ReplaceSongResult
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import kotlinx.collections.immutable.ImmutableList
@@ -80,6 +81,7 @@ private const val QueryDebounceMs = 200L
 class ReplaceSongViewModel(
     private val repository: SongRepository,
     private val appContext: Context,
+    private val stringResource: (Int) -> String = { id -> appContext.getString(id) },
 ) : ViewModel() {
 
     private val _step = MutableStateFlow(ReplaceSongStep.PickOld)
@@ -198,13 +200,13 @@ class ReplaceSongViewModel(
                 repository.previewReplaceSong(old.id, new.id)
                     ?.let { ReplaceSongPreviewState.Ready(it) }
                     ?: ReplaceSongPreviewState.Failed(
-                        appContext.getString(R.string.replace_song_failed_generic),
+                        stringResource(R.string.replace_song_failed_generic),
                     )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 ReplaceSongPreviewState.Failed(
-                    appContext.getString(R.string.replace_song_failed_generic),
+                    stringResource(R.string.replace_song_failed_generic),
                 )
             }
         }
@@ -238,27 +240,29 @@ class ReplaceSongViewModel(
                     )
                 ) {
                     is ReplaceSongResult.Success -> ReplaceSongOutcome.Complete(
-                        warning = if (result.oldAudioFileRemoved) {
-                            null
-                        } else {
-                            appContext.getString(R.string.replace_song_done_file_remained)
+                        warning = when (result.oldAudioCleanup) {
+                            SongDeletionOutcome.Deleted -> null
+                            SongDeletionOutcome.FileRemained ->
+                                stringResource(R.string.replace_song_done_file_remained)
+                            SongDeletionOutcome.CleanupUncertain ->
+                                stringResource(R.string.replace_song_done_cleanup_uncertain)
                         },
                     )
                     ReplaceSongResult.OldSongMissing -> ReplaceSongOutcome.Failed(
-                        appContext.getString(R.string.replace_song_failed_old_missing),
+                        stringResource(R.string.replace_song_failed_old_missing),
                     )
                     ReplaceSongResult.NewSongMissing -> ReplaceSongOutcome.Failed(
-                        appContext.getString(R.string.replace_song_failed_new_missing),
+                        stringResource(R.string.replace_song_failed_new_missing),
                     )
                     ReplaceSongResult.SameSong -> ReplaceSongOutcome.Failed(
-                        appContext.getString(R.string.replace_song_failed_same_song),
+                        stringResource(R.string.replace_song_failed_same_song),
                     )
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 ReplaceSongOutcome.Failed(
-                    appContext.getString(R.string.replace_song_failed_generic),
+                    stringResource(R.string.replace_song_failed_generic),
                 )
             }
         }

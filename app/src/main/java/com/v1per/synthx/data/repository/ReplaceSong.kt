@@ -62,13 +62,12 @@ data class ReplaceSongPreview(
 /** Terminal outcome of [SongRepository.replaceSong]. */
 sealed class ReplaceSongResult {
     /**
-     * The replacement landed. [oldAudioFileRemoved] is false when the old song's row and every
-     * reference to it are gone but its file could not be deleted from disk — the database is
-     * still the source of truth, so this is a warning, not a failure.
+     * The replacement landed. [oldAudioCleanup] preserves the complete post-commit cleanup result
+     * so callers can distinguish confirmed file retention from an uncertain cleanup state.
      */
     data class Success(
         val playlistsAffected: Int,
-        val oldAudioFileRemoved: Boolean,
+        val oldAudioCleanup: SongDeletionOutcome,
     ) : ReplaceSongResult()
 
     /** Guardrail: a song cannot replace itself. Rejected before anything is written. */

@@ -15,12 +15,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -85,6 +87,8 @@ sealed class SongActionEvent {
      * [com.v1per.synthx.data.repository.SongDeletionOutcome].
      */
     data object DeletedButFileRemained : SongActionEvent()
+    /** The library delete committed, but one or more physical cleanup steps could not be verified. */
+    data object DeletedButCleanupUncertain : SongActionEvent()
 }
 
 /**
@@ -133,6 +137,9 @@ fun SongActionsHost(
     val removeFromStarredEnabled by viewModel.removeFromStarredEnabled.collectAsState()
     val playlistMemberships by viewModel.playlistMemberships.collectAsState()
 
+    val deleteCleanupUncertainMessage by rememberUpdatedState(
+        stringResource(R.string.actions_delete_cleanup_uncertain),
+    )
     // context.getString rather than stringResource: the collect lambda is not a composable
     // scope, and the playlist name is only known at emit time.
     LaunchedEffect(Unit) {
@@ -147,6 +154,8 @@ fun SongActionsHost(
                 SongActionEvent.ActionFailed -> context.getString(R.string.actions_failed)
                 SongActionEvent.DeletedButFileRemained ->
                     context.getString(R.string.actions_delete_file_remained)
+                SongActionEvent.DeletedButCleanupUncertain ->
+                    deleteCleanupUncertainMessage
             }
             snackbarHostState.showSnackbar(message)
         }
@@ -438,10 +447,14 @@ class SongActionsViewModel(
     fun deleteSong(songId: String) {
         launchCatching(onError = { _events.tryEmit(SongActionEvent.ActionFailed) }) {
             // Silent on the ordinary success: the row vanishing from every list is its own
-            // feedback. Only the file-remained case has something the user could not otherwise
-            // tell from the UI.
-            if (repository.deleteSong(songId) == SongDeletionOutcome.FileRemained) {
-                _events.tryEmit(SongActionEvent.DeletedButFileRemained)
+            // feedback. Physical cleanup warnings contain information the user could not otherwise
+            // infer from the UI.
+            when (repository.deleteSong(songId)) {
+                SongDeletionOutcome.Deleted -> Unit
+                SongDeletionOutcome.FileRemained ->
+                    _events.tryEmit(SongActionEvent.DeletedButFileRemained)
+                SongDeletionOutcome.CleanupUncertain ->
+                    _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain)
             }
         }
     }

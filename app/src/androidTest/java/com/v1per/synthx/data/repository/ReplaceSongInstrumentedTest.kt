@@ -113,7 +113,13 @@ class ReplaceSongInstrumentedTest {
 
     @Test fun keepOldMovesTheReplacementIntoTheOldSongsSlot() = runBlocking {
         val result = replace(PlaylistConflictResolution.KeepOld)
-        assertEquals(ReplaceSongResult.Success(playlistsAffected = 2, oldAudioFileRemoved = true), result)
+        assertEquals(
+            ReplaceSongResult.Success(
+                playlistsAffected = 2,
+                oldAudioCleanup = SongDeletionOutcome.CleanupUncertain,
+            ),
+            result,
+        )
 
         // Non-conflicting transfer: same position, and the membership's own added_at inherited.
         assertEquals(5, membership("only-old", "new")?.position)

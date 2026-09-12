@@ -67,6 +67,7 @@
     <string name="actions_removed_from_starred">Moved to library</string>
     <string name="actions_failed">Couldn\'t complete that action. Try again.</string>
     <string name="actions_delete_file_remained">Removed from your library, but the audio file couldn\'t be deleted from your device.</string>
+    <string name="actions_delete_cleanup_uncertain">Removed from your library, but we couldn\'t confirm whether the audio file was deleted.</string>
 
     <!-- Graduation (moving a song's file from New Arrivals into the root library) -->
     <string name="graduation_dialog_title">Moving to Library</string>
@@ -209,6 +210,7 @@
     <string name="replace_song_failed_new_missing">The replacement song is no longer in your library. Nothing was changed.</string>
     <string name="replace_song_failed_same_song">A song can\'t replace itself.</string>
     <string name="replace_song_done_file_remained">The replacement is done, but the old song\'s audio file couldn\'t be deleted from your device. Its library entry is gone either way.</string>
+    <string name="replace_song_done_cleanup_uncertain">The replacement is done, but we couldn\'t confirm whether the old song\'s audio file was deleted. Its library entry is gone either way.</string>
 
     <!-- Playlists -->
     <string name="delete_playlist_dialog_title">Delete this playlist?</string>

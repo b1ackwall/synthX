@@ -40,6 +40,7 @@ import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import java.util.UUID
 import kotlin.random.Random
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -56,6 +57,47 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 
 private const val TAG = "SongRepositoryImpl"
+
+internal suspend fun runPostCommitStep(
+    step: String,
+    logFailure: (String, Throwable) -> Unit = { failedStep, error ->
+        Log.e(TAG, "Post-commit step failed: $failedStep", error)
+    },
+    block: suspend () -> Unit,
+): Boolean = try {
+    block()
+    true
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Throwable) {
+    try {
+        logFailure(step, e)
+    } catch (loggingCancellation: CancellationException) {
+        throw loggingCancellation
+    } catch (_: Throwable) {
+        // Reporting a cleanup failure must not turn it back into a propagated post-commit failure.
+    }
+    false
+}
+
+internal fun songDeletionOutcome(
+    audioOutcome: AudioFileDeletion,
+    cleanupUncertain: Boolean,
+): SongDeletionOutcome = when {
+    audioOutcome == AudioFileDeletion.Failed -> SongDeletionOutcome.FileRemained
+    audioOutcome == AudioFileDeletion.Unknown || cleanupUncertain ->
+        SongDeletionOutcome.CleanupUncertain
+    else -> SongDeletionOutcome.Deleted
+}
+
+internal fun includePlaylistExportOutcome(
+    deletionOutcome: SongDeletionOutcome,
+    exportSucceeded: Boolean,
+): SongDeletionOutcome = if (!exportSucceeded && deletionOutcome == SongDeletionOutcome.Deleted) {
+    SongDeletionOutcome.CleanupUncertain
+} else {
+    deletionOutcome
+}
 
 class SongRepositoryImpl(
     private val context: Context,
@@ -244,16 +286,33 @@ class SongRepositoryImpl(
      * the destructive-action counter records that a backup is now stale.
      */
     private suspend fun finishSongDeletion(id: String, filePath: String?): SongDeletionOutcome {
-        SongDeletionEvents.notifyDeleted(id)
-        val fileOutcome = filePath?.let { deleteSongAudioFile(context, it) }
-            ?: AudioFileDeletion.NotFound
-        deleteSongArtFile(context, id)
-        DestructiveActionTracker.recordDestructiveAction(context)
-        return if (fileOutcome == AudioFileDeletion.Failed) {
-            SongDeletionOutcome.FileRemained
-        } else {
-            SongDeletionOutcome.Deleted
+        var cleanupUncertain = false
+        if (!runPostCommitStep("notify song deletion") { SongDeletionEvents.notifyDeleted(id) }) {
+            cleanupUncertain = true
         }
+
+        var fileOutcome = if (filePath == null) {
+            AudioFileDeletion.ConfirmedAbsent
+        } else {
+            AudioFileDeletion.Unknown
+        }
+        if (filePath != null && !runPostCommitStep("delete audio file") {
+                fileOutcome = deleteSongAudioFile(context, filePath)
+            }
+        ) {
+            cleanupUncertain = true
+        }
+
+        if (!runPostCommitStep("delete cached song art") { deleteSongArtFile(context, id) }) {
+            cleanupUncertain = true
+        }
+        if (!runPostCommitStep("record destructive action") {
+                DestructiveActionTracker.recordDestructiveAction(context)
+            }
+        ) {
+            cleanupUncertain = true
+        }
+        return songDeletionOutcome(fileOutcome, cleanupUncertain)
     }
 
     override suspend fun previewReplaceSong(
@@ -315,11 +374,16 @@ class SongRepositoryImpl(
                 is Transplant.OldMissing -> ReplaceSongResult.OldSongMissing
                 is Transplant.NewMissing -> ReplaceSongResult.NewSongMissing
                 is Transplant.Done -> {
-                    val outcome = finishSongDeletion(oldSongId, transplant.oldFilePath)
-                    playlistExportManager.scheduleExport()
+                    val deletionOutcome = finishSongDeletion(oldSongId, transplant.oldFilePath)
+                    val exportSucceeded = runPostCommitStep("schedule playlist export") {
+                        playlistExportManager.scheduleExport()
+                    }
                     ReplaceSongResult.Success(
                         playlistsAffected = transplant.playlistsAffected,
-                        oldAudioFileRemoved = outcome == SongDeletionOutcome.Deleted,
+                        oldAudioCleanup = includePlaylistExportOutcome(
+                            deletionOutcome,
+                            exportSucceeded,
+                        ),
                     )
                 }
             }
