@@ -13,6 +13,7 @@ import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.ExportAttemptOutcome
 import com.v1per.synthx.data.backup.VerificationAttemptOutcome
 import com.v1per.synthx.data.repository.MissingSongInfo
+import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.IssuesScanSnapshot
@@ -21,9 +22,14 @@ import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.common.launchCatching
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
@@ -61,6 +67,12 @@ sealed interface IssuesScanStatus {
     data class Idle(val lastScanTimestamp: Long, val issueCount: Int) : IssuesScanStatus
 }
 
+sealed class IssuesActionEvent {
+    data object ActionFailed : IssuesActionEvent()
+    data object DeletedButFileRemained : IssuesActionEvent()
+    data object DeletedButCleanupUncertain : IssuesActionEvent()
+}
+
 /**
  * Reads the Issues screen's eight categories from live signals and the worker cache.
  *
@@ -79,6 +91,7 @@ class IssuesViewModel(
     private val context: Context,
     private val repository: SongRepository,
     private val preferences: PreferencesManager,
+    private val enqueueScan: (Context) -> Unit = { scanContext -> IssuesScanWorker.enqueue(scanContext) },
 ) : ViewModel() {
 
     private val workManager = WorkManager.getInstance(context)
@@ -88,6 +101,12 @@ class IssuesViewModel(
 
     /** Gates the delete row in the menu below — see [DeleteSongsGate]. */
     val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
+
+    private val _events = MutableSharedFlow<IssuesActionEvent>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val events: SharedFlow<IssuesActionEvent> = _events.asSharedFlow()
 
     /**
      * Covers the gap between "the user asked for a scan" and "WorkManager reports one running":
@@ -225,15 +244,21 @@ class IssuesViewModel(
 
     // The list is Flow-backed, so Room's invalidation drops the row from the UI on its own.
     fun deleteSong(id: String) {
-        viewModelScope.launch {
-            repository.deleteSong(id)
+        launchCatching(onError = { _events.tryEmit(IssuesActionEvent.ActionFailed) }) {
+            when (repository.deleteSong(id)) {
+                SongDeletionOutcome.Deleted -> Unit
+                SongDeletionOutcome.FileRemained ->
+                    _events.tryEmit(IssuesActionEvent.DeletedButFileRemained)
+                SongDeletionOutcome.CleanupUncertain ->
+                    _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain)
+            }
         }
     }
 
     /** The Scan button. Same work, same queue, same policy as the daily automatic trigger. */
     fun startScan() {
         _pendingScan.value = true
-        IssuesScanWorker.enqueue(context)
+        enqueueScan(context)
         viewModelScope.launch {
             // Hand off to the real WorkInfo signal the moment it appears, so the two never
             // both go false at once and flash the old list back. The timeout is a safety net
@@ -256,7 +281,10 @@ class IssuesViewModel(
         _pendingScan.value = true
         viewModelScope.launch {
             runCatching { repository.recoverMissingArt(songIds) }
-                .onFailure { e -> Log.w(TAG, "Art recovery failed for ${songIds.size} song(s)", e) }
+                .onFailure { e ->
+                    Log.w(TAG, "Art recovery failed for ${songIds.size} song(s)", e)
+                    _events.tryEmit(IssuesActionEvent.ActionFailed)
+                }
             // Runs on both outcomes: a partial or failed recovery still needs the cache
             // reconciled with whatever is actually on disk now.
             startScan()
@@ -268,7 +296,10 @@ class IssuesViewModel(
         _pendingScan.value = true
         viewModelScope.launch {
             runCatching { repository.recoverPaletteData(songIds) }
-                .onFailure { e -> Log.w(TAG, "Palette recovery failed for ${songIds.size} song(s)", e) }
+                .onFailure { e ->
+                    Log.w(TAG, "Palette recovery failed for ${songIds.size} song(s)", e)
+                    _events.tryEmit(IssuesActionEvent.ActionFailed)
+                }
             startScan()
         }
     }

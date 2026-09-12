@@ -16,11 +16,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -61,23 +66,49 @@ fun IssuesScreen(
     val uiState by viewModel.uiState.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
     val scanStatus by viewModel.scanStatus.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val actionFailedMessage by rememberUpdatedState(stringResource(R.string.actions_failed))
+    val deleteFileRemainedMessage by rememberUpdatedState(
+        stringResource(R.string.actions_delete_file_remained),
+    )
+    val deleteCleanupUncertainMessage by rememberUpdatedState(
+        stringResource(R.string.actions_delete_cleanup_uncertain),
+    )
 
-    Column(modifier = Modifier.fillMaxSize().background(Background)) {
-        topBar()
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            val message = when (event) {
+                IssuesActionEvent.ActionFailed -> actionFailedMessage
+                IssuesActionEvent.DeletedButFileRemained -> deleteFileRemainedMessage
+                IssuesActionEvent.DeletedButCleanupUncertain ->
+                    deleteCleanupUncertainMessage
+            }
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
-        // Outside the scrolling area below on purpose: the last-scan summary and the Scan
-        // control must stay put and stay visible whether the list holds nothing or hundreds
-        // of rows.
-        ScanStatusBar(status = scanStatus, onScan = viewModel::startScan)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().background(Background)) {
+            topBar()
 
-        IssuesContent(
-            uiState = uiState,
-            deleteEnabled = deleteSongsEnabled,
-            onDelete = viewModel::deleteSong,
-            onFixMissingArt = viewModel::fixMissingArt,
-            onFixMissingPalette = viewModel::fixMissingPalette,
-            onNavigateToBackups = onNavigateToBackups,
-            modifier = Modifier.weight(1f),
+            // Outside the scrolling area below on purpose: the last-scan summary and the Scan
+            // control must stay put and stay visible whether the list holds nothing or hundreds
+            // of rows.
+            ScanStatusBar(status = scanStatus, onScan = viewModel::startScan)
+
+            IssuesContent(
+                uiState = uiState,
+                deleteEnabled = deleteSongsEnabled,
+                onDelete = viewModel::deleteSong,
+                onFixMissingArt = viewModel::fixMissingArt,
+                onFixMissingPalette = viewModel::fixMissingPalette,
+                onNavigateToBackups = onNavigateToBackups,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
 }
