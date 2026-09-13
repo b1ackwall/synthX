@@ -40,6 +40,8 @@ import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.ExportAttemptOutcome
 import com.v1per.synthx.data.backup.VerificationAttemptOutcome
 import com.v1per.synthx.data.repository.MissingSongInfo
+import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
+import com.v1per.synthx.data.scanner.KnownAudioRoot
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.DeleteSongDialog
 import com.v1per.synthx.ui.components.LoadErrorText
@@ -75,6 +77,21 @@ fun IssuesScreen(
     val deleteCleanupUncertainMessage by rememberUpdatedState(
         stringResource(R.string.actions_delete_cleanup_uncertain),
     )
+    val musicGrantMessage by rememberUpdatedState(
+        stringResource(R.string.destructive_file_music_grant_not_writable),
+    )
+    val newArrivalsGrantMessage by rememberUpdatedState(
+        stringResource(R.string.destructive_file_new_arrivals_grant_not_writable),
+    )
+    val documentNotWritableMessage by rememberUpdatedState(
+        stringResource(R.string.destructive_file_document_not_writable),
+    )
+    val identityMismatchMessage by rememberUpdatedState(
+        stringResource(R.string.destructive_file_identity_mismatch),
+    )
+    val rootUnknownMessage by rememberUpdatedState(
+        stringResource(R.string.destructive_file_root_unknown),
+    )
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -83,6 +100,15 @@ fun IssuesScreen(
                 IssuesActionEvent.DeletedButFileRemained -> deleteFileRemainedMessage
                 IssuesActionEvent.DeletedButCleanupUncertain ->
                     deleteCleanupUncertainMessage
+                is IssuesActionEvent.DeleteBlocked -> when (val reason = event.reason) {
+                    is DestructiveFilePreflightResult.GrantNotWritable -> when (reason.root) {
+                        KnownAudioRoot.Music -> musicGrantMessage
+                        KnownAudioRoot.NewArrivals -> newArrivalsGrantMessage
+                    }
+                    DestructiveFilePreflightResult.DocumentNotWritable -> documentNotWritableMessage
+                    DestructiveFilePreflightResult.IdentityMismatch -> identityMismatchMessage
+                    DestructiveFilePreflightResult.RootUnknown -> rootUnknownMessage
+                }
             }
             snackbarHostState.showSnackbar(message)
         }

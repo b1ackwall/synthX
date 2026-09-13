@@ -1,6 +1,7 @@
 package com.v1per.synthx.data.repository
 
 import android.net.Uri
+import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
 import com.v1per.synthx.data.scanner.ArtRecoveryResult
 import com.v1per.synthx.data.scanner.PaletteRecoveryResult
 import com.v1per.synthx.data.scanner.GraduationStage
@@ -163,9 +164,9 @@ interface SongRepository {
 }
 
 /**
- * How much of a complete delete actually landed. The row is gone in every case — the database is
- * the source of truth and its transaction has already committed by the time the file is touched —
- * so this describes the physical cleanup that followed the commit.
+ * Result of a requested complete delete. The row is gone for [Deleted], [FileRemained], and
+ * [CleanupUncertain]. [Blocked] is returned only when the live preflight establishes a definite
+ * safety problem; in that case the row and files are untouched.
  *
  * [Deleted] means the audio was deleted or confirmed already absent and every other cleanup step
  * completed. [FileRemained] means the provider confirmed the audio existed but refused or failed
@@ -173,7 +174,12 @@ interface SongRepository {
  * post-commit side effect failed; callers must not describe that state as a complete success or as
  * a rolled-back operation.
  */
-enum class SongDeletionOutcome { Deleted, FileRemained, CleanupUncertain }
+sealed interface SongDeletionOutcome {
+    data object Deleted : SongDeletionOutcome
+    data object FileRemained : SongDeletionOutcome
+    data object CleanupUncertain : SongDeletionOutcome
+    data class Blocked(val reason: DestructiveFilePreflightResult.Blocking) : SongDeletionOutcome
+}
 
 /** The saved resume position: an exact slot id plus position and playback modes. */
 data class QueueCursor(

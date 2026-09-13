@@ -16,6 +16,8 @@ import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.FolderScanner
+import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
+import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import java.io.File
 import java.util.UUID
@@ -46,6 +48,7 @@ class ReplaceSongInstrumentedTest {
     private lateinit var context: Context
     private lateinit var database: SynthXDatabase
     private lateinit var repository: SongRepositoryImpl
+    private lateinit var exports: PlaylistExportManager
 
     private val oldAddedAt = 1_000L
     private val newAddedAt = 2_000L
@@ -57,7 +60,7 @@ class ReplaceSongInstrumentedTest {
         DestructiveActionTracker.resetForTest()
         context = ReplaceTestContext(ApplicationProvider.getApplicationContext())
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
-        val exports = PlaylistExportManager(
+        exports = PlaylistExportManager(
             context, database.playlistDao(), database.songDao(), database.artistDao(), database.albumDao(),
         )
         repository = SongRepositoryImpl(
@@ -68,6 +71,8 @@ class ReplaceSongInstrumentedTest {
                 database.songArtistDao(), exports,
             ),
             BackupManager(context), exports,
+            destructiveFileCheck = { _, _ -> DestructiveFilePreflightResult.Ambiguous },
+            replacementFileCheck = { _, _ -> ReplacementFilePreflightResult.Ambiguous },
         )
 
         database.songDao().upsertSong(
@@ -207,9 +212,79 @@ class ReplaceSongInstrumentedTest {
         assertEquals(9, membership("both", "new")?.position)
     }
 
+    @Test fun vanishedReplacementFileAbortsBeforeTouchingOldSongOrMemberships() = runBlocking {
+        val oldAudio = File(context.filesDir, "old-audio.mp3").also { it.writeText("old audio") }
+        val oldRow = checkNotNull(database.songDao().getSongById("old"))
+        database.songDao().upsertSong(oldRow.copy(filePath = oldAudio.toURI().toString()))
+        val guardedRepository = repositoryWithPreflights(
+            oldResult = DestructiveFilePreflightResult.Passed,
+            newResult = ReplacementFilePreflightResult.SourceGone,
+        )
+
+        val result = guardedRepository.replaceSong("old", "new", PlaylistConflictResolution.KeepOld)
+
+        assertEquals(
+            ReplaceSongResult.NewSongUnusable(ReplacementFilePreflightResult.SourceGone),
+            result,
+        )
+        assertNotNull(database.songDao().getSongById("old"))
+        assertNotNull(database.songDao().getSongById("new"))
+        assertTrue(oldAudio.exists())
+        assertEquals(5, membership("only-old", "old")?.position)
+        assertNull(membership("only-old", "new"))
+        assertEquals(1, membership("both", "old")?.position)
+        assertEquals(9, membership("both", "new")?.position)
+    }
+
+    @Test fun changedReplacementFileAbortsBeforePlaylistTransplant() = runBlocking {
+        val guardedRepository = repositoryWithPreflights(
+            oldResult = DestructiveFilePreflightResult.Passed,
+            newResult = ReplacementFilePreflightResult.IdentityMismatch,
+        )
+
+        val result = guardedRepository.replaceSong("old", "new", PlaylistConflictResolution.KeepOld)
+
+        assertEquals(
+            ReplaceSongResult.NewSongUnusable(ReplacementFilePreflightResult.IdentityMismatch),
+            result,
+        )
+        assertNotNull(database.songDao().getSongById("old"))
+        assertEquals(5, membership("only-old", "old")?.position)
+        assertNull(membership("only-old", "new"))
+    }
+
+    @Test fun goneOldFileAndAmbiguousReplacementDoNotBlockExistingReplaceBehavior() = runBlocking {
+        val nonBlockingRepository = repositoryWithPreflights(
+            oldResult = DestructiveFilePreflightResult.SourceGone,
+            newResult = ReplacementFilePreflightResult.Ambiguous,
+        )
+
+        val result = nonBlockingRepository.replaceSong("old", "new", PlaylistConflictResolution.KeepOld)
+
+        assertTrue(result is ReplaceSongResult.Success)
+        assertNull(database.songDao().getSongById("old"))
+        assertNotNull(database.songDao().getSongById("new"))
+        assertEquals(5, membership("only-old", "new")?.position)
+    }
+
     private suspend fun replaceIds(oldId: String, newId: String) = withTimeout(10_000) {
         repository.replaceSong(oldId, newId, PlaylistConflictResolution.KeepOld)
     }
+
+    private fun repositoryWithPreflights(
+        oldResult: DestructiveFilePreflightResult,
+        newResult: ReplacementFilePreflightResult,
+    ): SongRepositoryImpl = SongRepositoryImpl(
+        context, database, database.songDao(), database.artistDao(), database.albumDao(),
+        database.playlistDao(), database.queueDao(),
+        FolderScanner(
+            context, database, database.songDao(), database.artistDao(), database.albumDao(),
+            database.songArtistDao(), exports,
+        ),
+        BackupManager(context), exports,
+        destructiveFileCheck = { _, _ -> oldResult },
+        replacementFileCheck = { _, _ -> newResult },
+    )
 
     /**
      * Keeps art *and preference* writes out of the installed app's library, as

@@ -12,6 +12,8 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
+import com.v1per.synthx.ui.common.destructiveFileBlockMessage
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -127,9 +129,10 @@ class ReplaceSongViewModel(
     ) { songs, query, excluded, step ->
         songs.asSequence()
             .filter { song ->
-                // The replacement has to be a file that actually exists, and cannot be the song
-                // being replaced. Neither restriction applies when choosing the song to replace:
-                // a missing song is a perfectly good thing to want to swap out.
+                // Cached scan state keeps known-missing songs out of the replacement picker, and
+                // the old song cannot replace itself. This is only a convenience filter: the
+                // repository live-validates the selected replacement's document and content when
+                // the user confirms. A missing song remains valid as the song being replaced.
                 when (step) {
                     ReplaceSongStep.PickOld -> true
                     else -> !song.isMissing && song.id != excluded?.id
@@ -246,6 +249,8 @@ class ReplaceSongViewModel(
                                 stringResource(R.string.replace_song_done_file_remained)
                             SongDeletionOutcome.CleanupUncertain ->
                                 stringResource(R.string.replace_song_done_cleanup_uncertain)
+                            is SongDeletionOutcome.Blocked ->
+                                appContext.destructiveFileBlockMessage(result.oldAudioCleanup.reason)
                         },
                     )
                     ReplaceSongResult.OldSongMissing -> ReplaceSongOutcome.Failed(
@@ -253,6 +258,19 @@ class ReplaceSongViewModel(
                     )
                     ReplaceSongResult.NewSongMissing -> ReplaceSongOutcome.Failed(
                         stringResource(R.string.replace_song_failed_new_missing),
+                    )
+                    is ReplaceSongResult.OldSongBlocked -> ReplaceSongOutcome.Failed(
+                        appContext.destructiveFileBlockMessage(result.reason),
+                    )
+                    is ReplaceSongResult.NewSongUnusable -> ReplaceSongOutcome.Failed(
+                        stringResource(
+                            when (result.reason) {
+                                ReplacementFilePreflightResult.SourceGone ->
+                                    R.string.replace_song_new_file_gone
+                                ReplacementFilePreflightResult.IdentityMismatch ->
+                                    R.string.replace_song_new_file_changed
+                            },
+                        ),
                     )
                     ReplaceSongResult.SameSong -> ReplaceSongOutcome.Failed(
                         stringResource(R.string.replace_song_failed_same_song),

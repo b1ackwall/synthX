@@ -19,6 +19,9 @@ import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.GraduationStage
+import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
+import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
+import com.v1per.synthx.data.scanner.KnownAudioRoot
 import com.v1per.synthx.data.scanner.graduateSong
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PreferencesManager
@@ -48,6 +51,7 @@ class RepositoryDeletionInstrumentedTest {
     private lateinit var context: DeletionTestContext
     private lateinit var database: SynthXDatabase
     private lateinit var repository: SongRepositoryImpl
+    private lateinit var exports: PlaylistExportManager
 
     @Before fun setUp() = runBlocking {
         RestoreStartup.await()
@@ -57,7 +61,7 @@ class RepositoryDeletionInstrumentedTest {
         DestructiveActionTracker.resetForTest()
         context = DeletionTestContext(ApplicationProvider.getApplicationContext())
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
-        val exports = PlaylistExportManager(
+        exports = PlaylistExportManager(
             context, database.playlistDao(), database.songDao(), database.artistDao(), database.albumDao(),
         )
         repository = SongRepositoryImpl(
@@ -68,6 +72,8 @@ class RepositoryDeletionInstrumentedTest {
                 database.songArtistDao(), exports,
             ),
             BackupManager(context), exports,
+            destructiveFileCheck = { _, _ -> DestructiveFilePreflightResult.Ambiguous },
+            replacementFileCheck = { _, _ -> ReplacementFilePreflightResult.Ambiguous },
         )
         database.songDao().upsertSong(
             SongEntity(
@@ -113,6 +119,53 @@ class RepositoryDeletionInstrumentedTest {
         assertBackupAttempt(BackupReason.DELETE_SONG)
         assertEquals(1, PreferencesManager(context).destructiveActionsSinceBackup)
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+    }
+
+    @Test fun readOnlyOwningRootBlocksSongDeletionWithoutChangingTheRow() = runBlocking {
+        val blockedRepository = repositoryWithPreflight(
+            DestructiveFilePreflightResult.GrantNotWritable(KnownAudioRoot.Music),
+        )
+
+        val outcome = blockedRepository.deleteSong("song")
+
+        assertNotNull(database.songDao().getSongById("song"))
+        assertEquals(
+            SongDeletionOutcome.Blocked(
+                DestructiveFilePreflightResult.GrantNotWritable(KnownAudioRoot.Music),
+            ),
+            outcome,
+        )
+        assertEquals(listOf("song"), database.playlistDao().getSongIdsForPlaylist("playlist"))
+        assertTrue(File(context.filesDir, "art/art_song.jpg").exists())
+        assertEquals(0, PreferencesManager(context).destructiveActionsSinceBackup)
+    }
+
+    @Test fun externallyReplacedAudioBlocksSongDeletionWithoutChangingTheRow() = runBlocking {
+        val blockedRepository = repositoryWithPreflight(
+            DestructiveFilePreflightResult.IdentityMismatch,
+        )
+
+        val outcome = blockedRepository.deleteSong("song")
+
+        assertNotNull(database.songDao().getSongById("song"))
+        assertEquals(
+            SongDeletionOutcome.Blocked(DestructiveFilePreflightResult.IdentityMismatch),
+            outcome,
+        )
+        assertEquals(listOf("song"), database.playlistDao().getSongIdsForPlaylist("playlist"))
+        assertTrue(File(context.filesDir, "art/art_song.jpg").exists())
+        assertEquals(0, PreferencesManager(context).destructiveActionsSinceBackup)
+    }
+
+    @Test fun confirmedGonePreflightDoesNotBlockExistingDeleteBehavior() = runBlocking {
+        val nonBlockingRepository = repositoryWithPreflight(
+            DestructiveFilePreflightResult.SourceGone,
+        )
+
+        val outcome = nonBlockingRepository.deleteSong("song")
+
+        assertEquals(SongDeletionOutcome.CleanupUncertain, outcome)
+        assertNull(database.songDao().getSongById("song"))
     }
 
     @Test fun playlistDeletionIsRejectedWhenRestoreBeginsAfterBackup() = runBlocking {
@@ -230,6 +283,20 @@ class RepositoryDeletionInstrumentedTest {
         assertFalse(outcome.succeeded)
         assertEquals("No backup folder selected", outcome.failureMessage)
     }
+
+    private fun repositoryWithPreflight(
+        result: DestructiveFilePreflightResult,
+    ): SongRepositoryImpl = SongRepositoryImpl(
+        context, database, database.songDao(), database.artistDao(), database.albumDao(),
+        database.playlistDao(), database.queueDao(),
+        FolderScanner(
+            context, database, database.songDao(), database.artistDao(), database.albumDao(),
+            database.songArtistDao(), exports,
+        ),
+        BackupManager(context), exports,
+        destructiveFileCheck = { _, _ -> result },
+        replacementFileCheck = { _, _ -> ReplacementFilePreflightResult.Ambiguous },
+    )
 
     /** Keeps all preference/art writes separate from the installed app's library. */
     private class DeletionTestContext(base: Context) : ContextWrapper(base) {

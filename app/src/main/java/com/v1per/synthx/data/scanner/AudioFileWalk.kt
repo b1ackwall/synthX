@@ -43,8 +43,8 @@ internal fun isRootReachable(context: Context, uri: Uri): DocumentFile? {
  *
  * A separate function rather than a flag on [isRootReachable] because the two answer genuinely
  * different questions and almost every caller wants the read one — scanning and missing-detection
- * only ever read, and must keep working against a read-only grant. Only graduation
- * ([com.v1per.synthx.data.scanner.graduateSong]) creates a file under an audio root.
+ * only ever read, and must keep working against a read-only grant. Graduation uses this before
+ * creating a file, and [DestructiveFilePreflight] uses it before deleting one.
  *
  * Mirrors [com.v1per.synthx.data.backup.BackupFolderHealth]'s grant check, which has made the
  * same read-vs-write distinction for the backup tree since before this existed. It stops short of

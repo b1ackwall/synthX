@@ -29,8 +29,11 @@ import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import com.v1per.synthx.data.playlistart.selectDistancedHue
 import com.v1per.synthx.data.scanner.ArtRecovery
 import com.v1per.synthx.data.scanner.ArtRecoveryResult
+import com.v1per.synthx.data.scanner.DestructiveFilePreflight
+import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
 import com.v1per.synthx.data.scanner.PaletteRecovery
 import com.v1per.synthx.data.scanner.PaletteRecoveryResult
+import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
@@ -112,6 +115,10 @@ class SongRepositoryImpl(
     private val folderScanner: FolderScanner,
     private val backupManager: BackupManager,
     private val playlistExportManager: PlaylistExportManager,
+    private val destructiveFileCheck: suspend (String, String) -> DestructiveFilePreflightResult =
+        DestructiveFilePreflight.create(context)::checkDestructive,
+    private val replacementFileCheck: suspend (String, String) -> ReplacementFilePreflightResult =
+        DestructiveFilePreflight.create(context)::checkReplacement,
 ) : SongRepository, AdmittedQueuePersistenceRepository {
 
     private suspend fun <T> dbOperation(block: suspend () -> T): T =
@@ -271,6 +278,24 @@ class SongRepositoryImpl(
         FileOperationCoordinator.withSongLock(id) {
             // Recheck admission: restore may have begun while the backup was running.
             dbOperation {
+                // The permit is already held so restore cannot close Room while the current row is
+                // read, but no transaction is opened until the live SAF preflight has passed (or
+                // returned an intentionally non-blocking gone/ambiguous result).
+                val beforeDelete = songDao.getSongById(id)
+                if (beforeDelete != null) {
+                    when (
+                        val preflight = destructiveFileCheck(
+                            beforeDelete.filePath,
+                            beforeDelete.id,
+                        )
+                    ) {
+                        is DestructiveFilePreflightResult.Blocking ->
+                            return@dbOperation SongDeletionOutcome.Blocked(preflight)
+                        DestructiveFilePreflightResult.Passed,
+                        DestructiveFilePreflightResult.SourceGone,
+                        DestructiveFilePreflightResult.Ambiguous -> Unit
+                    }
+                }
                 val filePath = database.withTransaction {
                     val existing = songDao.getSongById(id)
                     deleteSongRowWithArtRepoint(songDao, albumDao, id)
@@ -380,6 +405,37 @@ class SongRepositoryImpl(
         // placement and reasoning as deleteSong. The new song only receives narrow column writes
         // inside the transaction, which graduation's own transactional re-read already tolerates.
         FileOperationCoordinator.withSongLock(oldSongId) { dbOperation {
+            // Read under the restore permit and old-song lock, but before opening the transplant
+            // transaction. Definite failures leave both rows and every membership untouched.
+            val oldBeforeReplace = songDao.getSongById(oldSongId)
+                ?: return@dbOperation ReplaceSongResult.OldSongMissing
+            when (
+                val preflight = destructiveFileCheck(
+                    oldBeforeReplace.filePath,
+                    oldBeforeReplace.id,
+                )
+            ) {
+                is DestructiveFilePreflightResult.Blocking ->
+                    return@dbOperation ReplaceSongResult.OldSongBlocked(preflight)
+                DestructiveFilePreflightResult.Passed,
+                DestructiveFilePreflightResult.SourceGone,
+                DestructiveFilePreflightResult.Ambiguous -> Unit
+            }
+
+            val newBeforeReplace = songDao.getSongById(newSongId)
+                ?: return@dbOperation ReplaceSongResult.NewSongMissing
+            when (
+                val preflight = replacementFileCheck(
+                    newBeforeReplace.filePath,
+                    newBeforeReplace.id,
+                )
+            ) {
+                is ReplacementFilePreflightResult.Blocking ->
+                    return@dbOperation ReplaceSongResult.NewSongUnusable(preflight)
+                ReplacementFilePreflightResult.Passed,
+                ReplacementFilePreflightResult.Ambiguous -> Unit
+            }
+
             val transplant = database.withTransaction {
                 transplantIdentity(oldSongId, newSongId, conflictResolution)
             }

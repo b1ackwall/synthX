@@ -32,6 +32,8 @@ import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongDeletionOutcome
+import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
+import com.v1per.synthx.data.scanner.KnownAudioRoot
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.playback.QueueAddResult
@@ -89,6 +91,9 @@ sealed class SongActionEvent {
     data object DeletedButFileRemained : SongActionEvent()
     /** The library delete committed, but one or more physical cleanup steps could not be verified. */
     data object DeletedButCleanupUncertain : SongActionEvent()
+    data class DeleteBlocked(
+        val reason: DestructiveFilePreflightResult.Blocking,
+    ) : SongActionEvent()
 }
 
 /**
@@ -142,6 +147,21 @@ fun SongActionsHost(
     val deleteCleanupUncertainMessage by rememberUpdatedState(
         stringResource(R.string.actions_delete_cleanup_uncertain),
     )
+    val musicGrantMessage by rememberUpdatedState(
+        stringResource(R.string.destructive_file_music_grant_not_writable),
+    )
+    val newArrivalsGrantMessage by rememberUpdatedState(
+        stringResource(R.string.destructive_file_new_arrivals_grant_not_writable),
+    )
+    val documentNotWritableMessage by rememberUpdatedState(
+        stringResource(R.string.destructive_file_document_not_writable),
+    )
+    val identityMismatchMessage by rememberUpdatedState(
+        stringResource(R.string.destructive_file_identity_mismatch),
+    )
+    val rootUnknownMessage by rememberUpdatedState(
+        stringResource(R.string.destructive_file_root_unknown),
+    )
     // context.getString rather than stringResource: the collect lambda is not a composable
     // scope, and the playlist name is only known at emit time.
     LaunchedEffect(Unit) {
@@ -158,6 +178,15 @@ fun SongActionsHost(
                     context.getString(R.string.actions_delete_file_remained)
                 SongActionEvent.DeletedButCleanupUncertain ->
                     deleteCleanupUncertainMessage
+                is SongActionEvent.DeleteBlocked -> when (val reason = event.reason) {
+                    is DestructiveFilePreflightResult.GrantNotWritable -> when (reason.root) {
+                        KnownAudioRoot.Music -> musicGrantMessage
+                        KnownAudioRoot.NewArrivals -> newArrivalsGrantMessage
+                    }
+                    DestructiveFilePreflightResult.DocumentNotWritable -> documentNotWritableMessage
+                    DestructiveFilePreflightResult.IdentityMismatch -> identityMismatchMessage
+                    DestructiveFilePreflightResult.RootUnknown -> rootUnknownMessage
+                }
             }
             snackbarHostState.showSnackbar(message)
         }
@@ -466,12 +495,14 @@ class SongActionsViewModel(
                 // Silent on the ordinary success: the row vanishing from every list is its own
                 // feedback. Physical cleanup warnings contain information the user could not
                 // otherwise infer from the UI.
-                when (repository.deleteSong(songId)) {
+                when (val outcome = repository.deleteSong(songId)) {
                     SongDeletionOutcome.Deleted -> Unit
                     SongDeletionOutcome.FileRemained ->
                         _events.tryEmit(SongActionEvent.DeletedButFileRemained)
                     SongDeletionOutcome.CleanupUncertain ->
                         _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain)
+                    is SongDeletionOutcome.Blocked ->
+                        _events.tryEmit(SongActionEvent.DeleteBlocked(outcome.reason))
                 }
             } finally {
                 _deleteInProgress.value = false

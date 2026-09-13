@@ -1,5 +1,8 @@
 package com.v1per.synthx.data.repository
 
+import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
+import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
+
 /**
  * What to do about a playlist **both** songs already belong to, when one song is replacing the
  * other. A single global choice applied uniformly to every conflicting playlist, matching the
@@ -78,4 +81,14 @@ sealed class ReplaceSongResult {
 
     /** The new song's row disappeared between selection and confirmation. Nothing was written. */
     data object NewSongMissing : ReplaceSongResult()
+
+    /** The old song's live audio document failed a definite destructive-safety check. */
+    data class OldSongBlocked(
+        val reason: DestructiveFilePreflightResult.Blocking,
+    ) : ReplaceSongResult()
+
+    /** The replacement row exists, but its live audio is definitely gone or has different content. */
+    data class NewSongUnusable(
+        val reason: ReplacementFilePreflightResult.Blocking,
+    ) : ReplaceSongResult()
 }

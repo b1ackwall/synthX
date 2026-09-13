@@ -18,6 +18,7 @@ import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.IssuesScanSnapshot
 import com.v1per.synthx.data.scanner.IssuesScanWorker
+import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PreferencesManager
@@ -71,6 +72,9 @@ sealed class IssuesActionEvent {
     data object ActionFailed : IssuesActionEvent()
     data object DeletedButFileRemained : IssuesActionEvent()
     data object DeletedButCleanupUncertain : IssuesActionEvent()
+    data class DeleteBlocked(
+        val reason: DestructiveFilePreflightResult.Blocking,
+    ) : IssuesActionEvent()
 }
 
 /**
@@ -260,12 +264,14 @@ class IssuesViewModel(
         _deleteInProgress.value = true
         launchCatching(onError = { _events.tryEmit(IssuesActionEvent.ActionFailed) }) {
             try {
-                when (repository.deleteSong(id)) {
+                when (val outcome = repository.deleteSong(id)) {
                     SongDeletionOutcome.Deleted -> Unit
                     SongDeletionOutcome.FileRemained ->
                         _events.tryEmit(IssuesActionEvent.DeletedButFileRemained)
                     SongDeletionOutcome.CleanupUncertain ->
                         _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain)
+                    is SongDeletionOutcome.Blocked ->
+                        _events.tryEmit(IssuesActionEvent.DeleteBlocked(outcome.reason))
                 }
             } finally {
                 _deleteInProgress.value = false
