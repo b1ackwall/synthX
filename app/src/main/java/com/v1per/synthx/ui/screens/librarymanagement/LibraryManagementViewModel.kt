@@ -75,7 +75,16 @@ class LibraryManagementViewModel(
     private val preferencesManager: PreferencesManager,
     private val repository: SongRepository,
     private val backupManager: BackupManager,
+    private val releasePersistableGrant: (Uri) -> Unit = { uri ->
+        context.contentResolver.releasePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+        )
+    },
 ) : ViewModel() {
+
+    private enum class ConfiguredFolderRole { MUSIC, NEW_ARRIVALS, BACKUP }
 
     private val workManager = WorkManager.getInstance(context)
 
@@ -305,7 +314,11 @@ class LibraryManagementViewModel(
 
             backupManager.createBackup(BackupTier.Auto, BackupReason.FOLDER_CHANGE)
 
-            releaseGrantIfSuperseded(old = _musicFolderUri.value, new = uri)
+            releaseGrantIfSuperseded(
+                old = _musicFolderUri.value,
+                new = uri,
+                supersededRole = ConfiguredFolderRole.MUSIC,
+            )
             preferencesManager.musicFolderUri = uri.toString()
             _musicFolderUri.value = uri
             clearFolderError()
@@ -328,7 +341,11 @@ class LibraryManagementViewModel(
             )
             if (rejected) return@launchCatching
 
-            releaseGrantIfSuperseded(old = _musicFolderUri.value, new = uri)
+            releaseGrantIfSuperseded(
+                old = _musicFolderUri.value,
+                new = uri,
+                supersededRole = ConfiguredFolderRole.MUSIC,
+            )
             preferencesManager.musicFolderUri = uri.toString()
             _musicFolderUri.value = uri
             clearFolderError()
@@ -347,7 +364,11 @@ class LibraryManagementViewModel(
             )
             if (rejected) return@launchCatching
 
-            releaseGrantIfSuperseded(old = _newArrivalsFolderUri.value, new = uri)
+            releaseGrantIfSuperseded(
+                old = _newArrivalsFolderUri.value,
+                new = uri,
+                supersededRole = ConfiguredFolderRole.NEW_ARRIVALS,
+            )
             preferencesManager.newArrivalsFolderUri = uri.toString()
             _newArrivalsFolderUri.value = uri
             _newArrivalsFolderError.value = null
@@ -376,7 +397,11 @@ class LibraryManagementViewModel(
             )
             if (rejected) return@launchCatching
 
-            releaseGrantIfSuperseded(old = _newArrivalsFolderUri.value, new = uri)
+            releaseGrantIfSuperseded(
+                old = _newArrivalsFolderUri.value,
+                new = uri,
+                supersededRole = ConfiguredFolderRole.NEW_ARRIVALS,
+            )
             preferencesManager.newArrivalsFolderUri = uri.toString()
             _newArrivalsFolderUri.value = uri
 
@@ -399,10 +424,11 @@ class LibraryManagementViewModel(
      * rejected, in which case nothing is persisted and the previously configured URI stands
      * unchanged; the caller must return without saving.
      *
-     * The grant the picker just took for the rejected URI is released here, since nothing
-     * will ever use it. The *old* root's grant is untouched — this runs before
-     * [releaseGrantIfSuperseded], which is exactly why grant release had to move out of the
-     * picker callbacks and behind validation.
+     * The grant the picker just took is released only when no configured folder role still
+     * depends on that URI. In particular, a [RootNesting.Relation.SAME] conflict can mean the
+     * candidate is another role's active grant; that grant must remain intact even though this
+     * pick is rejected. Grant release stays behind validation so genuinely orphaned rejected
+     * picks do not leave unused persisted permissions behind.
      */
     private suspend fun rejectIfNested(
         candidate: Uri,
@@ -421,14 +447,36 @@ class LibraryManagementViewModel(
             context.getString(R.string.error_folders_nested)
         }
         onError(message)
-        releaseGrantWhenIdle(candidate)
+        if (!isGrantOwnedByConfiguredRole(candidate)) releaseGrantWhenIdle(candidate)
         return true
     }
 
-    /** No-op when the user re-picked the folder already configured — releasing then would
-     *  drop the grant the new pick depends on, since both are the same URI. */
-    private suspend fun releaseGrantIfSuperseded(old: Uri?, new: Uri) {
-        if (old != null && old != new) releaseGrantWhenIdle(old)
+    /** No-op when the old grant is still needed by the replacement or another configured role. */
+    private suspend fun releaseGrantIfSuperseded(
+        old: Uri?,
+        new: Uri,
+        supersededRole: ConfiguredFolderRole,
+    ) {
+        if (old != null && old != new &&
+            !isGrantOwnedByConfiguredRole(old, excluding = supersededRole)
+        ) {
+            releaseGrantWhenIdle(old)
+        }
+    }
+
+    /** Persisted SAF permissions are URI-wide, not separate leases for each configured role. */
+    private fun isGrantOwnedByConfiguredRole(
+        uri: Uri,
+        excluding: ConfiguredFolderRole? = null,
+    ): Boolean {
+        val configuredRoles = listOf(
+            ConfiguredFolderRole.MUSIC to preferencesManager.musicFolderUri,
+            ConfiguredFolderRole.NEW_ARRIVALS to preferencesManager.newArrivalsFolderUri,
+            ConfiguredFolderRole.BACKUP to preferencesManager.backupFolderUri,
+        )
+        return configuredRoles.any { (role, storedUri) ->
+            role != excluding && storedUri?.let(Uri::parse) == uri
+        }
     }
 
     /**
@@ -456,11 +504,7 @@ class LibraryManagementViewModel(
      */
     private fun releaseGrant(uri: Uri) {
         try {
-            context.contentResolver.releasePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-            )
+            releasePersistableGrant(uri)
         } catch (e: SecurityException) {
             // Already gone — nothing to release
         }

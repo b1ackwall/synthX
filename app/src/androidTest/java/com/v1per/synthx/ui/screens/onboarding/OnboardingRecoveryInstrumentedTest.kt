@@ -77,6 +77,8 @@ class OnboardingRecoveryInstrumentedTest {
     private lateinit var restore: RestoreViewModel
     private lateinit var onboarding: OnboardingViewModel
     private lateinit var navController: NavHostController
+    private val persistedGrants = mutableSetOf<Uri>()
+    private val releasedGrants = mutableListOf<Uri>()
     private val workManager get() = WorkManager.getInstance(context)
     private val music = Uri.parse("content://synthx.test.music/tree/primary%3AMusic")
     private val arrivals = Uri.parse("content://synthx.test.arrivals/tree/primary%3AArrivals")
@@ -91,8 +93,19 @@ class OnboardingRecoveryInstrumentedTest {
             flowOf(0)
         } as SongRepository
         preferences.lastBackupAttemptTimestamp = 123L
+        persistedGrants.clear()
+        releasedGrants.clear()
         composeRule.runOnUiThread {
-            library = LibraryManagementViewModel(context, preferences, repository, BackupManager(context))
+            library = LibraryManagementViewModel(
+                context,
+                preferences,
+                repository,
+                BackupManager(context),
+                releasePersistableGrant = { uri ->
+                    releasedGrants += uri
+                    persistedGrants -= uri
+                },
+            )
             backups = BackupsAndRestoreViewModel(context, preferences, BackupManager(context))
             restore = RestoreViewModel(context, BackupManager(context), preferences)
             onboarding = OnboardingViewModel()
@@ -138,6 +151,121 @@ class OnboardingRecoveryInstrumentedTest {
         assertEquals(music, library.musicFolderUri.value)
         assertEquals(music.toString(), preferences.musicFolderUri)
         assertEquals(123L, preferences.lastBackupAttemptTimestamp)
+    }
+
+    @Test fun sameFolderRejectionPreservesBothGrantsThroughFreshInstallSaveFunctions() {
+        configureAudioRoots()
+        persistedGrants += setOf(music, arrivals)
+
+        composeRule.runOnUiThread { library.saveMusicFolder(arrivals) }
+        await(library.folderError) { it != null }
+        composeRule.runOnIdle { }
+        assertEquals(music, library.musicFolderUri.value)
+        assertEquals(music.toString(), preferences.musicFolderUri)
+        assertEquals(arrivals.toString(), preferences.newArrivalsFolderUri)
+        assertTrue(arrivals in persistedGrants)
+
+        composeRule.runOnUiThread { library.saveNewArrivalsFolder(music) }
+        await(library.newArrivalsFolderError) { it != null }
+        composeRule.runOnIdle { }
+        assertEquals(arrivals, library.newArrivalsFolderUri.value)
+        assertEquals(music.toString(), preferences.musicFolderUri)
+        assertEquals(arrivals.toString(), preferences.newArrivalsFolderUri)
+        assertTrue(music in persistedGrants)
+        assertTrue(releasedGrants.isEmpty())
+    }
+
+    @Test fun sameFolderRejectionPreservesBothGrantsThroughRecoverySaveFunctions() {
+        configureAudioRoots()
+        persistedGrants += setOf(music, arrivals)
+
+        composeRule.runOnUiThread { library.saveRecoveryMusicFolder(arrivals) }
+        await(library.folderError) { it != null }
+        composeRule.runOnIdle { }
+        assertEquals(music, library.musicFolderUri.value)
+        assertEquals(music.toString(), preferences.musicFolderUri)
+        assertEquals(arrivals.toString(), preferences.newArrivalsFolderUri)
+        assertTrue(arrivals in persistedGrants)
+
+        composeRule.runOnUiThread { library.saveRecoveryNewArrivalsFolder(music) }
+        await(library.newArrivalsFolderError) { it != null }
+        composeRule.runOnIdle { }
+        assertEquals(arrivals, library.newArrivalsFolderUri.value)
+        assertEquals(music.toString(), preferences.musicFolderUri)
+        assertEquals(arrivals.toString(), preferences.newArrivalsFolderUri)
+        assertTrue(music in persistedGrants)
+        assertTrue(releasedGrants.isEmpty())
+    }
+
+    @Test fun rejectedOrphanGrantIsStillReleased() {
+        configureAudioRoots()
+        val orphan = Uri.parse(
+            "content://synthx.test.arrivals/tree/primary%3AArrivals%2FRejected",
+        )
+        persistedGrants += orphan
+
+        composeRule.runOnUiThread { library.saveRecoveryMusicFolder(orphan) }
+        await(library.folderError) { it != null }
+        composeRule.runOnIdle { }
+
+        assertFalse(orphan in persistedGrants)
+        assertEquals(listOf(orphan), releasedGrants)
+        assertEquals(music.toString(), preferences.musicFolderUri)
+        assertEquals(arrivals.toString(), preferences.newArrivalsFolderUri)
+    }
+
+    @Test fun rejectedBackupOwnedGrantIsPreserved() {
+        configureAudioRoots()
+        val backup = Uri.parse(
+            "content://synthx.test.arrivals/tree/primary%3AArrivals%2FBackups",
+        )
+        preferences.backupFolderUri = backup.toString()
+        persistedGrants += backup
+
+        composeRule.runOnUiThread { library.saveRecoveryMusicFolder(backup) }
+        await(library.folderError) { it != null }
+        composeRule.runOnIdle { }
+
+        assertTrue(backup in persistedGrants)
+        assertTrue(releasedGrants.isEmpty())
+        assertEquals(backup.toString(), preferences.backupFolderUri)
+        assertEquals(music.toString(), preferences.musicFolderUri)
+        assertEquals(arrivals.toString(), preferences.newArrivalsFolderUri)
+    }
+
+    @Test fun supersededAudioRootDoesNotReleaseGrantStillOwnedByBackupRole() {
+        configureAudioRoots()
+        preferences.backupFolderUri = music.toString()
+        persistedGrants += music
+        val replacement = Uri.parse(
+            "content://synthx.test.replacement/tree/primary%3AReplacement",
+        )
+
+        composeRule.runOnUiThread { library.saveRecoveryMusicFolder(replacement) }
+        await(library.musicFolderUri) { it == replacement }
+        composeRule.runOnIdle { }
+
+        assertTrue(music in persistedGrants)
+        assertTrue(releasedGrants.isEmpty())
+        assertEquals(music.toString(), preferences.backupFolderUri)
+        assertEquals(replacement.toString(), preferences.musicFolderUri)
+    }
+
+    @Test fun genuinelySupersededAudioRootGrantIsStillReleased() {
+        configureAudioRoots()
+        persistedGrants += music
+        val replacement = Uri.parse(
+            "content://synthx.test.replacement/tree/primary%3AReplacement",
+        )
+
+        composeRule.runOnUiThread { library.saveRecoveryMusicFolder(replacement) }
+        await(library.musicFolderUri) { it == replacement }
+        composeRule.runOnIdle { }
+
+        assertFalse(music in persistedGrants)
+        assertEquals(listOf(music), releasedGrants)
+        assertEquals(replacement.toString(), preferences.musicFolderUri)
+        assertEquals(arrivals.toString(), preferences.newArrivalsFolderUri)
     }
 
     @Test fun restoreGateReadsChangesMadeThroughAnotherPreferencesInstance() {
@@ -215,6 +343,12 @@ class OnboardingRecoveryInstrumentedTest {
     private fun saveMusic() {
         composeRule.runOnUiThread { library.saveRecoveryMusicFolder(music) }
         await(library.musicFolderUri) { it == music }
+    }
+
+    private fun configureAudioRoots() {
+        saveMusic()
+        composeRule.runOnUiThread { library.saveRecoveryNewArrivalsFolder(arrivals) }
+        await(library.newArrivalsFolderUri) { it == arrivals }
     }
 
     private fun scanIds() =
