@@ -11,6 +11,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.await
 import com.v1per.synthx.R
+import com.v1per.synthx.data.FileOperationCoordinator
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
 import com.v1per.synthx.data.backup.BackupTier
@@ -420,14 +421,26 @@ class LibraryManagementViewModel(
             context.getString(R.string.error_folders_nested)
         }
         onError(message)
-        releaseGrant(candidate)
+        releaseGrantWhenIdle(candidate)
         return true
     }
 
     /** No-op when the user re-picked the folder already configured — releasing then would
      *  drop the grant the new pick depends on, since both are the same URI. */
-    private fun releaseGrantIfSuperseded(old: Uri?, new: Uri) {
-        if (old != null && old != new) releaseGrant(old)
+    private suspend fun releaseGrantIfSuperseded(old: Uri?, new: Uri) {
+        if (old != null && old != new) releaseGrantWhenIdle(old)
+    }
+
+    /**
+     * Every grant release goes through here — all four folder-save paths and [rejectIfNested].
+     * The tree is first closed to new file operations, then any graduation still copying into or
+     * deleting out of it is waited out, and only then is the grant revoked (P2-T1): revoking it
+     * mid-move used to fail the move part-way, after the original could already be gone.
+     */
+    private suspend fun releaseGrantWhenIdle(uri: Uri) {
+        FileOperationCoordinator.retireRootWhenIdle(FileOperationCoordinator.rootKey(uri)) {
+            releaseGrant(uri)
+        }
     }
 
     /**

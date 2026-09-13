@@ -14,6 +14,8 @@ import com.v1per.synthx.data.backup.PlaylistExportManager
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.SongRemap
 import com.v1per.synthx.data.SongRemapEvents
+import com.v1per.synthx.data.FileOperationCoordinator
+import com.v1per.synthx.data.withScanRowClaims
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import kotlinx.coroutines.CancellationException
@@ -50,6 +52,12 @@ data class ScanResult(
      * read, so they are left untouched in the library rather than flagged missing.
      */
     val errors: Int = 0,
+    /**
+     * Rows this scan deliberately left alone because another file operation (graduation,
+     * delete, replace) held the song, or mutated it after the scan started — see
+     * [com.v1per.synthx.data.ScanRowClaims]. Not errors: the next scan picks them up.
+     */
+    val deferred: Int = 0,
 ) {
     /**
      * Combined count of everything this scan changed destructively or flagged away:
@@ -152,7 +160,10 @@ class FolderScanner internal constructor(
         scanBodyForTest?.let { body ->
             return FolderScannerAdmission.alreadyAdmitted(body)
         }
-        return FolderScannerAdmission.alreadyAdmitted { withContext(Dispatchers.IO) {
+        // Row claims span the whole body: the observation they open must predate the walk, so a
+        // graduation/delete that lands anywhere between reading a file and committing its row is
+        // seen at commit time, and their leases are released only once the commit is over.
+        return FolderScannerAdmission.alreadyAdmitted { withContext(Dispatchers.IO) { withScanRowClaims { claims ->
         val scanStartMs = System.currentTimeMillis()
         onProgress(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE)
 
@@ -286,6 +297,11 @@ class FolderScanner internal constructor(
                         continue
                     }
 
+                    // Another operation holds this song, or mutated it after this scan began —
+                    // this file's extracted data may already be stale. Leave the row for the next
+                    // scan rather than blocking on, or overwriting, that operation (P2-T1).
+                    if (!claims.claim(id)) continue
+
                     // Re-read rather than trusting the extraction phase's branch prediction.
                     // That prediction was made against the pre-scan database, and existed
                     // only to decide whether the file needed reading. By the time a file is
@@ -302,6 +318,7 @@ class FolderScanner internal constructor(
                                 // first to avoid UNIQUE constraint violation on file_path index
                                 val occupant = songDao.getSongByPath(path)
                                 if (occupant != null && occupant.id != existing.id) {
+                                    if (!claims.claim(occupant.id)) continue
                                     deleteSongRowWithArtRepoint(songDao, albumDao, occupant.id)
                                     pendingArtCleanup.add(occupant.id)
                                     deleted++
@@ -355,7 +372,9 @@ class FolderScanner internal constructor(
                     // commits instead (see below), since scheduling it from in here risks the
                     // debounced export firing and reading the database before this transaction
                     // commits, capturing a stale pre-scan snapshot.
-                    val staleId = songDao.getSongByPath(path)?.let { stale ->
+                    val staleRow = songDao.getSongByPath(path)
+                    if (staleRow != null && !claims.claim(staleRow.id)) continue
+                    val staleId = staleRow?.let { stale ->
                         songDao.markMissing(stale.id, System.currentTimeMillis())
                         songDao.clearFilePathForRetag(stale.id)
                         hashMismatchFlagged++
@@ -392,6 +411,10 @@ class FolderScanner internal constructor(
                     val now = System.currentTimeMillis()
                     for (song in songDao.getAllSongsOnce()) {
                         if (song.filePath !in foundPaths) {
+                            // A graduation committed after the walk snapshotted foundPaths moved
+                            // this song to a path the walk never saw — not missing, just newer
+                            // than this scan. Same for anything currently locked.
+                            if (!claims.claim(song.id)) continue
                             if (!song.isMissing) {
                                 songDao.markMissing(song.id, now)
                             }
@@ -413,13 +436,15 @@ class FolderScanner internal constructor(
                     deleted = deleted,
                     hashMismatchFlagged = hashMismatchFlagged,
                     errors = errors,
+                    deferred = claims.deferred,
                 )
             }
             Log.d(
                 TAG,
                 "Scan transaction complete in ${System.currentTimeMillis() - txnStartMs}ms — " +
                     "added=${scanResult.added} updated=${scanResult.updated} (retagged=$retagged) " +
-                    "unchanged=${scanResult.unchanged} missing=${scanResult.missing}",
+                    "unchanged=${scanResult.unchanged} missing=${scanResult.missing} " +
+                    "deferred=${scanResult.deferred}",
             )
             scanResult
         } catch (t: Throwable) {
@@ -474,7 +499,7 @@ class FolderScanner internal constructor(
 
         Log.d(TAG, "Scan complete in ${System.currentTimeMillis() - scanStartMs}ms for $folderUri")
             result
-        } }
+        } } }
     }
 
     /**
@@ -520,18 +545,36 @@ class FolderScanner internal constructor(
             }
             if (!underReachableRoot) continue
 
-            val exists = try {
-                DocumentFile.fromSingleUri(context, songUri)?.exists() == true
-            } catch (e: Exception) {
-                false
-            }
+            if (fileExists(songUri)) continue
 
-            if (!exists) {
+            // The snapshot above can be older than a graduation/delete that has since moved or
+            // removed this song: its old path failing to resolve proves nothing on its own. Skip
+            // a song another operation holds right now; otherwise, holding its lease, re-read the
+            // row and judge the path it has *now* (P2-T1).
+            val lease = FileOperationCoordinator.tryAcquireSong(song.id) ?: continue
+            try {
+                val current = songDao.getSongById(song.id) ?: continue
+                if (current.isMissing) continue
+                if (current.filePath != song.filePath) {
+                    val currentUri = runCatching { Uri.parse(current.filePath) }.getOrNull() ?: continue
+                    val currentUnderReachableRoot = reachableRoots.any { root ->
+                        RootNesting.isUnderRoot(context, currentUri, root)
+                    }
+                    if (!currentUnderReachableRoot || fileExists(currentUri)) continue
+                }
                 songDao.markMissing(song.id, System.currentTimeMillis())
                 newlyMissing++
+            } finally {
+                lease.release()
             }
         }
         newlyMissing
+    }
+
+    private fun fileExists(uri: Uri): Boolean = try {
+        DocumentFile.fromSingleUri(context, uri)?.exists() == true
+    } catch (e: Exception) {
+        false
     }
 
     companion object {

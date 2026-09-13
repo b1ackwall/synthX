@@ -112,9 +112,26 @@ internal suspend fun collectAudioFiles(dir: DocumentFile): List<DocumentFile> {
     for (child in dir.listFiles()) {
         when {
             child.isDirectory -> result.addAll(collectAudioFiles(child))
-            child.name?.substringAfterLast('.', "")?.lowercase() in SUPPORTED_EXTENSIONS ->
-                result.add(child)
+            isScannableAudioName(child.name) -> result.add(child)
         }
     }
     return result
 }
+
+/**
+ * Whether a file named [name] is an audio file a scan should ingest.
+ *
+ * Graduation's in-progress copy ([GRADUATION_TEMP_PREFIX]) is excluded outright even though it
+ * keeps the real extension: a partial copy would hash to a brand-new id and insert a junk row, and
+ * a complete-but-unpublished one hashes to the real song's id and would repoint that song at a
+ * temp URI that dies on rename. Independent of [com.v1per.synthx.data.FileOperationCoordinator]'s
+ * locking — a file that is never enumerated can't corrupt anything downstream, whatever gap the
+ * locking might have.
+ */
+internal fun isScannableAudioName(name: String?): Boolean {
+    if (name == null || name.startsWith(GRADUATION_TEMP_PREFIX)) return false
+    return name.substringAfterLast('.', "").lowercase() in SUPPORTED_EXTENSIONS
+}
+
+/** Name prefix of graduation's temporary destination file — see [graduateSong]. */
+internal const val GRADUATION_TEMP_PREFIX = ".graduating_"

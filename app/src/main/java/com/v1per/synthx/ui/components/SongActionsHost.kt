@@ -136,6 +136,7 @@ fun SongActionsHost(
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
     val deleteInProgress by viewModel.deleteInProgress.collectAsState()
     val removeFromStarredEnabled by viewModel.removeFromStarredEnabled.collectAsState()
+    val graduationInProgress by viewModel.graduationInProgress.collectAsState()
     val playlistMemberships by viewModel.playlistMemberships.collectAsState()
 
     val deleteCleanupUncertainMessage by rememberUpdatedState(
@@ -239,7 +240,7 @@ fun SongActionsHost(
             deleteEnabled = deleteSongsEnabled,
             deleteInProgress = deleteInProgress,
             showRemoveFromStarredRow = current.source == SongActionSource.Starred,
-            removeFromStarredEnabled = removeFromStarredEnabled,
+            removeFromStarredEnabled = removeFromStarredEnabled && !graduationInProgress,
             isCurrentlyPlaying = current.song.id == currentSongId,
             onDeleteSong = {
                 val id = current.song.id
@@ -506,6 +507,15 @@ class SongActionsViewModel(
     // relying on a value-equality check racing a brand new terminal stage.
     private var graduationAutoDismissJob: Job? = null
 
+    private val _graduationInProgress = MutableStateFlow(false)
+
+    /**
+     * True from the moment [removeFromStarred] accepts a graduation until its flow completes —
+     * independent of [graduationStage], which the user can clear by closing the dialog while the
+     * move is still running. Gates re-entry and the sheet's Remove from Starred row.
+     */
+    val graduationInProgress: StateFlow<Boolean> = _graduationInProgress.asStateFlow()
+
     /**
      * Physically moves the song's file from wherever it currently lives into the configured
      * root library folder — copy, hash-verify, delete original — then updates its DB row,
@@ -514,29 +524,40 @@ class SongActionsViewModel(
      * for [GraduationProgressDialog] to render.
      */
     fun removeFromStarred(songId: String) {
+        // Re-entry guard, same shape as deleteInProgress. The progress dialog can be closed while
+        // a graduation is still running and the song stays in Starred until its DB step lands, so
+        // without this the sheet could launch a second graduation alongside the first (P2-T1).
+        // FileOperationCoordinator's song lock would serialize them anyway; this keeps the second
+        // from ever starting.
+        if (_graduationInProgress.value) return
         val rootUri = preferences.musicFolderUri?.let { uri -> runCatching { Uri.parse(uri) }.getOrNull() }
         if (rootUri == null) {
             _events.tryEmit(SongActionEvent.ActionFailed)
             return
         }
+        _graduationInProgress.value = true
         graduationAutoDismissJob?.cancel()
         viewModelScope.launch {
-            repository.graduateSong(songId, rootUri)
-                .catch { e ->
-                    Log.e(TAG, "Graduation flow threw", e)
-                    emit(GraduationStage.Failed("Something went wrong. Try again."))
-                }
-                .collect { stage ->
-                    _graduationStage.value = stage
-                    when (stage) {
-                        GraduationStage.Done -> {
-                            _events.tryEmit(SongActionEvent.RemovedFromStarred)
-                            scheduleGraduationAutoDismiss()
-                        }
-                        is GraduationStage.Failed -> scheduleGraduationAutoDismiss()
-                        else -> Unit
+            try {
+                repository.graduateSong(songId, rootUri)
+                    .catch { e ->
+                        Log.e(TAG, "Graduation flow threw", e)
+                        emit(GraduationStage.Failed("Something went wrong. Try again."))
                     }
-                }
+                    .collect { stage ->
+                        _graduationStage.value = stage
+                        when (stage) {
+                            GraduationStage.Done -> {
+                                _events.tryEmit(SongActionEvent.RemovedFromStarred)
+                                scheduleGraduationAutoDismiss()
+                            }
+                            is GraduationStage.Failed -> scheduleGraduationAutoDismiss()
+                            else -> Unit
+                        }
+                    }
+            } finally {
+                _graduationInProgress.value = false
+            }
         }
     }
 

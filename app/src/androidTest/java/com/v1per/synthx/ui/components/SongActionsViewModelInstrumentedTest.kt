@@ -1,7 +1,14 @@
 package com.v1per.synthx.ui.components
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
+import android.net.Uri
 import androidx.lifecycle.viewModelScope
+import com.v1per.synthx.data.scanner.GraduationStage
+import java.util.UUID
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.backup.RestoreCoordinator
@@ -82,8 +89,74 @@ class SongActionsViewModelInstrumentedTest {
         assertEquals(1, DestructiveActionTracker.count.value)
     }
 
+    /**
+     * P2-T1: closing the progress dialog mid-graduation leaves the song in Starred, so the sheet
+     * can call removeFromStarred again while the first graduation is still suspended inside the
+     * repository. The second call must not start a second graduation.
+     */
+    @Test
+    fun rapidDoubleRemoveFromStarredStartsGraduationExactlyOnce() = runBlocking {
+        val callCount = AtomicInteger(0)
+        val gate = CompletableDeferred<Unit>()
+        val preferencesContext = IsolatedPreferencesContext(context)
+        try {
+            val preferences = PreferencesManager(preferencesContext).apply {
+                musicFolderUri = "content://com.v1per.synthx.test/tree/music"
+            }
+            val subject = SongActionsViewModel(
+                DeferredGraduateRepository(callCount, gate, fakeRepository()),
+                preferences,
+            ).also { viewModel = it }
+
+            subject.removeFromStarred("song")
+            withTimeout(2_000) { subject.graduationInProgress.first { it } }
+            // What the dialog's Close button does mid-flight — the in-flight guard must not
+            // depend on the dialog still being up.
+            subject.dismissGraduationDialog()
+            subject.removeFromStarred("song")
+
+            gate.complete(Unit)
+            withTimeout(2_000) { subject.graduationInProgress.first { !it } }
+            assertEquals(1, callCount.get())
+
+            // Guard released: a later, deliberate graduation is accepted again.
+            subject.removeFromStarred("song")
+            withTimeout(2_000) { subject.graduationInProgress.first { !it } }
+            assertEquals(2, callCount.get())
+        } finally {
+            preferencesContext.cleanUp()
+        }
+    }
+
     private fun subject(repository: SongRepository): SongActionsViewModel =
         SongActionsViewModel(repository, PreferencesManager(context)).also { viewModel = it }
+
+    /** Same shape as [DeferredDeleteRepository], for graduateSong's Flow. */
+    private class DeferredGraduateRepository(
+        private val callCount: AtomicInteger,
+        private val gate: CompletableDeferred<Unit>,
+        backing: SongRepository,
+    ) : SongRepository by backing {
+        override fun graduateSong(songId: String, rootMusicFolderUri: Uri): Flow<GraduationStage> = flow {
+            callCount.incrementAndGet()
+            emit(GraduationStage.Copying)
+            gate.await()
+            emit(GraduationStage.Done)
+        }
+    }
+
+    /** Keeps the test's musicFolderUri out of the installed dev build's real preferences. */
+    private class IsolatedPreferencesContext(base: Context) : ContextWrapper(base) {
+        private val prefix = "song-actions-test-${UUID.randomUUID()}"
+        private val names = mutableSetOf<String>()
+        override fun getApplicationContext(): Context = this
+        override fun getSharedPreferences(name: String, mode: Int): SharedPreferences {
+            val isolated = "$prefix-$name"
+            names += isolated
+            return super.getSharedPreferences(isolated, mode)
+        }
+        fun cleanUp() = names.forEach { baseContext.deleteSharedPreferences(it) }
+    }
 
     private fun fakeRepository(): SongRepository = Proxy.newProxyInstance(
         SongRepository::class.java.classLoader,

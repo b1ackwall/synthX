@@ -21,6 +21,7 @@ import com.v1per.synthx.data.db.SynthXDatabase
 import android.util.Log
 import androidx.room.withTransaction
 import com.v1per.synthx.data.AudioFileDeletion
+import com.v1per.synthx.data.FileOperationCoordinator
 import com.v1per.synthx.data.SongDeletionEvents
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongAudioFile
@@ -263,14 +264,20 @@ class SongRepositoryImpl(
         // Backup waits for finite operations to drain, so it must precede our own permit.
         backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_SONG)
 
-        // Recheck admission: restore may have begun while the backup was running.
-        dbOperation {
-            val filePath = database.withTransaction {
-                val existing = songDao.getSongById(id)
-                deleteSongRowWithArtRepoint(songDao, albumDao, id)
-                existing?.filePath
+        // Song lock after the backup, never before — see FileOperationCoordinator's acquisition
+        // order. Waits out an in-flight graduation of this exact song rather than deleting the
+        // row out from under it, which used to leave its graduated copy orphaned for a scan to
+        // re-import. Held through the file cleanup so a scan can't re-claim the row mid-delete.
+        FileOperationCoordinator.withSongLock(id) {
+            // Recheck admission: restore may have begun while the backup was running.
+            dbOperation {
+                val filePath = database.withTransaction {
+                    val existing = songDao.getSongById(id)
+                    deleteSongRowWithArtRepoint(songDao, albumDao, id)
+                    existing?.filePath
+                }
+                finishSongDeletion(id, filePath)
             }
-            finishSongDeletion(id, filePath)
         }
     }
 
@@ -369,7 +376,10 @@ class SongRepositoryImpl(
 
         backupManager.createBackup(BackupTier.Auto, BackupReason.REPLACE_SONG)
 
-        dbOperation {
+        // The old song is the one whose row and file this destroys, so it is the one locked — same
+        // placement and reasoning as deleteSong. The new song only receives narrow column writes
+        // inside the transaction, which graduation's own transactional re-read already tolerates.
+        FileOperationCoordinator.withSongLock(oldSongId) { dbOperation {
             val transplant = database.withTransaction {
                 transplantIdentity(oldSongId, newSongId, conflictResolution)
             }
@@ -390,7 +400,7 @@ class SongRepositoryImpl(
                     )
                 }
             }
-        }
+        } }
     }
 
     /** [transplantIdentity]'s result, carrying what the out-of-transaction half still needs. */
@@ -496,9 +506,10 @@ class SongRepositoryImpl(
         songDao.isInAnyPlaylist(songId)
     }
 
-    // No dbOperation{} wrapper here — graduateSongFile does its own file I/O under
-    // Dispatchers.IO first and only gates its DB write through RepositoryDbOperation.run
-    // internally, per this project's backup/DB admission conventions.
+    // No dbOperation{} wrapper here — graduateSongFile takes its own song lock and one
+    // RestoreCoordinator permit held for its whole duration (file I/O included), in the
+    // acquisition order FileOperationCoordinator documents; wrapping it here would put the
+    // permit before the song lock.
     //
     // channelFlow rather than plain flow{}: graduateSongFile's onStage callback below fires
     // from inside its own nested withContext(Dispatchers.IO) block — a different coroutine
@@ -516,7 +527,7 @@ class SongRepositoryImpl(
     // channelFlow doesn't make it redundant, it just no longer needs to reconcile the
     // same-coroutine constraint too.
     override fun graduateSong(songId: String, rootMusicFolderUri: Uri): Flow<GraduationStage> = channelFlow {
-        graduateSongFile(context, songDao, songId, rootMusicFolderUri) { stage ->
+        graduateSongFile(context, database, songDao, songId, rootMusicFolderUri) { stage ->
             val result = trySend(stage)
             if (result.isFailure) {
                 // Only reachable if this channel is already closed/cancelled (e.g. the

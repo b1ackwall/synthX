@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.v1per.synthx.data.FileOperationCoordinator
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.BackupReason
@@ -17,10 +18,16 @@ import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.FolderScanner
+import com.v1per.synthx.data.scanner.GraduationStage
+import com.v1per.synthx.data.scanner.graduateSong
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -45,6 +52,7 @@ class RepositoryDeletionInstrumentedTest {
     @Before fun setUp() = runBlocking {
         RestoreStartup.await()
         RestoreCoordinator.resetForTest()
+        FileOperationCoordinator.resetForTest()
         BackupOutcomeStore.resetForTest()
         DestructiveActionTracker.resetForTest()
         context = DeletionTestContext(ApplicationProvider.getApplicationContext())
@@ -113,6 +121,76 @@ class RepositoryDeletionInstrumentedTest {
 
     @Test fun songDeletionIsRejectedWhenRestoreBeginsAfterBackup() = runBlocking {
         assertRestoreWins(BackupReason.DELETE_SONG) { repository.deleteSong("song") }
+    }
+
+    /**
+     * Delete-during-graduation, lock layer in isolation: the song's lock is held the way
+     * graduation holds it, but with no restore permit, so the backup's finite drain can't be what
+     * holds the delete back — only deleteSong's own song lock can.
+     */
+    @Test fun songDeletionWaitsForTheSongLockHeldByAGraduation() = runBlocking {
+        val graduationHolding = CompletableDeferred<Unit>()
+        val finishGraduation = CompletableDeferred<Unit>()
+        val graduation = async(Dispatchers.IO) {
+            FileOperationCoordinator.withSongLock("song") {
+                graduationHolding.complete(Unit)
+                finishGraduation.await()
+                // Graduation's own DB step still sees its row: the delete hasn't run.
+                assertNotNull(database.songDao().getSongById("song"))
+            }
+        }
+        withTimeout(3_000) { graduationHolding.await() }
+
+        val deletion = async(Dispatchers.IO) { repository.deleteSong("song") }
+        // Backup finished and the delete is now queued on the song lock.
+        withTimeout(3_000) {
+            while (FileOperationCoordinator.songLockRefCountForTest("song") < 2) delay(10)
+        }
+        assertFalse(deletion.isCompleted)
+        assertNotNull(database.songDao().getSongById("song"))
+        assertEquals(listOf("song"), database.playlistDao().getSongIdsForPlaylist("playlist"))
+
+        finishGraduation.complete(Unit)
+        withTimeout(3_000) { graduation.await() }
+        assertEquals(SongDeletionOutcome.CleanupUncertain, withTimeout(3_000) { deletion.await() })
+        assertNull(database.songDao().getSongById("song"))
+        assertEquals(0, FileOperationCoordinator.songLockEntryCountForTest())
+        assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+    }
+
+    /**
+     * Delete-during-graduation against the real graduateSong, held open inside its song lock and
+     * restore permit (see SongGraduationCoordinationInstrumentedTest for how). Proves the full
+     * acquisition order composes without deadlock: the delete's backup waits out graduation's
+     * permit, then takes the song lock, then deletes.
+     */
+    @Test fun songDeletionDuringRealGraduationCompletesAfterItWithoutDeadlock() = runBlocking {
+        val graduationHolding = CompletableDeferred<Unit>()
+        val finishGraduation = CompletableDeferred<Unit>()
+        val graduation = async(Dispatchers.IO) {
+            graduateSong(
+                context, database, database.songDao(), "song",
+                android.net.Uri.parse("content://com.v1per.synthx.test.nonexistent/tree/music"),
+            ) { stage ->
+                if (stage is GraduationStage.Failed) {
+                    graduationHolding.complete(Unit)
+                    finishGraduation.await()
+                }
+            }
+        }
+        withTimeout(3_000) { graduationHolding.await() }
+
+        val deletion = async(Dispatchers.IO) { repository.deleteSong("song") }
+        delay(300)
+        assertFalse(deletion.isCompleted)
+        assertNotNull(database.songDao().getSongById("song"))
+
+        finishGraduation.complete(Unit)
+        withTimeout(3_000) { graduation.await() }
+        assertEquals(SongDeletionOutcome.CleanupUncertain, withTimeout(3_000) { deletion.await() })
+        assertNull(database.songDao().getSongById("song"))
+        assertEquals(0, FileOperationCoordinator.songLockEntryCountForTest())
+        assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 
     private suspend fun assertRestoreWins(reason: String, delete: suspend () -> Unit) {
