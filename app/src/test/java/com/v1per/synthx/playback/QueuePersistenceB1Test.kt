@@ -13,7 +13,8 @@ import com.v1per.synthx.data.repository.QueueCursor
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.QueueSlotRecord
 import com.v1per.synthx.data.repository.QueueSnapshot
-import com.v1per.synthx.data.repository.ReplaceSongPreview
+import com.v1per.synthx.data.repository.ReplaceSongMembershipSnapshot
+import com.v1per.synthx.data.repository.ReplaceSongPreviewResult
 import com.v1per.synthx.data.repository.ReplaceSongResult
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongDeletionOutcome
@@ -62,8 +63,13 @@ class QueuePersistenceB1Test {
         override suspend fun recoverMissingArt(songIds: List<String>?) =
             com.v1per.synthx.data.scanner.ArtRecoveryResult(checked = 0, recovered = 0, skipped = 0)
         override suspend fun deleteSong(id: String) = SongDeletionOutcome.Deleted
-        override suspend fun previewReplaceSong(oldSongId: String, newSongId: String): ReplaceSongPreview? = null
-        override suspend fun replaceSong(oldSongId: String, newSongId: String, conflictResolution: PlaylistConflictResolution): ReplaceSongResult = ReplaceSongResult.SameSong
+        override suspend fun previewReplaceSong(oldSongId: String, newSongId: String): ReplaceSongPreviewResult = ReplaceSongPreviewResult.OldSongMissing
+        override suspend fun replaceSong(
+            oldSongId: String,
+            newSongId: String,
+            conflictResolution: PlaylistConflictResolution,
+            expectedMemberships: ReplaceSongMembershipSnapshot,
+        ): ReplaceSongResult = ReplaceSongResult.SameSong
         override fun getStarredSongs(): Flow<List<Song>> = emptyFlow(); override fun getStarredSongCount(): Flow<Int> = emptyFlow()
         override fun getRecentSongs(limit: Int): Flow<List<Song>> = emptyFlow()
         override suspend fun dismissFromStarred(songId: String) {}; override suspend fun isInAnyPlaylist(songId: String) = false; override suspend fun checkRootLibraryOrganization(musicFolderUri: Uri) = null

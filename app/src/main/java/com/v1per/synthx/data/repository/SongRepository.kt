@@ -46,9 +46,10 @@ interface SongRepository {
      * Read-only dry run of [replaceSong], for the review step's "here is what will happen"
      * screen. Never writes.
      *
-     * @return null when either song's row no longer exists.
+     * The result distinguishes which selected row disappeared and carries the exact membership
+     * snapshot that [replaceSong] must validate before writing.
      */
-    suspend fun previewReplaceSong(oldSongId: String, newSongId: String): ReplaceSongPreview?
+    suspend fun previewReplaceSong(oldSongId: String, newSongId: String): ReplaceSongPreviewResult
 
     /**
      * Transplants the old song's library identity onto the new song, then completely deletes the
@@ -59,11 +60,16 @@ interface SongRepository {
      * its `date_added`. Starred status is *not* copied — the new song's own value is kept, except
      * that a new song which ends up in at least one playlist is un-starred, since starred means
      * "not yet organized into a playlist".
+     *
+     * [expectedMemberships] must be the snapshot returned by [previewReplaceSong]. If either
+     * song's membership rows changed, the operation returns [ReplaceSongResult.PreviewStale]
+     * before writing anything.
      */
     suspend fun replaceSong(
         oldSongId: String,
         newSongId: String,
         conflictResolution: PlaylistConflictResolution,
+        expectedMemberships: ReplaceSongMembershipSnapshot,
     ): ReplaceSongResult
 
     // Starred — songs not yet organized into a playlist

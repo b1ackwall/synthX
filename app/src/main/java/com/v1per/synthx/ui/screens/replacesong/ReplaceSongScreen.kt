@@ -106,15 +106,14 @@ fun ReplaceSongScreen(
                         ReplaceSongBusyCover(R.string.replace_song_preview_loading)
                     is ReplaceSongPreviewState.Failed -> ReplaceSongPreviewFailure(
                         message = current.message,
-                        onRetry = viewModel::retryPreview,
+                        onRetry = if (current.retryable) viewModel::retryPreview else null,
                     )
                     is ReplaceSongPreviewState.Ready -> ReplaceSongReviewStep(
                         preview = current.preview,
                         conflictResolution = conflictResolution,
                         confirmEnabled = !replaceInFlight,
                         onConflictResolutionChange = viewModel::setConflictResolution,
-                        // `current` is passed back in, so what commits is exactly the preview
-                        // rendered above — see ReplaceSongViewModel.replace.
+                        // `current` carries the membership snapshot validated atomically at commit.
                         onConfirm = { viewModel.replace(current) },
                     )
                 }

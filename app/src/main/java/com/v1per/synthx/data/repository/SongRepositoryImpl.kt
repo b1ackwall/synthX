@@ -121,6 +121,8 @@ class SongRepositoryImpl(
         DestructiveFilePreflight.create(context)::checkDestructive,
     private val replacementFileCheck: suspend (String, String) -> ReplacementFilePreflightResult =
         DestructiveFilePreflight.create(context)::checkReplacement,
+    // Deterministic transaction-boundary seam for the Room concurrency regression test.
+    private val previewAnalysisCheckpoint: suspend () -> Unit = {},
 ) : SongRepository, AdmittedQueuePersistenceRepository {
 
     private suspend fun <T> dbOperation(block: suspend () -> T): T =
@@ -355,18 +357,35 @@ class SongRepositoryImpl(
     override suspend fun previewReplaceSong(
         oldSongId: String,
         newSongId: String,
-    ): ReplaceSongPreview? = dbOperation { withContext(Dispatchers.IO) {
+    ): ReplaceSongPreviewResult = dbOperation { withContext(Dispatchers.IO) {
+        database.withTransaction {
+            analyzeReplaceSongInTransaction(oldSongId, newSongId)
+        }
+    } }
+
+    /** Caller must be inside [SynthXDatabase.withTransaction]. */
+    private suspend fun analyzeReplaceSongInTransaction(
+        oldSongId: String,
+        newSongId: String,
+    ): ReplaceSongPreviewResult {
         // One read of both songs, hydrated the same way every other song list is, so the review
         // step renders them with the ordinary SongRow/SongIdentity treatment.
         val details = songDao.getSongsWithDetailsByIds(listOf(oldSongId, newSongId))
         val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
             .groupBy { it.songId }
         val songsById = details.associate { it.song.id to it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
-        val oldSong = songsById[oldSongId] ?: return@withContext null
-        val newSong = songsById[newSongId] ?: return@withContext null
+        val oldSong = songsById[oldSongId] ?: return ReplaceSongPreviewResult.OldSongMissing
+        val newSong = songsById[newSongId] ?: return ReplaceSongPreviewResult.NewSongMissing
 
-        val oldPlaylistIds = playlistDao.getPlaylistIdsForSong(oldSongId).toSet()
-        val newPlaylistIds = playlistDao.getPlaylistIdsForSong(newSongId).toSet()
+        val oldMemberships = playlistDao.getPlaylistMembershipsForSong(oldSongId)
+            .map { it.toReplaceFingerprint() }
+            .sortedWith(replaceMembershipOrder)
+        previewAnalysisCheckpoint()
+        val newMemberships = playlistDao.getPlaylistMembershipsForSong(newSongId)
+            .map { it.toReplaceFingerprint() }
+            .sortedWith(replaceMembershipOrder)
+        val oldPlaylistIds = oldMemberships.mapTo(linkedSetOf()) { it.playlistId }
+        val newPlaylistIds = newMemberships.mapTo(linkedSetOf()) { it.playlistId }
         val namesById = playlistDao.getPlaylistsByIds((oldPlaylistIds + newPlaylistIds).toList())
             .associate { it.id to it.name }
         // A membership whose playlist row can't be named is skipped rather than shown as blank —
@@ -374,14 +393,29 @@ class SongRepositoryImpl(
         // present an unnamed line item as something the user is about to act on.
         fun names(ids: Set<String>) = ids.mapNotNull(namesById::get).sorted()
 
-        ReplaceSongPreview(
-            oldSong = oldSong,
-            newSong = newSong,
-            transferringPlaylists = names(oldPlaylistIds - newPlaylistIds),
-            conflictingPlaylists = names(oldPlaylistIds intersect newPlaylistIds),
-            newSongOnlyPlaylists = names(newPlaylistIds - oldPlaylistIds),
+        return ReplaceSongPreviewResult.Ready(
+            preview = ReplaceSongPreview(
+                oldSong = oldSong,
+                newSong = newSong,
+                transferringPlaylists = names(oldPlaylistIds - newPlaylistIds),
+                conflictingPlaylists = names(oldPlaylistIds intersect newPlaylistIds),
+                newSongOnlyPlaylists = names(newPlaylistIds - oldPlaylistIds),
+            ),
+            membershipSnapshot = ReplaceSongMembershipSnapshot(oldMemberships, newMemberships),
         )
-    } }
+    }
+
+    private fun PlaylistMembership.toReplaceFingerprint() = ReplaceSongMembershipFingerprint(
+        playlistId = playlistId,
+        position = position,
+        addedAt = addedAt,
+    )
+
+    private val replaceMembershipOrder = compareBy<ReplaceSongMembershipFingerprint>(
+        { it.playlistId },
+        { it.position },
+        { it.addedAt },
+    )
 
     /**
      * See [SongRepository.replaceSong]. Structure mirrors [deleteSong] — it ends in one, after
@@ -396,6 +430,7 @@ class SongRepositoryImpl(
         oldSongId: String,
         newSongId: String,
         conflictResolution: PlaylistConflictResolution,
+        expectedMemberships: ReplaceSongMembershipSnapshot,
     ): ReplaceSongResult = withContext(Dispatchers.IO) {
         // Cheapest guardrail first, and the one the UI already prevents by excluding the old song
         // from the new-song picker — checked here anyway so the contract holds for any caller.
@@ -439,18 +474,18 @@ class SongRepositoryImpl(
             }
 
             val transplant = database.withTransaction {
-                transplantIdentity(oldSongId, newSongId, conflictResolution)
+                transplantIdentity(oldSongId, newSongId, conflictResolution, expectedMemberships)
             }
             when (transplant) {
                 is Transplant.OldMissing -> ReplaceSongResult.OldSongMissing
                 is Transplant.NewMissing -> ReplaceSongResult.NewSongMissing
+                is Transplant.StalePreview -> ReplaceSongResult.PreviewStale
                 is Transplant.Done -> {
                     val deletionOutcome = finishSongDeletion(oldSongId, transplant.oldFilePath)
                     val exportSucceeded = runPostCommitStep("schedule playlist export") {
                         playlistExportManager.scheduleExport()
                     }
                     ReplaceSongResult.Success(
-                        playlistsAffected = transplant.playlistsAffected,
                         oldAudioCleanup = includePlaylistExportOutcome(
                             deletionOutcome,
                             exportSucceeded,
@@ -463,9 +498,10 @@ class SongRepositoryImpl(
 
     /** [transplantIdentity]'s result, carrying what the out-of-transaction half still needs. */
     private sealed interface Transplant {
-        data class Done(val oldFilePath: String, val playlistsAffected: Int) : Transplant
+        data class Done(val oldFilePath: String) : Transplant
         data object OldMissing : Transplant
         data object NewMissing : Transplant
+        data object StalePreview : Transplant
     }
 
     /**
@@ -476,12 +512,18 @@ class SongRepositoryImpl(
         oldSongId: String,
         newSongId: String,
         conflictResolution: PlaylistConflictResolution,
+        expectedMemberships: ReplaceSongMembershipSnapshot,
     ): Transplant {
-        val oldSong = songDao.getSongById(oldSongId) ?: return Transplant.OldMissing
-        songDao.getSongById(newSongId) ?: return Transplant.NewMissing
+        val current = when (val analysis = analyzeReplaceSongInTransaction(oldSongId, newSongId)) {
+            ReplaceSongPreviewResult.OldSongMissing -> return Transplant.OldMissing
+            ReplaceSongPreviewResult.NewSongMissing -> return Transplant.NewMissing
+            is ReplaceSongPreviewResult.Ready -> analysis
+        }
+        if (current.membershipSnapshot != expectedMemberships) return Transplant.StalePreview
 
-        val oldMemberships = playlistDao.getPlaylistMembershipsForSong(oldSongId)
-        val newMembershipPlaylistIds = playlistDao.getPlaylistMembershipsForSong(newSongId)
+        val oldSong = current.preview.oldSong
+        val oldMemberships = current.membershipSnapshot.oldSongMemberships
+        val newMembershipPlaylistIds = current.membershipSnapshot.newSongMemberships
             .mapTo(HashSet()) { it.playlistId }
 
         for (membership in oldMemberships) {
@@ -527,7 +569,6 @@ class SongRepositoryImpl(
         deleteSongRowWithArtRepoint(songDao, albumDao, oldSongId)
         return Transplant.Done(
             oldFilePath = oldSong.filePath,
-            playlistsAffected = oldMemberships.size,
         )
     }
 

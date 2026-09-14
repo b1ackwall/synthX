@@ -288,9 +288,9 @@ internal fun ReplaceSongBusyCover(@StringRes messageRes: Int) {
     }
 }
 
-/** Preview computation failed — retry without losing either locked-in selection. */
+/** Preview computation failed; [onRetry] is absent when repeating cannot repair the cause. */
 @Composable
-internal fun ReplaceSongPreviewFailure(message: String, onRetry: () -> Unit) {
+internal fun ReplaceSongPreviewFailure(message: String, onRetry: (() -> Unit)?) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
@@ -302,11 +302,13 @@ internal fun ReplaceSongPreviewFailure(message: String, onRetry: () -> Unit) {
                 color = Error,
                 modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
             )
-            TextButton(
-                onClick = onRetry,
-                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-            ) {
-                Text(stringResource(R.string.action_retry))
+            if (onRetry != null) {
+                TextButton(
+                    onClick = onRetry,
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                ) {
+                    Text(stringResource(R.string.action_retry))
+                }
             }
         }
     }

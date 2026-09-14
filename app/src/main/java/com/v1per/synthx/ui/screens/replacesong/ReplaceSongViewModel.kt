@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistConflictResolution
 import com.v1per.synthx.data.repository.ReplaceSongPreview
+import com.v1per.synthx.data.repository.ReplaceSongMembershipSnapshot
+import com.v1per.synthx.data.repository.ReplaceSongPreviewResult
 import com.v1per.synthx.data.repository.ReplaceSongResult
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongDeletionOutcome
@@ -50,8 +52,11 @@ enum class ReplaceSongStep { PickOld, PickNew, ReviewAndConfirm }
 sealed class ReplaceSongPreviewState {
     data object Idle : ReplaceSongPreviewState()
     data class Loading(val oldSong: Song, val newSong: Song) : ReplaceSongPreviewState()
-    data class Ready(val preview: ReplaceSongPreview) : ReplaceSongPreviewState()
-    data class Failed(val message: String) : ReplaceSongPreviewState()
+    data class Ready(
+        val preview: ReplaceSongPreview,
+        val membershipSnapshot: ReplaceSongMembershipSnapshot,
+    ) : ReplaceSongPreviewState()
+    data class Failed(val message: String, val retryable: Boolean) : ReplaceSongPreviewState()
 }
 
 /** Terminal state of the replace itself, once confirmed. */
@@ -197,19 +202,32 @@ class ReplaceSongViewModel(
 
     private fun beginPreview(old: Song, new: Song) {
         previewJob?.cancel()
+        // A conflict choice belongs to exactly one reviewed pair. Never carry it into a refresh or
+        // a different replacement whose conflicts may be unrelated (or whose picker may be hidden).
+        _conflictResolution.value = PlaylistConflictResolution.KeepOld
         _preview.value = ReplaceSongPreviewState.Loading(old, new)
         previewJob = viewModelScope.launch {
             _preview.value = try {
-                repository.previewReplaceSong(old.id, new.id)
-                    ?.let { ReplaceSongPreviewState.Ready(it) }
-                    ?: ReplaceSongPreviewState.Failed(
-                        stringResource(R.string.replace_song_failed_generic),
+                when (val result = repository.previewReplaceSong(old.id, new.id)) {
+                    is ReplaceSongPreviewResult.Ready -> ReplaceSongPreviewState.Ready(
+                        result.preview,
+                        result.membershipSnapshot,
                     )
+                    ReplaceSongPreviewResult.OldSongMissing -> ReplaceSongPreviewState.Failed(
+                        stringResource(R.string.replace_song_failed_old_missing),
+                        retryable = false,
+                    )
+                    ReplaceSongPreviewResult.NewSongMissing -> ReplaceSongPreviewState.Failed(
+                        stringResource(R.string.replace_song_failed_new_missing),
+                        retryable = false,
+                    )
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 ReplaceSongPreviewState.Failed(
                     stringResource(R.string.replace_song_failed_generic),
+                    retryable = true,
                 )
             }
         }
@@ -223,9 +241,8 @@ class ReplaceSongViewModel(
     }
 
     /**
-     * Confirms the replacement described by [ready]'s own preview — the preview state is the
-     * argument rather than something re-read from [oldSong]/[newSong] here, so what is committed
-     * is exactly what the user was shown.
+     * Confirms the replacement described by [ready]'s own preview and pins its membership
+     * snapshot through the repository's transaction-time validation.
      *
      * Navigation is deliberately not done here: the screen reacts to [outcome] instead, so this
      * holds no callback into the composition it would outlive.
@@ -240,6 +257,7 @@ class ReplaceSongViewModel(
                         oldSongId = ready.preview.oldSong.id,
                         newSongId = ready.preview.newSong.id,
                         conflictResolution = _conflictResolution.value,
+                        expectedMemberships = ready.membershipSnapshot,
                     )
                 ) {
                     is ReplaceSongResult.Success -> ReplaceSongOutcome.Complete(
@@ -259,6 +277,12 @@ class ReplaceSongViewModel(
                     ReplaceSongResult.NewSongMissing -> ReplaceSongOutcome.Failed(
                         stringResource(R.string.replace_song_failed_new_missing),
                     )
+                    ReplaceSongResult.PreviewStale -> {
+                        beginPreview(ready.preview.oldSong, ready.preview.newSong)
+                        ReplaceSongOutcome.Failed(
+                            stringResource(R.string.replace_song_preview_stale),
+                        )
+                    }
                     is ReplaceSongResult.OldSongBlocked -> ReplaceSongOutcome.Failed(
                         appContext.destructiveFileBlockMessage(result.reason),
                     )

@@ -21,6 +21,10 @@ import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -114,13 +118,15 @@ class ReplaceSongInstrumentedTest {
             .firstOrNull { it.playlistId == playlistId }
 
     private suspend fun replace(resolution: PlaylistConflictResolution) =
-        withTimeout(10_000) { repository.replaceSong("old", "new", resolution) }
+        withTimeout(10_000) {
+            val preview = repository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
+            repository.replaceSong("old", "new", resolution, preview.membershipSnapshot)
+        }
 
     @Test fun keepOldMovesTheReplacementIntoTheOldSongsSlot() = runBlocking {
         val result = replace(PlaylistConflictResolution.KeepOld)
         assertEquals(
             ReplaceSongResult.Success(
-                playlistsAffected = 2,
                 oldAudioCleanup = SongDeletionOutcome.CleanupUncertain,
             ),
             result,
@@ -198,7 +204,15 @@ class ReplaceSongInstrumentedTest {
     }
 
     @Test fun rejectsReplacingASongWithItself() = runBlocking {
-        assertEquals(ReplaceSongResult.SameSong, repository.replaceSong("old", "old", PlaylistConflictResolution.KeepOld))
+        assertEquals(
+            ReplaceSongResult.SameSong,
+            repository.replaceSong(
+                "old",
+                "old",
+                PlaylistConflictResolution.KeepOld,
+                ReplaceSongMembershipSnapshot(emptyList(), emptyList()),
+            ),
+        )
         assertNotNull(database.songDao().getSongById("old"))
         // Rejected before the backup, so nothing at all was attempted.
         assertNull(BackupOutcomeStore.lastBackupOutcome.value)
@@ -221,7 +235,10 @@ class ReplaceSongInstrumentedTest {
             newResult = ReplacementFilePreflightResult.SourceGone,
         )
 
-        val result = guardedRepository.replaceSong("old", "new", PlaylistConflictResolution.KeepOld)
+        val preview = guardedRepository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
+        val result = guardedRepository.replaceSong(
+            "old", "new", PlaylistConflictResolution.KeepOld, preview.membershipSnapshot,
+        )
 
         assertEquals(
             ReplaceSongResult.NewSongUnusable(ReplacementFilePreflightResult.SourceGone),
@@ -242,7 +259,10 @@ class ReplaceSongInstrumentedTest {
             newResult = ReplacementFilePreflightResult.IdentityMismatch,
         )
 
-        val result = guardedRepository.replaceSong("old", "new", PlaylistConflictResolution.KeepOld)
+        val preview = guardedRepository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
+        val result = guardedRepository.replaceSong(
+            "old", "new", PlaylistConflictResolution.KeepOld, preview.membershipSnapshot,
+        )
 
         assertEquals(
             ReplaceSongResult.NewSongUnusable(ReplacementFilePreflightResult.IdentityMismatch),
@@ -259,7 +279,10 @@ class ReplaceSongInstrumentedTest {
             newResult = ReplacementFilePreflightResult.Ambiguous,
         )
 
-        val result = nonBlockingRepository.replaceSong("old", "new", PlaylistConflictResolution.KeepOld)
+        val preview = nonBlockingRepository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
+        val result = nonBlockingRepository.replaceSong(
+            "old", "new", PlaylistConflictResolution.KeepOld, preview.membershipSnapshot,
+        )
 
         assertTrue(result is ReplaceSongResult.Success)
         assertNull(database.songDao().getSongById("old"))
@@ -268,12 +291,83 @@ class ReplaceSongInstrumentedTest {
     }
 
     private suspend fun replaceIds(oldId: String, newId: String) = withTimeout(10_000) {
-        repository.replaceSong(oldId, newId, PlaylistConflictResolution.KeepOld)
+        repository.replaceSong(
+            oldId,
+            newId,
+            PlaylistConflictResolution.KeepOld,
+            ReplaceSongMembershipSnapshot(emptyList(), emptyList()),
+        )
+    }
+
+    @Test fun newConflictAfterPreviewAbortsWithoutApplyingTheHiddenDefault() = runBlocking {
+        val preview = repository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
+        database.playlistDao().insertPlaylistSong(
+            PlaylistSongEntity("only-old", "new", 12, newAddedAt),
+        )
+
+        val result = repository.replaceSong(
+            "old", "new", PlaylistConflictResolution.KeepOld, preview.membershipSnapshot,
+        )
+
+        assertEquals(ReplaceSongResult.PreviewStale, result)
+        assertNotNull(database.songDao().getSongById("old"))
+        assertEquals(5, membership("only-old", "old")?.position)
+        assertEquals(12, membership("only-old", "new")?.position)
+    }
+
+    @Test fun removedMembershipAfterPreviewAbortsWithoutAnyWrites() = runBlocking {
+        val preview = repository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
+        database.playlistDao().removePlaylistSong("only-old", "old")
+
+        val result = repository.replaceSong(
+            "old", "new", PlaylistConflictResolution.KeepOld, preview.membershipSnapshot,
+        )
+
+        assertEquals(ReplaceSongResult.PreviewStale, result)
+        assertNotNull(database.songDao().getSongById("old"))
+        assertNull(membership("only-old", "new"))
+        assertEquals(1, membership("both", "old")?.position)
+        assertEquals(9, membership("both", "new")?.position)
+    }
+
+    @Test fun previewMembershipReadsComeFromOneTransactionSnapshot() = runBlocking {
+        val reachedBetweenMembershipReads = CompletableDeferred<Unit>()
+        val writerStarted = CompletableDeferred<Unit>()
+        val transactionalRepository = repositoryWithPreflights(
+            oldResult = DestructiveFilePreflightResult.Ambiguous,
+            newResult = ReplacementFilePreflightResult.Ambiguous,
+            previewAnalysisCheckpoint = {
+                reachedBetweenMembershipReads.complete(Unit)
+                writerStarted.await()
+                // Without the enclosing transaction this gives the writer ample time to commit
+                // between the old- and new-song reads. With it, the writer waits for this preview.
+                delay(150)
+            },
+        )
+
+        val previewDeferred = async(Dispatchers.IO) {
+            transactionalRepository.previewReplaceSong("old", "new")
+        }
+        reachedBetweenMembershipReads.await()
+        val writer = async(Dispatchers.IO) {
+            writerStarted.complete(Unit)
+            database.playlistDao().insertPlaylistSong(
+                PlaylistSongEntity("only-old", "new", 12, newAddedAt),
+            )
+        }
+
+        val preview = previewDeferred.await() as ReplaceSongPreviewResult.Ready
+        writer.await()
+
+        assertEquals(listOf("Playlist only-old"), preview.preview.transferringPlaylists)
+        assertFalse(preview.preview.conflictingPlaylists.contains("Playlist only-old"))
+        assertEquals(12, membership("only-old", "new")?.position)
     }
 
     private fun repositoryWithPreflights(
         oldResult: DestructiveFilePreflightResult,
         newResult: ReplacementFilePreflightResult,
+        previewAnalysisCheckpoint: suspend () -> Unit = {},
     ): SongRepositoryImpl = SongRepositoryImpl(
         context, database, database.songDao(), database.artistDao(), database.albumDao(),
         database.playlistDao(), database.queueDao(),
@@ -284,6 +378,7 @@ class ReplaceSongInstrumentedTest {
         BackupManager(context), exports,
         destructiveFileCheck = { _, _ -> oldResult },
         replacementFileCheck = { _, _ -> newResult },
+        previewAnalysisCheckpoint = previewAnalysisCheckpoint,
     )
 
     /**

@@ -57,9 +57,33 @@ data class ReplaceSongPreview(
     val newSongOnlyPlaylists: List<String>,
 ) {
     val hasConflicts: Boolean get() = conflictingPlaylists.isNotEmpty()
+}
 
-    /** Every playlist the new song ends up in as a result of this operation. */
-    val playlistsAffected: Int get() = transferringPlaylists.size + conflictingPlaylists.size
+/**
+ * The database state a replacement review was computed from. Both sides are retained because a
+ * change to either can create/remove a conflict. Position and added-at are part of the fingerprint:
+ * they are the membership data [SongRepository.replaceSong] preserves when the old slot wins.
+ */
+data class ReplaceSongMembershipSnapshot(
+    val oldSongMemberships: List<ReplaceSongMembershipFingerprint>,
+    val newSongMemberships: List<ReplaceSongMembershipFingerprint>,
+)
+
+data class ReplaceSongMembershipFingerprint(
+    val playlistId: String,
+    val position: Int,
+    val addedAt: Long,
+)
+
+/** Typed preview result so a vanished selection is not collapsed into a retryable null. */
+sealed interface ReplaceSongPreviewResult {
+    data class Ready(
+        val preview: ReplaceSongPreview,
+        val membershipSnapshot: ReplaceSongMembershipSnapshot,
+    ) : ReplaceSongPreviewResult
+
+    data object OldSongMissing : ReplaceSongPreviewResult
+    data object NewSongMissing : ReplaceSongPreviewResult
 }
 
 /** Terminal outcome of [SongRepository.replaceSong]. */
@@ -69,9 +93,11 @@ sealed class ReplaceSongResult {
      * so callers can distinguish confirmed file retention from an uncertain cleanup state.
      */
     data class Success(
-        val playlistsAffected: Int,
         val oldAudioCleanup: SongDeletionOutcome,
     ) : ReplaceSongResult()
+
+    /** Membership state changed after review. No database writes were made. */
+    data object PreviewStale : ReplaceSongResult()
 
     /** Guardrail: a song cannot replace itself. Rejected before anything is written. */
     data object SameSong : ReplaceSongResult()

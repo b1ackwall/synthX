@@ -213,6 +213,7 @@
     <string name="replace_song_failed_generic">Couldn\'t complete the replacement. Nothing was changed.</string>
     <string name="replace_song_failed_old_missing">The song being replaced is no longer in your library. Nothing was changed.</string>
     <string name="replace_song_failed_new_missing">The replacement song is no longer in your library. Nothing was changed.</string>
+    <string name="replace_song_preview_stale">Playlist memberships changed while you were reviewing. Nothing was changed. Review the refreshed details before replacing.</string>
     <string name="replace_song_failed_same_song">A song can\'t replace itself.</string>
     <string name="replace_song_done_file_remained">The replacement is done, but the old song\'s audio file couldn\'t be deleted from your device. Its library entry is gone either way.</string>
     <string name="replace_song_done_cleanup_uncertain">The replacement is done, but we couldn\'t confirm whether the old song\'s audio file was deleted. Its library entry is gone either way.</string>
