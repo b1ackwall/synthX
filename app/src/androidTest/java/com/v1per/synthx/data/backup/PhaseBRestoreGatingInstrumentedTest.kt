@@ -88,6 +88,7 @@ class PhaseBRestoreGatingInstrumentedTest : PhaseBRestoreTestBase() {
         var executions = 0
         val export = PlaylistExportManager(
             context,
+            database,
             database.playlistDao(),
             database.songDao(),
             database.artistDao(),

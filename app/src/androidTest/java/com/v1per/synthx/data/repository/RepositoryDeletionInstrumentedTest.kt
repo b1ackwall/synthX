@@ -62,7 +62,7 @@ class RepositoryDeletionInstrumentedTest {
         context = DeletionTestContext(ApplicationProvider.getApplicationContext())
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
         exports = PlaylistExportManager(
-            context, database.playlistDao(), database.songDao(), database.artistDao(), database.albumDao(),
+            context, database, database.playlistDao(), database.songDao(), database.artistDao(), database.albumDao(),
         )
         repository = SongRepositoryImpl(
             context, database, database.songDao(), database.artistDao(), database.albumDao(),
@@ -119,6 +119,31 @@ class RepositoryDeletionInstrumentedTest {
         assertBackupAttempt(BackupReason.DELETE_SONG)
         assertEquals(1, PreferencesManager(context).destructiveActionsSinceBackup)
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+    }
+
+    @Test fun successfulSongDeletionSchedulesPlaylistExport() = runBlocking {
+        var exportRequests = 0
+        val schedulingRepository = repositoryWithPreflight(
+            result = DestructiveFilePreflightResult.Ambiguous,
+            schedulePlaylistExport = { exportRequests++ },
+        )
+
+        schedulingRepository.deleteSong("song")
+
+        assertEquals(1, exportRequests)
+    }
+
+    @Test fun playlistExportSchedulingFailureMakesSuccessfulDeleteUncertain() = runBlocking {
+        val schedulingRepository = repositoryWithPreflight(
+            result = DestructiveFilePreflightResult.Ambiguous,
+            schedulePlaylistExport = { error("export scheduler unavailable") },
+        )
+
+        // A missing row is an idempotently successful delete with no audio cleanup uncertainty,
+        // which isolates the scheduling failure's effect on the returned outcome.
+        val outcome = schedulingRepository.deleteSong("already-missing")
+
+        assertEquals(SongDeletionOutcome.CleanupUncertain, outcome)
     }
 
     @Test fun readOnlyOwningRootBlocksSongDeletionWithoutChangingTheRow() = runBlocking {
@@ -286,6 +311,7 @@ class RepositoryDeletionInstrumentedTest {
 
     private fun repositoryWithPreflight(
         result: DestructiveFilePreflightResult,
+        schedulePlaylistExport: () -> Unit = exports::scheduleExport,
     ): SongRepositoryImpl = SongRepositoryImpl(
         context, database, database.songDao(), database.artistDao(), database.albumDao(),
         database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
@@ -296,6 +322,7 @@ class RepositoryDeletionInstrumentedTest {
         BackupManager(context), exports,
         destructiveFileCheck = { _, _ -> result },
         replacementFileCheck = { _, _ -> ReplacementFilePreflightResult.Ambiguous },
+        schedulePlaylistExport = schedulePlaylistExport,
     )
 
     /** Keeps all preference/art writes separate from the installed app's library. */

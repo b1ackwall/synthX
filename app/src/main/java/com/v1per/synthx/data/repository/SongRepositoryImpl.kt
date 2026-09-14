@@ -128,6 +128,7 @@ class SongRepositoryImpl(
         DestructiveFilePreflight.create(context)::checkDestructive,
     private val replacementFileCheck: suspend (String, String) -> ReplacementFilePreflightResult =
         DestructiveFilePreflight.create(context)::checkReplacement,
+    private val schedulePlaylistExport: () -> Unit = playlistExportManager::scheduleExport,
     // Deterministic transaction-boundary seam for the Room concurrency regression test.
     private val previewAnalysisCheckpoint: suspend () -> Unit = {},
 ) : SongRepository, AdmittedQueuePersistenceRepository {
@@ -327,7 +328,14 @@ class SongRepositoryImpl(
                     )
                     existing?.filePath
                 }
-                runPostCommitCleanup(operationId, id, filePath)
+                val deletionOutcome = runPostCommitCleanup(operationId, id, filePath)
+                // Known accepted limitation: if restore closes admission before the nested
+                // pending-cleanup clear in runPostCommitCleanup, that clear throws and this
+                // enqueue is not reached; the durable record remains for startup reconciliation.
+                val exportSucceeded = runPostCommitStep("schedule playlist export") {
+                    schedulePlaylistExport()
+                }
+                includePlaylistExportOutcome(deletionOutcome, exportSucceeded)
             }
         }
     }
@@ -547,7 +555,7 @@ class SongRepositoryImpl(
                         transplant.oldFilePath,
                     )
                     val exportSucceeded = runPostCommitStep("schedule playlist export") {
-                        playlistExportManager.scheduleExport()
+                        schedulePlaylistExport()
                     }
                     ReplaceSongResult.Success(
                         oldAudioCleanup = includePlaylistExportOutcome(

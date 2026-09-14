@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import androidx.room.withTransaction
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.ArtistDao
 import com.v1per.synthx.data.db.PlaylistDao
@@ -36,10 +37,13 @@ import kotlinx.serialization.json.Json
  */
 class PlaylistExportManager(
     private val context: Context,
+    private val database: SynthXDatabase,
     private val playlistDao: PlaylistDao,
     private val songDao: SongDao,
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
+    // Deterministic boundary seam for the Room snapshot regression test.
+    private val materializationCheckpoint: suspend () -> Unit = {},
 ) {
 
     private val preferences = PreferencesManager(context)
@@ -92,7 +96,7 @@ class PlaylistExportManager(
 
         // The database materialization is a finite tracked operation; SAF writing afterwards
         // no longer keeps Room alive during restore preparation.
-        val export = PlaylistExportMaterialization.run { assembleExport() }
+        val export = materializeExport()
         val bytes = json.encodeToString(PlaylistExport.serializer(), export).toByteArray()
 
         val root = DocumentFile.fromTreeUri(context, treeUri)
@@ -141,6 +145,7 @@ class PlaylistExportManager(
      */
     private suspend fun assembleExport(): PlaylistExport {
         val ungroupedEntities = playlistDao.getUngroupedPlaylists().first()
+        materializationCheckpoint()
         val groupEntities = playlistDao.getAllGroups().first()
         val playlistsByGroup = groupEntities.associateWith { group ->
             playlistDao.getPlaylistsForGroup(group.id).first()
@@ -205,6 +210,13 @@ class PlaylistExportManager(
         )
     }
 
+    private suspend fun materializeExport(): PlaylistExport = PlaylistExportMaterialization.run {
+        database.withTransaction { assembleExport() }
+    }
+
+    /** Exercises the exact production materialization boundary without requiring a SAF tree. */
+    internal suspend fun materializeExportForTest(): PlaylistExport = materializeExport()
+
     companion object {
         private const val TAG = "PlaylistExport"
 
@@ -233,6 +245,7 @@ class PlaylistExportManager(
                     val db = SynthXDatabase.getInstance(appContext)
                     PlaylistExportManager(
                         context = appContext,
+                        database = db,
                         playlistDao = db.playlistDao(),
                         songDao = db.songDao(),
                         artistDao = db.artistDao(),

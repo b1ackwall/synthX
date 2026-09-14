@@ -65,7 +65,7 @@ class ReplaceSongInstrumentedTest {
         context = ReplaceTestContext(ApplicationProvider.getApplicationContext())
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
         exports = PlaylistExportManager(
-            context, database.playlistDao(), database.songDao(), database.artistDao(), database.albumDao(),
+            context, database, database.playlistDao(), database.songDao(), database.artistDao(), database.albumDao(),
         )
         repository = SongRepositoryImpl(
             context, database, database.songDao(), database.artistDao(), database.albumDao(),

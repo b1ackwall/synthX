@@ -115,6 +115,7 @@ class ScannerDegradationInstrumentedTest {
     ): FolderScanner {
         val exports = PlaylistExportManager(
             context,
+            database,
             database.playlistDao(),
             database.songDao(),
             database.artistDao(),
