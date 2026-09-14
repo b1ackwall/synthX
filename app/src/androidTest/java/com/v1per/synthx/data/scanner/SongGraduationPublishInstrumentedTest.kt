@@ -4,11 +4,13 @@ import android.content.Context
 import androidx.documentfile.provider.CollidingRenameDocumentFile
 import androidx.documentfile.provider.DocumentFile
 import androidx.documentfile.provider.FixedTypeDocumentFile
+import androidx.documentfile.provider.RefusingDeleteDocumentFile
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -145,6 +147,71 @@ class SongGraduationPublishInstrumentedTest {
         // The pre-existing occupant is untouched — no wrong document got published over it.
         assertArrayEquals(occupant, File(destDir, "Track.dat").readBytes())
         assertArrayEquals(bytes, File(sourceDir, "Track.dat").readBytes())
+    }
+
+    @Test
+    fun tempCleanupRefusalIsCarriedInTheFailureReason() {
+        val (sourceDir, destDir) = twoRoots()
+        val bytes = ByteArray(65536 * 3) { (it % 251).toByte() }
+        val source = writeSourceFile(sourceDir, "Refusal.dat", bytes)
+        val destinationRoot = DocumentFile.fromFile(destDir)
+        val songId = checkNotNull(HashUtils.computeSongId(source, context))
+        val copied = copyToGraduationTemp(context, source, destinationRoot, "Refusal.dat")
+            as GraduationCopyOutcome.Copied
+        corruptByteAt(copied.temp, bytes.size / 2)
+
+        val result = verifyAndPublishGraduationTemp(
+            context,
+            destinationRoot,
+            RefusingDeleteDocumentFile(copied.temp),
+            copied.finalName,
+            songId,
+            copied.sourceDigest,
+        )
+
+        val failed = result as GraduationPublishResult.Failed
+        assertTrue(failed.reason.contains("temporary destination file may remain"))
+        assertTrue(File(destDir, copied.temp.name!!).exists())
+    }
+
+    @Test
+    fun publishedCleanupRefusalWarnsThatAScannableCopyMayRemain() {
+        val destDir = newRoot("published-cleanup-refusal")
+        val file = File(destDir, "Published.mp3").also { it.writeBytes(byteArrayOf(1, 2, 3)) }
+        val published = RefusingDeleteDocumentFile(DocumentFile.fromFile(file))
+
+        val reason = reasonAfterPublishedCleanup(
+            "Copy verified, but the original file could not be removed.",
+            published,
+        )
+
+        assertTrue(reason.contains("copied file may remain in your Music folder"))
+        assertTrue(reason.contains("later library scan"))
+        assertTrue(file.exists())
+    }
+
+    @Test
+    fun cancellationDuringCopyCleansThePartialTempBeforePropagating() {
+        val (sourceDir, destDir) = twoRoots()
+        val source = writeSourceFile(sourceDir, "Cancelled.dat", byteArrayOf(1, 2, 3))
+
+        var cancellationPropagated = false
+        try {
+            copyToGraduationTemp(
+                context,
+                source,
+                DocumentFile.fromFile(destDir),
+                "Cancelled.dat",
+            ) { _, destinationUri ->
+                File(requireNotNull(destinationUri.path)).writeBytes(byteArrayOf(1))
+                throw CancellationException("test cancellation")
+            }
+        } catch (_: CancellationException) {
+            cancellationPropagated = true
+        }
+
+        assertTrue(cancellationPropagated)
+        assertTrue(destDir.list().orEmpty().isEmpty())
     }
 
     private fun twoRoots(): Pair<File, File> {

@@ -109,6 +109,8 @@ class DestructiveFilePreflightTest {
 
         override fun canWrite(documentUri: String): Boolean? = canWrite
 
+        override fun supportsDelete(documentUri: String): Boolean? = true
+
         override fun computeSongId(documentUri: String): String? = songId
     }
 }

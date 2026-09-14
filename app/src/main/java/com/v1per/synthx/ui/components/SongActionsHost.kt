@@ -3,6 +3,7 @@ package com.v1per.synthx.ui.components
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHostState
@@ -58,10 +59,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** How long the graduation progress dialog stays up after reaching a terminal stage before
- *  auto-dismissing, unless the user closes it manually first — see
+/** How long the graduation progress dialog stays up after success before auto-dismissing,
+ *  unless the user closes it manually first — see
  *  [SongActionsViewModel.scheduleGraduationAutoDismiss]. */
 private const val GraduationDialogAutoDismissMs = 3_000L
+
+internal const val GRADUATION_MUSIC_FOLDER_REQUIRED_REASON =
+    "Choose a Music folder in Settings > Library Management before moving this song."
 
 private const val TAG = "SongActionsHost"
 
@@ -383,6 +387,7 @@ private val SongActionsTargetKeySaver: Saver<SongActionsTargetKey?, List<String?
 class SongActionsViewModel(
     private val repository: SongRepository,
     private val preferences: PreferencesManager,
+    private val graduationDismissDelay: suspend () -> Unit = { delay(GraduationDialogAutoDismissMs) },
 ) : ViewModel() {
 
     val playlists: StateFlow<ImmutableList<Playlist>> = repository.getAllPlaylists()
@@ -561,16 +566,19 @@ class SongActionsViewModel(
         // FileOperationCoordinator's song lock would serialize them anyway; this keeps the second
         // from ever starting.
         if (_graduationInProgress.value) return
-        val rootUri = preferences.musicFolderUri?.let { uri -> runCatching { Uri.parse(uri) }.getOrNull() }
+        val rootUri = preferences.musicFolderUri?.let { uri -> runCatching { uri.toUri() }.getOrNull() }
         if (rootUri == null) {
-            _events.tryEmit(SongActionEvent.ActionFailed)
+            graduationAutoDismissJob?.cancel()
+            _graduationStage.value = GraduationStage.Failed(GRADUATION_MUSIC_FOLDER_REQUIRED_REASON)
             return
         }
+        val newArrivalsRootUri = preferences.newArrivalsFolderUri
+            ?.let { uri -> runCatching { uri.toUri() }.getOrNull() }
         _graduationInProgress.value = true
         graduationAutoDismissJob?.cancel()
         viewModelScope.launch {
             try {
-                repository.graduateSong(songId, rootUri)
+                repository.graduateSong(songId, rootUri, newArrivalsRootUri)
                     .catch { e ->
                         Log.e(TAG, "Graduation flow threw", e)
                         emit(GraduationStage.Failed("Something went wrong. Try again."))
@@ -582,7 +590,9 @@ class SongActionsViewModel(
                                 _events.tryEmit(SongActionEvent.RemovedFromStarred)
                                 scheduleGraduationAutoDismiss()
                             }
-                            is GraduationStage.Failed -> scheduleGraduationAutoDismiss()
+                            // Recovery instructions remain visible until the dialog's Close action
+                            // acknowledges them. Only ordinary success is transient.
+                            is GraduationStage.Failed -> graduationAutoDismissJob?.cancel()
                             else -> Unit
                         }
                     }
@@ -592,11 +602,11 @@ class SongActionsViewModel(
         }
     }
 
-    /** Auto-dismisses the dialog [GraduationDialogAutoDismissMs] after a terminal stage,
+    /** Auto-dismisses the dialog [GraduationDialogAutoDismissMs] after successful graduation,
      *  unless [dismissGraduationDialog] (or a newer graduation) cancels this job first. */
     private fun scheduleGraduationAutoDismiss() {
         graduationAutoDismissJob = viewModelScope.launch {
-            delay(GraduationDialogAutoDismissMs)
+            graduationDismissDelay()
             _graduationStage.value = null
         }
     }

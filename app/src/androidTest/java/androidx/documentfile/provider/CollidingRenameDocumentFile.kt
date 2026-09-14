@@ -64,6 +64,28 @@ internal class FixedTypeDocumentFile(private val delegate: DocumentFile, private
     override fun findFile(displayName: String): DocumentFile? = delegate.findFile(displayName)
 }
 
+/** Test-only wrapper for a provider that leaves a live document behind and returns false. */
+internal class RefusingDeleteDocumentFile(private val delegate: DocumentFile) : DocumentFile(null) {
+    override fun createFile(mimeType: String, displayName: String): DocumentFile? =
+        delegate.createFile(mimeType, displayName)
+    override fun createDirectory(displayName: String): DocumentFile? = delegate.createDirectory(displayName)
+    override fun getUri(): Uri = delegate.uri
+    override fun getName(): String? = delegate.name
+    override fun getType(): String? = delegate.type
+    override fun isDirectory(): Boolean = delegate.isDirectory
+    override fun isFile(): Boolean = delegate.isFile
+    override fun isVirtual(): Boolean = delegate.isVirtual
+    override fun lastModified(): Long = delegate.lastModified()
+    override fun length(): Long = delegate.length()
+    override fun canRead(): Boolean = delegate.canRead()
+    override fun canWrite(): Boolean = delegate.canWrite()
+    override fun delete(): Boolean = false
+    override fun exists(): Boolean = delegate.exists()
+    override fun listFiles(): Array<DocumentFile> = delegate.listFiles()
+    override fun renameTo(displayName: String): Boolean = delegate.renameTo(displayName)
+    override fun findFile(displayName: String): DocumentFile? = delegate.findFile(displayName)
+}
+
 /** Wraps a just-created temp document; refuses to rename specifically to [collidingName]. */
 private class RefusingRenameDocumentFile(private val delegate: DocumentFile, private val collidingName: String) :
     DocumentFile(null) {

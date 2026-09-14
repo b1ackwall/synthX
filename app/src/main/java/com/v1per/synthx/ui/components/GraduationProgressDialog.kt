@@ -24,9 +24,8 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
 /**
  * Staged progress for [SongActionsViewModel.removeFromStarred]'s file-move-then-DB-update
- * flow. Shown for every [stage], including the terminal one — [SongActionsHost] auto-dismisses
- * it [GraduationDialogAutoDismissMs] after reaching [GraduationStage.Done]/[GraduationStage.Failed]
- * (see [SongActionsViewModel.scheduleGraduationAutoDismiss]), or immediately on [onDismiss].
+ * flow. Shown for every [stage], including the terminal one. Success auto-dismisses shortly;
+ * failures remain until [onDismiss] so recovery instructions cannot disappear unread.
  */
 @Composable
 fun GraduationProgressDialog(

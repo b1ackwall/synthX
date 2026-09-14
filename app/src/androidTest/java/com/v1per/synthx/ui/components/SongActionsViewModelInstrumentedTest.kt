@@ -27,6 +27,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -128,6 +129,85 @@ class SongActionsViewModelInstrumentedTest {
         }
     }
 
+    @Test
+    fun failedGraduationRemainsVisibleUntilAcknowledged() = runBlocking {
+        val preferencesContext = IsolatedPreferencesContext(context)
+        try {
+            val preferences = PreferencesManager(preferencesContext).apply {
+                musicFolderUri = "content://com.v1per.synthx.test/tree/music"
+                newArrivalsFolderUri = "content://com.v1per.synthx.test/tree/new-arrivals"
+            }
+            var dismissDelayCalls = 0
+            val repository = TerminalGraduateRepository(
+                GraduationStage.Failed("recovery guidance"),
+                fakeRepository(),
+            )
+            val subject = SongActionsViewModel(
+                repository,
+                preferences,
+                graduationDismissDelay = { dismissDelayCalls++ },
+            ).also { viewModel = it }
+
+            subject.removeFromStarred("song")
+            withTimeout(2_000) { subject.graduationInProgress.first { !it } }
+
+            assertEquals(GraduationStage.Failed("recovery guidance"), subject.graduationStage.value)
+            assertEquals(0, dismissDelayCalls)
+            assertEquals(
+                Uri.parse("content://com.v1per.synthx.test/tree/new-arrivals"),
+                repository.receivedNewArrivalsRoot,
+            )
+            subject.dismissGraduationDialog()
+            assertEquals(null, subject.graduationStage.value)
+        } finally {
+            preferencesContext.cleanUp()
+        }
+    }
+
+    @Test
+    fun successfulGraduationStillUsesTransientAutoDismiss() = runBlocking {
+        val preferencesContext = IsolatedPreferencesContext(context)
+        try {
+            val preferences = PreferencesManager(preferencesContext).apply {
+                musicFolderUri = "content://com.v1per.synthx.test/tree/music"
+            }
+            var dismissDelayCalls = 0
+            val subject = SongActionsViewModel(
+                TerminalGraduateRepository(GraduationStage.Done, fakeRepository()),
+                preferences,
+                graduationDismissDelay = { dismissDelayCalls++ },
+            ).also { viewModel = it }
+
+            subject.removeFromStarred("song")
+            withTimeout(2_000) { subject.graduationInProgress.first { !it } }
+
+            assertEquals(1, dismissDelayCalls)
+            assertEquals(null, subject.graduationStage.value)
+        } finally {
+            preferencesContext.cleanUp()
+        }
+    }
+
+    @Test
+    fun missingMusicRootShowsPersistentSetupGuidanceInsteadOfGenericFailure() {
+        val preferencesContext = IsolatedPreferencesContext(context)
+        try {
+            val subject = SongActionsViewModel(
+                fakeRepository(),
+                PreferencesManager(preferencesContext),
+                graduationDismissDelay = { error("missing-root guidance must not auto-dismiss") },
+            ).also { viewModel = it }
+
+            subject.removeFromStarred("song")
+
+            val failed = subject.graduationStage.value as GraduationStage.Failed
+            assertEquals(GRADUATION_MUSIC_FOLDER_REQUIRED_REASON, failed.reason)
+            assertTrue(failed.reason.contains("Choose a Music folder"))
+        } finally {
+            preferencesContext.cleanUp()
+        }
+    }
+
     private fun subject(repository: SongRepository): SongActionsViewModel =
         SongActionsViewModel(repository, PreferencesManager(context)).also { viewModel = it }
 
@@ -137,11 +217,31 @@ class SongActionsViewModelInstrumentedTest {
         private val gate: CompletableDeferred<Unit>,
         backing: SongRepository,
     ) : SongRepository by backing {
-        override fun graduateSong(songId: String, rootMusicFolderUri: Uri): Flow<GraduationStage> = flow {
+        override fun graduateSong(
+            songId: String,
+            rootMusicFolderUri: Uri,
+            rootNewArrivalsFolderUri: Uri?,
+        ): Flow<GraduationStage> = flow {
             callCount.incrementAndGet()
             emit(GraduationStage.Copying)
             gate.await()
             emit(GraduationStage.Done)
+        }
+    }
+
+    private class TerminalGraduateRepository(
+        private val terminal: GraduationStage,
+        backing: SongRepository,
+    ) : SongRepository by backing {
+        var receivedNewArrivalsRoot: Uri? = null
+
+        override fun graduateSong(
+            songId: String,
+            rootMusicFolderUri: Uri,
+            rootNewArrivalsFolderUri: Uri?,
+        ): Flow<GraduationStage> {
+            receivedNewArrivalsRoot = rootNewArrivalsFolderUri
+            return flowOf(terminal)
         }
     }
 

@@ -64,6 +64,54 @@ internal const val GRADUATION_ROW_GONE_REASON =
     "The song was moved into your library folder, but it was removed from the library while " +
         "moving. The file was kept — run a library scan to add it back."
 
+/** Result of the source-side grant and delete-capability check that precedes every copy. */
+internal sealed interface GraduationSourcePreflightResult {
+    data object Passed : GraduationSourcePreflightResult
+    data class Failed(val reason: String) : GraduationSourcePreflightResult
+}
+
+/**
+ * Graduation-specific destructive preflight. Source reachability is checked by the caller first,
+ * so a missing/read-revoked source keeps its distinct message; this check then resolves the
+ * configured owner, validates that root's write grant, and asks for delete support specifically.
+ */
+internal class GraduationSourcePreflight(
+    private val probe: AudioDocumentPreflightProbe,
+    private val roots: ConfiguredAudioRoots,
+) {
+    suspend fun check(documentUri: String): GraduationSourcePreflightResult {
+        val owner = resolveOwningAudioRoot(probe, documentUri, roots)
+            ?: return GraduationSourcePreflightResult.Failed(
+                "This song's file is outside your configured Music and New Arrivals folders.",
+            )
+        val rootName = when (owner.role) {
+            KnownAudioRoot.Music -> "Music"
+            KnownAudioRoot.NewArrivals -> "New Arrivals"
+        }
+        when (probe.rootWriteState(owner.uri)) {
+            RootWriteState.GrantNotWritable -> return GraduationSourcePreflightResult.Failed(
+                "synthX doesn't have write access to your $rootName folder. Reselect it in " +
+                    "Settings > Library Management. Nothing was copied.",
+            )
+            RootWriteState.Ambiguous -> return GraduationSourcePreflightResult.Failed(
+                "synthX couldn't verify write access to your $rootName folder. Nothing was copied.",
+            )
+            RootWriteState.Writable -> Unit
+        }
+        return when (probe.supportsDelete(documentUri)) {
+            true -> GraduationSourcePreflightResult.Passed
+            false -> GraduationSourcePreflightResult.Failed(
+                "The file in your $rootName folder can't be deleted by its storage provider. " +
+                    "Nothing was copied.",
+            )
+            null -> GraduationSourcePreflightResult.Failed(
+                "synthX couldn't confirm that the file in your $rootName folder can be deleted. " +
+                    "Nothing was copied.",
+            )
+        }
+    }
+}
+
 /**
  * Moves a song's file out of wherever it currently lives (typically the New Arrivals tree)
  * into [rootMusicFolderUri] — copy to a temp name, hash-verify, publish, delete the
@@ -95,6 +143,7 @@ suspend fun graduateSong(
     songDao: SongDao,
     songId: String,
     rootMusicFolderUri: Uri,
+    rootNewArrivalsFolderUri: Uri? = null,
     onStage: suspend (GraduationStage) -> Unit = {},
 ): GraduationResult = withContext(Dispatchers.IO) {
     FileOperationCoordinator.withSongLock(songId) {
@@ -108,7 +157,15 @@ suspend fun graduateSong(
         var commit: GraduationCommit? = null
         var publishedPath: String? = null
         val admittedResult = try {
-            graduateAdmitted(context, database, songDao, songId, rootMusicFolderUri, onStage) { c, path ->
+            graduateAdmitted(
+                context,
+                database,
+                songDao,
+                songId,
+                rootMusicFolderUri,
+                rootNewArrivalsFolderUri,
+                onStage,
+            ) { c, path ->
                 commit = c
                 publishedPath = path
             }
@@ -137,6 +194,7 @@ private suspend fun graduateAdmitted(
     songDao: SongDao,
     songId: String,
     rootMusicFolderUri: Uri,
+    rootNewArrivalsFolderUri: Uri?,
     onStage: suspend (GraduationStage) -> Unit,
     onCommitted: (GraduationCommit, String) -> Unit,
 ): GraduationResult? {
@@ -148,14 +206,14 @@ private suspend fun graduateAdmitted(
     val rootUsages = mutableListOf<FileOperationCoordinator.RootUsage>()
 
     suspend fun fail(reason: String): GraduationResult {
+        var reportedReason = reason
         if (safeToCleanupDestination) {
             destinationDoc?.let { doc ->
-                runCatching { if (doc.exists()) doc.delete() }
-                    .onFailure { Log.w(TAG, "Could not clean up partial destination file", it) }
+                reportedReason = reasonAfterPublishedCleanup(reportedReason, doc)
             }
         }
-        onStage(GraduationStage.Failed(reason))
-        return GraduationResult.Failure(reason)
+        onStage(GraduationStage.Failed(reportedReason))
+        return GraduationResult.Failure(reportedReason)
     }
 
     try {
@@ -176,20 +234,15 @@ private suspend fun graduateAdmitted(
         val source = DocumentFile.fromSingleUri(context, sourceUri)?.takeIf { it.exists() }
             ?: return fail("Source file could not be found")
 
-        // Graduation writes to *two* trees, not one: it creates the copy under the music root
-        // and then deletes the original, which lives under whichever root the song was scanned
-        // from — New Arrivals, for every song the Starred list can reach. That delete needs a
-        // write grant on that tree just as much as the create needs one on the destination.
-        // Probed here rather than left to `source.delete()` below, because by then the verified
-        // copy already exists and the failure reads as "try again" — advice that can never work
-        // while the grant is the problem. canWrite() is a real provider query (permission plus
-        // the document's own FLAG_SUPPORTS_DELETE), so it also catches a file the provider
-        // simply refuses to remove.
-        if (!runCatching { source.canWrite() }.getOrDefault(false)) {
-            return fail(
-                "synthX doesn't have write access to the folder this song is in. Reselect " +
-                    "your New Arrivals folder in Settings > Library Management.",
-            )
+        val sourcePreflight = GraduationSourcePreflight(
+            probe = AndroidAudioDocumentPreflightProbe(context),
+            roots = ConfiguredAudioRoots(
+                music = rootMusicFolderUri.toString(),
+                newArrivals = rootNewArrivalsFolderUri?.toString(),
+            ),
+        ).check(source.uri.toString())
+        if (sourcePreflight is GraduationSourcePreflightResult.Failed) {
+            return fail(sourcePreflight.reason)
         }
 
         // Write-capable, not merely reachable. Until graduation shipped, nothing ever created a
@@ -279,6 +332,8 @@ private suspend fun graduateAdmitted(
                 GraduationResult.Failure("Database update failed")
             }
         }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         Log.e(TAG, "Graduation failed unexpectedly", e)
         return fail("Something went wrong. Try again.")
@@ -301,6 +356,12 @@ internal sealed interface GraduationPublishResult {
     data class Failed(val reason: String) : GraduationPublishResult
 }
 
+/** Whether a failed graduation removed the temp/published destination it created. */
+internal sealed interface GraduationCleanupResult {
+    data object Cleaned : GraduationCleanupResult
+    data class Failed(val uri: Uri) : GraduationCleanupResult
+}
+
 /**
  * Copies [source] into [destinationRoot] under a temp name, computing a digest of the bytes as
  * they're streamed across. Split out from verification/publication (below) so a test can corrupt
@@ -313,6 +374,9 @@ internal fun copyToGraduationTemp(
     source: DocumentFile,
     destinationRoot: DocumentFile,
     displayName: String,
+    copy: (Uri, Uri) -> ByteDigest = { sourceUri, destinationUri ->
+        copyBytes(context, sourceUri, destinationUri)
+    },
 ): GraduationCopyOutcome {
     // Same-named-file collision: an explicit, predictable " (1)", " (2)"... suffix rather than
     // relying on provider auto-rename behavior.
@@ -324,18 +388,21 @@ internal fun copyToGraduationTemp(
     val temp = destinationRoot.createFile(mimeType, tempName)
         ?: return GraduationCopyOutcome.Failed("Could not create destination file")
     if (temp.name != tempName) {
-        cleanupGraduationDoc(temp)
-        return GraduationCopyOutcome.Failed("Destination provider changed the temporary file name")
+        return GraduationCopyOutcome.Failed(
+            reasonAfterTempCleanup("Destination provider changed the temporary file name", temp),
+        )
     }
 
     val sourceDigest = try {
-        copyBytes(context, source.uri, temp.uri)
+        copy(source.uri, temp.uri)
     } catch (e: CancellationException) {
+        cleanupGraduationDoc(temp)
         throw e
     } catch (e: Exception) {
         Log.w(TAG, "Copy to destination failed", e)
-        cleanupGraduationDoc(temp)
-        return GraduationCopyOutcome.Failed("Could not copy file to the library folder")
+        return GraduationCopyOutcome.Failed(
+            reasonAfterTempCleanup("Could not copy file to the library folder", temp),
+        )
     }
 
     return GraduationCopyOutcome.Copied(temp, finalName, sourceDigest)
@@ -372,8 +439,9 @@ internal fun verifyAndPublishGraduationTemp(
     // elsewhere (e.g. ScanExtraction.kt). Left completely untouched — see HashUtils.
     val copiedId = HashUtils.computeSongId(temp, context)
     if (copiedId == null || copiedId != expectedSongId) {
-        cleanupGraduationDoc(temp)
-        return GraduationPublishResult.Failed("Copied file failed verification")
+        return GraduationPublishResult.Failed(
+            reasonAfterTempCleanup("Copied file failed verification", temp),
+        )
     }
 
     // Copy-integrity check (F12) — distinct from the identity check above and NOT a replacement
@@ -390,12 +458,14 @@ internal fun verifyAndPublishGraduationTemp(
         null
     }
     if (actualDigest == null) {
-        cleanupGraduationDoc(temp)
-        return GraduationPublishResult.Failed("Could not re-read copied file for verification")
+        return GraduationPublishResult.Failed(
+            reasonAfterTempCleanup("Could not re-read copied file for verification", temp),
+        )
     }
     if (actualDigest.sizeBytes != sourceDigest.sizeBytes || actualDigest.sha256 != sourceDigest.sha256) {
-        cleanupGraduationDoc(temp)
-        return GraduationPublishResult.Failed("Copied file failed full-content verification")
+        return GraduationPublishResult.Failed(
+            reasonAfterTempCleanup("Copied file failed full-content verification", temp),
+        )
     }
 
     if (!temp.renameTo(finalName)) {
@@ -403,29 +473,57 @@ internal fun verifyAndPublishGraduationTemp(
         // check-then-act above raced with another writer onto the same destination name) is a
         // distinguishable, more actionable failure than a generic publish failure.
         val collided = runCatching { destinationRoot.findFile(finalName) != null }.getOrDefault(false)
-        cleanupGraduationDoc(temp)
         return GraduationPublishResult.Failed(
-            if (collided) {
+            reasonAfterTempCleanup(if (collided) {
                 "Could not publish: another file named \"$finalName\" was created in the " +
                     "library folder at the same time. Try again."
             } else {
                 "Could not publish destination file."
-            },
+            }, temp),
         )
     }
     // temp's own Uri now reflects the rename (see the KDoc above) — nothing left to look up.
     if (temp.name != finalName) {
-        cleanupGraduationDoc(temp)
-        return GraduationPublishResult.Failed("Destination provider renamed to an unexpected name")
+        return GraduationPublishResult.Failed(
+            reasonAfterTempCleanup("Destination provider renamed to an unexpected name", temp),
+        )
     }
 
     return GraduationPublishResult.Published(temp)
 }
 
-private fun cleanupGraduationDoc(doc: DocumentFile) {
-    runCatching { if (doc.exists()) doc.delete() }
-        .onFailure { Log.w(TAG, "Could not clean up partial destination file", it) }
+internal fun cleanupGraduationDoc(doc: DocumentFile): GraduationCleanupResult {
+    val deleted = try {
+        doc.delete()
+    } catch (e: Exception) {
+        Log.w(TAG, "Destination cleanup threw; artifact may remain at ${doc.uri}", e)
+        false
+    }
+    if (deleted) return GraduationCleanupResult.Cleaned
+
+    // Some providers report false for an already-gone document. Treat that as clean only when a
+    // follow-up query confirms absence; otherwise preserve the failure and its recovery evidence.
+    val stillExists = runCatching { doc.exists() }.getOrDefault(true)
+    if (!stillExists) return GraduationCleanupResult.Cleaned
+
+    Log.w(TAG, "Destination cleanup was refused; artifact remains at ${doc.uri}")
+    return GraduationCleanupResult.Failed(doc.uri)
 }
+
+private fun reasonAfterTempCleanup(reason: String, temp: DocumentFile): String =
+    if (cleanupGraduationDoc(temp) is GraduationCleanupResult.Failed) {
+        "$reason Cleanup also failed, so a temporary destination file may remain on disk."
+    } else {
+        reason
+    }
+
+internal fun reasonAfterPublishedCleanup(reason: String, published: DocumentFile): String =
+    if (cleanupGraduationDoc(published) is GraduationCleanupResult.Failed) {
+        "$reason Cleanup also failed, so the copied file may remain in your Music folder and " +
+            "may be found by a later library scan."
+    } else {
+        reason
+    }
 
 /**
  * Convenience wrapper combining [copyToGraduationTemp] and [verifyAndPublishGraduationTemp] —

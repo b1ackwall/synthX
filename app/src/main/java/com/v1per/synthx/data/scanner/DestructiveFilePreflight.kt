@@ -38,6 +38,12 @@ internal data class ConfiguredAudioRoots(
     val newArrivals: String?,
 )
 
+/** A configured root together with the user-facing role it owns. */
+internal data class OwnedAudioRoot(
+    val role: KnownAudioRoot,
+    val uri: String,
+)
+
 internal sealed interface SourceDocumentResolution {
     data class Present(val uri: String) : SourceDocumentResolution
     data object Gone : SourceDocumentResolution
@@ -56,7 +62,24 @@ internal interface AudioDocumentPreflightProbe {
     suspend fun isUnderRoot(documentUri: String, rootUri: String): Boolean
     fun rootWriteState(rootUri: String): RootWriteState
     fun canWrite(documentUri: String): Boolean?
+    fun supportsDelete(documentUri: String): Boolean?
     fun computeSongId(documentUri: String): String?
+}
+
+/**
+ * Maps a stored song document back to its configured Music or New Arrivals root. Shared by
+ * destructive preflight and graduation so both operations make the same ownership decision.
+ */
+internal suspend fun resolveOwningAudioRoot(
+    probe: AudioDocumentPreflightProbe,
+    documentUri: String,
+    roots: ConfiguredAudioRoots,
+): OwnedAudioRoot? = when {
+    roots.music != null && probe.isUnderRoot(documentUri, roots.music) ->
+        OwnedAudioRoot(KnownAudioRoot.Music, roots.music)
+    roots.newArrivals != null && probe.isUnderRoot(documentUri, roots.newArrivals) ->
+        OwnedAudioRoot(KnownAudioRoot.NewArrivals, roots.newArrivals)
+    else -> null
 }
 
 /**
@@ -83,18 +106,12 @@ class DestructiveFilePreflight internal constructor(
             is SourceDocumentResolution.Present -> resolution.uri
         }
 
-        val roots = configuredRoots()
-        val owner = when {
-            roots.music != null && probe.isUnderRoot(sourceUri, roots.music) ->
-                KnownAudioRoot.Music to roots.music
-            roots.newArrivals != null && probe.isUnderRoot(sourceUri, roots.newArrivals) ->
-                KnownAudioRoot.NewArrivals to roots.newArrivals
-            else -> return DestructiveFilePreflightResult.RootUnknown
-        }
+        val owner = resolveOwningAudioRoot(probe, sourceUri, configuredRoots())
+            ?: return DestructiveFilePreflightResult.RootUnknown
 
-        when (probe.rootWriteState(owner.second)) {
+        when (probe.rootWriteState(owner.uri)) {
             RootWriteState.GrantNotWritable ->
-                return DestructiveFilePreflightResult.GrantNotWritable(owner.first)
+                return DestructiveFilePreflightResult.GrantNotWritable(owner.role)
             RootWriteState.Ambiguous -> return DestructiveFilePreflightResult.Ambiguous
             RootWriteState.Writable -> Unit
         }
@@ -149,7 +166,7 @@ class DestructiveFilePreflight internal constructor(
     }
 }
 
-private class AndroidAudioDocumentPreflightProbe(
+internal class AndroidAudioDocumentPreflightProbe(
     private val context: Context,
 ) : AudioDocumentPreflightProbe {
     override fun resolve(filePath: String): SourceDocumentResolution {
@@ -206,6 +223,24 @@ private class AndroidAudioDocumentPreflightProbe(
 
     override fun canWrite(documentUri: String): Boolean? = try {
         DocumentFile.fromSingleUri(context, documentUri.toUri())?.canWrite()
+    } catch (e: Throwable) {
+        if (e is CancellationException) throw e
+        null
+    }
+
+    override fun supportsDelete(documentUri: String): Boolean? = try {
+        context.contentResolver.query(
+            documentUri.toUri(),
+            arrayOf(DocumentsContract.Document.COLUMN_FLAGS),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            if (!cursor.moveToFirst()) return@use null
+            val column = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
+            if (column < 0 || cursor.isNull(column)) return@use null
+            cursor.getInt(column) and DocumentsContract.Document.FLAG_SUPPORTS_DELETE != 0
+        }
     } catch (e: Throwable) {
         if (e is CancellationException) throw e
         null

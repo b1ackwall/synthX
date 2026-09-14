@@ -95,7 +95,11 @@ interface SongRepository {
      * Emits every [GraduationStage] as the operation progresses; the last value emitted is
      * always the terminal stage ([GraduationStage.Done] or [GraduationStage.Failed]).
      */
-    fun graduateSong(songId: String, rootMusicFolderUri: Uri): Flow<GraduationStage>
+    fun graduateSong(
+        songId: String,
+        rootMusicFolderUri: Uri,
+        rootNewArrivalsFolderUri: Uri? = null,
+    ): Flow<GraduationStage>
 
     /**
      * Debug tooling: read-only audit of the root music folder — walks the live filesystem

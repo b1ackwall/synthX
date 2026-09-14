@@ -582,8 +582,19 @@ class SongRepositoryImpl(
     // producer coroutine (and therefore graduateSongFile) runs on, same as with flow{} —
     // channelFlow doesn't make it redundant, it just no longer needs to reconcile the
     // same-coroutine constraint too.
-    override fun graduateSong(songId: String, rootMusicFolderUri: Uri): Flow<GraduationStage> = channelFlow {
-        graduateSongFile(context, database, songDao, songId, rootMusicFolderUri) { stage ->
+    override fun graduateSong(
+        songId: String,
+        rootMusicFolderUri: Uri,
+        rootNewArrivalsFolderUri: Uri?,
+    ): Flow<GraduationStage> = channelFlow {
+        graduateSongFile(
+            context,
+            database,
+            songDao,
+            songId,
+            rootMusicFolderUri,
+            rootNewArrivalsFolderUri,
+        ) { stage ->
             val result = trySend(stage)
             if (result.isFailure) {
                 // Only reachable if this channel is already closed/cancelled (e.g. the
