@@ -22,9 +22,9 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  * The Up Next list — [queue] is the upcoming-only, shuffle-respecting order (the currently
  * playing song is never one of its rows). Reordering is visual-only until the drag ends —
  * [localQueue] mirrors [queue] and animates through intermediate positions, but [onMove]
- * (the engine mutation) only fires once, on drop, with the net from/to indices. [queue] is
- * still the single source of truth: once the engine's move lands, the next [queue] emission
- * resets [localQueue] to match it.
+ * (the engine mutation) only fires once, on drop, naming the moved slot by id plus its net
+ * target index. [queue] is still the single source of truth: once the engine's move lands, the
+ * next [queue] emission resets [localQueue] to match it.
  *
  * Drag-reorder is always available, regardless of shuffle state — queue ordering is fully
  * app-managed (see [com.v1per.synthx.playback.ExoPlayerEngine.moveQueueItem]'s doc comment),
@@ -40,12 +40,24 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  * constant — varying it mid-scroll moves the max-scroll offset under the user's finger.
  *
  * [onRemove]'s index is into [queue], not [localQueue] — see its wiring below.
+ *
+ * [onSongClick]/[onMove] both take the tapped/dragged row's stable slot id rather than a
+ * position (P4-T8 / R3-F04) — [localQueue] is Compose-local state that free-runs between
+ * `remember(queue)` resets (live-reordered mid-drag, or reset wholesale by an upstream mutation
+ * landing mid-gesture), so any index captured off it here can already be stale by the time the
+ * command reaches the engine. Passing identity instead of a display position closes that gap at
+ * the layer that actually matters: [com.v1per.synthx.playback.ExoPlayerEngineQueueOps] resolves
+ * the slot id against the order store's live position fresh at execution time and rejects the
+ * command outright if it no longer exists there, so a stale/divergent [localQueue] here can no
+ * longer produce a command that lands on the wrong song — only, at worst, a transiently stale
+ * *display* until the next [queue] emission resets it, which is a cosmetic concern, not a
+ * correctness one.
  */
 @Composable
 fun QueueList(
     queue: ImmutableList<QueueSlot>,
-    onSongClick: (index: Int) -> Unit,
-    onMove: (from: Int, to: Int) -> Unit,
+    onSongClick: (slotId: String) -> Unit,
+    onMove: (slotId: String, toIndex: Int) -> Unit,
     onRemove: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -53,20 +65,16 @@ fun QueueList(
     enabled: Boolean = true,
 ) {
     var localQueue by remember(queue) { mutableStateOf(queue) }
-    // Identity, not a raw index: an arbitrarily long drag can straddle a queue mutation
-    // (e.g. auto-advance resetting localQueue via the remember(queue) key above), which
-    // would leave a captured index stale. Resolving the end position by slot id against
-    // the live localQueue immediately before calling onMove mirrors onRemove's
-    // identity-based resolution below and the engine-level principle documented on
-    // PlaybackEngine.removeQueueItem.
+    // The dragged row's identity — captured once at drag-start and never re-derived from a
+    // position, since [moveQueueItemInternal] now resolves it fresh against the engine's own
+    // live order at execution time regardless of what this UI layer believes. See the class
+    // kdoc above for why nothing index-shaped needs to survive the trip to the engine any more.
     var dragStartSlotId by remember { mutableStateOf<String?>(null) }
     // The "before" list, snapshotted the instant the drag begins — a cheap reference copy
-    // (localQueue is a PersistentList). Needed because localQueue is already live-reordered
-    // by reorderableState's onMove callback below as the drag happens, so by drop time it
-    // is the slot's *final* position for every lookup, not its starting one. Resolving
-    // start against this snapshot and end against the live localQueue is what makes the
-    // two indices genuinely different for a real reorder, instead of both resolving the
-    // same dragged song's identity against the same (already-reordered) list.
+    // (localQueue is a PersistentList). Used only to detect a pure no-op drag (dropped back at
+    // its own starting position) so [onMove] isn't called for nothing; it is NOT used to
+    // identify which row moved — that is [dragStartSlotId] alone, resolved by identity, never
+    // by a position read off this snapshot.
     var dragStartQueueSnapshot by remember { mutableStateOf<ImmutableList<QueueSlot>?>(null) }
 
     val reorderableState = rememberReorderableLazyListState(state) { from, to ->
@@ -82,7 +90,7 @@ fun QueueList(
                     slotId = slot.slotId,
                     song = slot.song,
                     queue = queue,
-                    onClick = { if (enabled) onSongClick(index) },
+                    onClick = { if (enabled) onSongClick(slot.slotId) },
                     // Resolved against [queue] by identity rather than reported as `index`:
                     // `index` is a position in [localQueue], whose optimistic order can differ
                     // from [queue]'s between a drop and the engine's echo, and the host
@@ -98,14 +106,22 @@ fun QueueList(
                             dragStartQueueSnapshot = localQueue
                         },
                         onDragStopped = {
-                            // Start resolved against the snapshot taken before any live
-                            // drag-reordering happened — the song's genuine original
-                            // position. End resolved against the current, already
-                            // live-reordered localQueue — its final resting position. Two
-                            // different lists, so a real reorder yields two different
-                            // indices (see the field doc comments above for why resolving
-                            // both against the same live list, as the previous fix did,
-                            // made them always equal).
+                            // The moved row's identity — never re-derived from a position.
+                            // What used to be a "same slot SET, different order" guard here
+                            // (comparing beforeQueue/localQueue as sets) is no longer the
+                            // correctness backstop: it was order-blind by construction, so an
+                            // external reorder landing mid-drag (same slots, shuffled order)
+                            // would have passed it right along with a wrong from/to pair. Now
+                            // that the moved item is identified by slot id end to end, and
+                            // ExoPlayerEngineQueueOps.moveQueueItemInternal re-resolves that id
+                            // against the engine's live order at execution time (rejecting it
+                            // outright if it no longer exists), that guard would only ever be
+                            // redundant when it agreed with the engine and wrong when it
+                            // didn't — so it's dropped rather than kept as false reassurance.
+                            //
+                            // dragStartQueueSnapshot is kept only to detect a pure no-op drag
+                            // (dropped back at its own starting position), purely to avoid an
+                            // unnecessary onMove call — not for correctness.
                             val startSlotId = dragStartSlotId
                             val beforeQueue = dragStartQueueSnapshot
                             val startIndex = if (startSlotId != null && beforeQueue != null) {
@@ -116,24 +132,11 @@ fun QueueList(
                             val endIndex = startSlotId
                                 ?.let { id -> localQueue.indexOfFirst { it.slotId == id } }
                                 ?: -1
-                            // If the dragged song can no longer be found in either list
-                            // (e.g. removed during the drag), there is nothing valid to
-                            // move — drop the reorder rather than call onMove with a -1
-                            // index.
-                            //
-                            // Same slot set, different order, required: if the queue was
-                            // externally mutated mid-drag (e.g. auto-advance resetting
-                            // localQueue to a wholly different list via the remember(queue)
-                            // key above), beforeQueue and localQueue are two unrelated
-                            // lists — indices resolved against one don't mean anything
-                            // relative to the other, even if both individually resolve to
-                            // a non-(-1) value. Comparing slot-id sets (order-independent) is
-                            // the cheapest way to detect that without diffing positions.
-                            val sameQueue = beforeQueue != null &&
-                                beforeQueue.mapTo(mutableSetOf()) { it.slotId } ==
-                                localQueue.mapTo(mutableSetOf()) { it.slotId }
-                            if (enabled && sameQueue && startIndex != -1 && endIndex != -1 && startIndex != endIndex) {
-                                onMove(startIndex, endIndex)
+                            // If the dragged song can no longer be found in the live list at
+                            // all (e.g. removed during the drag), there is nothing valid to
+                            // move — drop the reorder rather than call onMove with a -1 index.
+                            if (enabled && startSlotId != null && endIndex != -1 && startIndex != endIndex) {
+                                onMove(startSlotId, endIndex)
                             }
                             dragStartSlotId = null
                             dragStartQueueSnapshot = null
@@ -143,12 +146,12 @@ fun QueueList(
                     // drag paths land on the identical engine mutation, just with a fixed
                     // one-position delta instead of a live drag endpoint.
                     onMoveUp = if (enabled && index > 0) {
-                        { onMove(index, index - 1) }
+                        { onMove(slot.slotId, index - 1) }
                     } else {
                         null
                     },
                     onMoveDown = if (enabled && index < localQueue.lastIndex) {
-                        { onMove(index, index + 1) }
+                        { onMove(slot.slotId, index + 1) }
                     } else {
                         null
                     },

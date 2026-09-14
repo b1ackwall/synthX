@@ -137,8 +137,26 @@ class SynthXPlaybackService : MediaLibraryService() {
         super.onTaskRemoved(rootIntent)
     }
 
+    /**
+     * P4-T7 / R3-F13: a system-initiated destroy with no preceding [onTaskRemoved] (e.g. the
+     * service being stopped directly, without the task ever being swiped from Recents) was
+     * previously never checkpointed at all. Guarded on [released] rather than unconditional:
+     * when [onTaskRemoved] already ran first, it already checkpointed via this same
+     * cursor-only path, and the player has already been stopped/released — reading position off
+     * it again here would be reading post-stop state, not a meaningful "where playback actually
+     * got to" snapshot, so this deliberately skips rather than risks a second, less trustworthy
+     * write. When onDestroy fires independently (the actual gap this closes), [released] is
+     * still false and the checkpoint below runs against the still-live player, exactly like
+     * [onTaskRemoved]'s own.
+     */
     override fun onDestroy() {
         Log.d(TAG, "onDestroy")
+        if (shouldCheckpointOnDestroy(released, player.currentMediaItemIndex, player.mediaItemCount)) {
+            QueuePersistence.create(this).updateCursor(
+                currentSlotId = player.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() },
+                positionMs = player.currentPosition,
+            )
+        }
         releasePlayback()
         super.onDestroy()
     }
@@ -152,3 +170,14 @@ class SynthXPlaybackService : MediaLibraryService() {
     }
 
 }
+
+/**
+ * The pure decision behind [SynthXPlaybackService.onDestroy]'s checkpoint (P4-T7 / R3-F13),
+ * split out so it is unit-testable without a real `Service`/`ExoPlayer` — matching the
+ * `IdleRecoveryTest`/`playerErrorLogMessage` precedent for exactly this kind of extraction.
+ * `released` covers the "did onTaskRemoved already checkpoint and tear the player down" case;
+ * `mediaItemIndex`/`mediaItemCount` mirror onTaskRemoved's own "is there actually something to
+ * checkpoint" guard.
+ */
+internal fun shouldCheckpointOnDestroy(released: Boolean, mediaItemIndex: Int, mediaItemCount: Int): Boolean =
+    !released && mediaItemIndex != C.INDEX_UNSET && mediaItemCount > 0

@@ -123,27 +123,41 @@ interface PlaybackEngine {
     fun addToQueue(song: Song): Boolean
 
     /**
-     * Moves the item at [fromIndex] to [toIndex] within [upcomingQueue], leaving playback
-     * running. Honoured whether or not shuffle is enabled — ordering is app-managed end to end,
-     * so a reorder while shuffled is a safe (if temporary, per spec) edit of the live order —
-     * and honoured whether or not either position is currently loaded into the player, since
-     * both are resolved against the full order rather than a timeline index.
+     * Moves the item identified by [slotId] to [toIndex] within [upcomingQueue], leaving
+     * playback running. Honoured whether or not shuffle is enabled — ordering is app-managed
+     * end to end, so a reorder while shuffled is a safe (if temporary, per spec) edit of the
+     * live order — and honoured whether or not either position is currently loaded into the
+     * player, since both are resolved against the full order rather than a timeline index.
+     *
+     * Identified by stable slot id (P4-T8 / R3-F04), like [removeQueueItem] — a position
+     * captured by the UI at drag-start can be invalidated by any queue mutation landing before
+     * the move actually executes (auto-advance, a deletion, another reorder), and acting on a
+     * stale one moves the wrong song. Implementations must resolve [slotId]'s position fresh, at
+     * call time, from their own live queue state, and reject the move outright if [slotId] no
+     * longer exists there. [toIndex] remains a plain position — only the source needs identity.
      */
-    fun moveQueueItem(fromIndex: Int, toIndex: Int)
+    fun moveQueueItem(slotId: String, toIndex: Int)
 
     /**
      * Removes the item with [slotId] from [upcomingQueue]. Safe under shuffle.
      *
-     * Identified by stable slot id rather than by position — unlike [moveQueueItem] and
-     * [seekToQueueItem], which still take display indices. Removal is the destructive one:
+     * Identified by stable slot id rather than by position. Removal is the destructive one:
      * a position captured by the UI can be invalidated by any queue mutation that lands
      * first, and acting on a stale one removes the wrong song permanently. Implementations
      * must resolve the position fresh, at call time, from their own live queue state.
      */
     fun removeQueueItem(slotId: String)
 
-    /** Jumps playback to the item at [index] in [upcomingQueue] and plays it. */
-    fun seekToQueueItem(index: Int)
+    /**
+     * Jumps playback to the item identified by [slotId] in [upcomingQueue] and plays it.
+     *
+     * Identified by stable slot id (P4-T8 / R3-F04), not a display index — the same
+     * argument [removeQueueItem]'s doc comment makes applies here just as much: a position
+     * captured at tap time can name a different song by the time this actually executes.
+     * Implementations must resolve [slotId] fresh, at call time, and reject the jump outright
+     * (a no-op) if it no longer exists in [upcomingQueue].
+     */
+    fun seekToQueueItem(slotId: String)
 
     fun pause()
     fun resume()

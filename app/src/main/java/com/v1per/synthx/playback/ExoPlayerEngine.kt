@@ -331,6 +331,16 @@ class ExoPlayerEngine(
         connectToSession()
     }
 
+    // P4-T7 / R3-F13: bounded periodic checkpoint during long, uninterrupted single-track
+    // playback — see periodicCheckpointDriver's kdoc. A plain collect rather than collectLatest
+    // here: the driver itself already restarts its internal delay loop on every isPlaying
+    // transition, so there is nothing further for the collector to cancel/restart.
+    init {
+        engineScope.launch {
+            periodicCheckpointDriver(_isPlaying).collect { checkpointCursor() }
+        }
+    }
+
     /**
      * (Re)connects to [SynthXPlaybackService]'s session — the first connection at construction,
      * and any later reconnection [scheduleReconnect] triggers. P4-T3: previously this ran once,
@@ -491,11 +501,11 @@ class ExoPlayerEngine(
         return true
     }
 
-    override fun moveQueueItem(fromIndex: Int, toIndex: Int) = moveQueueItemInternal(fromIndex, toIndex)
+    override fun moveQueueItem(slotId: String, toIndex: Int) = moveQueueItemInternal(slotId, toIndex)
 
     override fun removeQueueItem(slotId: String) = removeQueueItemInternal(slotId)
 
-    override fun seekToQueueItem(index: Int) = seekToQueueItemInternal(index)
+    override fun seekToQueueItem(slotId: String) = seekToQueueItemInternal(slotId)
 
     override fun pause() {
         controller?.pause()

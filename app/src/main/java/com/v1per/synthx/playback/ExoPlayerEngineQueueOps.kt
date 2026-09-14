@@ -314,17 +314,25 @@ internal fun ExoPlayerEngine.addToQueueInternal(song: Song) {
 }
 
 /**
- * [fromIndex]/[toIndex] are positions in `upcomingQueue`, applied directly to the order store —
- * no translation into timeline indices any more, which is what makes dragging a row from deep
- * outside the loaded window work rather than silently no-op.
+ * [slotId] identifies the item being moved (P4-T8 / R3-F04) — resolved against the order store's
+ * *current* position fresh at execution time via [QueueOrderStore.moveUpcoming], never trusted
+ * from a caller-captured index. A UI gesture can be several async hops (a drag, a suspend, a
+ * ViewModel call) away from the moment this actually runs, and any queue mutation landing in
+ * that window (auto-advance, a deletion, another reorder) shifts every row after it — a stale
+ * index would then move whatever now occupies that position instead of the row the user actually
+ * dragged. If [slotId] no longer exists in the current order at all, [QueueOrderStore.moveUpcoming]
+ * rejects the move outright (returns `false`) rather than falling back to some other occurrence.
+ *
+ * [toIndex] is still a plain position in `upcomingQueue` — see [QueueOrderStore.moveUpcoming]'s
+ * kdoc for why only the source needs identity resolution.
  *
  * While shuffle is off the same move is mirrored into baseline. While shuffle is on this only
  * touches the live order; the reorder evaporates the moment shuffle turns off, per spec.
  */
-internal fun ExoPlayerEngine.moveQueueItemInternal(fromIndex: Int, toIndex: Int) {
+internal fun ExoPlayerEngine.moveQueueItemInternal(slotId: String, toIndex: Int) {
     controller ?: return
     val moved = orderStore.moveUpcoming(
-        fromDisplayIndex = fromIndex,
+        slotId = slotId,
         toDisplayIndex = toIndex,
         currentSlotId = _currentSlotId.value,
         mirrorToBaseline = !_shuffleEnabled.value,
@@ -458,16 +466,34 @@ private fun ExoPlayerEngine.nextLiveIndexExcludingSong(songId: String): Int? {
 }
 
 /**
- * [index] is a position in `upcomingQueue`, resolved against the order store. A target already
- * inside the loaded window is a plain seek; anything further out rebuilds the window around it
- * first — an interruption, but a deliberate jump the user asked for, and bounded to
- * [WINDOW_SIZE] items rather than the whole queue.
+ * [slotId] identifies the tapped row (P4-T8 / R3-F04) — resolved against the order store's
+ * *current* position fresh at execution time, never a caller-captured `upcomingQueue` index. A
+ * tap is a Compose click plus, in production, a ViewModel hop before this actually runs; a queue
+ * mutation landing in that window (auto-advance, a deletion, another reorder) would otherwise
+ * shift every row after it, and a stale index would land on whichever song now occupies that
+ * position rather than the one the user actually tapped. If [slotId] no longer exists in the
+ * current order at all (deleted, or the transition already moved past it) this rejects cleanly —
+ * a no-op, never applied to some other occurrence — and if it resolves to the currently-playing
+ * slot or anything before it, that is likewise not a valid Up Next tap target.
+ *
+ * A target already inside the loaded window is a plain seek; anything further out rebuilds the
+ * window around it first — an interruption, but a deliberate jump the user asked for, and bounded
+ * to [WINDOW_SIZE] items rather than the whole queue.
  */
-internal fun ExoPlayerEngine.seekToQueueItemInternal(index: Int) {
+internal fun ExoPlayerEngine.seekToQueueItemInternal(slotId: String) {
     controller ?: return
     val currentIndex = orderStore.indexOfSlot(_currentSlotId.value)
-    if (currentIndex < 0) return
-    val target = currentIndex + 1 + index
-    if (target !in 0 until orderStore.size) return
+    val target = resolveUpcomingSeekTarget(currentIndex, orderStore.indexOfSlot(slotId)) ?: return
     seekToLiveIndex(target, play = true)
 }
+
+/**
+ * The pure accept/reject decision behind [seekToQueueItemInternal], split out so it is
+ * unit-testable without a real `MediaController` (P4-T8 / R3-F04) — matching the
+ * `nextIndexInOrder`/`idleRecoveryActionFor` precedent for this kind of extraction. Rejects
+ * (returns `null`) whenever there is no current slot, [slotId] resolved to nothing (the tapped
+ * row's slot no longer exists in the order at all — deleted, or already played past), or it
+ * resolved to the currently-playing slot or anything before it (not a valid Up Next target).
+ */
+internal fun resolveUpcomingSeekTarget(currentIndex: Int, slotIndex: Int): Int? =
+    if (currentIndex < 0 || slotIndex <= currentIndex) null else slotIndex

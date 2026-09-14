@@ -164,6 +164,42 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
         return true
     }
 
+    /**
+     * Slot-id-identified counterpart of [moveUpcoming] (P4-T8 / R3-F04): [slotId] is resolved
+     * against [live] fresh, right here, rather than trusting a caller-supplied
+     * `fromDisplayIndex` — a raw display index captured by the UI at drag-start can be stale by
+     * the time the command actually executes (an auto-advance, a deletion, or another reorder
+     * landing first shifts every row after it), and acting on it blind would move whatever now
+     * occupies that position rather than the row the user actually dragged. If [slotId] no
+     * longer exists in [live] at all (removed since the drag began), this rejects cleanly —
+     * returns `false`, moves nothing — rather than falling back to some other occurrence.
+     *
+     * [toDisplayIndex] is still a plain positional target, not slot-identified: unlike the
+     * *source* (identity is what makes this safe), the destination is inherently "drop it at
+     * this position", which has no independent identity of its own to validate against — see
+     * the P4-T8 fix notes on [com.v1per.synthx.ui.components.QueueList] for the accepted
+     * tradeoff this implies.
+     */
+    fun moveUpcoming(
+        slotId: String,
+        toDisplayIndex: Int,
+        currentSlotId: String?,
+        mirrorToBaseline: Boolean,
+    ): Boolean {
+        val currentIndex = indexOfSlot(currentSlotId)
+        if (currentIndex < 0) return false
+        val from = indexOfSlot(slotId)
+        // Must resolve to a genuine upcoming-list position — after the current slot, never at
+        // or before it (the currently-playing slot itself is never one of the Up Next rows).
+        if (from <= currentIndex) return false
+        val to = currentIndex + 1 + toDisplayIndex
+        if (to !in live.indices) return false
+        val fromDisplayIndex = from - currentIndex - 1
+        live = live.toMutableList().apply { add(to, removeAt(from)) }
+        if (mirrorToBaseline) mirrorMoveIntoBaseline(fromDisplayIndex, toDisplayIndex, currentSlotId)
+        return true
+    }
+
     private fun mirrorMoveIntoBaseline(
         fromDisplayIndex: Int,
         toDisplayIndex: Int,

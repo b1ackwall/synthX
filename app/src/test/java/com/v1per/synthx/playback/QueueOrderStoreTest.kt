@@ -188,6 +188,107 @@ class QueueOrderStoreTest {
         assertEquals(listOf("slot-a", "slot-b"), subject.liveIds())
     }
 
+    // --- P4-T8 / R3-F04: slot-id-identified move -------------------------------------------
+
+    /**
+     * The whole point of the fix: the moved item is resolved by identity, so it lands correctly
+     * no matter what stale positional information the caller believed at drag-start.
+     */
+    @Test fun moveByIdResolvesTheCorrectItemRegardlessOfCallerAssumedPosition() {
+        val subject = store()
+        subject.captureFresh(records("a", "b", "c", "d"))
+
+        // "slot-c" is genuinely 2 positions into Up Next (after current "slot-a"); moved to
+        // the very front — identical net effect to moveMirrorsBaselineOnlyWhileUnshuffled's
+        // (0, 2) case, but requested by identity instead of a trusted index.
+        assertTrue(subject.moveUpcoming("slot-c", toDisplayIndex = 0, currentSlotId = "slot-a", mirrorToBaseline = false))
+
+        assertEquals(listOf("slot-a", "slot-c", "slot-b", "slot-d"), subject.liveIds())
+    }
+
+    /**
+     * The confirmed drag-guard gap this fix closes: the slot SET is unchanged but the ORDER
+     * changed underneath the caller (e.g. a reorder or shuffle landing between drag-start and
+     * drop). A caller-trusted `fromDisplayIndex` captured before that reorder would now name a
+     * different song; resolving by slot id instead is immune to it.
+     */
+    @Test fun moveByIdIsImmuneToAnOrderChangeThatPreservesTheSameSlotSet() {
+        val subject = store()
+        subject.captureFresh(records("a", "b", "c", "d"))
+        // The order changes (b and c swap) but the slot SET is identical — exactly the gap the
+        // old UI-layer set-equality guard could not detect.
+        subject.moveUpcoming(fromDisplayIndex = 0, toDisplayIndex = 1, currentSlotId = "slot-a", mirrorToBaseline = false)
+        assertEquals(listOf("slot-a", "slot-c", "slot-b", "slot-d"), subject.liveIds())
+
+        // The user actually meant to move "slot-b" (wherever it now sits) to the front. Identity
+        // resolution finds it at its NEW position (index 2), not wherever a stale caller-side
+        // index would have assumed.
+        assertTrue(subject.moveUpcoming("slot-b", toDisplayIndex = 0, currentSlotId = "slot-a", mirrorToBaseline = false))
+
+        assertEquals(listOf("slot-a", "slot-b", "slot-c", "slot-d"), subject.liveIds())
+    }
+
+    /**
+     * Deletion/transition landing between drag-start and drop: the dragged slot no longer
+     * exists at all. Must reject cleanly — no move, never a fallback to some other occurrence.
+     */
+    @Test fun moveByIdRejectsCleanlyWhenTheSlotNoLongerExists() {
+        val subject = store()
+        subject.captureFresh(records("a", "b", "c"))
+        subject.remove("slot-b")
+
+        assertFalse(subject.moveUpcoming("slot-b", toDisplayIndex = 0, currentSlotId = "slot-a", mirrorToBaseline = false))
+        assertEquals(listOf("slot-a", "slot-c"), subject.liveIds())
+    }
+
+    @Test fun moveByIdRejectsTheCurrentlyPlayingSlotAndAnythingBeforeIt() {
+        val subject = store()
+        subject.captureFresh(records("a", "b", "c"))
+
+        // "slot-b" is current; "slot-a" sits before it in the full order — neither is a valid
+        // Up Next move target relative to "slot-b".
+        assertFalse(subject.moveUpcoming("slot-b", toDisplayIndex = 0, currentSlotId = "slot-b", mirrorToBaseline = false))
+        assertFalse(subject.moveUpcoming("slot-a", toDisplayIndex = 0, currentSlotId = "slot-b", mirrorToBaseline = false))
+        assertEquals(listOf("slot-a", "slot-b", "slot-c"), subject.liveIds())
+    }
+
+    @Test fun moveByIdMirrorsBaselineOnlyWhileUnshuffled() {
+        val subject = store()
+        subject.captureFresh(records("a", "b", "c", "d"))
+
+        subject.moveUpcoming("slot-b", toDisplayIndex = 2, currentSlotId = "slot-a", mirrorToBaseline = false)
+
+        assertEquals(listOf("slot-a", "slot-c", "slot-d", "slot-b"), subject.liveIds())
+        assertEquals(listOf("slot-a", "slot-b", "slot-c", "slot-d"), subject.baselineIds())
+    }
+
+    /**
+     * This IS the mutation test for the P4-T8 move fix (mirroring
+     * `removeAllDeletesEveryDuplicateOccurrenceInExactlyOneBaselineWrite`'s pattern above): the
+     * OLD index-only shape, exercised against a store that has already been reordered exactly
+     * like [moveByIdIsImmuneToAnOrderChangeThatPreservesTheSameSlotSet], moves the WRONG song —
+     * proving the identity resolution is a genuine behavior difference, not just a different way
+     * of asking for the same result.
+     */
+    @Test fun revertingToIndexOnlyResolutionMovesTheWrongSongAfterAReorder() {
+        val subject = store()
+        subject.captureFresh(records("a", "b", "c", "d"))
+        subject.moveUpcoming(fromDisplayIndex = 0, toDisplayIndex = 1, currentSlotId = "slot-a", mirrorToBaseline = false)
+        assertEquals(listOf("slot-a", "slot-c", "slot-b", "slot-d"), subject.liveIds())
+
+        // The caller still believes "slot-b" sits at display index 0 (its ORIGINAL position,
+        // captured before the reorder above). Trusting that stale index moves "slot-c" — the
+        // song now actually AT that position — instead of "slot-b".
+        val staleFromDisplayIndex = 0
+        subject.moveUpcoming(staleFromDisplayIndex, toDisplayIndex = 2, currentSlotId = "slot-a", mirrorToBaseline = false)
+
+        // "slot-c" (wrong song) ended up moved to the end, while "slot-b" (the song the user
+        // actually meant) never moved at all — exactly the bug the slot-id resolution prevents.
+        assertEquals(listOf("slot-a", "slot-b", "slot-d", "slot-c"), subject.liveIds())
+        assertTrue(subject.liveIds().contains("slot-b"), "slot-b never moved, but it's still present")
+        assertEquals(1, subject.liveIds().indexOf("slot-b"), "slot-b stayed in place — the stale index acted on slot-c instead")
+    }
+
     @Test fun removeStripsBothOrdersRegardlessOfShuffleState() {
         val subject = store()
         subject.captureFresh(records("a", "b", "c"))

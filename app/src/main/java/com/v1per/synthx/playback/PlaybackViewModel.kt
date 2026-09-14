@@ -295,8 +295,12 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     private fun isLastInQueue(songId: String): Boolean =
         upcomingQueue.value.lastOrNull()?.song?.id == songId
 
-    /** [fromIndex]/[toIndex] are positions in [upcomingQueue] — the Up Next screen's rows. */
-    fun moveQueueItem(fromIndex: Int, toIndex: Int) = controller.moveQueueItem(fromIndex, toIndex)
+    /**
+     * Moves the [upcomingQueue] entry identified by [slotId] to [toIndex] — the Up Next
+     * screen's drag-reorder. [slotId], not a captured index, identifies which row moves — see
+     * [PlaybackEngine.moveQueueItem]'s doc comment for why (same argument as [removeQueueItem]).
+     */
+    fun moveQueueItem(slotId: String, toIndex: Int) = controller.moveQueueItem(slotId, toIndex)
 
     /**
      * Removes the [upcomingQueue] entry for [slotId] — the Up Next screen's rows.
@@ -310,8 +314,12 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
      */
     fun removeQueueItem(slotId: String) = controller.removeQueueItem(slotId)
 
-    /** Jumps to and plays the item at [index] in [upcomingQueue] — the Up Next screen's row tap. */
-    fun playQueueItem(index: Int) = controller.seekToQueueItem(index)
+    /**
+     * Jumps to and plays the [upcomingQueue] entry identified by [slotId] — the Up Next
+     * screen's row tap. Identified by slot id, not the tapped row's index, for the same reason
+     * as [moveQueueItem]/[removeQueueItem] — see [PlaybackEngine.seekToQueueItem]'s doc comment.
+     */
+    fun playQueueItem(slotId: String) = controller.seekToQueueItem(slotId)
 
     /**
      * False both when nothing was ever queued and when a queue ran to its end — stop()

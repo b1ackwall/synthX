@@ -57,9 +57,9 @@ class PlaybackViewModelResumeReconciliationTest {
         override fun setRepeatMode(mode: RepeatMode) {}
         override fun playNext(song: Song) = true
         override fun addToQueue(song: Song) = true
-        override fun moveQueueItem(fromIndex: Int, toIndex: Int) {}
+        override fun moveQueueItem(slotId: String, toIndex: Int) {}
         override fun removeQueueItem(slotId: String) {}
-        override fun seekToQueueItem(index: Int) {}
+        override fun seekToQueueItem(slotId: String) {}
         override fun pause() {}
         // Deliberately does NOT flip _isPlaying — simulates a resume() that never actually
         // starts playback (focus denied, or a player still dead from a prior fatal error).

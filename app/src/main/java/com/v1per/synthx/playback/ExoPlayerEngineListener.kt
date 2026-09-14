@@ -6,6 +6,13 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.transformLatest
+
+/** How often [periodicCheckpointDriver] ticks while playback is running (P4-T7). */
+internal const val PERIODIC_CHECKPOINT_INTERVAL_MS = 30_000L
 
 /**
  * Builds the [Player.Listener] [ExoPlayerEngine] registers with its `MediaController` —
@@ -14,8 +21,21 @@ import androidx.media3.common.Timeline
  * when this object expression is created.
  */
 internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : Player.Listener {
+    /**
+     * P4-T7 / R3-F13: the only observable signal for "playback stopped" that exists at all —
+     * see this file's header note on why. No app-level `AudioManager` focus listener or
+     * becoming-noisy receiver exists anywhere in this codebase; both are delegated entirely to
+     * Media3 (`handleAudioFocus = true` / `setHandleAudioBecomingNoisy(true)` in
+     * `SynthXPlaybackService.onCreate`), and the only thing either produces on the app side is
+     * this same callback flipping to `false`. Checkpointing here is deliberately a "catch the
+     * symptom, not the cause" fix: it cannot distinguish a user's own pause() (already
+     * checkpointed there, so this is a harmless redundant write) from a focus loss or
+     * becoming-noisy pause (previously never checkpointed at all) — but with no finer-grained
+     * hook available, catching every stop is the only way to close the gap.
+     */
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         _isPlaying.value = isPlaying
+        handleIsPlayingChangedForCheckpoint(isPlaying) { checkpointCursor() }
     }
 
     /**
@@ -54,11 +74,28 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
         // currentPosition rather than hardcoding 0 — media3 already reports the position
         // within the new window at the moment this fires, so this is exact rather than
         // assuming a fresh track always starts at zero (e.g. Repeat One's own seek).
-        controller?.let { ctrl ->
-            val index = ctrl.currentMediaItemIndex
-            if (index != C.INDEX_UNSET) {
-                persistence.updateCursor(ctrl.currentMediaItem?.mediaId, ctrl.currentPosition)
-            }
+        checkpointCursor()
+    }
+
+    /**
+     * P4-T7 / R3-F13: a same-item seek (the user drags the seek bar, or taps forward/back
+     * within the currently playing track) previously never triggered a checkpoint at all —
+     * [onMediaItemTransition] only fires when the item itself changes, not on a seek within
+     * one. Only [Player.DISCONTINUITY_REASON_SEEK] is checkpointed here: an automatic
+     * discontinuity (e.g. the internal adjustment media3 sometimes reports around a transition)
+     * is already covered by [onMediaItemTransition] and would just be a redundant write.
+     * Restricted to a same-item seek specifically because a cross-item seek already gets a
+     * fresh, correct checkpoint from [onMediaItemTransition] a moment later — checkpointing
+     * here too would just race it with the stale pre-seek media item.
+     */
+    override fun onPositionDiscontinuity(
+        oldPosition: Player.PositionInfo,
+        newPosition: Player.PositionInfo,
+        reason: Int,
+    ) {
+        handleSameItemSeekForCheckpoint(oldPosition.mediaItemIndex, newPosition.mediaItemIndex, reason) {
+            val slotId = newPosition.mediaItem?.mediaId?.takeIf { it.isNotEmpty() }
+            persistence.updateCursor(slotId, newPosition.positionMs)
         }
     }
 
@@ -127,3 +164,70 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
  */
 internal fun playerErrorLogMessage(error: PlaybackException, slotId: String?, title: String?): String =
     "Player error: code=${error.errorCode} (${error.errorCodeName}), slot=$slotId, title=$title"
+
+/**
+ * The pure decision behind [onIsPlayingChanged]'s checkpoint, split out for plain-JVM testing —
+ * neither this predicate nor [checkpoint] itself needs a real `MediaController`, unlike the
+ * actual [checkpointCursor] the production listener passes in. See [onIsPlayingChanged]'s kdoc
+ * for why "any stop" is the deliberately broad condition here.
+ */
+internal fun handleIsPlayingChangedForCheckpoint(isPlaying: Boolean, checkpoint: () -> Unit) {
+    if (!isPlaying) checkpoint()
+}
+
+/**
+ * The pure decision behind [onPositionDiscontinuity]'s checkpoint, split out for the same
+ * plain-JVM testing reason as [handleIsPlayingChangedForCheckpoint] — see that function's kdoc.
+ */
+internal fun handleSameItemSeekForCheckpoint(
+    oldMediaItemIndex: Int,
+    newMediaItemIndex: Int,
+    reason: Int,
+    checkpoint: () -> Unit,
+) {
+    if (reason != Player.DISCONTINUITY_REASON_SEEK) return
+    if (oldMediaItemIndex != newMediaItemIndex) return
+    checkpoint()
+}
+
+/**
+ * Shared cursor-only checkpoint (P4-T7), used from every listener callback that observes
+ * playback having moved or stopped without necessarily changing the queue structure —
+ * [onMediaItemTransition]'s track-transition case, [onIsPlayingChanged]'s stop case, and
+ * [onPositionDiscontinuity]'s same-item-seek case. Deliberately goes through
+ * [QueuePersistence.updateCursor], never the unified writer or [persistQueue] — those exist for
+ * multi-field structural writes (a fresh play, a shuffle toggle) or full-order rewrites, neither
+ * of which applies here: only the resume position moved.
+ */
+internal fun ExoPlayerEngine.checkpointCursor() {
+    val ctrl = controller ?: return
+    if (ctrl.currentMediaItemIndex == C.INDEX_UNSET) return
+    persistence.updateCursor(ctrl.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }, ctrl.currentPosition)
+}
+
+/**
+ * P4-T7 / R3-F13: the periodic-checkpoint half of the fix — long, uninterrupted playback of a
+ * single long track previously went un-checkpointed between the track's start and whatever
+ * later event (its own end, a pause, backgrounding) eventually saved a position. Emits one tick
+ * every [intervalMs] for as long as [isPlaying] reports `true`, and stops ticking the instant it
+ * flips `false` — [transformLatest] cancels the running `while(true)` delay loop below exactly
+ * like [kotlinx.coroutines.flow.collectLatest] cancels a stale collector, so a paused/stopped
+ * player is never left with a scheduled tick still pending.
+ *
+ * Deliberately a standalone [Flow] rather than inline engine code, mirroring
+ * [ExoPlayerEngine]'s own `positionTicker` flow+delay convention (see its kdoc) instead of a
+ * `Handler`/`postDelayed` loop — and, unlike a method on the engine, a pure function of an
+ * injected `isPlaying` [Flow], which is what makes it testable at the plain-JVM level with a
+ * fake `MutableStateFlow<Boolean>` and virtual time, without any real `MediaController`.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun periodicCheckpointDriver(
+    isPlaying: Flow<Boolean>,
+    intervalMs: Long = PERIODIC_CHECKPOINT_INTERVAL_MS,
+): Flow<Unit> = isPlaying.transformLatest { playing ->
+    if (!playing) return@transformLatest
+    while (true) {
+        delay(intervalMs)
+        emit(Unit)
+    }
+}
