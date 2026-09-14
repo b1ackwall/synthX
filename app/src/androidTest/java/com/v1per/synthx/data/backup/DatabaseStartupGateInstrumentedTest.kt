@@ -215,6 +215,85 @@ class DatabaseStartupGateInstrumentedTest {
     }
 
     @Test
+    fun trulyEmptyZeroByteFileReadsAsEmptyFileNotPresentZero() {
+        // R1-F05 open question, resolved: a file that exists but was never touched by any
+        // committed SQLite transaction (the exact state left by a first-ever database creation
+        // interrupted before Room's schema-creation transaction commits) is a genuine 0-byte
+        // file. SQLite opens a 0-byte file as a brand-new, schema-less database rather than
+        // erroring — PRAGMA user_version reliably reads 0 and sqlite_master has zero tables, with
+        // no risk of a stale/garbage value from a partially written header page. That makes the
+        // table-count check a safe, layered secondary signal (only consulted when version == 0),
+        // not something that needed to become the primary discriminator.
+        live.parentFile?.mkdirs()
+        assertTrue(live.createNewFile())
+        assertEquals(0L, live.length())
+
+        assertEquals(LiveDatabaseVersion.EmptyFile, LiveDatabaseVersionReader.read(live))
+    }
+
+    @Test
+    fun interruptedFirstCreationIsClassifiedAsFreshAndNextLaunchInitializesNormally() = runBlocking {
+        // Fault injection following the P3-T1/P3-T3 pattern: construct the interrupted state
+        // directly (a database file that exists but has never had a schema committed to it)
+        // rather than racing real process-death timing.
+        live.parentFile?.mkdirs()
+        assertTrue(live.createNewFile())
+
+        val migrations = AtomicInteger()
+        val controller = DatabaseStartupController(
+            currentVersion = SynthXDatabase.VERSION,
+            awaitRestoreNormal = { RestoreStartup.requireNormal() },
+            inspectLiveVersion = { LiveDatabaseVersionReader.read(live) },
+            performMigration = { migrations.incrementAndGet() },
+        )
+        DatabaseStartupGate.installForTest(controller)
+
+        // This is the acceptance criterion itself: before the fix this file was misclassified as
+        // BackupBeforeMigration(0) and the snapshot step threw "unknown synthX database version
+        // 0" on every attempt, permanently. Now the very next launch reaches readiness cleanly.
+        controller.awaitReady()
+        assertTrue(controller.isReady())
+        assertEquals(0, migrations.get())
+
+        val room = SynthXDatabase.getInstance(context)
+        room.openHelper.writableDatabase
+        assertEquals(
+            LiveDatabaseVersion.Present(SynthXDatabase.VERSION),
+            LiveDatabaseVersionReader.read(live),
+        )
+    }
+
+    @Test
+    fun populatedFileReportingVersionZeroStillFailsClosedViaMigrationPath() = runBlocking {
+        // Critical regression-safety boundary: a genuinely old/corrupted file that happens to
+        // hold real tables while reporting user_version = 0 must NOT be reclassified as fresh —
+        // it must still go through the ordinary (and here, rejecting) migration/snapshot path.
+        migrationHelper.createDatabase(SynthXDatabase.DB_NAME, 1).close()
+        SQLiteDatabase.openDatabase(
+            live.absolutePath,
+            null,
+            SQLiteDatabase.OPEN_READWRITE,
+        ).use { database -> database.execSQL("PRAGMA user_version = 0") }
+
+        assertEquals(LiveDatabaseVersion.Present(0), LiveDatabaseVersionReader.read(live))
+
+        val migrations = AtomicInteger()
+        val controller = DatabaseStartupController(
+            currentVersion = SynthXDatabase.VERSION,
+            awaitRestoreNormal = { RestoreStartup.requireNormal() },
+            inspectLiveVersion = { LiveDatabaseVersionReader.read(live) },
+            performMigration = { fromVersion ->
+                assertEquals(0, fromVersion)
+                migrations.incrementAndGet()
+            },
+        )
+        DatabaseStartupGate.installForTest(controller)
+
+        controller.awaitReady()
+        assertEquals(1, migrations.get())
+    }
+
+    @Test
     fun rawVersionReaderObservesCommittedUserVersionInWalWithoutRoom() {
         live.parentFile?.mkdirs()
         SQLiteDatabase.openOrCreateDatabase(live, null).use { database ->

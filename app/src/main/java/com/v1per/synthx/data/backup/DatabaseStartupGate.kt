@@ -14,6 +14,18 @@ import kotlinx.coroutines.withContext
 /** The state observed directly from the live SQLite database, before Room is constructed. */
 internal sealed interface LiveDatabaseVersion {
     data object Missing : LiveDatabaseVersion
+
+    /**
+     * R1-F05: the file exists and SQLite opens it, but it reports `user_version = 0` AND
+     * `sqlite_master` has zero tables. This is the shape left behind by a first-ever database
+     * creation interrupted before Room's schema-creation transaction ever committed (the file
+     * was created, but nothing was written into it) — never bumped from a real, previously
+     * migrated database. It is deliberately distinct from [Present] with `userVersion == 0`:
+     * a file with real tables that merely reports version 0 (e.g. a pre-Room or corrupted file)
+     * must still fail closed through the ordinary migration/snapshot path below, not be treated
+     * as fresh.
+     */
+    data object EmptyFile : LiveDatabaseVersion
     data class Present(val userVersion: Int) : LiveDatabaseVersion
 }
 
@@ -30,7 +42,8 @@ internal object DatabaseVersionPolicy {
         live: LiveDatabaseVersion,
         currentVersion: Int,
     ): DatabaseVersionDecision = when (live) {
-        LiveDatabaseVersion.Missing -> DatabaseVersionDecision.FreshDatabase
+        LiveDatabaseVersion.Missing,
+        LiveDatabaseVersion.EmptyFile -> DatabaseVersionDecision.FreshDatabase
         is LiveDatabaseVersion.Present -> when {
             live.userVersion == currentVersion -> DatabaseVersionDecision.CurrentDatabase
             live.userVersion < currentVersion ->
@@ -60,20 +73,33 @@ internal object LiveDatabaseVersionReader {
         if (!databaseFile.exists()) return LiveDatabaseVersion.Missing
         check(databaseFile.isFile) { "Live database path is not a regular file" }
 
-        val version = SQLiteDatabase.openDatabase(
+        return SQLiteDatabase.openDatabase(
             databaseFile.absolutePath,
             null,
             SQLiteDatabase.OPEN_READONLY,
         ).use { database ->
-            database.rawQuery("PRAGMA user_version", null).use { cursor ->
+            val version = database.rawQuery("PRAGMA user_version", null).use { cursor ->
                 check(cursor.moveToFirst() && cursor.columnCount >= 1) {
                     "SQLite did not report the live database user_version"
                 }
                 cursor.getInt(0)
             }
+            check(version >= 0) { "SQLite reported an invalid live database user_version" }
+
+            // R1-F05: version 0 is ambiguous on its own — it is both SQLite's default for a
+            // file that never had a schema committed to it (interrupted first-ever creation)
+            // AND a value a real, populated file could report (pre-Room or corrupted). Only
+            // the absence of any table in sqlite_master proves the former; a populated file
+            // must still fall through to Present(0) so it fails closed via the normal
+            // migration/snapshot path.
+            if (version == 0 &&
+                BackupSnapshotValidator.tableNames { sql -> database.rawQuery(sql, null) }.isEmpty()
+            ) {
+                LiveDatabaseVersion.EmptyFile
+            } else {
+                LiveDatabaseVersion.Present(version)
+            }
         }
-        check(version >= 0) { "SQLite reported an invalid live database user_version" }
-        return LiveDatabaseVersion.Present(version)
     }
 }
 

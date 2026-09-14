@@ -39,6 +39,26 @@ class DatabaseStartupGateTest {
         )
     }
 
+    @Test fun emptyFileNeedsNoMigrationBackup() {
+        // R1-F05: a file that exists but never had a schema committed to it must reach the same
+        // fresh-creation path as a truly absent file, not BackupBeforeMigration(0).
+        assertIs<DatabaseVersionDecision.FreshDatabase>(
+            DatabaseVersionPolicy.decide(LiveDatabaseVersion.EmptyFile, currentVersion = 8)
+        )
+    }
+
+    @Test fun populatedFileReportingVersionZeroStillRequiresMigrationBackup() {
+        // Critical safety boundary: a real, populated pre-Room/corrupted file that merely reports
+        // user_version = 0 must NOT be reclassified as fresh — it must still fail closed.
+        assertEquals(
+            DatabaseVersionDecision.BackupBeforeMigration(fromVersion = 0),
+            DatabaseVersionPolicy.decide(
+                LiveDatabaseVersion.Present(userVersion = 0),
+                currentVersion = 8,
+            ),
+        )
+    }
+
     @Test fun newerDatabaseIsUnsupportedAndNeverDowngraded() {
         assertEquals(
             DatabaseVersionDecision.UnsupportedNewerDatabase(actualVersion = 9),

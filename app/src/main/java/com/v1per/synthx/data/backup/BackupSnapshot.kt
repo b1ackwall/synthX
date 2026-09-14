@@ -226,7 +226,12 @@ internal object BackupSnapshotValidator {
             cursor.getInt(0)
         }
 
-    private fun tableNames(query: (String) -> Cursor): Set<String> =
+    /**
+     * Shared with [LiveDatabaseVersionReader] (R1-F05): the same `sqlite_master` query
+     * distinguishes a genuinely empty/schema-less file from one that merely reports
+     * `user_version = 0` while still holding real tables.
+     */
+    internal fun tableNames(query: (String) -> Cursor): Set<String> =
         query("SELECT name FROM sqlite_master WHERE type = 'table'").use { cursor ->
             buildSet {
                 while (cursor.moveToNext()) add(cursor.getString(0))
