@@ -70,11 +70,35 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
         return if (index < 0) emptyList() else live.subList(index + 1, live.size)
     }
 
-    /** Was `captureFresh`: a fresh `playQueue` fully replaces both orders, never merges. */
-    fun captureFresh(records: List<QueueSlotRecord>) {
+    /**
+     * Was `captureFresh`: a fresh `playQueue` fully replaces both orders, never merges.
+     *
+     * [writeBaseline] defaults to true for every existing caller; pass false when the caller is
+     * about to persist baseline itself as part of a larger atomic write (P4-T6 / F11) — a fresh
+     * play also writes active order/shuffle/cursor together, and letting this method's own
+     * narrow baseline write land independently would reopen the exact torn-write window that
+     * unification exists to close.
+     */
+    fun captureFresh(records: List<QueueSlotRecord>, writeBaseline: Boolean = true) {
         live = records
         baseline = records
-        persistBaseline()
+        if (writeBaseline) persistBaseline()
+    }
+
+    /**
+     * [captureFresh], except [liveOrder] and [baselineOrder] can differ — needed for F12: a
+     * fresh play issued while shuffle is already on must actually shuffle the incoming order
+     * rather than leaving the flag and the (unshuffled) order disagreeing. [baselineOrder] is
+     * the queue exactly as handed in; [liveOrder] is that same set of records, reordered.
+     */
+    fun captureFreshShuffled(
+        liveOrder: List<QueueSlotRecord>,
+        baselineOrder: List<QueueSlotRecord>,
+        writeBaseline: Boolean = true,
+    ) {
+        live = liveOrder
+        baseline = baselineOrder
+        if (writeBaseline) persistBaseline()
     }
 
     /** Was `restore`: both orders were already read from storage, so this just adopts them. */
@@ -234,8 +258,12 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
      * via Play Next / Add to Queue during the shuffle-ON session just ending, appended in their
      * current live order (derived by set difference against baseline, not tracked separately).
      * The result becomes the new baseline as well as the new live order.
+     *
+     * [writeBaseline] — see [captureFresh]'s kdoc for why a caller doing its own unified atomic
+     * write (P4-T6 / F11) passes false here instead of letting this method's own narrow write
+     * land independently.
      */
-    fun unshuffle(currentSlotId: String?): Boolean {
+    fun unshuffle(currentSlotId: String?, writeBaseline: Boolean = true): Boolean {
         val current = live.firstOrNull { it.slotId == currentSlotId } ?: return false
         val baselineIndex = baseline.indexOfFirst { it.slotId == current.slotId }
         val afterCurrentInBaseline = if (baselineIndex >= 0) {
@@ -250,7 +278,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
         val target = listOf(current) + afterCurrentInBaseline + sessionExtras
         live = target
         baseline = target
-        persistBaseline()
+        if (writeBaseline) persistBaseline()
         return true
     }
 

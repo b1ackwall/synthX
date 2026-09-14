@@ -188,6 +188,14 @@ interface SongRepository {
 
     /** The saved baseline, retaining each occurrence's slot identity. */
     suspend fun getBaselineQueueSlots(): List<QueueSlot>
+
+    /**
+     * [getQueueSnapshot] plus the baseline order, read together as one consistent snapshot
+     * (P4-T6) — see [com.v1per.synthx.data.db.QueueDao.getQueueAndBaselineItems]. Closes the
+     * split-read window a separate [getBaselineQueueSlots] call would leave against an
+     * atomically-written pair.
+     */
+    suspend fun getQueueSnapshotWithBaseline(): Pair<QueueSnapshot, List<QueueSlot>>
 }
 
 /**
@@ -243,4 +251,18 @@ internal interface AdmittedQueuePersistenceRepository {
 
     /** Narrow repeat-mode write — see [com.v1per.synthx.data.db.QueueDao.updateRepeatMode]. */
     suspend fun setRepeatModeAlreadyAdmitted(mode: Int)
+
+    /**
+     * The atomic write for a call site that changes more than one of {baseline order, active
+     * order, shuffle flag, repeat mode, cursor} at once — see
+     * [com.v1per.synthx.data.db.QueueDao.replaceQueueBaselineAndCursor].
+     */
+    suspend fun setUnifiedQueueState(
+        activeSlots: List<QueueSlotRecord>,
+        baselineSlots: List<QueueSlotRecord>,
+        currentSlotId: String?,
+        positionMs: Long,
+        shuffleEnabled: Boolean,
+        repeatMode: Int,
+    )
 }

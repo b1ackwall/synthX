@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -42,6 +44,14 @@ sealed class QueueAddResult {
      *  ask the user to confirm, then retry with `force = true`. */
     data object NeedsConfirmation : QueueAddResult()
 }
+
+/**
+ * How long [PlaybackViewModel.resume]'s optimistic `_isPlaying = true` is given to be confirmed
+ * by the engine's real state before it is force-corrected back to `false` — see
+ * [PlaybackViewModel.resume]'s kdoc. Matches the shape of P4-T1-4's deletion handoff barrier: a
+ * short bounded wait rather than an unbounded one.
+ */
+private const val RESUME_RECONCILE_TIMEOUT_MS = 1_500L
 
 class PlaybackViewModel(private val controller: PlaybackController) : ViewModel() {
 
@@ -310,14 +320,42 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     private fun hasActivePlayback(): Boolean =
         currentSongId.value != null && queue.value.isNotEmpty()
 
+    // The bounded reconciliation check started by resume() — see its kdoc. Cancelled by any
+    // later resume()/pause() so only the most recent tap's timeout can ever force-correct state.
+    private var resumeReconcileJob: Job? = null
+
     fun pause() {
+        resumeReconcileJob?.cancel()
         _isPlaying.value = false
         controller.pause()
     }
 
+    /**
+     * Optimistic like [pause]: flips the icon before the MediaController IPC round-trip
+     * confirms anything. Unlike pause, a genuine failure here (audio focus denied, a
+     * player left in a dead state by a prior fatal error) can mean the engine's own
+     * `isPlaying` never flips true — and if it was already `false`, the StateFlow collect in
+     * [init] dedupes that as no emission at all, so nothing would ever correct the optimistic
+     * `true` on its own. [RESUME_RECONCILE_TIMEOUT_MS] after this call, if nothing has already
+     * corrected [_isPlaying] (a real emission from the engine, or a later pause()/resume() tap),
+     * the engine's actual current state is checked directly and used to force-correct a
+     * still-optimistic `true` that playback never backed up. A genuine late-arriving `true` is
+     * never fought: the [init] collector applies it the moment it lands, before or after this
+     * check runs either way.
+     */
     fun resume() {
+        resumeReconcileJob?.cancel()
         _isPlaying.value = true
         controller.resume()
+        resumeReconcileJob = viewModelScope.launch {
+            delay(RESUME_RECONCILE_TIMEOUT_MS)
+            // Already corrected (to false by the real flow, or superseded by a later tap) —
+            // nothing left to reconcile.
+            if (!_isPlaying.value) return@launch
+            if (!controller.isPlaying.first()) {
+                _isPlaying.value = false
+            }
+        }
     }
 
     fun stop() = controller.stop()

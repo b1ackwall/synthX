@@ -1,5 +1,6 @@
 package com.v1per.synthx.playback
 
+import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -108,9 +109,21 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
     override fun onPlayerError(error: PlaybackException) {
         val title = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
             ?: _currentSlotId.value?.let { songsBySlotId[it]?.title }
+        // Was previously received and discarded — the code/cause is what actually distinguishes
+        // a missing file from a revoked content provider from a decoder failure, none of which
+        // the user-facing snackbar below carries.
+        Log.e(ExoPlayerEngine.TAG, playerErrorLogMessage(error, _currentSlotId.value, title), error)
         _isBuffering.value = false
         if (title != null) {
             _errors.tryEmit(PlaybackError.PlaybackFailed(title))
         }
     }
 }
+
+/**
+ * Split out of [onPlayerError] purely so its content is unit-testable without a real
+ * `MediaController`/`Player.Listener` — [error]'s code/cause is the whole point of this log line
+ * (see [onPlayerError]'s kdoc for why the snackbar it feeds can't carry the same detail).
+ */
+internal fun playerErrorLogMessage(error: PlaybackException, slotId: String?, title: String?): String =
+    "Player error: code=${error.errorCode} (${error.errorCodeName}), slot=$slotId, title=$title"

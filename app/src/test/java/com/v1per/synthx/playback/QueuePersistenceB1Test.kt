@@ -54,6 +54,17 @@ class QueuePersistenceB1Test {
         override suspend fun setCursorAlreadyAdmitted(currentSlotId: String?, positionMs: Long) {}
         override suspend fun setShuffleEnabledAlreadyAdmitted(enabled: Boolean) {}
         override suspend fun setRepeatModeAlreadyAdmitted(mode: Int) {}
+        override suspend fun setUnifiedQueueState(
+            activeSlots: List<QueueSlotRecord>,
+            baselineSlots: List<QueueSlotRecord>,
+            currentSlotId: String?,
+            positionMs: Long,
+            shuffleEnabled: Boolean,
+            repeatMode: Int,
+        ) {
+            started.complete(Unit); gate?.await(); persisted += activeSlots.map { it.slotId }
+            if (failWrites) error("database failure")
+        }
         override fun getSongs(): Flow<List<Song>> = emptyFlow(); override fun getArtists(): Flow<List<Artist>> = emptyFlow()
         override fun getSongsForArtist(artistId: String): Flow<List<Song>> = emptyFlow(); override fun getAlbums(): Flow<List<Album>> = emptyFlow()
         override fun getSongsForAlbum(albumId: String): Flow<List<Song>> = emptyFlow()
@@ -88,6 +99,7 @@ class QueuePersistenceB1Test {
         override suspend fun getQueueSlots() = emptyList<QueueSlot>()
         override suspend fun getQueueSnapshot() = snapshot
         override suspend fun getBaselineQueueSlots() = emptyList<QueueSlot>()
+        override suspend fun getQueueSnapshotWithBaseline() = snapshot to emptyList<QueueSlot>()
     }
     private fun song(id: String) = Song(id, id, "", "", 0L, "")
     private fun slots(vararg ids: String) = ids.map { QueueSlot(slotId = it, song = song(it)) }

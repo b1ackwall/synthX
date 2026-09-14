@@ -58,15 +58,35 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
         // Store before timeline: every queue flow is derived from the store now, so it has to
         // be correct before the transition callback for the starting item can land. A fresh
         // queue always fully replaces both orders — never merges with whatever existed before.
-        orderStore.captureFresh(slots.map { QueueSlotRecord(it.slotId, it.song.id) })
+        val baselineRecords = slots.map { QueueSlotRecord(it.slotId, it.song.id) }
+        if (_shuffleEnabled.value) {
+            // F12: a fresh play issued while shuffle is already on must actually shuffle the
+            // incoming queue rather than leaving the flag true against an unshuffled order —
+            // the previous behaviour silently left flag and order disagreeing, which is also
+            // what made re-enabling shuffle later read as a rejected no-op.
+            val startRecord = baselineRecords[start]
+            val liveRecords = listOf(startRecord) + (baselineRecords - startRecord).shuffled()
+            orderStore.captureFreshShuffled(liveRecords, baselineRecords, writeBaseline = false)
+        } else {
+            orderStore.captureFresh(baselineRecords, writeBaseline = false)
+        }
         refreshQueue()
         publishCurrentSlot(startSlot.slotId)
         refreshCurrentIndex()
 
-        seedWindow(start, C.TIME_UNSET, startArtwork)
+        val playIndex = orderStore.indexOfSlot(startSlot.slotId).coerceAtLeast(0)
+        seedWindow(playIndex, C.TIME_UNSET, startArtwork)
         ctrl.play()
 
-        onQueueStructureChanged(fresh = true)
+        refreshUpcomingQueue()
+        refreshNavigationState()
+        _isQueueCustomized.value = false
+        // Baseline + active order + shuffle + repeat + cursor, all in one atomic write
+        // (P4-T6 / F11) — replaces the old shape (captureFresh's own separate baseline write,
+        // then onQueueStructureChanged's separate persistQueue), which could previously land as
+        // two independent commits.
+        persistUnifiedQueueState()
+        prefetchArtwork()
     }
     // After install, not inside the Main.immediate block above: reconciliation does its own
     // suspending DB read and re-enters Main.immediate itself.
@@ -228,7 +248,10 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
         val reordered = if (enabled) {
             orderStore.shuffle(currentSlotId)
         } else {
-            orderStore.unshuffle(currentSlotId)
+            // writeBaseline=false: baseline is rewritten again as part of the SAME atomic write
+            // below (P4-T6 / F11) — letting this land as its own independent write would reopen
+            // exactly the torn-write window unification exists to close.
+            orderStore.unshuffle(currentSlotId, writeBaseline = false)
         }
         if (!reordered) return@withContext
 
@@ -240,9 +263,17 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
         }
 
         _shuffleEnabled.value = enabled
-        persistence.updateShuffleEnabled(enabled)
         maintainWindow(force = true)
-        onQueueReordered()
+        refreshQueue()
+        refreshUpcomingQueue()
+        refreshNavigationState()
+        // Baseline + active order + shuffle + repeat + cursor, all in one atomic write
+        // (P4-T6 / F11) — replaces the old shape (a separate updateShuffleEnabled write, plus
+        // onQueueReordered's separate persistQueue, plus — while turning shuffle off —
+        // unshuffle's own separate baseline write): three independent commits for one logical
+        // change, any pair of which a process death between them could leave mismatched.
+        persistUnifiedQueueState()
+        prefetchArtwork()
     }
 }
 

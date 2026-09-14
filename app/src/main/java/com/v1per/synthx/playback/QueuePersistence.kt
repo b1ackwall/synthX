@@ -7,6 +7,7 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.repository.AdmittedQueuePersistenceRepository
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.QueueSlotRecord
+import com.v1per.synthx.data.repository.QueueSnapshot
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -193,6 +194,42 @@ class QueuePersistence(
         }
     }
 
+    /**
+     * The atomic write for a call site that changes more than one of {baseline order, active
+     * order, shuffle flag, repeat mode, cursor} at once (P4-T6 / F11) — a fresh play or a
+     * shuffle toggle. Goes through the same serialized [writeQueue] consumer as every other
+     * write here, so it can never race or land out of order against them, and — being one
+     * commit — can never itself be observed half-landed.
+     */
+    fun saveUnifiedQueueState(
+        activeSlots: List<QueueSlotRecord>,
+        baselineSlots: List<QueueSlotRecord>,
+        currentSlotId: String?,
+        positionMs: Long,
+        shuffleEnabled: Boolean,
+        repeatMode: Int,
+    ) {
+        val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
+        synchronized(admissionLock) {
+            if (!acceptingWrites) { permit.release(); return }
+            val accepted = writeQueue.trySend {
+                try {
+                    require(repository is AdmittedQueuePersistenceRepository) {
+                        "Queue persistence requires an already-admitted repository"
+                    }
+                    repository.setUnifiedQueueState(
+                        activeSlots, baselineSlots, currentSlotId, positionMs, shuffleEnabled, repeatMode,
+                    )
+                } catch (e: Exception) {
+                    runCatching { Log.w(TAG, "Unified queue state save failed: ${e.message}") }
+                } finally {
+                    permit.release()
+                }
+            }
+            if (accepted.isFailure) permit.release()
+        }
+    }
+
     /** Repeat-mode counterpart of [updateShuffleEnabled] — same narrow-write shape. */
     fun updateRepeatMode(mode: Int) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
@@ -226,6 +263,25 @@ class QueuePersistence(
             Log.w(TAG, "Queue load failed: ${e.message}")
             return null
         }
+        return toRestoredQueue(snapshot)
+    }
+
+    /**
+     * [loadQueue] plus [loadBaselineQueue], read together as one consistent snapshot (P4-T6) —
+     * closes the split-read window between the two separate suspending calls this replaces at
+     * the live-reconnect adoption call site (see [com.v1per.synthx.data.db.QueueDao.getFullQueueSnapshot]).
+     */
+    suspend fun loadQueueWithBaseline(): Pair<RestoredQueue?, List<QueueSlot>> {
+        val (snapshot, baseline) = try {
+            repository.getQueueSnapshotWithBaseline()
+        } catch (e: Exception) {
+            Log.w(TAG, "Queue load failed: ${e.message}")
+            return null to emptyList()
+        }
+        return toRestoredQueue(snapshot) to baseline
+    }
+
+    private fun toRestoredQueue(snapshot: QueueSnapshot): RestoredQueue? {
         if (snapshot.storedSlotCount == 0) return null
 
         val slots = snapshot.slots

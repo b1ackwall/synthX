@@ -1,6 +1,7 @@
 package com.v1per.synthx.playback
 
 import androidx.media3.common.C
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import com.v1per.synthx.data.repository.QueueSlotRecord
 
@@ -169,6 +170,34 @@ internal fun loadedSlotIds(ctrl: MediaController): List<String> =
     (0 until ctrl.mediaItemCount).map { ctrl.getMediaItemAt(it).mediaId }
 
 /**
+ * What a seek-in-place needs to do first to actually recover playback, decompiled from media3
+ * 1.4.0's `MediaSessionImpl.handleMediaControllerPlayRequest`: a fatal [Player.onPlayerError]
+ * leaves the player in `STATE_IDLE` (prepared media source torn down, `prepare()` required
+ * before anything plays again), while a plain end-of-timeline leaves it in `STATE_ENDED`
+ * (still prepared, just parked at the end). That session-side recovery is only reached via an
+ * explicit `MediaController.play()` call — never via a local `ctrl.seekTo()`, which is why a
+ * transport skip issued straight after a fatal error used to seek silently on a dead player
+ * (see [seekToLiveIndex]'s kdoc). Pure so the state-to-action mapping is unit-testable without
+ * a real `MediaController`.
+ */
+internal enum class IdleRecoveryAction { NONE, PREPARE, SEEK_TO_DEFAULT }
+
+internal fun idleRecoveryActionFor(playbackState: Int): IdleRecoveryAction = when (playbackState) {
+    Player.STATE_IDLE -> IdleRecoveryAction.PREPARE
+    Player.STATE_ENDED -> IdleRecoveryAction.SEEK_TO_DEFAULT
+    else -> IdleRecoveryAction.NONE
+}
+
+/** Applies [idleRecoveryActionFor] to [ctrl] — call before any raw `ctrl.seekTo()`. */
+internal fun applyIdleRecovery(ctrl: MediaController) {
+    when (idleRecoveryActionFor(ctrl.playbackState)) {
+        IdleRecoveryAction.PREPARE -> ctrl.prepare()
+        IdleRecoveryAction.SEEK_TO_DEFAULT -> ctrl.seekToDefaultPosition()
+        IdleRecoveryAction.NONE -> {}
+    }
+}
+
+/**
  * Reconciles the live timeline with the window the order store says should be loaded around the
  * currently-playing slot. The single entry point for every "the player's view of the queue may
  * be stale" moment: a track transition (unforced, so hysteresis applies), any queue mutation, a
@@ -245,6 +274,10 @@ internal fun ExoPlayerEngine.seekToLiveIndex(targetIndex: Int, play: Boolean): B
     val target = orderStore.slotAt(targetIndex) ?: return false
     val loadedIndex = indexOfMediaId(ctrl, target.slotId)
     if (loadedIndex != null) {
+        // Recover from a dead player (idle after a fatal error, or ended) before seeking —
+        // otherwise this is a seek on a player that will never actually play. See
+        // idleRecoveryActionFor's kdoc.
+        applyIdleRecovery(ctrl)
         ctrl.seekTo(loadedIndex, C.TIME_UNSET)
         if (play) ctrl.play()
         return true

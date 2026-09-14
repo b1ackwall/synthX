@@ -1066,6 +1066,45 @@ class SongRepositoryImpl(
         queueDao.replaceBaselineQueue(slots)
     }
 
+    override suspend fun getQueueSnapshotWithBaseline(): Pair<QueueSnapshot, List<QueueSlot>> =
+        dbOperation { withContext(Dispatchers.IO) {
+            val (items, baselineItems, cursor) = queueDao.getFullQueueSnapshot()
+            val records = items.map { QueueSlotRecord(it.slotId, it.songId) }
+            val baselineRecords = baselineItems.map { QueueSlotRecord(it.slotId, it.songId) }
+            val snapshot = QueueSnapshot(
+                slots = resolveQueueSlots(records),
+                storedSlotCount = records.size,
+                cursor = cursor?.let {
+                    QueueCursor(
+                        currentSlotId = it.currentSlotId,
+                        positionMs = it.positionMs,
+                        shuffleEnabled = it.shuffleEnabled,
+                        repeatMode = it.repeatMode,
+                    )
+                },
+            )
+            snapshot to resolveQueueSlots(baselineRecords)
+        } }
+
+    override suspend fun setUnifiedQueueState(
+        activeSlots: List<QueueSlotRecord>,
+        baselineSlots: List<QueueSlotRecord>,
+        currentSlotId: String?,
+        positionMs: Long,
+        shuffleEnabled: Boolean,
+        repeatMode: Int,
+    ) = withContext(Dispatchers.IO) {
+        queueDao.replaceQueueBaselineAndCursor(
+            activeSlots, baselineSlots, currentSlotId, positionMs, shuffleEnabled, repeatMode,
+        )
+        if (BuildConfig.DEBUG) {
+            check(currentSlotId == null || activeSlots.any { it.slotId == currentSlotId }) {
+                "Playback cursor invariant violated: currentSlotId=$currentSlotId is not in " +
+                    "the ${activeSlots.size} just-persisted active queue slots"
+            }
+        }
+    }
+
     private suspend fun resolveQueueSlots(records: List<QueueSlotRecord>): List<QueueSlot> {
         if (records.isEmpty()) return emptyList()
         val songIds = records.map { it.songId }.distinct()

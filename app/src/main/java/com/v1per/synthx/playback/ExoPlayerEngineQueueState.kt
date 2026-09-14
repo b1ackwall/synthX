@@ -56,6 +56,26 @@ internal fun ExoPlayerEngine.persistQueue() {
 }
 
 /**
+ * Persists baseline + active order + shuffle flag + repeat mode + cursor together as one atomic
+ * unit (P4-T6 / F11) — see [QueuePersistence.saveUnifiedQueueState]. Used by every call site that
+ * changes more than one of these five pieces at once (a fresh play, a shuffle toggle), so an
+ * interrupted write can never leave a torn combination. [persistQueue]/[writeBaselineOrder] etc.
+ * remain correct for call sites that only ever touch one piece.
+ */
+internal fun ExoPlayerEngine.persistUnifiedQueueState() {
+    val positionMs = controller?.currentPosition ?: 0L
+    val currentSlotId = _currentSlotId.value?.takeIf { orderStore.indexOfSlot(it) >= 0 }
+    persistence.saveUnifiedQueueState(
+        activeSlots = orderStore.live,
+        baselineSlots = orderStore.baseline,
+        currentSlotId = currentSlotId,
+        positionMs = positionMs,
+        shuffleEnabled = _shuffleEnabled.value,
+        repeatMode = _repeatMode.value.toPlayerRepeatMode(),
+    )
+}
+
+/**
  * Rebuilds engine state when reconnecting to a service that was already running with no live
  * `ExoPlayerEngine` instance owning it. NOT actual process death — this same-process
  * `MediaLibraryService` cannot survive that (see [SynthXPlaybackService]'s own kdoc, corrected in
@@ -74,8 +94,11 @@ internal fun ExoPlayerEngine.persistQueue() {
  */
 internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController) {
     if (ctrl.mediaItemCount == 0) return
-    val restored = persistence.loadQueue() ?: return
-    val restoredBaseline = persistence.loadBaselineQueue()
+    // Read together as one consistent snapshot (P4-T6) — two separate suspending reads here
+    // used to leave a window where a write landing in between could hand this path an active
+    // order and a baseline from two different generations.
+    val (restored, restoredBaseline) = persistence.loadQueueWithBaseline()
+    restored ?: return
     restored.slots.forEach { songsBySlotId[it.slotId] = it.song }
     restoredBaseline.forEach { songsBySlotId.putIfAbsent(it.slotId, it.song) }
     orderStore.restore(

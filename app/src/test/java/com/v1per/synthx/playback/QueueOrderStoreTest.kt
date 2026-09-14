@@ -44,6 +44,48 @@ class QueueOrderStoreTest {
         assertEquals(listOf("slot-x", "slot-y"), writer.writes.last())
     }
 
+    /**
+     * P4-T6 / F11: the atomic-write call sites (fresh play while shuffle is on, a shuffle
+     * toggle) pass `writeBaseline = false` so their own narrow baseline write does not land
+     * independently of the unified transaction they perform themselves — see
+     * `ExoPlayerEngineQueueOps.playQueueInternal`/`setShuffleEnabledInternal`.
+     */
+    @Test fun captureFreshCanSuppressItsOwnBaselineWrite() {
+        val writer = RecordingWriter()
+        val subject = store(writer)
+
+        subject.captureFresh(records("a", "b"), writeBaseline = false)
+
+        assertEquals(listOf("slot-a", "slot-b"), subject.liveIds())
+        assertEquals(listOf("slot-a", "slot-b"), subject.baselineIds())
+        assertTrue(writer.writes.isEmpty(), "writeBaseline=false must not trigger the writer")
+    }
+
+    @Test fun captureFreshShuffledSetsDifferentLiveAndBaselineOrders() {
+        val writer = RecordingWriter()
+        val subject = store(writer)
+        val baseline = records("a", "b", "c")
+        val live = listOf(baseline[1], baseline[0], baseline[2])
+
+        subject.captureFreshShuffled(live, baseline, writeBaseline = false)
+
+        assertEquals(listOf("slot-b", "slot-a", "slot-c"), subject.liveIds())
+        assertEquals(listOf("slot-a", "slot-b", "slot-c"), subject.baselineIds())
+        assertTrue(writer.writes.isEmpty())
+    }
+
+    @Test fun unshuffleCanSuppressItsOwnBaselineWrite() {
+        val writer = RecordingWriter()
+        val subject = store(writer)
+        subject.captureFresh(records("a", "b", "c"))
+        subject.shuffle("slot-b") { it.reversed() }
+        val writesBeforeUnshuffle = writer.writes.size
+
+        assertTrue(subject.unshuffle("slot-b", writeBaseline = false))
+
+        assertEquals(writesBeforeUnshuffle, writer.writes.size, "writeBaseline=false must not trigger the writer")
+    }
+
     @Test fun restoreAdoptsBothOrdersWithoutRewritingBaseline() {
         val writer = RecordingWriter()
         val subject = store(writer)

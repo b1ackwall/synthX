@@ -451,11 +451,15 @@ class ExoPlayerEngine(
     override fun previous() {
         val ctrl = controller ?: return
         if (ctrl.currentPosition > ctrl.maxSeekToPreviousPosition) {
+            // Same idle/ended recovery seekToLiveIndex applies — this branch seeks the
+            // controller directly rather than going through it, so it needs its own call.
+            applyIdleRecovery(ctrl)
             ctrl.seekTo(/* positionMs = */ 0)
             return
         }
         val loadedIndex = ctrl.currentMediaItemIndex
         if (loadedIndex != C.INDEX_UNSET && loadedIndex > 0) {
+            applyIdleRecovery(ctrl)
             ctrl.seekTo(loadedIndex - 1, C.TIME_UNSET)
             return
         }
@@ -466,6 +470,7 @@ class ExoPlayerEngine(
         if (_repeatMode.value == RepeatMode.All && current == 0 && orderStore.size > 1) {
             seekToLiveIndex(orderStore.size - 1, play = false)
         } else {
+            applyIdleRecovery(ctrl)
             ctrl.seekTo(/* positionMs = */ 0)
         }
     }
@@ -573,7 +578,7 @@ class ExoPlayerEngine(
         else -> RepeatMode.Off
     }
 
-    private fun RepeatMode.toPlayerRepeatMode(): Int = when (this) {
+    internal fun RepeatMode.toPlayerRepeatMode(): Int = when (this) {
         RepeatMode.Off -> Player.REPEAT_MODE_OFF
         RepeatMode.All -> Player.REPEAT_MODE_ALL
         RepeatMode.One -> Player.REPEAT_MODE_ONE

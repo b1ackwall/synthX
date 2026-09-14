@@ -143,4 +143,58 @@ interface QueueDao {
             }
         )
     }
+
+    /**
+     * The atomic write for every call site that changes more than one of {baseline order, active
+     * order, shuffle flag, repeat mode, cursor} at once (P4-T6 / F11) — a fresh play and a
+     * shuffle toggle, at the time this was added. All five pieces land in the same transaction,
+     * so an interrupted write can never leave some already changed and others still at their
+     * previous values — unlike the old shape, where each piece went through one of
+     * [replaceQueue]/[replaceBaselineQueue]/[updateShuffleEnabled]/[updateRepeatMode]/
+     * [updateCursor]/[replaceQueueAndCursor] as its own independent commit. Narrow single-piece
+     * call sites (a plain track transition, Play Next, a drag-reorder) are unaffected and keep
+     * using those — this is not a replacement for them, only for the call sites that used to
+     * fire several of them back to back for one logical change.
+     */
+    @Transaction
+    suspend fun replaceQueueBaselineAndCursor(
+        activeSlots: List<QueueSlotRecord>,
+        baselineSlots: List<QueueSlotRecord>,
+        currentSlotId: String?,
+        positionMs: Long,
+        shuffleEnabled: Boolean,
+        repeatMode: Int,
+    ) {
+        clearQueue()
+        insertQueueItems(
+            activeSlots.mapIndexed { index, slot ->
+                QueueItemEntity(slotId = slot.slotId, position = index, songId = slot.songId)
+            }
+        )
+        clearBaselineQueue()
+        insertBaselineQueueItems(
+            baselineSlots.mapIndexed { index, slot ->
+                BaselineQueueItemEntity(slotId = slot.slotId, position = index, songId = slot.songId)
+            }
+        )
+        upsertCursor(
+            PlaybackCursorEntity(
+                currentSlotId = currentSlotId,
+                positionMs = positionMs,
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
+            )
+        )
+    }
+
+    /**
+     * Reads the active queue, baseline order, and cursor together as one consistent snapshot
+     * (P4-T6) — the read-side counterpart of [replaceQueueBaselineAndCursor], closing the
+     * split-read window independent suspending queries would otherwise leave open against an
+     * atomically-written trio. Used by the live-reconnect adoption path, which previously read
+     * active and baseline as two separate suspending calls.
+     */
+    @Transaction
+    suspend fun getFullQueueSnapshot(): Triple<List<QueueItemEntity>, List<BaselineQueueItemEntity>, PlaybackCursorEntity?> =
+        Triple(getQueueItems(), getBaselineQueueItems(), getCursor())
 }
