@@ -5,8 +5,9 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
-import com.v1per.synthx.data.db.SongDao
+import androidx.room.withTransaction
 import com.v1per.synthx.data.db.SongEntity
+import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.artFilePresence
 import com.v1per.synthx.data.compressedArtFileExists
 import com.v1per.synthx.data.fullResArtFileExists
@@ -93,13 +94,23 @@ internal object ArtRecovery {
      * mirroring [extractScanData]'s concurrency shape (a semaphore-gated `async` per candidate,
      * awaited together). Candidates whose audio file can't be resolved on disk are skipped, not
      * treated as an error — there is nothing to extract art from.
+     *
+     * [extractArt] is the file-I/O + decode step (resolve the source document, read embedded
+     * art via [AlbumArtExtractor.extract]) — defaulted to the real implementation below, but
+     * swappable so a test can control what a recovery attempt "found" without a real embedded-art
+     * audio fixture, same seam shape as [PaletteRecovery.recover]'s `extractSwatches` parameter.
+     * Returns null when nothing usable came back (source unresolvable, or extraction produced
+     * neither variant) — both collapse to [RecoveryOutcome.FAILED] the same way the inline
+     * pre-refactor code did.
      */
     suspend fun recover(
         context: Context,
-        songDao: SongDao,
+        database: SynthXDatabase,
         songIds: List<String>? = null,
         onProgress: suspend (current: Int, total: Int) -> Unit = { _, _ -> },
+        extractArt: suspend (Context, SongEntity) -> Pair<String?, String?>? = ::defaultExtractArt,
     ): ArtRecoveryResult {
+        val songDao = database.songDao()
         val candidates = if (songIds != null) songDao.getSongsByIds(songIds) else songDao.getAllSongsOnce()
         val missingArt = findMissingArt(context, candidates)
         if (missingArt.isEmpty()) {
@@ -115,7 +126,7 @@ internal object ArtRecovery {
                 async(Dispatchers.IO) {
                     val outcome = gate.withPermit {
                         currentCoroutineContext().ensureActive()
-                        recoverOneSong(context, songDao, song)
+                        recoverOneSong(context, database, song, extractArt)
                     }
                     onProgress(completed.incrementAndGet(), total)
                     outcome
@@ -172,19 +183,41 @@ internal object ArtRecovery {
      * success; the caller's next [findMissingArt] pass (e.g. the Issues screen's post-Fix
      * re-check) will surface it again.
      */
-    private suspend fun recoverOneSong(context: Context, songDao: SongDao, song: SongEntity): RecoveryOutcome {
-        val uri = runCatching { Uri.parse(song.filePath) }.getOrNull() ?: return RecoveryOutcome.FAILED
-        val file = DocumentFile.fromSingleUri(context, uri)?.takeIf { it.exists() } ?: return RecoveryOutcome.FAILED
-
-        val retriever = MediaMetadataRetriever()
+    private suspend fun recoverOneSong(
+        context: Context,
+        database: SynthXDatabase,
+        song: SongEntity,
+        extractArt: suspend (Context, SongEntity) -> Pair<String?, String?>?,
+    ): RecoveryOutcome {
+        val songDao = database.songDao()
         return try {
-            retriever.setDataSource(context, file.uri)
-            val (compressedUri, fullArtUri) = AlbumArtExtractor.extract(context, retriever, song.id)
-            if (compressedUri == null && fullArtUri == null) return RecoveryOutcome.FAILED
+            val (compressedUri, fullArtUri) = extractArt(context, song) ?: return RecoveryOutcome.FAILED
 
-            val current = songDao.getSongById(song.id) ?: return RecoveryOutcome.FAILED
-            val updated = mergeArtRecoveryResult(current, compressedUri, fullArtUri)
-            songDao.upsertSong(updated)
+            // Extraction/decode happens above, outside the transaction — same split as
+            // PaletteRecovery.recoverOneSong. Re-read and merge inside one short transaction so a
+            // concurrent deletion, retag, missing-status flip or another fix landing in the gap
+            // between the original read (above, for extraction) and this write can never be
+            // silently clobbered by this stale whole-row upsert — and so a row deleted in that
+            // window is never resurrected by it either.
+            //
+            // Unlike PaletteRecovery's `swatch1Hue == null` predicate, "still needs art recovery"
+            // is a DISK check (findMissingArt), and AlbumArtExtractor.extract already wrote the
+            // real art files to disk above, before this transaction opened — so re-running that
+            // same disk predicate in here would read "already fixed" on every successful attempt
+            // and silently no-op the write, defeating recovery entirely. The re-check that's
+            // actually meaningful here is whether the SOURCE this extraction ran against is still
+            // what the row points at: if filePath changed concurrently (a graduation/rename, or a
+            // rescan retagging a different physical file onto this id) between the pre-extraction
+            // read and now, this attempt's art no longer corresponds to the row's current audio,
+            // so it's dropped rather than written — the next findMissingArt pass will pick the row
+            // up fresh against whatever it now points at.
+            val updated = database.withTransaction {
+                val current = songDao.getSongById(song.id) ?: return@withTransaction null
+                if (current.filePath != song.filePath) return@withTransaction null
+                val merged = mergeArtRecoveryResult(current, compressedUri, fullArtUri)
+                songDao.upsertSong(merged)
+                merged
+            } ?: return RecoveryOutcome.FAILED
 
             val stillMissing = findMissingArt(
                 listOf(updated),
@@ -202,6 +235,23 @@ internal object ArtRecovery {
         } catch (e: Exception) {
             Log.w(TAG, "Art recovery failed for song ${song.id}", e)
             RecoveryOutcome.FAILED
+        }
+    }
+
+    /**
+     * Real [extractArt] implementation: resolve [song]'s source document and pull embedded art
+     * out of it via [AlbumArtExtractor.extract]. Split out from [recoverOneSong] purely so the
+     * latter is testable against an injected fake — see [recover]'s kdoc.
+     */
+    private suspend fun defaultExtractArt(context: Context, song: SongEntity): Pair<String?, String?>? {
+        val uri = runCatching { Uri.parse(song.filePath) }.getOrNull() ?: return null
+        val file = DocumentFile.fromSingleUri(context, uri)?.takeIf { it.exists() } ?: return null
+
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, file.uri)
+            val (compressedUri, fullArtUri) = AlbumArtExtractor.extract(context, retriever, song.id)
+            if (compressedUri == null && fullArtUri == null) null else compressedUri to fullArtUri
         } finally {
             retriever.release()
         }

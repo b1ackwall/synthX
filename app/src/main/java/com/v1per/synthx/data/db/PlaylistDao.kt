@@ -16,7 +16,12 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlist_groups ORDER BY name COLLATE NOCASE ASC")
     fun getAllGroups(): Flow<List<PlaylistGroupEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // Deliberately NOT OnConflictStrategy.REPLACE: every caller (SongRepositoryImpl.createGroup,
+    // PlaylistSeedBootstrapper's empty-table seed) always inserts a freshly generated id, so a
+    // conflict here can only mean an id collision bug. REPLACE would silently delete the existing
+    // row first — orphaning every playlist under it (group_id is ON DELETE SET NULL) — which is
+    // far worse than the default ABORT throwing loudly (R1-F02).
+    @Insert
     suspend fun insertGroup(group: PlaylistGroupEntity)
 
     @Query("DELETE FROM playlist_groups WHERE id = :groupId")
@@ -39,7 +44,12 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlists WHERE group_id = :groupId ORDER BY name COLLATE NOCASE ASC")
     fun getPlaylistsForGroup(groupId: String): Flow<List<PlaylistEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // Deliberately NOT OnConflictStrategy.REPLACE: every caller (SongRepositoryImpl.createPlaylist,
+    // PlaylistSeedBootstrapper's empty-table seed) always inserts a freshly generated id, so a
+    // conflict here can only mean an id collision bug. REPLACE would silently delete the existing
+    // row first — cascading away every membership under it (playlist_id is ON DELETE CASCADE on
+    // playlist_songs) — which is far worse than the default ABORT throwing loudly (R1-F02).
+    @Insert
     suspend fun insertPlaylist(playlist: PlaylistEntity)
 
     @Query("UPDATE playlists SET name = :name, updated_at = :updatedAt WHERE id = :id")

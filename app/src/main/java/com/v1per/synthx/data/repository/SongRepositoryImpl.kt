@@ -761,7 +761,7 @@ class SongRepositoryImpl(
     internal suspend fun getMissingSongCountAlreadyAdmitted(): Int = songDao.getMissingSongCountOnce()
 
     override suspend fun recoverMissingArt(songIds: List<String>?): ArtRecoveryResult = dbOperation {
-        ArtRecovery.recover(context, songDao, songIds)
+        ArtRecovery.recover(context, database, songIds)
     }
 
     /** Both cache values describe the same database snapshot. Caller owns worker admission. */
