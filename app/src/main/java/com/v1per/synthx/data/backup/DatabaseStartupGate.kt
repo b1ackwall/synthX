@@ -217,7 +217,7 @@ internal object DatabaseStartupGate {
         },
         hasPendingMigrationRecovery = {
             withContext(Dispatchers.IO) {
-                PreferencesManager(context).migrationInvariantFailurePending
+                MigrationRecoveryGate.isRecoveryStillRequired(context)
             }
         },
         performMigration = { fromVersion ->
@@ -254,12 +254,24 @@ internal object DatabaseStartupGate {
         runCatching { BackupManager.create(context).createPreMigrationBackup().getOrThrow() }
             .onFailure { Log.w(TAG, "Best-effort SAF pre-migration backup failed", it) }
 
+        // P3-T3 / R1-F08: durably recorded BEFORE Room's forced open below commits the
+        // migration. A death after that commit but before `verify` runs leaves this marker
+        // behind; MigrationRecoveryGate treats its mere presence as proof validation never
+        // provably completed, rather than trusting the live file's now-current user_version.
+        MigrationValidationMarker.write(context, fromVersion, toVersion)
         try {
             val database = SynthXDatabase.getInstanceForMigrationGate(context)
             database.openHelper.writableDatabase // forces Room's migration to run now
             MigrationInvariantCheck.verify(database, toVersion)
+            MigrationValidationMarker.clear(context)
         } catch (error: Exception) {
-            PreferencesManager(context).migrationInvariantFailurePending = true
+            val committed = PreferencesManager(context).setMigrationInvariantFailurePendingDurably(true)
+            if (!committed) {
+                Log.e(TAG, "Could not durably persist migrationInvariantFailurePending=true")
+            }
+            // Marker is deliberately left in place on failure — see MigrationRecoveryGate,
+            // which treats its presence alone as sufficient even if the commit() above also
+            // somehow failed to land.
             throw MigrationInvariantFailedException(
                 "Migration to version $toVersion failed its post-migration safety check",
                 error,

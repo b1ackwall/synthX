@@ -4,6 +4,22 @@
 Claude Code must never run any git command (add, commit, push, checkout, branch, etc.).
  handles all git operations manually. Report changes made; do not stage or commit them.
 
+## Connected Device — PRODUCTION APP, DO NOT TOUCH
+The Android device normally connected via adb is 's daily-use phone. It has the real
+production build installed under package `com.v1per.synthx` — this is 's actual music
+library and daily data, not a test fixture.
+- `com.v1per.synthx` (no suffix) = PRODUCTION. NEVER run `adb shell pm clear`, `adb uninstall`,
+  `adb shell pm uninstall`, or any other destructive/data-touching adb command against this
+  package, under any circumstances, even to "rule out stale state" while debugging a test.
+- `com.v1per.synthx.debug` (note the `.debug` suffix) = the debug build package
+  (`applicationIdSuffix`), used by `assembleDebug` / `connectedDebugAndroidTest` / instrumented
+  tests. This one is fair game — clear it, uninstall it, wipe it, reinstall it freely as needed
+  for debugging or testing, no need to ask first.
+- Before any adb command that touches app data or packages, double-check the package name
+  argument is the `.debug`-suffixed one. If a command's target package is ambiguous or you're
+  about to run something broad (e.g. an adb command without an explicit package filter), stop
+  and ask first rather than guessing.
+
 ## Environment Setup (machine-aware)
 
 First, check the machine:

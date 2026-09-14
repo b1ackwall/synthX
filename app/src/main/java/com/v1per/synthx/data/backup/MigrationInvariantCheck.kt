@@ -32,6 +32,55 @@ internal object MigrationInvariantCheck {
 }
 
 /**
+ * Decides whether the startup gate should still show the recovery-required prompt (P3-T3 /
+ * R1-F08 + R1-F09), instead of trusting [PreferencesManager.migrationInvariantFailurePending] and
+ * [MigrationValidationMarker]'s presence at face value.
+ *
+ * The two signals are deliberately NOT treated the same way:
+ *  - [MigrationValidationMarker] being present means validation never provably ran to completion
+ *    (R1-F08) — that is an unconditional "recovery required" signal on its own. There is nothing
+ *    to self-heal here: if verify() never ran, no fact about the live database's current
+ *    structural validity can stand in for the check that was actually supposed to happen.
+ *  - [PreferencesManager.migrationInvariantFailurePending] being set means a completed validation
+ *    genuinely failed, or — pre-fix — a stale leftover from the old recovery ordering, which
+ *    deleted the internal snapshot before durably clearing this flag (R1-F09). A death in that
+ *    exact window left a permanently un-recoverable "recovery required" prompt even though the
+ *    live database had already been successfully restored. This flag alone is what self-heals:
+ *    if the live database is genuinely valid right now AND there is no snapshot left to recover
+ *    from anyway (recovery would be structurally impossible), the flag is cleared and the app is
+ *    allowed to proceed normally. If the live database is NOT provably valid, or a snapshot DOES
+ *    still exist, the flag falls through to the existing recovery-required flow unchanged.
+ */
+internal object MigrationRecoveryGate {
+    fun isRecoveryStillRequired(context: Context): Boolean {
+        // R1-F08: unconditional — see the class doc for why this specific signal never self-heals.
+        if (MigrationValidationMarker.isPresent(context)) return true
+
+        val preferences = PreferencesManager(context)
+        if (!preferences.migrationInvariantFailurePending) return false
+
+        // A snapshot existing means a real, unresolved validation failure — the live database's
+        // validity is not yet proven and recovery must still be offered.
+        if (MigrationSnapshotStore.snapshotForCurrentVersion(context) != null) return true
+
+        val liveValid = runCatching {
+            BackupSnapshotValidator.validate(
+                context.getDatabasePath(SynthXDatabase.DB_NAME),
+                migrationSnapshot = false,
+            )
+        }.isSuccess
+        if (!liveValid) return true
+
+        // Structurally impossible to recover from (no snapshot) and nothing to recover FROM is
+        // needed anyway (the live DB already validates as current) — this is exactly the F09
+        // lockout shape. Clear the stale flag and let the app proceed normally. If the durable
+        // clear itself can't be confirmed, stay conservative and keep prompting rather than
+        // silently claiming a self-heal that might not have landed.
+        return !preferences.setMigrationInvariantFailurePendingDurably(false)
+    }
+}
+
+/**
  * The lightweight, internal-only recovery path offered when [MigrationInvariantCheck] fails.
  *
  * [RestoreTransaction] was deliberately not reused here: it is built for restoring a SAF-sourced
@@ -67,8 +116,18 @@ internal object MigrationRecoveryAction {
             "Restored database is not the version the internal snapshot claimed to protect"
         }
 
+        // P3-T3 / R1-F09: the failure flag is cleared DURABLY, and confirmed, before the
+        // snapshot it protects is deleted — reversed from the old order. The live database has
+        // already been proven valid above, so if the process dies right after this line, the
+        // flag is correctly cleared and the snapshot is still sitting there for a retried
+        // recovery (or MigrationRecoveryGate's self-heal) to fall back on. The old order could
+        // delete the snapshot first and die before the flag-clear landed, permanently locking
+        // out recovery for a database that was actually already fine.
+        check(PreferencesManager(context).setMigrationInvariantFailurePendingDurably(false)) {
+            "Could not durably clear the migration invariant failure flag after recovery"
+        }
+        MigrationValidationMarker.clear(context)
         MigrationSnapshotStore.clearAfterRecovery(context)
-        PreferencesManager(context).migrationInvariantFailurePending = false
     }
 
     private fun uniqueFailedName(dir: File): File {

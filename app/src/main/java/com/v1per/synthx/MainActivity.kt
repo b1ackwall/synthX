@@ -350,6 +350,12 @@ private fun MigrationRecoveryContent(applicationContext: android.content.Context
                     onClick = {
                         isRestoring = true
                         scope.launch(Dispatchers.IO) {
+                            // P3-T3 / R1-F09: restoreFromInternalSnapshot's success path already
+                            // clears migrationInvariantFailurePending via a blocking commit()
+                            // (and clears the file-based validation marker with its own fsync)
+                            // before returning — that synchronous commit()/fsync completion is
+                            // the durability barrier this exitProcess needs. There is nothing
+                            // async left in flight on this path by the time onSuccess runs.
                             MigrationRecoveryAction.restoreFromInternalSnapshot(applicationContext)
                                 .onSuccess { exitProcess(0) }
                                 .onFailure { error ->

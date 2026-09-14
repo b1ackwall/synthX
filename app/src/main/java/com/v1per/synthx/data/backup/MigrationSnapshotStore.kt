@@ -59,6 +59,12 @@ internal object MigrationSnapshotStore {
      * migration attempt (or none at all) is left untouched here.
      */
     fun recordSuccessfulLaunch(context: Context) {
+        // P3-T3 / R1-F08 defense-in-depth: reachable in practice only once a migration attempt
+        // has actually cleared the marker (performProductionMigration rethrows on any failure
+        // before onReady ever fires), but this guard makes that guarantee explicit and
+        // independent of the surrounding control flow rather than relying solely on it.
+        if (MigrationValidationMarker.isPresent(context)) return
+
         val preferences = PreferencesManager(context)
         val forVersion = preferences.migrationSnapshotForVersion
         if (forVersion == -1 || forVersion != SynthXDatabase.VERSION) return

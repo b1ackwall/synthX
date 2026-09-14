@@ -157,10 +157,25 @@ class PreferencesManager(context: Context) {
      * snapshot has been restored. While true, the startup gate refuses readiness regardless of
      * what the live database's own `user_version` reports (it may already read as "current" —
      * the migration ran, it just failed validation).
+     *
+     * Read-only here by design (P3-T3 / R1-F08/F09): both writers of this flag
+     * ([com.v1per.synthx.data.backup.DatabaseStartupGate] on failure,
+     * [com.v1per.synthx.data.backup.MigrationRecoveryAction] on recovery) are safety-critical —
+     * a process death between an async `apply()` returning and the write actually landing can
+     * silently lose either transition. Both write through
+     * [setMigrationInvariantFailurePendingDurably] instead, which blocks on `commit()`.
      */
-    var migrationInvariantFailurePending: Boolean
+    val migrationInvariantFailurePending: Boolean
         get() = prefs.getBoolean(KEY_MIGRATION_INVARIANT_FAILURE_PENDING, false)
-        set(value) = prefs.edit().putBoolean(KEY_MIGRATION_INVARIANT_FAILURE_PENDING, value).apply()
+
+    /**
+     * Synchronous counterpart to [migrationInvariantFailurePending]'s (removed) setter. Blocks
+     * until the write is committed to disk and reports whether it actually succeeded, so a
+     * caller on this critical path can react to a failed commit instead of assuming success the
+     * way `apply()` would.
+     */
+    fun setMigrationInvariantFailurePendingDurably(value: Boolean): Boolean =
+        prefs.edit().putBoolean(KEY_MIGRATION_INVARIANT_FAILURE_PENDING, value).commit()
 
     // --------------------------------------------------------------------- post-restore art sweep
 
