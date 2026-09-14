@@ -43,6 +43,16 @@ interface SongRepository {
     suspend fun deleteSong(id: String): SongDeletionOutcome
 
     /**
+     * Same effect as [deleteSong], but the call itself is launched on this repository's own
+     * process-lifetime scope rather than the caller's (P3-T1 / R4-F-D5) — it keeps running to
+     * completion even if the caller's own coroutine scope is cancelled first, e.g. an
+     * `IssuesViewModel` whose `NavBackStackEntry` is popped mid-delete. [onResult] is invoked
+     * exactly once, off the caller's scope, once the delete finishes or throws — implementations
+     * must not swallow the callback on a non-cancellation failure.
+     */
+    fun deleteSongDetached(id: String, onResult: (Result<SongDeletionOutcome>) -> Unit)
+
+    /**
      * Read-only dry run of [replaceSong], for the review step's "here is what will happen"
      * screen. Never writes.
      *

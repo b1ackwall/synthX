@@ -169,6 +169,7 @@
     <string name="issues_export_unhealthy_title">Playlist export failed</string>
     <string name="issues_verification_failed_title">Backup verification failed</string>
     <string name="issues_destructive_actions_title">%1$d change(s) since your last backup</string>
+    <string name="issues_reconciled_pending_cleanups_title">%1$d interrupted change(s) cleaned up on launch</string>
     <string name="issues_backup_folder_grant_lost_title">Backup folder access lost</string>
     <string name="issues_backup_folder_grant_lost_subtitle">Reconnect it to keep backups working</string>
     <string name="issues_missing_art_title">%1$d song(s) missing cover art</string>

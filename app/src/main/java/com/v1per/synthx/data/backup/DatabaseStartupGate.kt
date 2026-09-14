@@ -91,6 +91,13 @@ internal class DatabaseStartupController(
     private val performMigration: suspend (fromVersion: Int) -> Unit,
     /** True while a previous migration's [MigrationInvariantCheck] failure hasn't been recovered. */
     private val hasPendingMigrationRecovery: suspend () -> Boolean = { false },
+    /**
+     * P3-T1: consumes every leftover `pending_cleanups` record before the gate opens, so no
+     * repository/ViewModel code can ever observe a half-reconciled destructive operation. Runs
+     * after any pending migration (a fresh/current database has nothing to reconcile either way)
+     * and before [onReady].
+     */
+    private val reconcilePendingCleanups: suspend () -> Unit = {},
     /** Fired once per process, the first time this attempt reaches readiness. */
     private val onReady: suspend () -> Unit = {},
 ) {
@@ -140,6 +147,7 @@ internal class DatabaseStartupController(
                                 currentVersion,
                             )
                     }
+                    reconcilePendingCleanups()
                     onReady()
                 }
             }
@@ -214,6 +222,12 @@ internal object DatabaseStartupGate {
         },
         performMigration = { fromVersion ->
             withContext(Dispatchers.IO) { performProductionMigration(context, fromVersion) }
+        },
+        reconcilePendingCleanups = {
+            withContext(Dispatchers.IO) {
+                val database = SynthXDatabase.getInstanceForMigrationGate(context)
+                PendingCleanupReconciliation.reconcile(context, database)
+            }
         },
         onReady = {
             withContext(Dispatchers.IO) { MigrationSnapshotStore.recordSuccessfulLaunch(context) }

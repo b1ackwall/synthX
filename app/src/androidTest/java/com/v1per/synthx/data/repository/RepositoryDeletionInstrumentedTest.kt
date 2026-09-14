@@ -66,7 +66,7 @@ class RepositoryDeletionInstrumentedTest {
         )
         repository = SongRepositoryImpl(
             context, database, database.songDao(), database.artistDao(), database.albumDao(),
-            database.playlistDao(), database.queueDao(),
+            database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
             FolderScanner(
                 context, database, database.songDao(), database.artistDao(), database.albumDao(),
                 database.songArtistDao(), exports,
@@ -288,7 +288,7 @@ class RepositoryDeletionInstrumentedTest {
         result: DestructiveFilePreflightResult,
     ): SongRepositoryImpl = SongRepositoryImpl(
         context, database, database.songDao(), database.artistDao(), database.albumDao(),
-        database.playlistDao(), database.queueDao(),
+        database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
         FolderScanner(
             context, database, database.songDao(), database.artistDao(), database.albumDao(),
             database.songArtistDao(), exports,

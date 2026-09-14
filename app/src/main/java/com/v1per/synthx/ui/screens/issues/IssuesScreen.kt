@@ -252,6 +252,10 @@ private fun IssuesContent(
                             count = issue.count,
                             onClick = onNavigateToBackups,
                         )
+                        is Issue.ReconciledPendingCleanups -> ReconciledPendingCleanupsRow(
+                            count = issue.count,
+                            timestamp = issue.timestamp,
+                        )
                         is Issue.BackupFolderGrantLost -> BackupFolderGrantLostRow(
                             onClick = onNavigateToBackups,
                         )
@@ -277,6 +281,7 @@ private fun Issue.rowKey(): String = when (this) {
     is Issue.ExportUnhealthy -> "export_unhealthy:${outcome.timestamp}"
     is Issue.VerificationFailed -> "verification_failed:${outcome.timestamp}"
     is Issue.DestructiveActionsSinceBackup -> "destructive_actions"
+    is Issue.ReconciledPendingCleanups -> "reconciled_pending_cleanups"
     is Issue.BackupFolderGrantLost -> "backup_folder_grant_lost"
     is Issue.MissingArt -> "missing_art"
     is Issue.MissingPalette -> "missing_palette"
@@ -530,6 +535,17 @@ private fun DestructiveActionsRow(count: Int, onClick: () -> Unit) {
         subtitle = stringResource(R.string.issues_backup_unhealthy_subtitle_generic),
         timestamp = null,
         onClick = onClick,
+    )
+}
+
+/** P3-T1: informational only, no click target — the cleanup it describes already happened. */
+@Composable
+private fun ReconciledPendingCleanupsRow(count: Int, timestamp: Long) {
+    SafetyNetIssueRow(
+        title = stringResource(R.string.issues_reconciled_pending_cleanups_title, count),
+        subtitle = relativeTime(timestamp).toString(),
+        timestamp = timestamp,
+        onClick = {},
     )
 }
 

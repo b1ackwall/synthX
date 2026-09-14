@@ -21,9 +21,9 @@ import com.v1per.synthx.data.scanner.IssuesScanWorker
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.DestructiveActionTracker
+import com.v1per.synthx.preferences.PendingCleanupReconciliationTracker
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.UiState
-import com.v1per.synthx.ui.common.launchCatching
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -228,6 +228,20 @@ class IssuesViewModel(
         val safetyNetIssues = buildList {
             if (grantLost) add(Issue.BackupFolderGrantLost)
             addAll(timestampedIssues)
+            // P3-T1: reconciliation, if it ran, already happened before this ViewModel could ever
+            // be constructed (it's part of DatabaseStartupGate's own gate, ahead of every
+            // repository access) — reading the tracker's current value directly is enough, the
+            // same way lastIssuesScanTimestamp/missingArtSongIds are read directly below rather
+            // than flow-combined.
+            val reconciledCount = PendingCleanupReconciliationTracker.lastCount.value
+            if (reconciledCount > 0) {
+                add(
+                    Issue.ReconciledPendingCleanups(
+                        count = reconciledCount,
+                        timestamp = PendingCleanupReconciliationTracker.lastTimestamp.value,
+                    ),
+                )
+            }
             if (partial.destructiveCount > 0) {
                 add(Issue.DestructiveActionsSinceBackup(partial.destructiveCount))
             }
@@ -259,23 +273,34 @@ class IssuesViewModel(
     val deleteInProgress: StateFlow<Boolean> = _deleteInProgress.asStateFlow()
 
     // The list is Flow-backed, so Room's invalidation drops the row from the UI on its own.
+    //
+    // P3-T1 / R4-F-D5: this ViewModel is scoped to its own NavBackStackEntry (unlike
+    // SongActionsViewModel, hosted above the NavHost), so a back-press right after confirming a
+    // delete pops the entry and cancels viewModelScope. Routed through
+    // repository.deleteSongDetached instead of viewModelScope.launch { repository.deleteSong(id) }
+    // so the delete is never a child of this ViewModel's scope in the first place — it keeps
+    // running on the repository's own process-lifetime scope regardless of what happens here.
+    // The callback runs off viewModelScope too (on the repository's own dispatcher), but
+    // MutableStateFlow.value and MutableSharedFlow.tryEmit are both safe to touch from any thread.
     fun deleteSong(id: String) {
         if (_deleteInProgress.value) return
         _deleteInProgress.value = true
-        launchCatching(onError = { _events.tryEmit(IssuesActionEvent.ActionFailed) }) {
-            try {
-                when (val outcome = repository.deleteSong(id)) {
-                    SongDeletionOutcome.Deleted -> Unit
-                    SongDeletionOutcome.FileRemained ->
-                        _events.tryEmit(IssuesActionEvent.DeletedButFileRemained)
-                    SongDeletionOutcome.CleanupUncertain ->
-                        _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain)
-                    is SongDeletionOutcome.Blocked ->
-                        _events.tryEmit(IssuesActionEvent.DeleteBlocked(outcome.reason))
-                }
-            } finally {
-                _deleteInProgress.value = false
-            }
+        repository.deleteSongDetached(id) { result ->
+            result.fold(
+                onSuccess = { outcome ->
+                    when (outcome) {
+                        SongDeletionOutcome.Deleted -> Unit
+                        SongDeletionOutcome.FileRemained ->
+                            _events.tryEmit(IssuesActionEvent.DeletedButFileRemained)
+                        SongDeletionOutcome.CleanupUncertain ->
+                            _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain)
+                        is SongDeletionOutcome.Blocked ->
+                            _events.tryEmit(IssuesActionEvent.DeleteBlocked(outcome.reason))
+                    }
+                },
+                onFailure = { _events.tryEmit(IssuesActionEvent.ActionFailed) },
+            )
+            _deleteInProgress.value = false
         }
     }
 

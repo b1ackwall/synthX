@@ -69,7 +69,7 @@ class ReplaceSongInstrumentedTest {
         )
         repository = SongRepositoryImpl(
             context, database, database.songDao(), database.artistDao(), database.albumDao(),
-            database.playlistDao(), database.queueDao(),
+            database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
             FolderScanner(
                 context, database, database.songDao(), database.artistDao(), database.albumDao(),
                 database.songArtistDao(), exports,
@@ -370,7 +370,7 @@ class ReplaceSongInstrumentedTest {
         previewAnalysisCheckpoint: suspend () -> Unit = {},
     ): SongRepositoryImpl = SongRepositoryImpl(
         context, database, database.songDao(), database.artistDao(), database.albumDao(),
-        database.playlistDao(), database.queueDao(),
+        database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
         FolderScanner(
             context, database, database.songDao(), database.artistDao(), database.albumDao(),
             database.songArtistDao(), exports,

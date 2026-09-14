@@ -112,11 +112,12 @@ class BackupPrimitivesTest {
         // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist) — this
         // literal going stale (previously pinned to v9's hash while VERSION had moved to 11)
         // is exactly the bug this comment exists to prevent from recurring silently.
-        assertEquals("0c6e349e42c3acb1c0d2fb907a1706df", current.roomIdentityHash)
+        assertEquals("3e0e2f38ca17807335cfa847b095f2fd", current.roomIdentityHash)
         assertTrue("songs" in current.expectedTables)
         assertTrue("queue_items" in current.expectedTables)
         assertTrue("queue_baseline_items" in current.expectedTables)
         assertTrue("playback_cursor" in current.expectedTables)
+        assertTrue("pending_cleanups" in current.expectedTables)
 
         // A trusted v8 backup is still a valid *source* to migrate forward from — the
         // contract map must keep describing it, not just the current version.

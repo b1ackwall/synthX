@@ -18,6 +18,14 @@ sealed class Issue {
     data object BackupFolderGrantLost : Issue()
 
     /**
+     * P3-T1: startup reconciliation found and resolved [count] destructive operations
+     * (delete/replace/graduate) left mid-flight by a process death, per
+     * [com.v1per.synthx.data.db.PendingCleanupEntity]. Purely informational — the cleanup already
+     * happened, this just makes it visible rather than silently invisible.
+     */
+    data class ReconciledPendingCleanups(val count: Int, val timestamp: Long) : Issue()
+
+    /**
      * One or more songs whose art file(s) are gone from disk despite their row still pointing
      * at them — e.g. after an uninstall/reinstall/restore cycle, since album art is deliberately
      * excluded from backups. See [com.v1per.synthx.data.scanner.ArtRecovery].

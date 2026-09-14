@@ -5,6 +5,7 @@ import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.DatabaseStartupGate
 import com.v1per.synthx.data.backup.RestoreStartup
 import com.v1per.synthx.preferences.DestructiveActionTracker
+import com.v1per.synthx.preferences.PendingCleanupReconciliationTracker
 
 /** Establishes the ordered process gates before any Activity, Service, or Worker can own Room. */
 class SynthXApplication : Application() {
@@ -19,5 +20,6 @@ class SynthXApplication : Application() {
         // observers) before any ViewModel would otherwise have triggered a load.
         BackupOutcomeStore.initialize(this)
         DestructiveActionTracker.initialize(this)
+        PendingCleanupReconciliationTracker.initialize(this)
     }
 }

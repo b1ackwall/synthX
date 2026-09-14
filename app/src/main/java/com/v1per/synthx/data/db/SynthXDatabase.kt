@@ -21,8 +21,9 @@ import com.v1per.synthx.data.backup.RestoreStartup
         QueueItemEntity::class,
         BaselineQueueItemEntity::class,
         PlaybackCursorEntity::class,
+        PendingCleanupEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -33,10 +34,11 @@ abstract class SynthXDatabase : RoomDatabase() {
     abstract fun songArtistDao(): SongArtistDao
     abstract fun playlistDao(): PlaylistDao
     abstract fun queueDao(): QueueDao
+    abstract fun pendingCleanupDao(): PendingCleanupDao
 
     companion object {
         /** Must track the `version` in the @Database annotation above. */
-        const val VERSION = 14
+        const val VERSION = 15
 
         const val DB_NAME = "synthx.db"
 
@@ -386,6 +388,30 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
+        // Adds pending_cleanups (see P3-T1 / PendingCleanupEntity's kdoc): a durable record of a
+        // destructive operation's post-commit physical cleanup, so an interruption between the
+        // DB commit and file cleanup (delete/replace) or between source deletion and the DB
+        // commit (graduation) can be reconciled on next launch. Purely additive, same shape as
+        // 4_5/5_6/9_10: a brand-new table with nothing to migrate into it. Deliberately no
+        // foreign key to songs — see the entity's kdoc for why.
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS pending_cleanups (
+                        operation_id TEXT NOT NULL PRIMARY KEY,
+                        song_id TEXT NOT NULL,
+                        operation_type TEXT NOT NULL,
+                        file_path TEXT,
+                        published_path TEXT,
+                        phase TEXT NOT NULL,
+                        created_at INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         /**
          * The canonical migration chain, in order. Single source of truth for every Room
          * builder in this file — the live singleton in [getOrCreate] and the offline
@@ -406,7 +432,7 @@ abstract class SynthXDatabase : RoomDatabase() {
         internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
             MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-            MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+            MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
         )
 
         fun getInstance(context: Context): SynthXDatabase {

@@ -126,6 +126,16 @@ internal object BackupSchemaContracts {
                 setOf("queue_items", "queue_baseline_items", "playback_cursor"),
             hasMigrationPathToCurrent = true,
         ),
+        // 14_15 adds pending_cleanups (see P3-T1) — a new managed table, so it joins the set.
+        BackupSchemaContract(
+            userVersion = 15,
+            roomIdentityHash = "3e0e2f38ca17807335cfa847b095f2fd",
+            expectedTables = coreTables +
+                setOf(
+                    "queue_items", "queue_baseline_items", "playback_cursor", "pending_cleanups",
+                ),
+            hasMigrationPathToCurrent = true,
+        ),
     ).associateBy { it.userVersion }
 
     val current: BackupSchemaContract

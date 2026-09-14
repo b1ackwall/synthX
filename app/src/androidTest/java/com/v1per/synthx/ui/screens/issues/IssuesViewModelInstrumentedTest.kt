@@ -14,11 +14,15 @@ import com.v1per.synthx.preferences.PreferencesManager
 import java.lang.reflect.Proxy
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -118,6 +122,47 @@ class IssuesViewModelInstrumentedTest {
         assertEquals(1, DestructiveActionTracker.count.value)
     }
 
+    /**
+     * P3-T1 / R4-F-D5: IssuesViewModel is scoped to its own NavBackStackEntry — a back-press
+     * right after confirming a delete pops the entry and cancels viewModelScope. This proves the
+     * delete keeps running to completion anyway, because IssuesViewModel.deleteSong routes
+     * through [SongRepository.deleteSongDetached] rather than `viewModelScope.launch { repository
+     * .deleteSong(id) }` — see [DeferredDeleteRepository]'s own independent [CoroutineScope].
+     *
+     * Mutation check (see the P3-T1 report): temporarily reverting IssuesViewModel.deleteSong to
+     * `viewModelScope.launch { repository.deleteSong(id) }` makes this test time out, since
+     * cancelling `subject.viewModelScope` below would then cancel the delete itself before `gate`
+     * is ever released.
+     */
+    @Test
+    fun deleteSurvivesViewModelScopeCancellation() = runBlocking {
+        val callCount = AtomicInteger(0)
+        val gate = CompletableDeferred<Unit>()
+        val completed = CompletableDeferred<SongDeletionOutcome>()
+        val detached = DeferredDeleteRepository(context, callCount, gate, fakeRepository())
+        val subject = subject(
+            object : SongRepository by detached {
+                override fun deleteSongDetached(id: String, onResult: (Result<SongDeletionOutcome>) -> Unit) {
+                    detached.deleteSongDetached(id) { result ->
+                        result.onSuccess { completed.complete(it) }
+                        onResult(result)
+                    }
+                }
+            },
+        )
+
+        subject.deleteSong("song")
+        // Simulate the NavBackStackEntry (and this ViewModel) being torn down mid-delete — the
+        // repository call above is still suspended on `gate` at this point.
+        subject.viewModelScope.cancel()
+
+        gate.complete(Unit)
+        val outcome = withTimeout(2_000) { completed.await() }
+
+        assertEquals(SongDeletionOutcome.Deleted, outcome)
+        assertEquals(1, callCount.get())
+    }
+
     @Test
     fun missingArtRecoveryFailureEmitsActionFailed() = runBlocking {
         val subject = subject(recoverMissingArt = { error("art recovery failed") })
@@ -148,22 +193,38 @@ class IssuesViewModelInstrumentedTest {
     ): SongRepository = Proxy.newProxyInstance(
         SongRepository::class.java.classLoader,
         arrayOf(SongRepository::class.java),
-    ) { _, method, _ ->
+    ) { _, method, args ->
         when (method.name) {
             "getMissingSongs" -> flowOf(emptyList<Any>())
             "deleteSong" -> delete()
+            // P3-T1: IssuesViewModel now calls this instead of deleteSong — see
+            // SongRepository.deleteSongDetached's kdoc. Invoked synchronously here (the fake has
+            // no scope of its own to be independent of); DeferredDeleteRepository below is what
+            // actually exercises the "survives the caller's scope" behavior this exists for.
+            "deleteSongDetached" -> {
+                @Suppress("UNCHECKED_CAST")
+                val onResult = args[1] as (Result<SongDeletionOutcome>) -> Unit
+                onResult(runCatching { delete() })
+                Unit
+            }
             "recoverMissingArt" -> recoverMissingArt()
             else -> error("Unexpected repository call: ${method.name}")
         }
     } as SongRepository
 
     /**
-     * Wraps a fake [SongRepository] to make `deleteSong` genuinely suspend on [gate] and count
-     * invocations — needed to prove [IssuesViewModel.deleteInProgress] blocks a second,
+     * Wraps a fake [SongRepository] to make `deleteSongDetached` genuinely suspend on [gate] and
+     * count invocations — needed to prove [IssuesViewModel.deleteInProgress] blocks a second,
      * concurrent call rather than merely a call made after the first has already finished. Also
      * records a real [DestructiveActionTracker] entry per invocation, mirroring
      * SongRepositoryImpl.deleteSong's own coupling, so the same test proves both halves of the
-     * P1-T3 fix: repository.deleteSong called once, and the destructive-action count bumped once.
+     * P1-T3 fix: repository.deleteSongDetached called once, and the destructive-action count
+     * bumped once.
+     *
+     * Launches on its own independent [scope] rather than suspending inline — same shape as
+     * [com.v1per.synthx.data.repository.SongRepositoryImpl.repositoryScope] — so
+     * [deleteSurvivesViewModelScopeCancellation] below can prove the call keeps running after the
+     * ViewModel's own scope is cancelled, the same way the real implementation does.
      */
     private class DeferredDeleteRepository(
         private val context: Context,
@@ -171,11 +232,15 @@ class IssuesViewModelInstrumentedTest {
         private val gate: CompletableDeferred<Unit>,
         backing: SongRepository,
     ) : SongRepository by backing {
-        override suspend fun deleteSong(id: String): SongDeletionOutcome {
-            callCount.incrementAndGet()
-            gate.await()
-            DestructiveActionTracker.recordDestructiveAction(context)
-            return SongDeletionOutcome.Deleted
+        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        override fun deleteSongDetached(id: String, onResult: (Result<SongDeletionOutcome>) -> Unit) {
+            scope.launch {
+                callCount.incrementAndGet()
+                gate.await()
+                DestructiveActionTracker.recordDestructiveAction(context)
+                onResult(Result.success(SongDeletionOutcome.Deleted))
+            }
         }
     }
 

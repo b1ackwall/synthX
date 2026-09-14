@@ -9,6 +9,10 @@ import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.PlaylistExportManager
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.ArtistDao
+import com.v1per.synthx.data.db.PendingCleanupDao
+import com.v1per.synthx.data.db.PendingCleanupEntity
+import com.v1per.synthx.data.db.PendingCleanupPhase
+import com.v1per.synthx.data.db.PendingCleanupType
 import com.v1per.synthx.data.db.PlaylistDao
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
@@ -51,7 +55,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -114,6 +120,7 @@ class SongRepositoryImpl(
     private val albumDao: AlbumDao,
     private val playlistDao: PlaylistDao,
     private val queueDao: QueueDao,
+    private val pendingCleanupDao: PendingCleanupDao,
     private val folderScanner: FolderScanner,
     private val backupManager: BackupManager,
     private val playlistExportManager: PlaylistExportManager,
@@ -300,14 +307,66 @@ class SongRepositoryImpl(
                         DestructiveFilePreflightResult.Ambiguous -> Unit
                     }
                 }
+                val operationId = UUID.randomUUID().toString()
                 val filePath = database.withTransaction {
                     val existing = songDao.getSongById(id)
                     deleteSongRowWithArtRepoint(songDao, albumDao, id)
+                    // Durable BEFORE the row is gone (P3-T1 / R2-F09): same transaction as the
+                    // row delete, so a crash right after commit still leaves a record behind for
+                    // startup reconciliation to finish the file cleanup this call never got to.
+                    pendingCleanupDao.insert(
+                        PendingCleanupEntity(
+                            operationId = operationId,
+                            songId = id,
+                            operationType = PendingCleanupType.DELETE.name,
+                            filePath = existing?.filePath,
+                            publishedPath = null,
+                            phase = PendingCleanupPhase.Committed.name,
+                            createdAt = System.currentTimeMillis(),
+                        ),
+                    )
                     existing?.filePath
                 }
-                finishSongDeletion(id, filePath)
+                runPostCommitCleanup(operationId, id, filePath)
             }
         }
+    }
+
+    // See SongRepository.deleteSongDetached's kdoc. The whole call (locks, backup, transaction,
+    // and the runPostCommitCleanup phase below) runs on repositoryScope from the start, so
+    // IssuesViewModel's caller-side coroutine is never in the loop at all — cancelling it cannot
+    // affect this in any way, not just the post-commit phase.
+    override fun deleteSongDetached(id: String, onResult: (Result<SongDeletionOutcome>) -> Unit) {
+        repositoryScope.launch {
+            onResult(runCatching { deleteSong(id) })
+        }
+    }
+
+    /**
+     * Runs [finishSongDeletion] on [repositoryScope] instead of inline, and joins it — so a
+     * caller whose own coroutine gets cancelled (P3-T1 / R4-F-D5, e.g. `IssuesViewModel`'s
+     * `NavBackStackEntry` going away mid-delete) only loses the *wait*, not the cleanup itself:
+     * [repositoryScope] is not a structured child of the caller's job, so cancelling the caller
+     * cannot cancel work already launched on it. The normal (non-cancelled) case is unaffected —
+     * this still returns the real [SongDeletionOutcome] once cleanup finishes.
+     *
+     * [operationId]'s [PendingCleanupEntity] is cleared once [finishSongDeletion] returns,
+     * regardless of whether individual steps inside it failed — those ordinary failures are
+     * already surfaced honestly via [SongDeletionOutcome] (`FileRemained`/`CleanupUncertain`),
+     * which retrying via startup reconciliation would not change. The record exists to protect
+     * against *interruption* (this function never returning at all, i.e. process death), not
+     * against a provider that permanently refuses a delete — see the P3-T1 report for the full
+     * reasoning.
+     */
+    private suspend fun runPostCommitCleanup(
+        operationId: String,
+        id: String,
+        filePath: String?,
+    ): SongDeletionOutcome {
+        val cleanup = repositoryScope.async { finishSongDeletion(id, filePath) }
+        val outcome = cleanup.await()
+        dbOperation { pendingCleanupDao.clear(operationId) }
+        return outcome
     }
 
     /**
@@ -319,10 +378,11 @@ class SongRepositoryImpl(
      * and this out-of-transaction part are called separately by each caller, which also keeps the
      * backup-before-permit ordering from the deadlock fix intact on both paths.
      *
-     * **Must be called with the deleting transaction already committed, from inside the
-     * [dbOperation] permit.** Order within it is deliberate: live playback is told first so it can
-     * skip off the song before its file disappears underneath the player, then the files go, then
-     * the destructive-action counter records that a backup is now stale.
+     * **Must be called with the deleting transaction already committed.** Order within it is
+     * deliberate: live playback is told first so it can skip off the song before its file
+     * disappears underneath the player, then the files go, then the destructive-action counter
+     * records that a backup is now stale. Only ever called via [runPostCommitCleanup], which is
+     * what actually protects this from being cut short by the caller's scope ending.
      */
     private suspend fun finishSongDeletion(id: String, filePath: String?): SongDeletionOutcome {
         var cleanupUncertain = false
@@ -481,7 +541,11 @@ class SongRepositoryImpl(
                 is Transplant.NewMissing -> ReplaceSongResult.NewSongMissing
                 is Transplant.StalePreview -> ReplaceSongResult.PreviewStale
                 is Transplant.Done -> {
-                    val deletionOutcome = finishSongDeletion(oldSongId, transplant.oldFilePath)
+                    val deletionOutcome = runPostCommitCleanup(
+                        transplant.operationId,
+                        oldSongId,
+                        transplant.oldFilePath,
+                    )
                     val exportSucceeded = runPostCommitStep("schedule playlist export") {
                         playlistExportManager.scheduleExport()
                     }
@@ -498,7 +562,7 @@ class SongRepositoryImpl(
 
     /** [transplantIdentity]'s result, carrying what the out-of-transaction half still needs. */
     private sealed interface Transplant {
-        data class Done(val oldFilePath: String) : Transplant
+        data class Done(val oldFilePath: String, val operationId: String) : Transplant
         data object OldMissing : Transplant
         data object NewMissing : Transplant
         data object StalePreview : Transplant
@@ -567,8 +631,24 @@ class SongRepositoryImpl(
         }
 
         deleteSongRowWithArtRepoint(songDao, albumDao, oldSongId)
+
+        val operationId = UUID.randomUUID().toString()
+        // Same durability discipline as deleteSong (P3-T1 / R2-F09 / R4-F-D4): written inside
+        // this same transaction, before the old row is provably gone to any reader outside it.
+        pendingCleanupDao.insert(
+            PendingCleanupEntity(
+                operationId = operationId,
+                songId = oldSongId,
+                operationType = PendingCleanupType.DELETE.name,
+                filePath = oldSong.filePath,
+                publishedPath = null,
+                phase = PendingCleanupPhase.Committed.name,
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
         return Transplant.Done(
             oldFilePath = oldSong.filePath,
+            operationId = operationId,
         )
     }
 
@@ -952,6 +1032,7 @@ class SongRepositoryImpl(
                         albumDao = db.albumDao(),
                         playlistDao = db.playlistDao(),
                         queueDao = db.queueDao(),
+                        pendingCleanupDao = db.pendingCleanupDao(),
                         folderScanner = FolderScanner(
                             context = appContext,
                             database = db,

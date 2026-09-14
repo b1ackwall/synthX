@@ -10,6 +10,9 @@ import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.backup.BackupHashing
 import com.v1per.synthx.data.backup.ByteDigest
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.db.PendingCleanupEntity
+import com.v1per.synthx.data.db.PendingCleanupPhase
+import com.v1per.synthx.data.db.PendingCleanupType
 import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.Song
@@ -17,6 +20,7 @@ import com.v1per.synthx.data.repository.toDomain
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -292,9 +296,26 @@ private suspend fun graduateAdmitted(
 
         // From deleting the original through the DB commit is one uninterruptible unit: a
         // cancellation landing between the two (the caller's scope going away) would otherwise
-        // leave the file moved and the row still pointing at the deleted original.
+        // leave the file moved and the row still pointing at the deleted original. NonCancellable
+        // only protects against coroutine cancellation, not process death — the durable record
+        // below (P3-T1 / R4-F-D4) is what lets a kill in this exact window be reconciled on the
+        // next launch instead of leaving the row silently pointing at a deleted file forever.
         return withContext(NonCancellable) {
             onStage(GraduationStage.DeletingOriginal)
+            val cleanupOperationId = UUID.randomUUID().toString()
+            // Published path is already known (copy/verify/publish above already ran) — write the
+            // record with everything reconciliation will need BEFORE the source is touched.
+            database.pendingCleanupDao().insert(
+                PendingCleanupEntity(
+                    operationId = cleanupOperationId,
+                    songId = songId,
+                    operationType = PendingCleanupType.GRADUATE.name,
+                    filePath = null,
+                    publishedPath = published.uri.toString(),
+                    phase = PendingCleanupPhase.SourceDeleted.name,
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
             val deleted = try {
                 source.delete()
             } catch (e: Exception) {
@@ -302,6 +323,9 @@ private suspend fun graduateAdmitted(
                 false
             }
             if (!deleted) {
+                // Original is still there — nothing was actually left in the interrupted state
+                // the pending record exists for.
+                database.pendingCleanupDao().clear(cleanupOperationId)
                 // The copy is verified-good, but the original still exists. Do NOT proceed to the
                 // DB update — that would point the library at the new path while the old file (no
                 // longer referenced by anything) silently lingers as an orphaned duplicate. Surface
@@ -320,8 +344,14 @@ private suspend fun graduateAdmitted(
             val publishedPath = published.uri.toString()
             try {
                 onCommitted(commitGraduatedPath(database, songDao, songId, publishedPath), publishedPath)
+                // Row is updated (or confirmedly gone, see GraduationCommit.RowGone) — the
+                // source-deleted/row-not-yet-updated window this record tracked is over either way.
+                database.pendingCleanupDao().clear(cleanupOperationId)
                 null
             } catch (e: Exception) {
+                // Deliberately NOT cleared: the row still points at the deleted source, and
+                // startup reconciliation is exactly what resolves that on the next launch instead
+                // of requiring a manual rescan.
                 Log.e(TAG, "Database update failed after verified file move", e)
                 onStage(
                     GraduationStage.Failed(

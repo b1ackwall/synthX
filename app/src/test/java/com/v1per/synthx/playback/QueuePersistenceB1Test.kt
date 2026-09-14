@@ -63,6 +63,9 @@ class QueuePersistenceB1Test {
         override suspend fun recoverMissingArt(songIds: List<String>?) =
             com.v1per.synthx.data.scanner.ArtRecoveryResult(checked = 0, recovered = 0, skipped = 0)
         override suspend fun deleteSong(id: String) = SongDeletionOutcome.Deleted
+        override fun deleteSongDetached(id: String, onResult: (Result<SongDeletionOutcome>) -> Unit) {
+            onResult(Result.success(SongDeletionOutcome.Deleted))
+        }
         override suspend fun previewReplaceSong(oldSongId: String, newSongId: String): ReplaceSongPreviewResult = ReplaceSongPreviewResult.OldSongMissing
         override suspend fun replaceSong(
             oldSongId: String,

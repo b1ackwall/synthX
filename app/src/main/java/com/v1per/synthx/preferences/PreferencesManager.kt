@@ -123,6 +123,18 @@ class PreferencesManager(context: Context) {
         get() = prefs.getInt(KEY_DESTRUCTIVE_ACTIONS_SINCE_BACKUP, 0)
         set(value) = prefs.edit().putInt(KEY_DESTRUCTIVE_ACTIONS_SINCE_BACKUP, value).apply()
 
+    // -------------------------------------------- pending-cleanup reconciliation (P3-T1)
+
+    /** Count of leftover [com.v1per.synthx.data.db.PendingCleanupEntity] records the most recent
+     *  startup reconciliation pass resolved. 0 means none were found. */
+    var lastReconciledCleanupCount: Int
+        get() = prefs.getInt(KEY_LAST_RECONCILED_CLEANUP_COUNT, 0)
+        set(value) = prefs.edit().putInt(KEY_LAST_RECONCILED_CLEANUP_COUNT, value).apply()
+
+    var lastReconciledCleanupTimestamp: Long
+        get() = prefs.getLong(KEY_LAST_RECONCILED_CLEANUP_TIMESTAMP, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_RECONCILED_CLEANUP_TIMESTAMP, value).apply()
+
     // --------------------------------------------------- migration safety (see MigrationSnapshotStore)
 
     /** The database version the current internal pre-migration snapshot was captured from. -1 = none. */
@@ -231,5 +243,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_MISSING_ART_SONG_IDS = "missing_art_song_ids"
         private const val KEY_MISSING_PALETTE_SONG_IDS = "missing_palette_song_ids"
         private const val KEY_LAST_ISSUES_SCAN_MISSING_PALETTE_COUNT = "last_issues_scan_missing_palette_count"
+        private const val KEY_LAST_RECONCILED_CLEANUP_COUNT = "last_reconciled_cleanup_count"
+        private const val KEY_LAST_RECONCILED_CLEANUP_TIMESTAMP = "last_reconciled_cleanup_timestamp"
     }
 }
