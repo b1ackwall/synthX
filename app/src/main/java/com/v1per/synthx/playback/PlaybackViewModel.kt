@@ -334,6 +334,15 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     }
 
     /**
+     * The `onStart`/`onResume` recovery pass — see [PlaybackEngine.reconcileWithDatabase]'s kdoc.
+     * [MainActivity] is the only caller, since this single-Activity app treats `onStart` as its
+     * one foregrounding signal (see its own kdoc for why it does not use `ProcessLifecycleOwner`).
+     */
+    fun reconcileWithDatabase() {
+        viewModelScope.launch { controller.reconcileWithDatabase() }
+    }
+
+    /**
      * Builds the engine inside [create] rather than holding a prebuilt one. An
      * ExoPlayerEngine opens a MediaController binding to SynthXPlaybackService in its
      * constructor, so constructing one eagerly — as a factory constructor argument —

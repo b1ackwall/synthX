@@ -26,6 +26,18 @@ class SynthXPlaybackService : MediaLibraryService() {
     // release the player, so this flag makes that idempotent regardless of which runs first.
     private var released = false
 
+    // Tracks how many of THIS APP's own controllers are currently bound — never system UI /
+    // notification / Bluetooth-AVRCP controllers, which connect under a different package name
+    // and legitimately want the session to keep running (showing transport controls) even while
+    // no ExoPlayerEngine owns it. The one ExoPlayerEngine per app process is the only real
+    // "owner" this needs to track (P4-T3 / R3-F08): when it drops to zero after having been
+    // positive at least once, the only component that maintained the queue/window/event
+    // subscriptions is gone, and playback should stop rather than run unmaintained — matching
+    // the existing onTaskRemoved precedent below of stopping rather than continuing ownerless
+    // playback. The counting itself lives in OwnerControllerTracker so it's unit-testable
+    // without a real MediaSession.ControllerInfo.
+    private val ownerControllers = OwnerControllerTracker()
+
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "onCreate")
@@ -46,7 +58,31 @@ class SynthXPlaybackService : MediaLibraryService() {
         mediaLibrarySession = MediaLibrarySession.Builder(
             this,
             player,
-            object : MediaLibrarySession.Callback {},
+            object : MediaLibrarySession.Callback {
+                override fun onPostConnect(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                ) {
+                    if (controller.packageName == packageName) {
+                        ownerControllers.connected()
+                    }
+                }
+
+                override fun onDisconnected(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                ) {
+                    if (controller.packageName != packageName) return
+                    if (ownerControllers.disconnected()) {
+                        // No ExoPlayerEngine remains bound to this session — the only owner of
+                        // queue maintenance and the remap/deletion event subscriptions is gone
+                        // (P4-T3 / R3-F08). Stop rather than let a long queue keep running
+                        // unmaintained until it hits the loaded window's edge.
+                        Log.d(TAG, "Last owning controller disconnected; stopping playback")
+                        player.stop()
+                    }
+                }
+            },
         ).build()
 
         // Branded channel name/id instead of media3's generated default ("Now playing"), so

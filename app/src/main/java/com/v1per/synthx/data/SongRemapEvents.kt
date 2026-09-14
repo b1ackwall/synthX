@@ -13,8 +13,20 @@ import kotlinx.coroutines.flow.asSharedFlow
  * legitimately the **same** id on graduation's path-only change — see the second emitter in
  * [SongRemapEvents]' KDoc. Consumers must therefore not assume the two differ; matching slots
  * by `it.id == oldId` and overwriting them with [newSong] is correct either way.
+ *
+ * [revision] is this event's stamp from [com.v1per.synthx.data.PlaybackCacheRevision] — see that
+ * object's kdoc for why a global counter, not a tombstone, is what closes the cross-bus ordering
+ * gap (P4-T1/P4-T2). [notifyRemap] always stamps a fresh one at the moment of publish, ignoring
+ * whatever this constructor was called with — producers that build a `SongRemap` early and queue
+ * it for a later, post-commit flush (see [com.v1per.synthx.data.scanner.FolderScanner]'s
+ * `pendingRemaps`) are only ever holding [oldId]/[newSong] that way; the default here exists
+ * purely so those call sites don't need to invent a meaningless placeholder themselves.
  */
-data class SongRemap(val oldId: String, val newSong: Song)
+data class SongRemap(val oldId: String, val newSong: Song, val revision: Long = UNPUBLISHED_REVISION) {
+    internal companion object {
+        const val UNPUBLISHED_REVISION = -1L
+    }
+}
 
 /**
  * Process-wide notice that the [Song] a consumer cached under [SongRemap.oldId] no longer
@@ -43,9 +55,19 @@ data class SongRemap(val oldId: String, val newSong: Song)
  *
  * A singleton bus rather than a constructor-injected dependency because the emitting side
  * ([com.v1per.synthx.data.scanner.FolderScanner]) runs from a WorkManager Worker with no path
- * back to whatever playback engine instance — if any — is currently alive. No subscriber means
- * events just sit buffered until one shows up (or are trimmed per [BUFFER_CAPACITY] below),
- * same as any other scan result nothing is currently observing.
+ * back to whatever playback engine instance — if any — is currently alive.
+ *
+ * **Correction (P4-T2):** despite an earlier version of this KDoc claiming otherwise, a missing
+ * subscriber does NOT leave events buffered for one to appear later. `replay = 0` here (the
+ * default, never overridden) means a subscriber that starts collecting after an event was
+ * emitted sees nothing from before it subscribed — [BUFFER_CAPACITY]/[BufferOverflow.SUSPEND]
+ * below only smooth a burst against an *already-subscribed* slow collector, they do not retain
+ * history for a future one. A live engine that misses an emission (no subscriber yet, or its
+ * collector coroutine was down) has no way to learn about it from this bus alone; recovering from
+ * that is exactly why every live-engine cache also gets independently re-verified against the
+ * database (see [com.v1per.synthx.data.PlaybackCacheRevision] and
+ * [com.v1per.synthx.playback.ExoPlayerEngine]'s `onStart`/`onResume`-driven reconciliation pass)
+ * rather than relying solely on this bus ever delivering.
  *
  * [BUFFER_CAPACITY] is sized for a burst of retags within a single scan pass — plenty for the
  * realistic case (a handful of ID3-edited files in one pass) without being unbounded. Overflow
@@ -67,6 +89,6 @@ object SongRemapEvents {
     val events: SharedFlow<SongRemap> = _events.asSharedFlow()
 
     suspend fun notifyRemap(oldId: String, newSong: Song) {
-        _events.emit(SongRemap(oldId, newSong))
+        _events.emit(SongRemap(oldId, newSong, PlaybackCacheRevision.next()))
     }
 }

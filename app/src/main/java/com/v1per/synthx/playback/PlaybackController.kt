@@ -40,4 +40,5 @@ class PlaybackController(private val engine: PlaybackEngine) {
     fun stop() = engine.stop()
     fun seekTo(positionMs: Long) = engine.seekTo(positionMs)
     fun release() = engine.release()
+    suspend fun reconcileWithDatabase() = engine.reconcileWithDatabase()
 }

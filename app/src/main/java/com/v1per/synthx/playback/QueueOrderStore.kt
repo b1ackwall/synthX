@@ -172,6 +172,27 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
+     * Batch counterpart of [remove] (P4-T4 / R3-F15): removes every slot id in [slotIds] in a
+     * single pass over [live]/[baseline] and, if baseline changed at all, exactly one
+     * [persistBaseline] call — rather than the O(N) full-list copies and O(N) whole-baseline
+     * rewrites that calling [remove] once per id produces for N occurrences of the same deleted
+     * song. Returns false when none of [slotIds] matched anything.
+     */
+    fun removeAll(slotIds: Collection<String>): Boolean {
+        if (slotIds.isEmpty()) return false
+        val toRemove = if (slotIds is Set<String>) slotIds else slotIds.toHashSet()
+        val newLive = live.filterNot { it.slotId in toRemove }
+        val newBaseline = baseline.filterNot { it.slotId in toRemove }
+        if (newLive.size == live.size && newBaseline.size == baseline.size) return false
+        live = newLive
+        if (newBaseline.size != baseline.size) {
+            baseline = newBaseline
+            persistBaseline()
+        }
+        return true
+    }
+
+    /**
      * Was `remapSong`: a rescan can replace one content id while several independently keyed
      * slots reference it. Every matching value is refreshed; no stable slot key changes.
      */

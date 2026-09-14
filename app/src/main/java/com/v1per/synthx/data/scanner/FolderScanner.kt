@@ -15,16 +15,28 @@ import com.v1per.synthx.data.backup.PlaylistExportManager
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.SongRemap
 import com.v1per.synthx.data.SongRemapEvents
+import com.v1per.synthx.data.SongDeletionEvents
 import com.v1per.synthx.data.FileOperationCoordinator
 import com.v1per.synthx.data.withScanRowClaims
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
+import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.toDomain
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Re-reads [id] through the same album/artist-joined path every other domain [Song] is mapped
+ * from, for a remap notice — mirrors [commitGraduatedPath]'s identical re-read. A hand-assembled
+ * Song from just the entity would be missing artists/album/palette, degrading the engine's whole
+ * cached Song for the slot rather than only fixing what actually changed.
+ */
+private suspend fun SongDao.getDomainSongById(id: String): Song? =
+    getSongsWithDetailsByIds(listOf(id)).firstOrNull()?.toDomain(getSongArtistRefs(id))
 
 data class ScanResult(
     val added: Int,
@@ -264,6 +276,12 @@ class FolderScanner internal constructor(
         // for an unrelated reason later in the same pass.
         val pendingRemaps = mutableListOf<SongRemap>()
 
+        // Deletion notices for songs hard-deleted mid-transaction as a path-collision occupant
+        // (P4-T1 / R3-F05) — same post-commit-only emission rule as pendingRemaps above, and for
+        // the same reason: a rollback after the eviction must not have already told a live
+        // playback engine the song is gone.
+        val pendingDeletions = mutableListOf<String>()
+
         // Every song id that had art files written for it before anything was committed —
         // filled concurrently by the extraction phase, and appended to by the write loop's
         // live-extraction fallback. Art files are the one part of a scan a rollback cannot
@@ -351,6 +369,13 @@ class FolderScanner internal constructor(
                                     if (!claims.claim(occupant.id)) continue
                                     deleteSongRowWithArtRepoint(songDao, albumDao, occupant.id)
                                     pendingArtCleanup.add(occupant.id)
+                                    // The evicted occupant's row is hard-deleted right above with
+                                    // no remap (it has no successor row — it's simply gone), so a
+                                    // live playback engine still holding one of its queue slots
+                                    // needs the deletion notice, not a remap (P4-T1 / R3-F05).
+                                    // Deferred to the post-commit flush alongside pendingRemaps,
+                                    // for the identical rollback-safety reason documented there.
+                                    pendingDeletions.add(occupant.id)
                                     deleted++
                                 }
                                 songDao.upsertSong(
@@ -366,6 +391,16 @@ class FolderScanner internal constructor(
                                         isStarred = isNewArrivalsRoot,
                                     )
                                 )
+                                // A live playback engine still caches this id's OLD path baked
+                                // into a MediaItem — without this remap it never learns the path
+                                // moved (P4-T1 / R3-F05, the nearby counterpart of the fix already
+                                // shipped for graduation's own path-only change). oldId == the
+                                // row's own id: the content hash is unchanged, only file_path
+                                // moved, exactly like graduation's same-id case — see
+                                // SongRemapEvents' KDoc for why that is legitimate, not degenerate.
+                                songDao.getDomainSongById(existing.id)?.let { fresh ->
+                                    pendingRemaps.add(SongRemap(existing.id, fresh))
+                                }
                                 updated++
                             }
                             existing.isMissing -> {
@@ -382,6 +417,13 @@ class FolderScanner internal constructor(
                             // this path has always done); all that is left here is comparing it
                             // against the stored row.
                             else -> if (ingestor.retagIfChanged(data.file, existing, data.metadata)) {
+                                // A currently-playing/queued occurrence of this id has the OLD
+                                // title/artist baked into its cached Song and displayed MediaItem
+                                // metadata (P4-T1 / R3-F05) — same-id remap is exactly the
+                                // refresh mechanism graduation's own same-id case already uses.
+                                songDao.getDomainSongById(existing.id)?.let { fresh ->
+                                    pendingRemaps.add(SongRemap(existing.id, fresh))
+                                }
                                 retagged++
                                 updated++
                             } else {
@@ -448,6 +490,17 @@ class FolderScanner internal constructor(
                             if (!song.isMissing) {
                                 songDao.markMissing(song.id, now)
                             }
+                            // Deliberately no playback event here (P4-T1 — locked policy: leave
+                            // an already-loaded/playing song alone when it goes missing
+                            // mid-session; only prevent it from being added to FUTURE fresh
+                            // queues, which PlaybackViewModel.requestPlayQueue already does by
+                            // filtering isMissing songs before they ever reach the engine). A
+                            // currently-playing missing song fails naturally and audibly the next
+                            // time the engine actually tries to open its file (onPlayerError),
+                            // which is a real, user-visible signal — auto-skipping it here instead
+                            // would silently truncate whatever the user is listening to mid-track
+                            // for a condition (the file being gone) that scan/verify sweeps are
+                            // not synchronized with playback's own timing at all.
                             missing++
                         }
                     }
@@ -517,6 +570,13 @@ class FolderScanner internal constructor(
         // actually exists.
         pendingRemaps.forEach { remap ->
             SongRemapEvents.notifyRemap(remap.oldId, remap.newSong)
+        }
+
+        // Only after the transaction commits — same rollback-safety reason as pendingRemaps
+        // above: a live engine must never be told a song is gone if the eviction that deleted
+        // its row turns out not to have actually committed.
+        pendingDeletions.forEach { deletedId ->
+            SongDeletionEvents.notifyDeleted(deletedId)
         }
 
         // Only after the transaction commits — scheduleExport() is fire-and-forget and its

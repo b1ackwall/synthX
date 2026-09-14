@@ -8,7 +8,12 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
+import com.v1per.synthx.data.PlaybackCacheRevision
+import com.v1per.synthx.data.SongDeletionAcknowledgment
+import com.v1per.synthx.data.collectCatching
 import com.v1per.synthx.data.SongDeletionEvents
+import com.v1per.synthx.data.SongRemap
 import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
@@ -163,17 +168,68 @@ class ExoPlayerEngine(
 
     private val listener = createPlayerListener()
 
-    private val controllerFuture = MediaController
-        .Builder(context, SessionToken(context, ComponentName(context, SynthXPlaybackService::class.java)))
-        .buildAsync()
+    private val sessionToken =
+        SessionToken(context, ComponentName(context, SynthXPlaybackService::class.java))
 
-    // Completed (true or false) exactly once, when the session connection resolves. Only the
-    // restore path waits on it: it runs at launch, i.e. the one moment the controller is
-    // reliably not connected yet.
+    /**
+     * Rebuilt on every (re)connection attempt — hence `var`, not `val` as before. P4-T3: the
+     * original one-shot future meant a failed initial connection or a mid-session disconnection
+     * was terminal for the rest of this engine's lifetime, despite comments elsewhere promising
+     * retry. [connectToSession] is what actually rebuilds this now.
+     */
+    private var controllerFuture: ListenableFuture<MediaController> = buildControllerFuture()
+
+    // Completed (true or false) exactly once, when the FIRST session connection attempt
+    // resolves. Only the restore path waits on it: it runs at launch, i.e. the one moment the
+    // controller is reliably not connected yet. Later reconnect attempts (retry after initial
+    // failure, or recovery after a mid-session disconnect) do not create a second one of these —
+    // restore only ever needs to know "is *a* controller usable yet", answered once.
     private val controllerReady = CompletableDeferred<Boolean>()
+
+    // Bounded retry for BOTH the initial connection and a later mid-session disconnection —
+    // see MediaController.Listener.onDisconnected below. Capped rather than infinite so a
+    // permanently-gone session (service process actually killed, not just this one controller
+    // dropped) doesn't retry forever; a user action that needs playback will simply find it
+    // still unavailable and can retry explicitly by leaving/reopening the screen.
+    private var reconnectAttempts = 0
+    private var reconnectJob: Job? = null
+
+    private fun buildControllerFuture(): ListenableFuture<MediaController> =
+        MediaController.Builder(appContext, sessionToken)
+            .setListener(object : MediaController.Listener {
+                // Session-level disconnection (the session/service itself went away or revoked
+                // this controller) — distinct from a Player.Listener callback, and previously
+                // nothing installed a MediaController.Listener at all (P4-T3 / R3-F09).
+                override fun onDisconnected(controller: MediaController) {
+                    Log.w(TAG, "MediaController disconnected mid-session")
+                    scheduleReconnect()
+                }
+            })
+            .buildAsync()
+
+    private fun scheduleReconnect() {
+        if (reconnectJob?.isActive == true) return
+        val backoffMs = ReconnectPolicy.nextDelayMsOrNull(reconnectAttempts)
+        if (backoffMs == null) {
+            Log.w(TAG, "Giving up on reconnecting after $reconnectAttempts attempts")
+            return
+        }
+        reconnectAttempts++
+        reconnectJob = engineScope.launch {
+            delay(backoffMs)
+            // A fresh future every attempt — re-adding a listener to the same already-resolved
+            // (failed, or now-stale) future would either fail again for the same reason or,
+            // for a mid-session disconnect, do nothing at all (its listener already fired once).
+            controllerFuture = buildControllerFuture()
+            connectToSession()
+        }
+    }
 
     init {
         instances += this
+        // Registered so SongDeletionAcknowledgment.register() knows there is at least one live
+        // engine to hand a deletion off to (P4-T4) — see releaseInternal for the matching detach.
+        SongDeletionAcknowledgment.engineAttached()
         // Queue Songs are cached independently of Room. Observe the current song so an
         // Issues backfill becomes visible immediately, including on a later transition
         // to a previously queued song. This only changes swatches, never MediaItems.
@@ -200,53 +256,88 @@ class ExoPlayerEngine(
         }
         // A rescan can replace one content id while several independently keyed queue slots
         // reference it. Refresh every matching value without changing any stable slot key.
+        //
+        // collectCatching gives each event its own exception boundary (P4-T2 / R3-F07):
+        // SupervisorJob only isolates THIS launch from its siblings, it does not protect one
+        // collect{} invocation from a later one — an uncaught exception here would otherwise
+        // permanently kill this collector coroutine, silently dropping every remap for the rest
+        // of the process.
         engineScope.launch {
-            SongRemapEvents.events.collect { remap ->
-                val affectedSlotIds = songsBySlotId
-                    .filterValues { it.id == remap.oldId }
-                    .keys
-                    .toList()
-                if (affectedSlotIds.isNotEmpty()) {
-                    affectedSlotIds.forEach { slotId ->
-                        songsBySlotId[slotId] = remap.newSong
-                        artworkLoadedSlotIds.remove(slotId)
-                    }
-                    orderStore.remapSong(remap.oldId, remap.newSong.id)
-                    val ctrl = controller
-                    affectedSlotIds.forEach { slotId ->
-                        // A null index simply means that slot is not in the loaded window —
-                        // an ordinary answer now, not a drift signal. Its refreshed Song is
-                        // already in songsBySlotId, so it comes back correct whenever the
-                        // window next reaches it.
-                        val index = ctrl?.let { indexOfMediaId(it, slotId) } ?: return@forEach
-                        ctrl.replaceMediaItem(
-                            index,
-                            buildMediaItem(slotId, remap.newSong, artworkData = null),
-                        )
-                    }
-                    refreshQueue()
-                    refreshUpcomingQueue()
-                    val currentSlotId = _currentSlotId.value
-                    if (currentSlotId != null && currentSlotId in affectedSlotIds) {
-                        publishCurrentSlot(currentSlotId)
-                    }
-                    persistQueue()
-                    prefetchArtwork()
-                }
-            }
+            SongRemapEvents.events.collectCatching(
+                onError = { remap, e ->
+                    Log.e(TAG, "Remap handling failed for oldId=${remap.oldId}; continuing", e)
+                },
+            ) { remap -> handleRemap(remap) }
         }
         // Complete delete removes the song's file as well as its row, so a queue slot still
         // pointing at it is not merely stale (the remap case above) — it is unplayable. Every
         // live engine subscribes independently, which is what makes one emission reach all of
-        // them; see SongDeletionEvents.
+        // them; see SongDeletionEvents. Same per-event exception boundary as the remap collector
+        // above, for the same reason.
         engineScope.launch {
-            SongDeletionEvents.events.collect { songId ->
-                removeDeletedSongInternal(songId)
+            SongDeletionEvents.events.collectCatching(
+                onError = { deletion, e ->
+                    Log.e(TAG, "Deletion handling failed for songId=${deletion.songId}; continuing", e)
+                },
+            ) { deletion ->
+                try {
+                    removeDeletedSongInternal(deletion.songId)
+                } finally {
+                    // Signalled regardless of songId even being in THIS engine's queue, and
+                    // regardless of whether handling above succeeded — the repository's handoff
+                    // wait (P4-T4) only needs "every live engine has reacted to this event",
+                    // not "every live engine actually held this song".
+                    SongDeletionAcknowledgment.signalCleared(deletion.songId)
+                }
             }
         }
     }
 
+    /** The remap-collector body, split out so it can be wrapped in a try/catch above. */
+    private fun handleRemap(remap: SongRemap) {
+        val affectedSlotIds = songsBySlotId
+            .filterValues { it.id == remap.oldId }
+            .keys
+            .toList()
+        if (affectedSlotIds.isEmpty()) return
+        affectedSlotIds.forEach { slotId ->
+            songsBySlotId[slotId] = remap.newSong
+            artworkLoadedSlotIds.remove(slotId)
+        }
+        orderStore.remapSong(remap.oldId, remap.newSong.id)
+        val ctrl = controller
+        affectedSlotIds.forEach { slotId ->
+            // A null index simply means that slot is not in the loaded window —
+            // an ordinary answer now, not a drift signal. Its refreshed Song is
+            // already in songsBySlotId, so it comes back correct whenever the
+            // window next reaches it.
+            val index = ctrl?.let { indexOfMediaId(it, slotId) } ?: return@forEach
+            ctrl.replaceMediaItem(
+                index,
+                buildMediaItem(slotId, remap.newSong, artworkData = null),
+            )
+        }
+        refreshQueue()
+        refreshUpcomingQueue()
+        val currentSlotId = _currentSlotId.value
+        if (currentSlotId != null && currentSlotId in affectedSlotIds) {
+            publishCurrentSlot(currentSlotId)
+        }
+        persistQueue()
+        prefetchArtwork()
+    }
+
     init {
+        connectToSession()
+    }
+
+    /**
+     * (Re)connects to [SynthXPlaybackService]'s session — the first connection at construction,
+     * and any later reconnection [scheduleReconnect] triggers. P4-T3: previously this ran once,
+     * inline in an `init` block, un-retryable by construction; splitting it out is what makes
+     * retry possible at all.
+     */
+    private fun connectToSession() {
         controllerFuture.addListener(
             {
                 // A suspend hop is needed here (see adoptRunningTimeline) when reconnecting
@@ -259,11 +350,25 @@ class ExoPlayerEngine(
                         val ctrl = controllerFuture.get()
                         controller = ctrl
                         ctrl.addListener(listener)
+                        reconnectAttempts = 0
+                        reconnectJob = null
                         // Adopt whatever repeat state the session already holds (a service
                         // that outlived the previous MediaController keeps its timeline).
                         // Shuffle has no media3-side state to adopt any more — restoreSavedQueue
                         // (or a fresh playQueue) is what seeds _shuffleEnabled now.
                         _repeatMode.value = ctrl.repeatMode.toRepeatMode()
+                        // Seeded here rather than left to the next Player.Listener callback
+                        // (P4-T3 / R3-F09): adding a listener does not replay the controller's
+                        // current values, so without this an already-playing session (a
+                        // reconnect, or adopting a still-running service) shows paused/idle
+                        // until a later real transition happens to fire.
+                        _isPlaying.value = ctrl.isPlaying
+                        _isBuffering.value = ctrl.playbackState == Player.STATE_BUFFERING
+                        // Captured before adoptRunningTimeline's suspending DB read below — see
+                        // reconcileIfRevisionChanged's kdoc. This connect path is one of the
+                        // three suspension points P4-T2 covers: a remap/deletion landing while
+                        // this suspends is checked against a still-empty cache and discarded.
+                        val revisionBeforeAdopt = PlaybackCacheRevision.current()
                         val connectionPath = if (ctrl.mediaItemCount > 0 && orderStore.isEmpty) {
                             // Reconnecting to a still-running service: the order store and
                             // songsBySlotId are otherwise only populated by
@@ -283,8 +388,9 @@ class ExoPlayerEngine(
                         refreshCurrentIndex()
                         refreshUpcomingQueue()
                         refreshNavigationState()
-                        // The service's surviving timeline is whatever window was loaded when
-                        // this process died; reconcile it against the order just adopted.
+                        // The service's surviving timeline is whatever window this engine
+                        // instance (or an activity-finish-while-playing predecessor, per P4-T3)
+                        // last left loaded; reconcile it against the order just adopted.
                         maintainWindow(force = true)
                         prefetchArtwork()
                         Log.d(
@@ -293,14 +399,19 @@ class ExoPlayerEngine(
                                 "slot=${_currentSlotId.value}, queue=${orderStore.size}",
                         )
                         controllerReady.complete(true)
+                        reconcileIfRevisionChanged(revisionBeforeAdopt)
                     } catch (_: Exception) {
-                        // Service connection failed — playback methods will be no-ops until retry
                         Log.d(TAG, "Session connection failed")
+                        // Only the FIRST attempt reports failure through controllerReady — later
+                        // retries must not re-complete an already-completed CompletableDeferred
+                        // (a no-op call, but reporting "false" a second time would be misleading
+                        // to restoreSavedQueueInternal's one-time wait anyway).
                         controllerReady.complete(false)
+                        scheduleReconnect()
                     }
                 }
             },
-            ContextCompat.getMainExecutor(context),
+            ContextCompat.getMainExecutor(appContext),
         )
     }
 
@@ -423,6 +534,7 @@ class ExoPlayerEngine(
     // own machinery ahead of the restart-required terminal state.
     private fun releaseInternal() {
         artworkJob?.cancel()
+        reconnectJob?.cancel()
         engineScope.cancel()
         // Unblocks a restore still waiting on a connection that will now never land.
         controllerReady.complete(false)
@@ -432,11 +544,27 @@ class ExoPlayerEngine(
         // short-circuit after release instead of calling into a released instance.
         controller = null
         instances.remove(this)
+        // Matches the attach in init — see SongDeletionAcknowledgment's kdoc (P4-T4).
+        SongDeletionAcknowledgment.engineDetached()
     }
 
     internal suspend fun awaitController(): MediaController? {
         controllerReady.await()
         return controller
+    }
+
+    /**
+     * The `onStart`/`onResume` recovery pass (P4-T2): re-verifies this engine's whole cache
+     * against the database, independent of whether [PlaybackCacheRevision] moved at all — this is
+     * the general-purpose backstop for a missed emission (a worker interrupted after its DB
+     * commit but before it finished emitting; a collector that was down when an event fired),
+     * which a revision comparison alone cannot catch since it only proves "an event was
+     * published", not "every live engine received it". [MainActivity] calls this from `onStart`,
+     * the one foregrounding signal this single-Activity app has (see its own kdoc for why it does
+     * not use `ProcessLifecycleOwner`).
+     */
+    override suspend fun reconcileWithDatabase() {
+        reconcileCacheWithDatabase()
     }
 
     internal fun Int.toRepeatMode(): RepeatMode = when (this) {

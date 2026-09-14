@@ -56,11 +56,15 @@ internal fun ExoPlayerEngine.persistQueue() {
 }
 
 /**
- * Rebuilds engine state when reconnecting to a service that was already running — process was
- * killed, foreground service survived. Neither [playQueueInternal] nor
- * [restoreSavedQueueInternal] runs in this path (the latter explicitly no-ops once the timeline
- * already has media items), so without this the engine would come up with an empty order store
- * against a player that is actually playing.
+ * Rebuilds engine state when reconnecting to a service that was already running with no live
+ * `ExoPlayerEngine` instance owning it. NOT actual process death — this same-process
+ * `MediaLibraryService` cannot survive that (see [SynthXPlaybackService]'s own kdoc, corrected in
+ * P4-T3). The real trigger is the Activity finishing while playback was running (the ViewModel
+ * torn down, the process and its foreground service both still alive) or a fresh
+ * `ExoPlayerEngine` construction reconnecting to that still-running session. Neither
+ * [playQueueInternal] nor [restoreSavedQueueInternal] runs in this path (the latter explicitly
+ * no-ops once the timeline already has media items), so without this the engine would come up
+ * with an empty order store against a player that is actually playing.
  *
  * Reads the persisted order rather than the live timeline, which is the windowing-era
  * correction to this path: the timeline holds at most [WINDOW_SIZE] items, so adopting it would

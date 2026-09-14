@@ -27,6 +27,7 @@ import android.util.Log
 import androidx.room.withTransaction
 import com.v1per.synthx.data.AudioFileDeletion
 import com.v1per.synthx.data.FileOperationCoordinator
+import com.v1per.synthx.data.SongDeletionAcknowledgment
 import com.v1per.synthx.data.SongDeletionEvents
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongAudioFile
@@ -59,6 +60,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +73,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 
 private const val TAG = "SongRepositoryImpl"
+
+/** How long [SongRepositoryImpl]'s deletion handoff barrier waits before proceeding anyway. */
+private const val DELETION_HANDOFF_TIMEOUT_MS = 1_500L
 
 internal suspend fun runPostCommitStep(
     step: String,
@@ -268,6 +273,22 @@ class SongRepositoryImpl(
     internal suspend fun verifyLibrary(configuredRoots: List<ConfiguredAudioRoot>): VerifyResult =
         folderScanner.verifyAlreadyAdmitted(configuredRoots)
 
+    /**
+     * Batched by-id fetch used purely for playback-cache reconciliation (P4-T2): a queue-loading
+     * path that suspended across a cache-invalidating event (or the `onStart`/`onResume` recovery
+     * pass) re-derives truth directly from the database with this rather than trusting a bus
+     * event's payload. An id with no matching row (deleted, or never existed) is simply absent
+     * from the result — the caller treats that the same way an explicit deletion notice would.
+     */
+    internal suspend fun getSongsByIdsForReconciliation(ids: List<String>): List<Song> = dbOperation {
+        if (ids.isEmpty()) return@dbOperation emptyList()
+        val details = ids.queryInBatches(songDao::getSongsWithDetailsByIds)
+        val refsBySongId = details.map { it.song.id }
+            .queryInBatches(songDao::getSongArtistRefsForSongs)
+            .groupBy { it.songId }
+        details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+    }
+
     /** Total library size, for gauging a scan's impact as a percentage. */
     internal suspend fun getSongCountAlreadyAdmitted(): Int = songDao.getSongCount()
 
@@ -431,6 +452,21 @@ class SongRepositoryImpl(
         var cleanupUncertain = false
         if (!runPostCommitStep("notify song deletion") { SongDeletionEvents.notifyDeleted(id) }) {
             cleanupUncertain = true
+        }
+
+        // Handoff barrier (P4-T4 / R3-F03): notifyDeleted's suspending emit only guarantees the
+        // notice was enqueued into a buffered SharedFlow, not that any collector has run yet, let
+        // alone that the resulting controller commands (skip/stop/remove) have reached the
+        // player. Without this, the file delete right below can race a still-open handle. Bounded
+        // rather than an unconditional await: with no live playback engine there is nothing to
+        // hand off to (register() returns null), and even with one, an engine wedged for some
+        // unrelated reason must not block a deletion the user explicitly asked for forever.
+        val ack = runCatching { SongDeletionAcknowledgment.register(id) }.getOrNull()
+        if (ack != null) {
+            val acknowledged = withTimeoutOrNull(DELETION_HANDOFF_TIMEOUT_MS) { ack.await() }
+            if (acknowledged == null) {
+                Log.w(TAG, "Timed out waiting for playback to release song $id before deleting its file")
+            }
         }
 
         var fileOutcome = if (filePath == null) {

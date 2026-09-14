@@ -2,6 +2,7 @@ package com.v1per.synthx.playback
 
 import android.util.Log
 import androidx.media3.common.C
+import com.v1per.synthx.data.PlaybackCacheRevision
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.QueueSlotRecord
 import com.v1per.synthx.data.repository.Song
@@ -31,6 +32,12 @@ private const val TAG = "SynthXQueue"
 
 internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startIndex: Int) {
     if (songs.isEmpty()) return
+    // Captured BEFORE the snapshot below and the artwork suspension that follows — see
+    // reconcileIfRevisionChanged's kdoc (P4-T2). A remap/deletion landing in that window is
+    // checked against a cache this call hasn't installed yet, correctly (but now stalely)
+    // finds nothing to do, and is discarded; the revision bump alone is what lets this call
+    // notice, after installing, that its own snapshot may already be wrong.
+    val revisionBeforeSnapshot = PlaybackCacheRevision.current()
     val start = startIndex.coerceIn(0, songs.lastIndex)
     val slots = songs.map { song -> QueueSlot(UUID.randomUUID().toString(), song) }
     val startSlot = slots[start]
@@ -61,6 +68,9 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
 
         onQueueStructureChanged(fresh = true)
     }
+    // After install, not inside the Main.immediate block above: reconciliation does its own
+    // suspending DB read and re-enters Main.immediate itself.
+    reconcileIfRevisionChanged(revisionBeforeSnapshot)
 }
 
 /**
@@ -70,6 +80,10 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
  */
 internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     Log.d(TAG, "Queue restore begin")
+    // See playQueueInternal's identical capture — this path has THREE suspension points before
+    // install (restored-songs read, artwork, baseline read), each an equally valid window for a
+    // revision bump to land in.
+    val revisionBeforeSnapshot = PlaybackCacheRevision.current()
     val restored = persistence.loadQueue()
     if (restored == null) {
         Log.d(TAG, "Queue restore: no persisted queue; starting fresh")
@@ -86,6 +100,7 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     // differ from the active list (e.g. history dropped by an ON->OFF toggle last session), so
     // it needs its own read, not a recomputation.
     val restoredBaseline = persistence.loadBaselineQueue()
+    var installed = false
 
     withContext(Dispatchers.Main.immediate) {
         val ctrl = awaitController() ?: return@withContext
@@ -149,7 +164,11 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
             "Queue restore complete: song=${_currentSong.value?.id}, " +
                 "slot=${_currentSlotId.value}, queue=${orderStore.size}",
         )
+        installed = true
     }
+    // Only when this call actually installed a snapshot — the "adopting existing running
+    // timeline" bail-out above did not, and has nothing here for a revision bump to invalidate.
+    if (installed) reconcileIfRevisionChanged(revisionBeforeSnapshot)
 }
 
 /**
@@ -337,6 +356,17 @@ internal fun ExoPlayerEngine.removeDeletedSongInternal(songId: String) {
             // none), but the cursor has to leave the deleted slot — stop() is the engine's own
             // "playback left the queue" path and publishes a null current slot for us.
             stop()
+            // Explicitly wipe the controller's own timeline here too (P4-T4 / R3-F14): stop()
+            // alone clears the engine's cursor but leaves whatever history Media3 still has
+            // loaded (e.g. queue [A, B, B], playing the last B — A and the first B are still
+            // loaded behind it). Media3 must then resolve SOME new "current item" from that
+            // remaining timeline as the removals below land, and onMediaItemTransition would
+            // otherwise republish that leftover history slot right back into the engine,
+            // silently undoing the null cursor stop() just published. Clearing here removes the
+            // only thing Media3 could have resolved a new current item from, so a transition
+            // callback that fires after this carries a null MediaItem — which is exactly what
+            // publishCurrentSlot already treats as "nothing playing".
+            ctrl.clearMediaItems()
         } else {
             val targetSlotId = orderStore.slotAt(target)?.slotId
             // play only if it was already playing: a deletion is not a reason to start audio,
@@ -350,9 +380,12 @@ internal fun ExoPlayerEngine.removeDeletedSongInternal(songId: String) {
         }
     }
 
-    var removedAny = false
+    // One batch removal rather than one orderStore.remove() call per occurrence (P4-T4 /
+    // R3-F15): per-occurrence calls each copy/filter the full live+baseline lists and, if
+    // baseline changed, trigger their own whole-baseline persistence write — quadratic work
+    // and N writes (through an unbounded channel) for N duplicate occurrences of one song.
+    val removedAny = orderStore.removeAll(affectedSlotIds)
     affectedSlotIds.forEach { slotId ->
-        if (orderStore.remove(slotId)) removedAny = true
         songsBySlotId.remove(slotId)
         artworkLoadedSlotIds.remove(slotId)
     }

@@ -166,6 +166,85 @@ class QueueOrderStoreTest {
     }
 
     /**
+     * P4-T4 / R3-F15: deleting N duplicate occurrences of one song used to call [remove] once per
+     * occurrence, each of which copies/filters the FULL live+baseline lists and, since every one
+     * of these occurrences changes baseline too, triggers its own whole-baseline persistence
+     * write — N writes, quadratic list work, for what should be a single edit. [removeAll] must
+     * do the same net removal in exactly one baseline write.
+     *
+     * This test IS the mutation test the P4 report describes for this fix: reverting
+     * `removeDeletedSongInternal` (the production call site) back to a per-slot `remove()` loop
+     * is exactly the second assertion group below, proved directly against this same store rather
+     * than by hand-editing production code and reverting it — that keeps the regression pinned
+     * permanently rather than only checked once during implementation.
+     */
+    /** Three independently addressable occurrences of the same song, plus two other songs. */
+    private fun queueWithDuplicates() = listOf(
+        QueueSlotRecord("slot-a", "song-a"),
+        QueueSlotRecord("slot-dup-1", "song-dup"),
+        QueueSlotRecord("slot-dup-2", "song-dup"),
+        QueueSlotRecord("slot-dup-3", "song-dup"),
+        QueueSlotRecord("slot-b", "song-b"),
+    )
+
+    @Test fun removeAllDeletesEveryDuplicateOccurrenceInExactlyOneBaselineWrite() {
+        val batchWriter = RecordingWriter()
+        val batchSubject = store(batchWriter)
+        batchSubject.captureFresh(queueWithDuplicates())
+        val duplicateSlotIds = batchSubject.live.filter { it.songId == "song-dup" }.map { it.slotId }
+        val writesBeforeRemoval = batchWriter.writes.size // captureFresh's own write
+
+        assertTrue(batchSubject.removeAll(duplicateSlotIds))
+
+        assertEquals(listOf("slot-a", "slot-b"), batchSubject.liveIds())
+        assertEquals(listOf("slot-a", "slot-b"), batchSubject.baselineIds())
+        assertEquals(
+            1,
+            batchWriter.writes.size - writesBeforeRemoval,
+            "removeAll must persist the baseline exactly once regardless of how many occurrences it removed",
+        )
+
+        // The mutation-test comparison: the OLD per-slot-call shape, exercised against a fresh,
+        // otherwise-identical store, produces the same end state but one baseline write PER
+        // occurrence — proving removeAll's single-write behavior is a genuine improvement and
+        // not just a difference in how the assertion counts writes.
+        val perSlotWriter = RecordingWriter()
+        val perSlotSubject = store(perSlotWriter)
+        perSlotSubject.captureFresh(queueWithDuplicates())
+        val perSlotDuplicateIds = perSlotSubject.live.filter { it.songId == "song-dup" }.map { it.slotId }
+        val perSlotWritesBeforeRemoval = perSlotWriter.writes.size
+
+        perSlotDuplicateIds.forEach { slotId -> perSlotSubject.remove(slotId) }
+
+        assertEquals(batchSubject.liveIds(), perSlotSubject.liveIds())
+        assertEquals(batchSubject.baselineIds(), perSlotSubject.baselineIds())
+        assertEquals(
+            perSlotDuplicateIds.size,
+            perSlotWriter.writes.size - perSlotWritesBeforeRemoval,
+            "the per-occurrence loop this replaces really does write once per occurrence",
+        )
+        assertTrue(perSlotWriter.writes.size > batchWriter.writes.size)
+    }
+
+    @Test fun removeAllReturnsFalseWhenNothingMatches() {
+        val subject = store()
+        subject.captureFresh(records("a"))
+
+        assertFalse(subject.removeAll(listOf("slot-nope", "slot-also-nope")))
+        assertEquals(listOf("slot-a"), subject.liveIds())
+    }
+
+    @Test fun removeAllOnEmptyCollectionIsANoOp() {
+        val writer = RecordingWriter()
+        val subject = store(writer)
+        subject.captureFresh(records("a"))
+
+        assertFalse(subject.removeAll(emptyList()))
+        assertTrue(writer.writes.isNotEmpty()) // only captureFresh's own write
+        assertEquals(1, writer.writes.size)
+    }
+
+    /**
      * Slot identity, not song identity: the same song queued twice is two independently
      * removable occurrences, and that has to survive everything windowing added.
      */

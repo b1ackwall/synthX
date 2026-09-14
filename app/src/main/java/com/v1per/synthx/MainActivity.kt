@@ -135,6 +135,23 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * The foregrounding counterpart of [onStop] above, and the general-purpose recovery hook
+     * P4-T2 needed: re-syncs the playback engine's cache against the current database state,
+     * covering a missed/interrupted emission (a worker interrupted after its DB commit but
+     * before it finished emitting a remap/deletion notice) that no live collector ever saw.
+     * Deliberately not gated on [DatabaseStartupGate.isReady] the way [onStop] is — a first
+     * `onStart` can race ahead of startup resolving, but [PlaybackViewModel.reconcileWithDatabase]
+     * only touches the engine's own in-memory cache and a read-only repository query, neither of
+     * which needs the gate the way a live Room write does.
+     */
+    override fun onStart() {
+        super.onStart()
+        if (RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL) {
+            playbackViewModel.reconcileWithDatabase()
+        }
+    }
+
+    /**
      * WorkManager keeps a unique work item's terminal WorkInfo (SUCCEEDED/FAILED/CANCELLED)
      * around until it's explicitly pruned or the unique name is enqueued again — without this,
      * RestoreViewModel reading RestoreWorker.UNIQUE_WORK_NAME's WorkInfo on a later, unrelated

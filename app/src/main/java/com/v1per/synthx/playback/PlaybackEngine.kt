@@ -150,4 +150,12 @@ interface PlaybackEngine {
     fun stop()
     fun seekTo(positionMs: Long)
     fun release()
+
+    /**
+     * The `onStart`/`onResume` recovery pass (P4-T2): re-verifies the whole cache against the
+     * database regardless of whether anything has actually been missed — the general-purpose
+     * backstop for a missed/interrupted event emission that a revision comparison alone cannot
+     * catch (see [com.v1per.synthx.data.PlaybackCacheRevision]'s kdoc).
+     */
+    suspend fun reconcileWithDatabase()
 }
