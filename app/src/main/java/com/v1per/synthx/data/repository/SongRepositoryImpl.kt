@@ -38,6 +38,8 @@ import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
 import com.v1per.synthx.data.scanner.ScanResult
+import com.v1per.synthx.data.scanner.ConfiguredAudioRoot
+import com.v1per.synthx.data.scanner.VerifyResult
 import com.v1per.synthx.data.scanner.walkAndClassifyRootOrganization
 import com.v1per.synthx.data.scanner.graduateSong as graduateSongFile
 import com.v1per.synthx.data.backup.RestoreCoordinator
@@ -247,8 +249,8 @@ class SongRepositoryImpl(
         onProgress,
     )
 
-    internal suspend fun verifyLibrary(configuredRootUris: List<Uri>): Int =
-        folderScanner.verifyAlreadyAdmitted(configuredRootUris)
+    internal suspend fun verifyLibrary(configuredRoots: List<ConfiguredAudioRoot>): VerifyResult =
+        folderScanner.verifyAlreadyAdmitted(configuredRoots)
 
     /** Total library size, for gauging a scan's impact as a percentage. */
     internal suspend fun getSongCountAlreadyAdmitted(): Int = songDao.getSongCount()

@@ -55,7 +55,9 @@ suspend fun walkAndClassifyRootOrganization(
     musicFolderUri: Uri,
 ): RootOrganizationCheckResult? = withContext(Dispatchers.IO) {
     val root = isRootReachable(context, musicFolderUri) ?: return@withContext null
-    val audioFiles = collectAudioFiles(root)
+    val walk = collectAudioFiles(context, root)
+    if (!walk.complete) return@withContext null
+    val audioFiles = walk.files
 
     val unorganized = mutableListOf<UnorganizedSong>()
     val unindexed = mutableListOf<String>()

@@ -65,13 +65,7 @@ class NewArrivalsScanWorker(
                     .scanLibrary(uri, reconcileMissing = false, isNewArrivalsRoot = true)
             }
             Log.d(TAG, "New arrivals scan complete: ${result.added} added, ${result.updated} updated")
-            Result.success(
-                workDataOf(
-                    LibraryScanWorker.KEY_ADDED to result.added,
-                    LibraryScanWorker.KEY_UPDATED to result.updated,
-                    LibraryScanWorker.KEY_UNCHANGED to result.unchanged,
-                )
-            )
+            Result.success(scanOutputData(result, includeMissing = false))
         } catch (e: CancellationException) {
             // Let WorkManager see it — the Room transaction has already rolled back.
             throw e

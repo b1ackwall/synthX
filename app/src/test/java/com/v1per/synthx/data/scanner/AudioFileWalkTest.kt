@@ -38,8 +38,45 @@ class AudioFileWalkTest {
         File(nested, "Track.flac").writeText("b")
         File(nested, ".graduating_Track.flac").writeText("partial")
 
-        val names = collectAudioFiles(DocumentFile.fromFile(root)).mapNotNull { it.name }.sorted()
+        val query = DirectoryChildrenQuery { directory ->
+            DirectoryListing(
+                directory.listFiles().map { child ->
+                    DirectoryChild(child, child.name, child.isDirectory)
+                },
+                complete = true,
+            )
+        }
+        val names = collectAudioFiles(DocumentFile.fromFile(root), query)
+            .files.mapNotNull { it.name }.sorted()
 
         assertEquals(listOf("Song.mp3", "Track.flac"), names)
+    }
+
+    @Test fun midWalkFailureMarksWalkIncompleteAndKeepsFilesAlreadyFound() = runTest {
+        val rootSong = File(root, "Root.mp3").also { it.writeText("root") }
+        val nested = File(root, "Artist").also { it.mkdirs() }
+        val nestedSong = File(nested, "Nested.flac").also { it.writeText("nested") }
+        val broken = File(nested, "Broken").also { it.mkdirs() }
+
+        val query = DirectoryChildrenQuery { directory ->
+            if (directory.name == broken.name) {
+                DirectoryListing(emptyList(), complete = false)
+            } else {
+                DirectoryListing(
+                    directory.listFiles().map { child ->
+                        DirectoryChild(child, child.name, child.isDirectory)
+                    },
+                    complete = true,
+                )
+            }
+        }
+
+        val walk = collectAudioFiles(DocumentFile.fromFile(root), query)
+
+        assertFalse(walk.complete)
+        assertEquals(
+            setOf(rootSong.name, nestedSong.name),
+            walk.files.mapNotNull { it.name }.toSet(),
+        )
     }
 }

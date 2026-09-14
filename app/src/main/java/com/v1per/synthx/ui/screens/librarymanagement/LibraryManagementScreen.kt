@@ -25,6 +25,7 @@ fun LibraryManagementScreen(
     )
     val folderUri by viewModel.musicFolderUri.collectAsState()
     val rescanStatus by viewModel.rescanStatus.collectAsState()
+    val scanStatusNeedsAttention by viewModel.scanStatusNeedsAttention.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val scanProgress by viewModel.scanProgress.collectAsState()
     val newArrivalsFolderUri by viewModel.newArrivalsFolderUri.collectAsState()
@@ -89,6 +90,7 @@ fun LibraryManagementScreen(
             },
             newArrivalsFolderError = newArrivalsFolderError,
             rescanStatus = rescanStatus,
+            scanStatusNeedsAttention = scanStatusNeedsAttention,
             isScanning = isScanning,
             scanProgress = scanProgress,
             missingSongCount = missingSongCount,
@@ -111,6 +113,7 @@ internal fun LibraryManagementScreenContent(
     newArrivalsFolderPath: String?,
     newArrivalsFolderError: String?,
     rescanStatus: String?,
+    scanStatusNeedsAttention: Boolean,
     isScanning: Boolean,
     scanProgress: ScanProgress?,
     missingSongCount: Int,
@@ -137,6 +140,7 @@ internal fun LibraryManagementScreenContent(
         )
         ScanSection(
             status = rescanStatus,
+            statusNeedsAttention = scanStatusNeedsAttention,
             isScanning = isScanning,
             progress = scanProgress,
             onRescan = onRescan,

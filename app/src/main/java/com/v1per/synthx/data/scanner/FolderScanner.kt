@@ -2,6 +2,7 @@ package com.v1per.synthx.data.scanner
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.data.db.AlbumDao
@@ -58,6 +59,8 @@ data class ScanResult(
      * [com.v1per.synthx.data.ScanRowClaims]. Not errors: the next scan picks them up.
      */
     val deferred: Int = 0,
+    /** Root-scoped uncertainty, independent of whether missing reconciliation was requested. */
+    val degradations: Set<ScanDegradation> = emptySet(),
 ) {
     /**
      * Combined count of everything this scan changed destructively or flagged away:
@@ -76,6 +79,12 @@ class FolderScanner internal constructor(
     private val songArtistDao: SongArtistDao,
     private val playlistExportManager: PlaylistExportManager,
     private val scanBodyForTest: (suspend () -> ScanResult)? = null,
+    private val rootResolver: (Uri) -> DocumentFile? = { isRootReachable(context, it) },
+    private val directoryQuery: DirectoryChildrenQuery = AndroidDirectoryChildrenQuery(context),
+    private val documentExistenceProbe: DocumentExistenceProbe = AndroidDocumentExistenceProbe(context),
+    private val rootMembership: suspend (Uri, Uri) -> Boolean = { document, root ->
+        RootNesting.isUnderRoot(context, document, root)
+    },
 ) {
 
     /**
@@ -179,13 +188,17 @@ class FolderScanner internal constructor(
         // genuinely empty root: listFiles() swallows the provider error and returns an
         // empty array, so an unreachable primary root would otherwise walk as "found
         // nothing" and flag the entire library missing in the reconciliation pass below.
-        val root = isRootReachable(context, folderUri)
+        val primaryRole = if (isNewArrivalsRoot) KnownAudioRoot.NewArrivals else KnownAudioRoot.Music
+        val root = rootResolver(folderUri)
             ?: return@withContext ScanResult(
                 added = 0,
                 updated = 0,
                 missing = 0,
                 unchanged = 0,
                 missingReconciled = false,
+                degradations = setOf(
+                    ScanDegradation(primaryRole, ScanDegradationReason.RootUnreachable)
+                ),
             ).also {
                 Log.w(TAG, "Skipping scan: primary root is unreachable — $folderUri")
             }
@@ -194,8 +207,8 @@ class FolderScanner internal constructor(
         // touches no DB state.
         val walkStartMs = System.currentTimeMillis()
         var primaryWalkOk = true
-        val audioFiles = try {
-            collectAudioFiles(root)
+        val primaryWalk = try {
+            collectAudioFiles(root, directoryQuery)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -204,18 +217,35 @@ class FolderScanner internal constructor(
             // reconciling against whatever happened to be collected before it broke.
             Log.w(TAG, "Skipping missing-detection: failed to walk primary root $folderUri", e)
             primaryWalkOk = false
-            emptyList()
+            AudioWalkResult(emptyList(), complete = false)
+        }
+        val audioFiles = primaryWalk.files
+        primaryWalkOk = primaryWalkOk && primaryWalk.complete
+        val degradations = linkedSetOf<ScanDegradation>()
+        if (!primaryWalk.complete) {
+            degradations += ScanDegradation(primaryRole, ScanDegradationReason.WalkIncomplete)
         }
         val foundPaths = audioFiles.mapTo(mutableSetOf()) { it.uri.toString() }
 
         // Secondary roots, also before the transaction opens: each is hundreds of binder
         // round-trips, and holding a Room transaction across them would block every other
         // writer for the duration. Enumeration only — these files are not ingested here.
-        val reconcile = if (reconcileMissing && primaryWalkOk) {
-            collectOtherRootPaths(context, otherRootUris, into = foundPaths)
-        } else {
-            false
+        if (reconcileMissing && primaryWalkOk) {
+            val otherRole = if (primaryRole == KnownAudioRoot.Music) {
+                KnownAudioRoot.NewArrivals
+            } else {
+                KnownAudioRoot.Music
+            }
+            degradations += collectOtherRootPaths(
+                context = context,
+                otherRootUris = otherRootUris,
+                into = foundPaths,
+                root = otherRole,
+                rootResolver = rootResolver,
+                directoryQuery = directoryQuery,
+            )
         }
+        val reconcile = reconcileMissing && primaryWalkOk && degradations.isEmpty()
         Log.d(
             TAG,
             "Scan walk complete in ${System.currentTimeMillis() - walkStartMs}ms — " +
@@ -437,6 +467,7 @@ class FolderScanner internal constructor(
                     hashMismatchFlagged = hashMismatchFlagged,
                     errors = errors,
                     deferred = claims.deferred,
+                    degradations = degradations,
                 )
             }
             Log.d(
@@ -512,21 +543,33 @@ class FolderScanner internal constructor(
      * already flagged missing — un-flagging is [scan]'s job, since only a real scan can
      * confirm the file's content still matches the row's identity hash.
      *
-     * [configuredRootUris] are every currently configured audio root (primary + any
+     * [configuredRoots] are every currently configured audio root (primary + any
      * others). Each is probed for reachability exactly once before any per-song check
      * runs — a per-file `exists()` probe can't tell "the whole tree is unreachable right
      * now" from "this one file is gone", so a song under a root that fails its
      * reachability check is skipped entirely rather than risking a false missing-flag.
      *
-     * @return the number of songs newly flagged missing by this pass.
+     * @return the number newly flagged plus any root-scoped uncertainty encountered.
      */
-    suspend fun verify(configuredRootUris: List<Uri>): Int = RestoreCoordinator.withDbOperation {
-        verifyAlreadyAdmitted(configuredRootUris)
+    suspend fun verify(configuredRoots: List<ConfiguredAudioRoot>): VerifyResult = RestoreCoordinator.withDbOperation {
+        verifyAlreadyAdmitted(configuredRoots)
     }
 
     /** Caller already owns admission for the complete verification sweep. */
-    internal suspend fun verifyAlreadyAdmitted(configuredRootUris: List<Uri>): Int = withContext(Dispatchers.IO) {
-        val reachableRoots = configuredRootUris.filter { isRootReachable(context, it) != null }
+    internal suspend fun verifyAlreadyAdmitted(
+        configuredRoots: List<ConfiguredAudioRoot>,
+    ): VerifyResult = withContext(Dispatchers.IO) {
+        val degradations = linkedSetOf<ScanDegradation>()
+        val reachableRoots = configuredRoots.filter { configured ->
+            (rootResolver(configured.uri) != null).also { reachable ->
+                if (!reachable) {
+                    degradations += ScanDegradation(
+                        configured.role,
+                        ScanDegradationReason.RootUnreachable,
+                    )
+                }
+            }
+        }
 
         var newlyMissing = 0
         for (song in songDao.getAllSongsOnce()) {
@@ -540,12 +583,21 @@ class FolderScanner internal constructor(
             // conflation this whole pass now exists to avoid, so it's folded into the same
             // "can't tell, don't touch" handling.
             val songUri = runCatching { Uri.parse(song.filePath) }.getOrNull() ?: continue
-            val underReachableRoot = reachableRoots.any { root ->
-                RootNesting.isUnderRoot(context, songUri, root)
-            }
-            if (!underReachableRoot) continue
+            val owningRoot = reachableRoots.firstOrNull { root ->
+                rootMembership(songUri, root.uri)
+            } ?: continue
 
-            if (fileExists(songUri)) continue
+            when (documentExistenceProbe.exists(songUri)) {
+                DocumentExistence.Present -> continue
+                DocumentExistence.Unknown -> {
+                    degradations += ScanDegradation(
+                        owningRoot.role,
+                        ScanDegradationReason.VerificationIncomplete,
+                    )
+                    continue
+                }
+                DocumentExistence.ConfirmedAbsent -> Unit
+            }
 
             // The snapshot above can be older than a graduation/delete that has since moved or
             // removed this song: its old path failing to resolve proves nothing on its own. Skip
@@ -557,10 +609,20 @@ class FolderScanner internal constructor(
                 if (current.isMissing) continue
                 if (current.filePath != song.filePath) {
                     val currentUri = runCatching { Uri.parse(current.filePath) }.getOrNull() ?: continue
-                    val currentUnderReachableRoot = reachableRoots.any { root ->
-                        RootNesting.isUnderRoot(context, currentUri, root)
+                    val currentRoot = reachableRoots.firstOrNull { root ->
+                        rootMembership(currentUri, root.uri)
+                    } ?: continue
+                    when (documentExistenceProbe.exists(currentUri)) {
+                        DocumentExistence.Present -> continue
+                        DocumentExistence.Unknown -> {
+                            degradations += ScanDegradation(
+                                currentRoot.role,
+                                ScanDegradationReason.VerificationIncomplete,
+                            )
+                            continue
+                        }
+                        DocumentExistence.ConfirmedAbsent -> Unit
                     }
-                    if (!currentUnderReachableRoot || fileExists(currentUri)) continue
                 }
                 songDao.markMissing(song.id, System.currentTimeMillis())
                 newlyMissing++
@@ -568,13 +630,7 @@ class FolderScanner internal constructor(
                 lease.release()
             }
         }
-        newlyMissing
-    }
-
-    private fun fileExists(uri: Uri): Boolean = try {
-        DocumentFile.fromSingleUri(context, uri)?.exists() == true
-    } catch (e: Exception) {
-        false
+        VerifyResult(newlyMissing, degradations)
     }
 
     companion object {
@@ -582,6 +638,47 @@ class FolderScanner internal constructor(
 
         /** Sentinel for both `onProgress` arguments while no file count is known yet. */
         const val PROGRESS_INDETERMINATE = -1
+    }
+}
+
+internal enum class DocumentExistence { Present, ConfirmedAbsent, Unknown }
+
+internal fun interface DocumentExistenceProbe {
+    fun exists(uri: Uri): DocumentExistence
+}
+
+internal class AndroidDocumentExistenceProbe(private val context: Context) : DocumentExistenceProbe {
+    override fun exists(uri: Uri): DocumentExistence {
+        val document = try {
+            DocumentFile.fromSingleUri(context, uri)
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            return DocumentExistence.Unknown
+        } ?: return DocumentExistence.Unknown
+
+        return try {
+            context.contentResolver.query(
+                document.uri,
+                arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                val extras = cursor.extras
+                if (extras.getBoolean(DocumentsContract.EXTRA_LOADING, false) ||
+                    extras.containsKey(DocumentsContract.EXTRA_ERROR)
+                ) {
+                    DocumentExistence.Unknown
+                } else if (cursor.count > 0) {
+                    DocumentExistence.Present
+                } else {
+                    DocumentExistence.ConfirmedAbsent
+                }
+            } ?: DocumentExistence.Unknown
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            DocumentExistence.Unknown
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 package com.v1per.synthx.data.scanner
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -10,7 +11,6 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import androidx.work.workDataOf
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.backup.WorkerDatabaseAccess
 import com.v1per.synthx.preferences.PreferencesManager
@@ -36,14 +36,22 @@ class VerifyLibraryWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
-        val configuredRootUris = PreferencesManager(applicationContext).configuredAudioRootUris()
+        val preferences = PreferencesManager(applicationContext)
+        val configuredRoots = listOfNotNull(
+            preferences.musicFolderUri?.let {
+                ConfiguredAudioRoot(Uri.parse(it), KnownAudioRoot.Music)
+            },
+            preferences.newArrivalsFolderUri?.let {
+                ConfiguredAudioRoot(Uri.parse(it), KnownAudioRoot.NewArrivals)
+            },
+        )
         return try {
-            val newlyMissing = WorkerDatabaseAccess.run {
+            val result = WorkerDatabaseAccess.run {
                 SongRepositoryImpl.create(applicationContext)
-                    .verifyLibrary(configuredRootUris)
+                    .verifyLibrary(configuredRoots)
             }
-            Log.d(TAG, "Launch verify complete: $newlyMissing newly missing")
-            Result.success(workDataOf(KEY_NEWLY_MISSING to newlyMissing))
+            Log.d(TAG, "Launch verify complete: ${result.newlyMissing} newly missing")
+            Result.success(verifyOutputData(result))
         } catch (e: IOException) {
             // Plausibly a momentary SAF/content-provider hiccup (e.g. the provider process
             // hasn't finished warming up right after boot) rather than a real defect — worth

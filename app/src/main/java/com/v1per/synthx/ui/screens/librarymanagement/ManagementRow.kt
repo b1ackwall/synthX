@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.ui.theme.Accent
@@ -41,6 +42,7 @@ internal fun ManagementRow(
     trailingText: String? = null,
     enabled: Boolean = true,
     subtitleMaxLines: Int = 1,
+    subtitleColor: Color? = null,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -72,7 +74,7 @@ internal fun ManagementRow(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = subtitleColor ?: TextSecondary,
                     maxLines = subtitleMaxLines,
                     // Ellipsis only makes sense when a real line cap can be hit. Int.MAX_VALUE
                     // is the sentinel for "wrap without limit" (see RescanRow) — a message of

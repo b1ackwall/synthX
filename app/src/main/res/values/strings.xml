@@ -293,6 +293,14 @@
     <string name="scan_status_new_arrivals_none">No new songs</string>
     <string name="scan_status_verify_none">No changes</string>
     <string name="scan_status_verify_missing">%1$d songs newly missing</string>
+    <string name="scan_root_music">Music</string>
+    <string name="scan_root_new_arrivals">New Arrivals</string>
+    <string name="scan_degraded_root_unreachable">The %1$s folder could not be reached. Reconnect its storage or select the folder again.</string>
+    <string name="scan_degraded_walk_incomplete">The %1$s folder could not be scanned completely. Reconnect its storage or select the folder again, then scan again.</string>
+    <string name="scan_degraded_verification_incomplete">Some files in the %1$s folder could not be verified. Reconnect its storage or select the folder again, then scan again.</string>
+    <string name="scan_status_degraded_counts">Scan incomplete — %1$d added, %2$d updated. %3$s</string>
+    <string name="scan_status_new_arrivals_degraded">New Arrivals scan incomplete — %1$d new songs found. %2$s</string>
+    <string name="scan_status_verify_degraded">Verification incomplete — %1$d songs confirmed missing. %2$s</string>
     <string name="backup_status_backing_up">Backing up…</string>
     <string name="backup_status_created">Backup created</string>
     <string name="backup_status_failed">Backup failed: %1$s</string>

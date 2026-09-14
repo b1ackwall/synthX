@@ -116,12 +116,7 @@ class LibraryScanWorker(
                 Log.w(TAG, "Scan completed without missing-detection — a configured root was unreachable")
             }
 
-            val outputData = workDataOf(
-                KEY_ADDED to result.added,
-                KEY_UPDATED to result.updated,
-                KEY_MISSING to result.missing,
-                KEY_UNCHANGED to result.unchanged,
-            )
+            val outputData = scanOutputData(result)
             val isHighImpact = songCountAfterScan > 0 &&
                 (result.totalImpact * 100 > songCountAfterScan * HIGH_IMPACT_PERCENT_THRESHOLD ||
                     result.totalImpact > HIGH_IMPACT_ABSOLUTE_FLOOR)

@@ -30,6 +30,7 @@ import com.v1per.synthx.ui.theme.TextPrimary
 @Composable
 internal fun ScanSection(
     status: String?,
+    statusNeedsAttention: Boolean,
     isScanning: Boolean,
     progress: ScanProgress?,
     onRescan: () -> Unit,
@@ -37,6 +38,7 @@ internal fun ScanSection(
 ) {
     RescanRow(
         status = status,
+        statusNeedsAttention = statusNeedsAttention,
         isScanning = isScanning,
         onClick = onRescan,
     )
@@ -62,6 +64,7 @@ internal fun ScanSection(
 @Composable
 private fun RescanRow(
     status: String?,
+    statusNeedsAttention: Boolean,
     isScanning: Boolean,
     onClick: () -> Unit,
 ) {
@@ -69,6 +72,7 @@ private fun RescanRow(
     ManagementRow(
         title = stringResource(R.string.settings_rescan_library),
         subtitle = status,
+        subtitleColor = if (statusNeedsAttention) Error else null,
         enabled = !isScanning,
         // Unbounded: the high-impact status text's length varies with the backup filename
         // and item count, so no fixed line count can be relied on to never truncate it.

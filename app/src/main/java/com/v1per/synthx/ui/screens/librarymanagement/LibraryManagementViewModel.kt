@@ -18,9 +18,13 @@ import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
+import com.v1per.synthx.data.scanner.KnownAudioRoot
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.data.scanner.RootNesting
+import com.v1per.synthx.data.scanner.ScanDegradation
+import com.v1per.synthx.data.scanner.ScanDegradationReason
 import com.v1per.synthx.data.scanner.VerifyLibraryWorker
+import com.v1per.synthx.data.scanner.scanDegradations
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.launchCatching
@@ -160,6 +164,14 @@ class LibraryManagementViewModel(
         local ?: if (alreadyAcknowledged) null else statusFor(info)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    val scanStatusNeedsAttention: StateFlow<Boolean> = workInfo
+        .map { info ->
+            info?.state == WorkInfo.State.FAILED ||
+                (info?.state == WorkInfo.State.SUCCEEDED &&
+                    info.outputData.scanDegradations().isNotEmpty())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     init {
         // Either scan worker clears its own stored URI when it finds the grant revoked.
         // Mirror that back into the UI so the folder row stops showing a path the app can't
@@ -231,6 +243,14 @@ class LibraryManagementViewModel(
         WorkInfo.State.SUCCEEDED -> when {
             LIBRARY_SCAN_TAG in info.tags -> {
                 val data = info.outputData
+                degradationMessage(data.scanDegradations())?.let { warning ->
+                    return context.getString(
+                        R.string.scan_status_degraded_counts,
+                        data.getInt(LibraryScanWorker.KEY_ADDED, 0),
+                        data.getInt(LibraryScanWorker.KEY_UPDATED, 0),
+                        warning,
+                    )
+                }
                 val doneMessage = context.getString(
                     R.string.scan_status_done,
                     data.getInt(LibraryScanWorker.KEY_ADDED, 0),
@@ -251,6 +271,13 @@ class LibraryManagementViewModel(
             }
             NEW_ARRIVALS_TAG in info.tags -> {
                 val added = info.outputData.getInt(LibraryScanWorker.KEY_ADDED, 0)
+                degradationMessage(info.outputData.scanDegradations())?.let { warning ->
+                    return context.getString(
+                        R.string.scan_status_new_arrivals_degraded,
+                        added,
+                        warning,
+                    )
+                }
                 if (added > 0) {
                     context.getString(R.string.scan_status_new_arrivals_found, added)
                 } else {
@@ -259,6 +286,13 @@ class LibraryManagementViewModel(
             }
             VERIFY_TAG in info.tags -> {
                 val newlyMissing = info.outputData.getInt(VerifyLibraryWorker.KEY_NEWLY_MISSING, 0)
+                degradationMessage(info.outputData.scanDegradations())?.let { warning ->
+                    return context.getString(
+                        R.string.scan_status_verify_degraded,
+                        newlyMissing,
+                        warning,
+                    )
+                }
                 if (newlyMissing > 0) {
                     context.getString(R.string.scan_status_verify_missing, newlyMissing)
                 } else {
@@ -273,6 +307,27 @@ class LibraryManagementViewModel(
                 ?: context.getString(R.string.scan_status_unknown_error),
         )
         WorkInfo.State.CANCELLED -> context.getString(R.string.scan_cancelled)
+    }
+
+    private fun degradationMessage(degradations: Set<ScanDegradation>): String? {
+        if (degradations.isEmpty()) return null
+        return degradations.joinToString(" ") { degradation ->
+            val rootName = context.getString(
+                when (degradation.root) {
+                    KnownAudioRoot.Music -> R.string.scan_root_music
+                    KnownAudioRoot.NewArrivals -> R.string.scan_root_new_arrivals
+                }
+            )
+            context.getString(
+                when (degradation.reason) {
+                    ScanDegradationReason.RootUnreachable -> R.string.scan_degraded_root_unreachable
+                    ScanDegradationReason.WalkIncomplete -> R.string.scan_degraded_walk_incomplete
+                    ScanDegradationReason.VerificationIncomplete ->
+                        R.string.scan_degraded_verification_incomplete
+                },
+                rootName,
+            )
+        }
     }
 
     /** Sets a terminal (non-"in progress") status message, then clears it after
