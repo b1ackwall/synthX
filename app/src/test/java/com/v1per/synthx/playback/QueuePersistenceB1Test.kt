@@ -5,6 +5,7 @@ import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.repository.AdmittedQueuePersistenceRepository
 import com.v1per.synthx.data.repository.Album
 import com.v1per.synthx.data.repository.Artist
+import com.v1per.synthx.data.repository.DeleteSongPreview
 import com.v1per.synthx.data.repository.MissingSongInfo
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.PlaylistConflictResolution
@@ -63,6 +64,8 @@ class QueuePersistenceB1Test {
         override suspend fun recoverMissingArt(songIds: List<String>?) =
             com.v1per.synthx.data.scanner.ArtRecoveryResult(checked = 0, recovered = 0, skipped = 0)
         override suspend fun deleteSong(id: String) = SongDeletionOutcome.Deleted
+        override suspend fun previewDeleteSong(id: String) = DeleteSongPreview(emptyList())
+        override suspend fun retryAudioFileDeletion(filePath: String) = SongDeletionOutcome.Deleted
         override fun deleteSongDetached(id: String, onResult: (Result<SongDeletionOutcome>) -> Unit) {
             onResult(Result.success(SongDeletionOutcome.Deleted))
         }

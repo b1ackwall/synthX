@@ -12,6 +12,7 @@ import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -100,8 +101,7 @@ class MigrationFullChainTest {
         // 2_3/3_4's *intentional* wipe behavior, which is the wrong thing to assert here.
         val name = databaseName("full-chain-data")
         migrationHelper.createDatabase(name, 4).use {
-            seedV4Song(it)
-            seedV4Playlist(it)
+            seedRepresentativeLibrary(it, 4)
         }
 
         val migrated = migrationHelper.runMigrationsAndValidate(
@@ -148,22 +148,104 @@ class MigrationFullChainTest {
                 assertTrue("art_hue must be NULL", cursor.isNull(2))
                 assertTrue("art_structure_seed must be NULL", cursor.isNull(3))
             }
+            assertRepresentativeRelationships(database)
         }
+    }
+
+    @Test
+    fun everyHistoricalStartingVersionMigratesPopulatedDataToCurrent() {
+        for (startVersion in 1 until SynthXDatabase.VERSION) {
+            val name = databaseName("populated-v$startVersion")
+            migrationHelper.createDatabase(name, startVersion).use {
+                seedRepresentativeLibrary(it, startVersion)
+            }
+            migrationHelper.runMigrationsAndValidate(
+                name, SynthXDatabase.VERSION, true, *SynthXDatabase.ALL_MIGRATIONS,
+            ).use { database ->
+                if (startVersion <= 3) {
+                    assertEquals(0, database.singleInt("SELECT COUNT(*) FROM songs"))
+                    assertEquals(0, database.singleInt("SELECT COUNT(*) FROM song_artists"))
+                    assertEquals(0, database.singleInt("SELECT COUNT(*) FROM playlist_songs"))
+                } else {
+                    assertRepresentativeRelationships(database)
+                }
+                assertEquals(0, database.query("PRAGMA foreign_key_check").use { it.count })
+            }
+        }
+    }
+
+    @Test
+    fun failedMidMigrationSqlRollsBackAndRealChainRetriesCleanly() {
+        val name = databaseName("mid-sql-rollback")
+        migrationHelper.createDatabase(name, 6).use { seedRepresentativeLibrary(it, 6) }
+        val failMidRebuild = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS listen_history")
+                db.execSQL(
+                    """
+                    CREATE TABLE songs_new (
+                        id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, album_id TEXT,
+                        duration INTEGER NOT NULL, file_path TEXT NOT NULL, album_art_uri TEXT,
+                        year INTEGER, track_number INTEGER, date_added INTEGER NOT NULL,
+                        is_missing INTEGER NOT NULL DEFAULT 0, missing_since INTEGER,
+                        FOREIGN KEY(album_id) REFERENCES albums(id)
+                            ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO songs_new (
+                        id,title,album_id,duration,file_path,album_art_uri,year,track_number,
+                        date_added,is_missing,missing_since
+                    ) SELECT id,title,album_id,duration,file_path,album_art_uri,year,track_number,
+                        date_added,is_missing,missing_since FROM songs
+                    """.trimIndent()
+                )
+                error("injected crash during 6->7 songs rebuild")
+            }
+        }
+        try {
+            migrationHelper.runMigrationsAndValidate(name, 7, true, failMidRebuild).close()
+            fail("Expected injected migration failure")
+        } catch (expected: IllegalStateException) {
+            assertTrue(expected.message.orEmpty().contains("injected crash"))
+        }
+
+        android.database.sqlite.SQLiteDatabase.openDatabase(
+            context.getDatabasePath(name).path,
+            null,
+            android.database.sqlite.SQLiteDatabase.OPEN_READONLY,
+        ).use { rolledBack ->
+            assertEquals(6, rolledBack.version)
+            assertEquals(1, rolledBack.rawQuery("SELECT COUNT(*) FROM songs", null).use {
+                it.moveToFirst(); it.getInt(0)
+            })
+            assertEquals(
+                0,
+                rolledBack.rawQuery(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='songs_new'",
+                    null,
+                ).use { it.moveToFirst(); it.getInt(0) },
+            )
+        }
+        migrationHelper.runMigrationsAndValidate(
+            name, SynthXDatabase.VERSION, true, *SynthXDatabase.ALL_MIGRATIONS,
+        ).use(::assertRepresentativeRelationships)
     }
 
     private fun databaseName(label: String): String =
         "migration-full-chain-$label-${UUID.randomUUID()}.db".also { createdDatabaseNames += it }
 
     /** A fully populated v4 song plus its album — v4 songs still has verified/verified_at (6_7 drops them). */
-    private fun seedV4Song(database: SupportSQLiteDatabase) {
+    private fun seedRepresentativeLibrary(database: SupportSQLiteDatabase, startVersion: Int) {
         database.execSQL(
             "INSERT INTO albums (id, title, year, album_art_uri) VALUES (?, ?, ?, ?)",
             arrayOf<Any?>(ALBUM_ID, "Pre-chain album", 1998, "file:///art/album.jpg"),
         )
         database.execSQL(
             "INSERT INTO songs (id, title, album_id, duration, file_path, album_art_uri, year, " +
-                "track_number, date_added, is_missing, missing_since, verified, verified_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "date_added, is_missing, missing_since) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             arrayOf<Any?>(
                 SONG_ID,
                 "Pre-chain title",
@@ -172,18 +254,30 @@ class MigrationFullChainTest {
                 "/music/pre-chain.flac",
                 "file:///art/compressed.jpg",
                 1998,
-                7,
                 1_700_000_000_000L,
-                0,
-                null,
                 0,
                 null,
             ),
         )
+        // v8+ fixtures start after the membership-derived backfill, so seed the invariant that
+        // migration would already have established. v7 and earlier must earn this via 7->8.
+        if (startVersion >= 8) database.execSQL(
+            "UPDATE songs SET in_inbox = 0 WHERE id = ?",
+            arrayOf<Any?>(SONG_ID),
+        )
+        database.execSQL(
+            "INSERT INTO artists (id, name, name_normalized) VALUES (?, ?, ?)",
+            arrayOf<Any?>(ARTIST_ID, "Pre-chain artist", "pre-chain artist"),
+        )
+        database.execSQL(
+            "INSERT INTO song_artists (song_id, artist_id, position) VALUES (?, ?, ?)",
+            arrayOf<Any?>(SONG_ID, ARTIST_ID, 0),
+        )
+        seedPlaylistRelationship(database)
     }
 
     /** A grouped v4 playlist — the playlists/playlist_groups shape is unchanged from v4 to v13. */
-    private fun seedV4Playlist(database: SupportSQLiteDatabase) {
+    private fun seedPlaylistRelationship(database: SupportSQLiteDatabase) {
         database.execSQL(
             "INSERT INTO playlist_groups (id, name, position, created_at) VALUES (?, ?, ?, ?)",
             arrayOf<Any?>(GROUP_ID, "Pre-chain group", 0, 1_700_000_000_000L),
@@ -202,11 +296,47 @@ class MigrationFullChainTest {
                 null,
             ),
         )
+        database.execSQL(
+            "INSERT INTO playlist_songs (playlist_id, song_id, position, added_at) VALUES (?, ?, ?, ?)",
+            arrayOf<Any?>(PLAYLIST_ID, SONG_ID, 4, 1_650_000_000_000L),
+        )
     }
+
+    private fun assertRepresentativeRelationships(database: SupportSQLiteDatabase) {
+        database.query(
+            "SELECT artist_id, position FROM song_artists WHERE song_id = ?",
+            arrayOf(SONG_ID),
+        ).use {
+            assertTrue("Positioned artist link did not survive", it.moveToFirst())
+            assertEquals(ARTIST_ID, it.getString(0))
+            assertEquals(0, it.getInt(1))
+        }
+        database.query(
+            "SELECT position, added_at FROM playlist_songs WHERE playlist_id = ? AND song_id = ?",
+            arrayOf(PLAYLIST_ID, SONG_ID),
+        ).use {
+            assertTrue("Playlist membership did not survive", it.moveToFirst())
+            assertEquals(4, it.getInt(0))
+            assertEquals(1_650_000_000_000L, it.getLong(1))
+        }
+        assertEquals(
+            "7->8 must dismiss an existing playlist member from inbox",
+            0,
+            database.query("SELECT in_inbox FROM songs WHERE id = ?", arrayOf(SONG_ID)).use {
+                assertTrue(it.moveToFirst())
+                it.getInt(0)
+            },
+        )
+        assertEquals(0, database.query("PRAGMA foreign_key_check").use { it.count })
+    }
+
+    private fun SupportSQLiteDatabase.singleInt(sql: String): Int =
+        query(sql).use { it.moveToFirst(); it.getInt(0) }
 
     private companion object {
         const val SONG_ID = "song-pre-chain"
         const val ALBUM_ID = "album-pre-chain"
+        const val ARTIST_ID = "artist-pre-chain"
         const val GROUP_ID = "group-pre-chain"
         const val PLAYLIST_ID = "playlist-pre-chain"
     }

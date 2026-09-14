@@ -78,10 +78,10 @@ class SongActionsViewModelInstrumentedTest {
 
         // First tap: starts the delete, which suspends on `gate` before completing — i.e.
         // genuinely still in flight, not merely "launched but not yet dispatched".
-        subject.deleteSong("song")
+        subject.deleteSong("song", "content://song")
         // Second tap, while the first is still suspended inside repository.deleteSong: must be
         // a no-op — see SongActionsViewModel.deleteInProgress (P1-T3 / R4-F-E2).
-        subject.deleteSong("song")
+        subject.deleteSong("song", "content://song")
 
         gate.complete(Unit)
         withTimeout(2_000) { subject.deleteInProgress.first { !it } }

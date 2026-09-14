@@ -8,6 +8,8 @@ import androidx.room.Transaction
 import com.v1per.synthx.data.repository.PlaylistMembership
 import kotlinx.coroutines.flow.Flow
 
+data class PlaylistMemberCount(val playlistId: String, val memberCount: Int)
+
 @Dao
 interface PlaylistDao {
 
@@ -100,6 +102,13 @@ interface PlaylistDao {
      */
     @Query("SELECT playlist_id, position, added_at FROM playlist_songs WHERE song_id = :songId")
     suspend fun getPlaylistMembershipsForSong(songId: String): List<PlaylistMembership>
+
+    /** Aggregate used by delete preview; one bounded query replaces an N-query count loop. */
+    @Query(
+        "SELECT playlist_id AS playlistId, COUNT(*) AS memberCount FROM playlist_songs " +
+            "WHERE playlist_id IN (:ids) GROUP BY playlist_id"
+    )
+    suspend fun getPlaylistMemberCounts(ids: List<String>): List<PlaylistMemberCount>
 
     /** Names for a known set of playlist ids — for describing a membership set without
      *  collecting the whole [getAllPlaylists] Flow. */

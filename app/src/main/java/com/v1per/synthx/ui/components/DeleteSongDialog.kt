@@ -3,6 +3,8 @@ package com.v1per.synthx.ui.components
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -17,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.v1per.synthx.R
 import com.v1per.synthx.preferences.DestructiveActionTracker
+import com.v1per.synthx.data.repository.DeleteSongPreview
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -42,6 +45,8 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 fun DeleteSongDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    previewState: DeleteSongPreviewState = DeleteSongPreviewState.Ready(DeleteSongPreview(emptyList())),
+    onRetryPreview: () -> Unit = {},
     // P1-T3: cosmetic reinforcement of the caller's own in-flight guard (e.g.
     // SongActionsViewModel.deleteInProgress) — a double-tap is already prevented at the
     // ViewModel level regardless of whether this has a chance to take visible effect first.
@@ -58,17 +63,8 @@ fun DeleteSongDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.delete_song_dialog_title)) },
         text = {
-            Column {
-                Text(stringResource(R.string.delete_song_dialog_message))
-                if (destructiveActionCount > 0) {
-                    Text(
-                        text = stringResource(
-                            R.string.destructive_action_warning,
-                            destructiveActionCount,
-                        ),
-                        color = Error,
-                    )
-                }
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                DeleteSongDisclosure(previewState, destructiveActionCount, onRetryPreview)
                 Spacer(modifier = Modifier.height(Spacing.md))
                 TypedConfirmationField(
                     requiredWord = requiredWord,
@@ -80,7 +76,8 @@ fun DeleteSongDialog(
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = typedConfirmationMatches(typedConfirmation, requiredWord) && confirmEnabled,
+                enabled = previewState is DeleteSongPreviewState.Ready &&
+                    typedConfirmationMatches(typedConfirmation, requiredWord) && confirmEnabled,
                 colors = ButtonDefaults.textButtonColors(contentColor = Error),
             ) {
                 Text(text = requiredWord)
@@ -98,4 +95,48 @@ fun DeleteSongDialog(
         titleContentColor = TextPrimary,
         textContentColor = TextSecondary,
     )
+}
+
+/** Extracted dialog body so its consequence disclosure can be tested without a platform window. */
+@Composable
+internal fun DeleteSongDisclosure(
+    previewState: DeleteSongPreviewState,
+    destructiveActionCount: Int,
+    onRetryPreview: () -> Unit,
+) {
+    Text(stringResource(R.string.delete_song_dialog_message))
+    Spacer(modifier = Modifier.height(Spacing.md))
+    when (val state = previewState) {
+        DeleteSongPreviewState.Loading -> Text(stringResource(R.string.delete_song_preview_loading))
+        DeleteSongPreviewState.Failed -> {
+            Text(stringResource(R.string.delete_song_preview_failed), color = Error)
+            TextButton(onClick = onRetryPreview) { Text(stringResource(R.string.action_retry)) }
+        }
+        is DeleteSongPreviewState.Ready -> {
+            Text(stringResource(R.string.delete_song_playlists_heading, state.preview.playlists.size))
+            if (state.preview.playlists.isEmpty()) {
+                Text(stringResource(R.string.delete_song_no_playlists))
+            } else {
+                state.preview.playlists.forEach { impact ->
+                    Text(
+                        if (impact.willBecomeEmpty) {
+                            stringResource(R.string.delete_song_playlist_will_empty, impact.name)
+                        } else impact.name
+                    )
+                }
+            }
+        }
+    }
+    if (destructiveActionCount > 0) {
+        Text(
+            stringResource(R.string.destructive_action_warning, destructiveActionCount),
+            color = Error,
+        )
+    }
+}
+
+sealed interface DeleteSongPreviewState {
+    data object Loading : DeleteSongPreviewState
+    data object Failed : DeleteSongPreviewState
+    data class Ready(val preview: DeleteSongPreview) : DeleteSongPreviewState
 }

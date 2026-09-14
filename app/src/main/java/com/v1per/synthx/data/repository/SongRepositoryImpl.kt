@@ -22,6 +22,7 @@ import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
 import com.v1per.synthx.data.db.SongWithDetails
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.data.db.queryInBatches
 import android.util.Log
 import androidx.room.withTransaction
 import com.v1per.synthx.data.AudioFileDeletion
@@ -129,6 +130,9 @@ class SongRepositoryImpl(
     private val replacementFileCheck: suspend (String, String) -> ReplacementFilePreflightResult =
         DestructiveFilePreflight.create(context)::checkReplacement,
     private val schedulePlaylistExport: () -> Unit = playlistExportManager::scheduleExport,
+    private val audioFileDelete: (String) -> AudioFileDeletion = { filePath ->
+        deleteSongAudioFile(context, filePath)
+    },
     // Deterministic transaction-boundary seam for the Room concurrency regression test.
     private val previewAnalysisCheckpoint: suspend () -> Unit = {},
 ) : SongRepository, AdmittedQueuePersistenceRepository {
@@ -206,7 +210,8 @@ class SongRepositoryImpl(
     // Sort order (title) stays in the DAO query; the Flow conversion preserves it.
     override fun getSongsForArtist(artistId: String): Flow<List<Song>> =
         RepositoryDbFlow.observe { songDao.getSongsWithDetailsForArtist(artistId) }.map { details ->
-            val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+            val refsBySongId = details.map { it.song.id }
+                .queryInBatches(songDao::getSongArtistRefsForSongs)
                 .groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
@@ -240,7 +245,8 @@ class SongRepositoryImpl(
     // Sort order (track number, then title) stays in the DAO query.
     override fun getSongsForAlbum(albumId: String): Flow<List<Song>> =
         RepositoryDbFlow.observe { songDao.getSongsWithDetailsForAlbum(albumId) }.map { details ->
-            val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+            val refsBySongId = details.map { it.song.id }
+                .queryInBatches(songDao::getSongArtistRefsForSongs)
                 .groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
@@ -340,6 +346,35 @@ class SongRepositoryImpl(
         }
     }
 
+    override suspend fun previewDeleteSong(id: String): DeleteSongPreview = dbOperation {
+        database.withTransaction {
+            val playlistIds = playlistDao.getPlaylistIdsForSong(id).distinct()
+            if (playlistIds.isEmpty()) return@withTransaction DeleteSongPreview(emptyList())
+            val namesById = playlistIds.queryInBatches(playlistDao::getPlaylistsByIds)
+                .associate { it.id to it.name }
+            val countsById = playlistIds.queryInBatches(playlistDao::getPlaylistMemberCounts)
+                .associate { it.playlistId to it.memberCount }
+            DeleteSongPreview(
+                playlistIds.mapNotNull { playlistId ->
+                    namesById[playlistId]?.let { name ->
+                        DeleteSongPlaylistImpact(
+                            name = name,
+                            willBecomeEmpty = countsById[playlistId] == 1,
+                        )
+                    }
+                }.sortedBy { it.name.lowercase() }
+            )
+        }
+    }
+
+    override suspend fun retryAudioFileDeletion(filePath: String): SongDeletionOutcome =
+        withContext(Dispatchers.IO) {
+            songDeletionOutcome(
+                audioOutcome = audioFileDelete(filePath),
+                cleanupUncertain = false,
+            )
+        }
+
     // See SongRepository.deleteSongDetached's kdoc. The whole call (locks, backup, transaction,
     // and the runPostCommitCleanup phase below) runs on repositoryScope from the start, so
     // IssuesViewModel's caller-side coroutine is never in the loop at all — cancelling it cannot
@@ -404,7 +439,7 @@ class SongRepositoryImpl(
             AudioFileDeletion.Unknown
         }
         if (filePath != null && !runPostCommitStep("delete audio file") {
-                fileOutcome = deleteSongAudioFile(context, filePath)
+                fileOutcome = audioFileDelete(filePath)
             }
         ) {
             cleanupUncertain = true
@@ -439,7 +474,8 @@ class SongRepositoryImpl(
         // One read of both songs, hydrated the same way every other song list is, so the review
         // step renders them with the ordinary SongRow/SongIdentity treatment.
         val details = songDao.getSongsWithDetailsByIds(listOf(oldSongId, newSongId))
-        val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+        val refsBySongId = details.map { it.song.id }
+            .queryInBatches(songDao::getSongArtistRefsForSongs)
             .groupBy { it.songId }
         val songsById = details.associate { it.song.id to it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         val oldSong = songsById[oldSongId] ?: return ReplaceSongPreviewResult.OldSongMissing
@@ -454,7 +490,8 @@ class SongRepositoryImpl(
             .sortedWith(replaceMembershipOrder)
         val oldPlaylistIds = oldMemberships.mapTo(linkedSetOf()) { it.playlistId }
         val newPlaylistIds = newMemberships.mapTo(linkedSetOf()) { it.playlistId }
-        val namesById = playlistDao.getPlaylistsByIds((oldPlaylistIds + newPlaylistIds).toList())
+        val namesById = (oldPlaylistIds + newPlaylistIds)
+            .queryInBatches(playlistDao::getPlaylistsByIds)
             .associate { it.id to it.name }
         // A membership whose playlist row can't be named is skipped rather than shown as blank —
         // it cannot happen (playlist_songs has an FK to playlists) but the review step must not
@@ -664,7 +701,8 @@ class SongRepositoryImpl(
     // this only resolves artist order, same as the playlist/album/artist song lists above.
     override fun getStarredSongs(): Flow<List<Song>> =
         RepositoryDbFlow.observe { songDao.getStarredSongs() }.map { details ->
-            val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+            val refsBySongId = details.map { it.song.id }
+                .queryInBatches(songDao::getSongArtistRefsForSongs)
                 .groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
@@ -678,7 +716,8 @@ class SongRepositoryImpl(
         RepositoryDbFlow.observe {
             songDao.getRecentSongsWithDetails(limit)
         }.map { details ->
-            val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+            val refsBySongId = details.map { it.song.id }
+                .queryInBatches(songDao::getSongArtistRefsForSongs)
                 .groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
@@ -891,7 +930,8 @@ class SongRepositoryImpl(
     // re-fetching/joining the whole library and filtering down in Kotlin.
     override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> =
         RepositoryDbFlow.observe { songDao.getSongsWithDetailsForPlaylist(playlistId) }.map { details ->
-            val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+            val refsBySongId = details.map { it.song.id }
+                .queryInBatches(songDao::getSongArtistRefsForSongs)
                 .groupBy { it.songId }
             details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
         }.flowOn(Dispatchers.Default)
@@ -918,10 +958,15 @@ class SongRepositoryImpl(
 
     override suspend fun getSongsByIds(ids: List<String>): List<Song> = dbOperation { withContext(Dispatchers.IO) {
         if (ids.isEmpty()) return@withContext emptyList()
-        val details = songDao.getSongsWithDetailsByIds(ids)
-        val refsBySongId = songDao.getSongArtistRefsForSongs(details.map { it.song.id })
+        val distinctIds = ids.distinct()
+        val details = distinctIds.queryInBatches(songDao::getSongsWithDetailsByIds)
+        val refsBySongId = details.map { it.song.id }
+            .queryInBatches(songDao::getSongArtistRefsForSongs)
             .groupBy { it.songId }
-        details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+        val songsById = details.associate { row ->
+            row.song.id to row.toDomain(refsBySongId[row.song.id] ?: emptyList())
+        }
+        distinctIds.mapNotNull(songsById::get)
     } }
 
     override suspend fun getQueueSlots(): List<QueueSlot> = dbOperation { withContext(Dispatchers.IO) {
@@ -991,12 +1036,9 @@ class SongRepositoryImpl(
         // Room expands each IN-list element to one SQLite bind parameter. Queues can contain
         // well over 999 entries, so hydrate in bounded batches instead of failing restore for
         // a large queue with "too many SQL variables".
-        val details = songIds.chunked(SQLITE_IN_BATCH_SIZE).flatMap {
-            songDao.getSongsWithDetailsByIds(it)
-        }
-        val refsBySongId = details.map { it.song.id }.chunked(SQLITE_IN_BATCH_SIZE).flatMap {
-            songDao.getSongArtistRefsForSongs(it)
-        }
+        val details = songIds.queryInBatches(songDao::getSongsWithDetailsByIds)
+        val refsBySongId = details.map { it.song.id }
+            .queryInBatches(songDao::getSongArtistRefsForSongs)
             .groupBy { it.songId }
         val songsById = details
             .asSequence()
@@ -1018,8 +1060,6 @@ class SongRepositoryImpl(
         )
 
     companion object {
-        private const val SQLITE_IN_BATCH_SIZE = 900
-
         @Volatile private var INSTANCE: SongRepositoryImpl? = null
 
         // Manual DI entry point — everything hangs off the SynthXDatabase singleton. A true

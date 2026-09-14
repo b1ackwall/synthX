@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +47,7 @@ import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
+import com.v1per.synthx.preferences.DestructiveActionTracker
 
 /**
  * The dry-run review and destructive confirm.
@@ -64,6 +66,7 @@ internal fun ReplaceSongReviewStep(
     modifier: Modifier = Modifier,
 ) {
     val requiredWord = stringResource(R.string.replace_song_action_replace)
+    val destructiveActionCount by DestructiveActionTracker.count.collectAsState()
     var typedConfirmation by remember { mutableStateOf("") }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -113,6 +116,17 @@ internal fun ReplaceSongReviewStep(
                     vertical = Spacing.md,
                 ),
             )
+            if (destructiveActionCount > 0) {
+                Text(
+                    text = stringResource(
+                        R.string.destructive_action_warning,
+                        destructiveActionCount,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Error,
+                    modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
+                )
+            }
             TypedConfirmationField(
                 requiredWord = requiredWord,
                 value = typedConfirmation,

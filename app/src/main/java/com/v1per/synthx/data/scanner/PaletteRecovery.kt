@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.room.withTransaction
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.data.db.queryInBatches
 import com.v1per.synthx.ui.components.ExtractedSwatchHsl
 import com.v1per.synthx.ui.components.extractArtworkSwatches
 import java.util.concurrent.atomic.AtomicInteger
@@ -19,7 +20,6 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
 private const val TAG = "SynthXPaletteRecovery"
-private const val SQLITE_IN_BATCH_SIZE = 900
 private val PALETTE_RECOVERY_PARALLELISM = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
 
 data class PaletteRecoveryResult(val checked: Int, val recovered: Int, val skipped: Int)
@@ -44,7 +44,7 @@ internal object PaletteRecovery {
         val songDao = database.songDao()
         // A migrated library can exceed SQLite's bind limit. Keep the existing DAO lookup,
         // bounded in the same way as repository queue hydration.
-        val candidates = songIds.distinct().chunked(SQLITE_IN_BATCH_SIZE).flatMap { songDao.getSongsByIds(it) }
+        val candidates = songIds.queryInBatches(songDao::getSongsByIds)
         val missingPalette = findMissingPalette(candidates)
         val total = missingPalette.size
         val completed = AtomicInteger(0)

@@ -7,6 +7,8 @@ import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -45,6 +47,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -92,9 +95,10 @@ sealed class SongActionEvent {
      * on-disk cleanup is outstanding. See
      * [com.v1per.synthx.data.repository.SongDeletionOutcome].
      */
-    data object DeletedButFileRemained : SongActionEvent()
+    data class DeletedButFileRemained(val filePath: String) : SongActionEvent()
     /** The library delete committed, but one or more physical cleanup steps could not be verified. */
-    data object DeletedButCleanupUncertain : SongActionEvent()
+    data class DeletedButCleanupUncertain(val filePath: String) : SongActionEvent()
+    data object AudioCleanupRetrySucceeded : SongActionEvent()
     data class DeleteBlocked(
         val reason: DestructiveFilePreflightResult.Blocking,
     ) : SongActionEvent()
@@ -147,6 +151,7 @@ fun SongActionsHost(
     val removeFromStarredEnabled by viewModel.removeFromStarredEnabled.collectAsState()
     val graduationInProgress by viewModel.graduationInProgress.collectAsState()
     val playlistMemberships by viewModel.playlistMemberships.collectAsState()
+    val deletePreview by viewModel.deletePreview.collectAsState()
 
     val deleteCleanupUncertainMessage by rememberUpdatedState(
         stringResource(R.string.actions_delete_cleanup_uncertain),
@@ -178,10 +183,12 @@ fun SongActionsHost(
                 SongActionEvent.RemovedFromStarred ->
                     context.getString(R.string.actions_removed_from_starred)
                 SongActionEvent.ActionFailed -> context.getString(R.string.actions_failed)
-                SongActionEvent.DeletedButFileRemained ->
+                is SongActionEvent.DeletedButFileRemained ->
                     context.getString(R.string.actions_delete_file_remained)
-                SongActionEvent.DeletedButCleanupUncertain ->
+                is SongActionEvent.DeletedButCleanupUncertain ->
                     deleteCleanupUncertainMessage
+                SongActionEvent.AudioCleanupRetrySucceeded ->
+                    context.getString(R.string.audio_cleanup_retry_succeeded)
                 is SongActionEvent.DeleteBlocked -> when (val reason = event.reason) {
                     is DestructiveFilePreflightResult.GrantNotWritable -> when (reason.root) {
                         KnownAudioRoot.Music -> musicGrantMessage
@@ -192,7 +199,19 @@ fun SongActionsHost(
                     DestructiveFilePreflightResult.RootUnknown -> rootUnknownMessage
                 }
             }
-            snackbarHostState.showSnackbar(message)
+            val retryPath = when (event) {
+                is SongActionEvent.DeletedButFileRemained -> event.filePath
+                is SongActionEvent.DeletedButCleanupUncertain -> event.filePath
+                else -> null
+            }
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = retryPath?.let { context.getString(R.string.action_retry) },
+                duration = if (retryPath != null) SnackbarDuration.Long else SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed && retryPath != null) {
+                viewModel.retryAudioFileDeletion(retryPath)
+            }
         }
     }
 
@@ -272,12 +291,15 @@ fun SongActionsHost(
             showDeleteRow = current.source != SongActionSource.Player,
             deleteEnabled = deleteSongsEnabled,
             deleteInProgress = deleteInProgress,
+            deletePreview = deletePreview,
+            onLoadDeletePreview = viewModel::loadDeletePreview,
             showRemoveFromStarredRow = current.source == SongActionSource.Starred,
             removeFromStarredEnabled = removeFromStarredEnabled && !graduationInProgress,
             isCurrentlyPlaying = current.song.id == currentSongId,
             onDeleteSong = {
                 val id = current.song.id
-                dismiss { viewModel.deleteSong(id) }
+                val filePath = current.song.filePath
+                dismiss { viewModel.deleteSong(id, filePath) }
             },
             // The detail routes take a display name for their top bar; the song already
             // carries both, so callers never have to look them up.
@@ -390,6 +412,24 @@ class SongActionsViewModel(
     private val graduationDismissDelay: suspend () -> Unit = { delay(GraduationDialogAutoDismissMs) },
 ) : ViewModel() {
 
+    private val _deletePreview = MutableStateFlow<DeleteSongPreviewState>(DeleteSongPreviewState.Loading)
+    val deletePreview: StateFlow<DeleteSongPreviewState> = _deletePreview.asStateFlow()
+    private var deletePreviewJob: Job? = null
+
+    fun loadDeletePreview(songId: String) {
+        deletePreviewJob?.cancel()
+        _deletePreview.value = DeleteSongPreviewState.Loading
+        deletePreviewJob = viewModelScope.launch {
+            _deletePreview.value = try {
+                DeleteSongPreviewState.Ready(repository.previewDeleteSong(songId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                DeleteSongPreviewState.Failed
+            }
+        }
+    }
+
     val playlists: StateFlow<ImmutableList<Playlist>> = repository.getAllPlaylists()
         .map { it.toPersistentList() }
         .catch { emit(persistentListOf()) }
@@ -492,7 +532,7 @@ class SongActionsViewModel(
      */
     val deleteInProgress: StateFlow<Boolean> = _deleteInProgress.asStateFlow()
 
-    fun deleteSong(songId: String) {
+    fun deleteSong(songId: String, filePath: String) {
         if (_deleteInProgress.value) return
         _deleteInProgress.value = true
         launchCatching(onError = { _events.tryEmit(SongActionEvent.ActionFailed) }) {
@@ -503,14 +543,31 @@ class SongActionsViewModel(
                 when (val outcome = repository.deleteSong(songId)) {
                     SongDeletionOutcome.Deleted -> Unit
                     SongDeletionOutcome.FileRemained ->
-                        _events.tryEmit(SongActionEvent.DeletedButFileRemained)
+                        _events.tryEmit(SongActionEvent.DeletedButFileRemained(filePath))
                     SongDeletionOutcome.CleanupUncertain ->
-                        _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain)
+                        _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
                     is SongDeletionOutcome.Blocked ->
                         _events.tryEmit(SongActionEvent.DeleteBlocked(outcome.reason))
                 }
             } finally {
                 _deleteInProgress.value = false
+            }
+        }
+    }
+
+    fun retryAudioFileDeletion(filePath: String) {
+        launchCatching(onError = {
+            _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
+        }) {
+            when (repository.retryAudioFileDeletion(filePath)) {
+                SongDeletionOutcome.Deleted ->
+                    _events.tryEmit(SongActionEvent.AudioCleanupRetrySucceeded)
+                SongDeletionOutcome.FileRemained ->
+                    _events.tryEmit(SongActionEvent.DeletedButFileRemained(filePath))
+                SongDeletionOutcome.CleanupUncertain ->
+                    _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
+                is SongDeletionOutcome.Blocked ->
+                    _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
             }
         }
     }

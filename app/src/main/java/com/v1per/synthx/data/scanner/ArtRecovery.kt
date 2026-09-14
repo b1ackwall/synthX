@@ -8,6 +8,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.room.withTransaction
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.data.db.queryInBatches
 import com.v1per.synthx.data.artFilePresence
 import com.v1per.synthx.data.compressedArtFileExists
 import com.v1per.synthx.data.fullResArtFileExists
@@ -111,7 +112,11 @@ internal object ArtRecovery {
         extractArt: suspend (Context, SongEntity) -> Pair<String?, String?>? = ::defaultExtractArt,
     ): ArtRecoveryResult {
         val songDao = database.songDao()
-        val candidates = if (songIds != null) songDao.getSongsByIds(songIds) else songDao.getAllSongsOnce()
+        val candidates = if (songIds != null) {
+            songIds.queryInBatches(songDao::getSongsByIds)
+        } else {
+            songDao.getAllSongsOnce()
+        }
         val missingArt = findMissingArt(context, candidates)
         if (missingArt.isEmpty()) {
             return ArtRecoveryResult(checked = candidates.size, recovered = 0, skipped = 0)

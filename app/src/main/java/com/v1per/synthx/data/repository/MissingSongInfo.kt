@@ -11,5 +11,6 @@ data class MissingSongInfo(
     val id: String,
     val title: String,
     val artist: String,
+    @ColumnInfo(name = "file_path") val filePath: String = "",
     @ColumnInfo(name = "missing_since") val missingSince: Long,
 )

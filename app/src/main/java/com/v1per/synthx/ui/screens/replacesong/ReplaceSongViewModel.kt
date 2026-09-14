@@ -70,7 +70,7 @@ sealed class ReplaceSongOutcome {
      * not be deleted, which the user has no other way to find out and must acknowledge before
      * the screen closes.
      */
-    data class Complete(val warning: String?) : ReplaceSongOutcome()
+    data class Complete(val warning: String?, val retryFilePath: String? = null) : ReplaceSongOutcome()
 
     data class Failed(val message: String) : ReplaceSongOutcome()
 }
@@ -113,6 +113,8 @@ class ReplaceSongViewModel(
 
     private val _outcome = MutableStateFlow<ReplaceSongOutcome?>(null)
     val outcome: StateFlow<ReplaceSongOutcome?> = _outcome.asStateFlow()
+    private val _cleanupRetryInProgress = MutableStateFlow(false)
+    val cleanupRetryInProgress: StateFlow<Boolean> = _cleanupRetryInProgress.asStateFlow()
 
     /**
      * What the current picker step should list.
@@ -270,6 +272,10 @@ class ReplaceSongViewModel(
                             is SongDeletionOutcome.Blocked ->
                                 appContext.destructiveFileBlockMessage(result.oldAudioCleanup.reason)
                         },
+                        retryFilePath = ready.preview.oldSong.filePath.takeIf {
+                            result.oldAudioCleanup == SongDeletionOutcome.FileRemained ||
+                                result.oldAudioCleanup == SongDeletionOutcome.CleanupUncertain
+                        },
                     )
                     ReplaceSongResult.OldSongMissing -> ReplaceSongOutcome.Failed(
                         stringResource(R.string.replace_song_failed_old_missing),
@@ -306,6 +312,33 @@ class ReplaceSongViewModel(
                 ReplaceSongOutcome.Failed(
                     stringResource(R.string.replace_song_failed_generic),
                 )
+            }
+        }
+    }
+
+    fun retryAudioFileDeletion(filePath: String) {
+        if (_cleanupRetryInProgress.value) return
+        _cleanupRetryInProgress.value = true
+        viewModelScope.launch {
+            _outcome.value = try {
+                when (repository.retryAudioFileDeletion(filePath)) {
+                    SongDeletionOutcome.Deleted -> ReplaceSongOutcome.Complete(null)
+                    SongDeletionOutcome.FileRemained -> ReplaceSongOutcome.Complete(
+                        stringResource(R.string.replace_song_done_file_remained), filePath,
+                    )
+                    SongDeletionOutcome.CleanupUncertain, is SongDeletionOutcome.Blocked ->
+                        ReplaceSongOutcome.Complete(
+                            stringResource(R.string.replace_song_done_cleanup_uncertain), filePath,
+                        )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                ReplaceSongOutcome.Complete(
+                    stringResource(R.string.replace_song_done_cleanup_uncertain), filePath,
+                )
+            } finally {
+                _cleanupRetryInProgress.value = false
             }
         }
     }

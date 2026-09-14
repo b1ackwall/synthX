@@ -9,10 +9,15 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -46,12 +51,15 @@ fun ReplaceSongScreen(
         factory = ReplaceSongViewModel.Factory(LocalContext.current),
     ),
 ) {
+    val context = LocalContext.current
     val step by viewModel.step.collectAsState()
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
     val preview by viewModel.preview.collectAsState()
     val conflictResolution by viewModel.conflictResolution.collectAsState()
     val outcome by viewModel.outcome.collectAsState()
+    val cleanupRetryInProgress by viewModel.cleanupRetryInProgress.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val replaceInFlight = outcome is ReplaceSongOutcome.InProgress
 
@@ -128,16 +136,20 @@ fun ReplaceSongScreen(
                     ReplaceSongBusyCover(R.string.replace_song_working)
                 }
             }
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 
-    // An unremarkable success closes the wizard on its own — the changed library is the feedback,
-    // and a "done" dialog on a screen that is already leaving is noise. A success carrying a
-    // warning falls through to the dialog below instead, and closes when it is acknowledged.
     val complete = outcome as? ReplaceSongOutcome.Complete
-    LaunchedEffect(complete) {
-        if (complete != null && complete.warning == null) onExit()
-    }
+    ReplaceSongSuccessAcknowledgement(
+        complete = complete,
+        snackbarHostState = snackbarHostState,
+        message = context.getString(R.string.replace_song_done),
+        onExit = onExit,
+    )
 
     val dialogMessage = when (val current = outcome) {
         is ReplaceSongOutcome.Failed -> current.message
@@ -148,8 +160,10 @@ fun ReplaceSongScreen(
         // A failure leaves the user on the review step to retry or back out; an acknowledged
         // warning has nothing left to do here, so it closes the wizard.
         val onAcknowledge: () -> Unit = {
-            viewModel.dismissOutcome()
-            if (complete != null) onExit()
+            if (!cleanupRetryInProgress) {
+                viewModel.dismissOutcome()
+                if (complete != null) onExit()
+            }
         }
         AlertDialog(
             onDismissRequest = onAcknowledge,
@@ -163,9 +177,36 @@ fun ReplaceSongScreen(
                     Text(stringResource(R.string.action_ok))
                 }
             },
+            dismissButton = complete?.retryFilePath?.let { filePath ->
+                {
+                    TextButton(
+                        onClick = { viewModel.retryAudioFileDeletion(filePath) },
+                        enabled = !cleanupRetryInProgress,
+                        colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                    ) {
+                        Text(stringResource(R.string.action_retry))
+                    }
+                }
+            },
             containerColor = SurfaceColor,
             titleContentColor = TextPrimary,
             textContentColor = TextSecondary,
         )
+    }
+}
+
+/** Warning-free completion is acknowledged transiently; warnings remain blocking above. */
+@Composable
+internal fun ReplaceSongSuccessAcknowledgement(
+    complete: ReplaceSongOutcome.Complete?,
+    snackbarHostState: SnackbarHostState,
+    message: String,
+    onExit: () -> Unit,
+) {
+    LaunchedEffect(complete) {
+        if (complete != null && complete.warning == null) {
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+            onExit()
+        }
     }
 }

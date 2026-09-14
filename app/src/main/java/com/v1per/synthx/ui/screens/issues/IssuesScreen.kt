@@ -18,6 +18,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +46,7 @@ import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
 import com.v1per.synthx.data.scanner.KnownAudioRoot
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.DeleteSongDialog
+import com.v1per.synthx.ui.components.DeleteSongPreviewState
 import com.v1per.synthx.ui.components.LoadErrorText
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.ThreeDotMenuWithConfirm
@@ -65,10 +68,12 @@ fun IssuesScreen(
         factory = IssuesViewModel.Factory(LocalContext.current),
     ),
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
     val deleteInProgress by viewModel.deleteInProgress.collectAsState()
     val scanStatus by viewModel.scanStatus.collectAsState()
+    val deletePreview by viewModel.deletePreview.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val actionFailedMessage by rememberUpdatedState(stringResource(R.string.actions_failed))
     val deleteFileRemainedMessage by rememberUpdatedState(
@@ -97,9 +102,11 @@ fun IssuesScreen(
         viewModel.events.collect { event ->
             val message = when (event) {
                 IssuesActionEvent.ActionFailed -> actionFailedMessage
-                IssuesActionEvent.DeletedButFileRemained -> deleteFileRemainedMessage
-                IssuesActionEvent.DeletedButCleanupUncertain ->
+                is IssuesActionEvent.DeletedButFileRemained -> deleteFileRemainedMessage
+                is IssuesActionEvent.DeletedButCleanupUncertain ->
                     deleteCleanupUncertainMessage
+                IssuesActionEvent.AudioCleanupRetrySucceeded ->
+                    context.getString(R.string.audio_cleanup_retry_succeeded)
                 is IssuesActionEvent.DeleteBlocked -> when (val reason = event.reason) {
                     is DestructiveFilePreflightResult.GrantNotWritable -> when (reason.root) {
                         KnownAudioRoot.Music -> musicGrantMessage
@@ -110,7 +117,19 @@ fun IssuesScreen(
                     DestructiveFilePreflightResult.RootUnknown -> rootUnknownMessage
                 }
             }
-            snackbarHostState.showSnackbar(message)
+            val retryPath = when (event) {
+                is IssuesActionEvent.DeletedButFileRemained -> event.filePath
+                is IssuesActionEvent.DeletedButCleanupUncertain -> event.filePath
+                else -> null
+            }
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = retryPath?.let { context.getString(R.string.action_retry) },
+                duration = if (retryPath != null) SnackbarDuration.Long else SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed && retryPath != null) {
+                viewModel.retryAudioFileDeletion(retryPath)
+            }
         }
     }
 
@@ -127,6 +146,8 @@ fun IssuesScreen(
                 uiState = uiState,
                 deleteEnabled = deleteSongsEnabled,
                 deleteInProgress = deleteInProgress,
+                deletePreview = deletePreview,
+                onLoadDeletePreview = viewModel::loadDeletePreview,
                 onDelete = viewModel::deleteSong,
                 onFixMissingArt = viewModel::fixMissingArt,
                 onFixMissingPalette = viewModel::fixMissingPalette,
@@ -203,7 +224,10 @@ private fun IssuesContent(
     uiState: UiState<List<Issue>>,
     deleteEnabled: Boolean,
     deleteInProgress: Boolean,
-    onDelete: (String) -> Unit,
+    deletePreview: DeleteSongPreviewState =
+        DeleteSongPreviewState.Ready(com.v1per.synthx.data.repository.DeleteSongPreview(emptyList())),
+    onLoadDeletePreview: (String) -> Unit = {},
+    onDelete: (String, String) -> Unit,
     onFixMissingArt: (List<String>) -> Unit,
     onFixMissingPalette: (List<String>) -> Unit,
     onNavigateToBackups: () -> Unit,
@@ -234,7 +258,9 @@ private fun IssuesContent(
                             song = issue.info,
                             deleteEnabled = deleteEnabled,
                             deleteInProgress = deleteInProgress,
-                            onDelete = { onDelete(issue.info.id) },
+                            deletePreview = deletePreview,
+                            onLoadDeletePreview = { onLoadDeletePreview(issue.info.id) },
+                            onDelete = { onDelete(issue.info.id, issue.info.filePath) },
                         )
                         is Issue.BackupUnhealthy -> BackupUnhealthyRow(
                             outcome = issue.outcome,
@@ -293,6 +319,8 @@ private fun MissingSongRow(
     song: MissingSongInfo,
     deleteEnabled: Boolean,
     deleteInProgress: Boolean,
+    deletePreview: DeleteSongPreviewState,
+    onLoadDeletePreview: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Column {
@@ -333,6 +361,8 @@ private fun MissingSongRow(
             MissingSongMenu(
                 deleteEnabled = deleteEnabled,
                 deleteInProgress = deleteInProgress,
+                deletePreview = deletePreview,
+                onLoadDeletePreview = onLoadDeletePreview,
                 onDelete = onDelete,
             )
         }
@@ -347,6 +377,8 @@ private fun MissingSongRow(
 private fun MissingSongMenu(
     deleteEnabled: Boolean,
     deleteInProgress: Boolean,
+    deletePreview: DeleteSongPreviewState,
+    onLoadDeletePreview: () -> Unit,
     onDelete: () -> Unit,
 ) {
     ThreeDotMenuWithConfirm(
@@ -354,7 +386,10 @@ private fun MissingSongMenu(
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.issues_delete_song)) },
                 enabled = deleteEnabled,
-                onClick = requestConfirm,
+                onClick = {
+                    onLoadDeletePreview()
+                    requestConfirm()
+                },
             )
         },
         confirmDialog = { onConfirm, onDismiss ->
@@ -365,6 +400,8 @@ private fun MissingSongMenu(
                 },
                 onDismiss = onDismiss,
                 confirmEnabled = !deleteInProgress,
+                previewState = deletePreview,
+                onRetryPreview = onLoadDeletePreview,
             )
         },
     )
@@ -632,7 +669,7 @@ private fun IssuesPreview() {
                 ),
                 deleteEnabled = true,
                 deleteInProgress = false,
-                onDelete = {},
+                onDelete = { _, _ -> },
                 onFixMissingArt = {},
                 onFixMissingPalette = {},
                 onNavigateToBackups = {},
@@ -664,7 +701,7 @@ private fun IssuesEmptyPreview() {
                     uiState = UiState.Empty,
                     deleteEnabled = true,
                     deleteInProgress = false,
-                    onDelete = {},
+                    onDelete = { _, _ -> },
                     onFixMissingArt = {},
                     onFixMissingPalette = {},
                     onNavigateToBackups = {},
@@ -690,7 +727,7 @@ private fun IssuesScanningPreview() {
                     uiState = UiState.Loading,
                     deleteEnabled = true,
                     deleteInProgress = false,
-                    onDelete = {},
+                    onDelete = { _, _ -> },
                     onFixMissingArt = {},
                     onFixMissingPalette = {},
                     onNavigateToBackups = {},

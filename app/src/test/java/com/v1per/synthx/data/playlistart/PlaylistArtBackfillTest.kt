@@ -118,6 +118,7 @@ class PlaylistArtBackfillTest {
         override suspend fun getSongIdsForPlaylist(playlistId: String): List<String> = unused()
         override suspend fun getPlaylistIdsForSong(songId: String): List<String> = unused()
         override suspend fun getPlaylistMembershipsForSong(songId: String): List<PlaylistMembership> = unused()
+        override suspend fun getPlaylistMemberCounts(ids: List<String>): List<com.v1per.synthx.data.db.PlaylistMemberCount> = unused()
         override suspend fun getPlaylistsByIds(ids: List<String>): List<PlaylistEntity> = unused()
         override suspend fun insertPlaylistSong(playlistSong: PlaylistSongEntity) = unused()
         override suspend fun removePlaylistSong(playlistId: String, songId: String) = unused()

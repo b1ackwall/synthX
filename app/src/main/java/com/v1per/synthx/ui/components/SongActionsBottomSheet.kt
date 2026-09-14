@@ -73,6 +73,8 @@ fun SongActionsBottomSheet(
     showDeleteRow: Boolean,
     deleteEnabled: Boolean,
     deleteInProgress: Boolean,
+    deletePreview: DeleteSongPreviewState,
+    onLoadDeletePreview: (String) -> Unit,
     showRemoveFromStarredRow: Boolean,
     removeFromStarredEnabled: Boolean,
     isCurrentlyPlaying: Boolean,
@@ -136,7 +138,10 @@ fun SongActionsBottomSheet(
                     showRemoveFromStarredRow = showRemoveFromStarredRow,
                     removeFromStarredEnabled = removeFromStarredEnabled,
                     isCurrentlyPlaying = isCurrentlyPlaying,
-                    onDeleteSong = { showDeleteConfirm = true },
+                    onDeleteSong = {
+                        showDeleteConfirm = true
+                        onLoadDeletePreview(song.id)
+                    },
                     onGoToAlbum = onGoToAlbum,
                     onGoToArtist = onGoToArtist,
                     onRemoveFromPlaylist = onRemoveFromPlaylist,
@@ -176,6 +181,8 @@ fun SongActionsBottomSheet(
             },
             onDismiss = { showDeleteConfirm = false },
             confirmEnabled = !deleteInProgress,
+            previewState = deletePreview,
+            onRetryPreview = { onLoadDeletePreview(song.id) },
         )
     }
 }

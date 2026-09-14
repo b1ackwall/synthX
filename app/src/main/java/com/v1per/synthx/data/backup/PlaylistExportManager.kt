@@ -10,6 +10,7 @@ import com.v1per.synthx.data.db.ArtistDao
 import com.v1per.synthx.data.db.PlaylistDao
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.SongDao
+import com.v1per.synthx.data.db.queryInBatches
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.CoroutineScope
@@ -161,8 +162,8 @@ class PlaylistExportManager(
 
         val referencedSongIds = songIdsByPlaylist.values.flatten().distinct()
 
-        val songEntities = songDao.getSongsByIds(referencedSongIds)
-        val artistRefsBySongId = songDao.getSongArtistRefsForSongs(referencedSongIds)
+        val songEntities = referencedSongIds.queryInBatches(songDao::getSongsByIds)
+        val artistRefsBySongId = referencedSongIds.queryInBatches(songDao::getSongArtistRefsForSongs)
             .groupBy { it.songId }
         val artistNameById = artistDao.getAllArtistsOnce().associate { it.id to it.name }
         val albumTitleById = albumDao.getAllAlbumsOnce().associate { it.id to it.title }

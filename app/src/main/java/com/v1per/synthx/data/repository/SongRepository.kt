@@ -42,6 +42,12 @@ interface SongRepository {
      */
     suspend fun deleteSong(id: String): SongDeletionOutcome
 
+    /** Resolves named playlist consequences immediately before delete confirmation. */
+    suspend fun previewDeleteSong(id: String): DeleteSongPreview
+
+    /** Retries only the physical audio cleanup after the library row has already been removed. */
+    suspend fun retryAudioFileDeletion(filePath: String): SongDeletionOutcome
+
     /**
      * Same effect as [deleteSong], but the call itself is launched on this repository's own
      * process-lifetime scope rather than the caller's (P3-T1 / R4-F-D5) — it keeps running to
@@ -161,7 +167,8 @@ interface SongRepository {
 
     /** Resolves arbitrary song ids to [Song]s — used to rehydrate a live player timeline back
      *  into domain objects when no in-memory cache already has them (e.g. reconnecting to a
-     *  still-running playback service). Order is not preserved; callers key off [Song.id]. */
+     *  still-running playback service). Duplicate ids collapse and surviving songs retain the
+     *  caller's first-occurrence order. */
     suspend fun getSongsByIds(ids: List<String>): List<Song>
 
     // Playback queue — persisted so it survives a restart

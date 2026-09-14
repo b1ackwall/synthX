@@ -21,10 +21,13 @@ import com.v1per.synthx.data.scanner.IssuesScanWorker
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.DestructiveActionTracker
+import com.v1per.synthx.ui.components.DeleteSongPreviewState
 import com.v1per.synthx.preferences.PendingCleanupReconciliationTracker
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.UiState
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -70,8 +73,9 @@ sealed interface IssuesScanStatus {
 
 sealed class IssuesActionEvent {
     data object ActionFailed : IssuesActionEvent()
-    data object DeletedButFileRemained : IssuesActionEvent()
-    data object DeletedButCleanupUncertain : IssuesActionEvent()
+    data class DeletedButFileRemained(val filePath: String) : IssuesActionEvent()
+    data class DeletedButCleanupUncertain(val filePath: String) : IssuesActionEvent()
+    data object AudioCleanupRetrySucceeded : IssuesActionEvent()
     data class DeleteBlocked(
         val reason: DestructiveFilePreflightResult.Blocking,
     ) : IssuesActionEvent()
@@ -97,6 +101,24 @@ class IssuesViewModel(
     private val preferences: PreferencesManager,
     private val enqueueScan: (Context) -> Unit = { scanContext -> IssuesScanWorker.enqueue(scanContext) },
 ) : ViewModel() {
+
+    private val _deletePreview = MutableStateFlow<DeleteSongPreviewState>(DeleteSongPreviewState.Loading)
+    val deletePreview: StateFlow<DeleteSongPreviewState> = _deletePreview.asStateFlow()
+    private var deletePreviewJob: Job? = null
+
+    fun loadDeletePreview(songId: String) {
+        deletePreviewJob?.cancel()
+        _deletePreview.value = DeleteSongPreviewState.Loading
+        deletePreviewJob = viewModelScope.launch {
+            _deletePreview.value = try {
+                DeleteSongPreviewState.Ready(repository.previewDeleteSong(songId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                DeleteSongPreviewState.Failed
+            }
+        }
+    }
 
     private val workManager = WorkManager.getInstance(context)
 
@@ -282,7 +304,7 @@ class IssuesViewModel(
     // running on the repository's own process-lifetime scope regardless of what happens here.
     // The callback runs off viewModelScope too (on the repository's own dispatcher), but
     // MutableStateFlow.value and MutableSharedFlow.tryEmit are both safe to touch from any thread.
-    fun deleteSong(id: String) {
+    fun deleteSong(id: String, filePath: String) {
         if (_deleteInProgress.value) return
         _deleteInProgress.value = true
         repository.deleteSongDetached(id) { result ->
@@ -291,9 +313,9 @@ class IssuesViewModel(
                     when (outcome) {
                         SongDeletionOutcome.Deleted -> Unit
                         SongDeletionOutcome.FileRemained ->
-                            _events.tryEmit(IssuesActionEvent.DeletedButFileRemained)
+                            _events.tryEmit(IssuesActionEvent.DeletedButFileRemained(filePath))
                         SongDeletionOutcome.CleanupUncertain ->
-                            _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain)
+                            _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain(filePath))
                         is SongDeletionOutcome.Blocked ->
                             _events.tryEmit(IssuesActionEvent.DeleteBlocked(outcome.reason))
                     }
@@ -301,6 +323,23 @@ class IssuesViewModel(
                 onFailure = { _events.tryEmit(IssuesActionEvent.ActionFailed) },
             )
             _deleteInProgress.value = false
+        }
+    }
+
+    fun retryAudioFileDeletion(filePath: String) {
+        viewModelScope.launch {
+            val event = runCatching { repository.retryAudioFileDeletion(filePath) }.fold(
+                onSuccess = { outcome -> when (outcome) {
+                    SongDeletionOutcome.Deleted -> IssuesActionEvent.AudioCleanupRetrySucceeded
+                    SongDeletionOutcome.FileRemained -> IssuesActionEvent.DeletedButFileRemained(filePath)
+                    SongDeletionOutcome.CleanupUncertain ->
+                        IssuesActionEvent.DeletedButCleanupUncertain(filePath)
+                    is SongDeletionOutcome.Blocked ->
+                        IssuesActionEvent.DeletedButCleanupUncertain(filePath)
+                } },
+                onFailure = { IssuesActionEvent.DeletedButCleanupUncertain(filePath) },
+            )
+            _events.emit(event)
         }
     }
 

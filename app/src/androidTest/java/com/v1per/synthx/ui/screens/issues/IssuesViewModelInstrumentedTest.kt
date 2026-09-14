@@ -76,7 +76,7 @@ class IssuesViewModelInstrumentedTest {
 
         assertEquals(
             IssuesActionEvent.ActionFailed,
-            eventFrom(subject) { subject.deleteSong("song") },
+            eventFrom(subject) { subject.deleteSong("song", "content://song") },
         )
     }
 
@@ -85,8 +85,8 @@ class IssuesViewModelInstrumentedTest {
         val subject = subject(delete = { SongDeletionOutcome.FileRemained })
 
         assertEquals(
-            IssuesActionEvent.DeletedButFileRemained,
-            eventFrom(subject) { subject.deleteSong("song") },
+            IssuesActionEvent.DeletedButFileRemained("content://song"),
+            eventFrom(subject) { subject.deleteSong("song", "content://song") },
         )
     }
 
@@ -95,8 +95,8 @@ class IssuesViewModelInstrumentedTest {
         val subject = subject(delete = { SongDeletionOutcome.CleanupUncertain })
 
         assertEquals(
-            IssuesActionEvent.DeletedButCleanupUncertain,
-            eventFrom(subject) { subject.deleteSong("song") },
+            IssuesActionEvent.DeletedButCleanupUncertain("content://song"),
+            eventFrom(subject) { subject.deleteSong("song", "content://song") },
         )
     }
 
@@ -110,10 +110,10 @@ class IssuesViewModelInstrumentedTest {
 
         // First tap: starts the delete, which suspends on `gate` before completing —
         // i.e. genuinely still in flight, not merely "launched but not yet dispatched".
-        subject.deleteSong("song")
+        subject.deleteSong("song", "content://song")
         // Second tap, while the first is still suspended inside repository.deleteSong: must be
         // a no-op — see IssuesViewModel.deleteInProgress.
-        subject.deleteSong("song")
+        subject.deleteSong("song", "content://song")
 
         gate.complete(Unit)
         withTimeout(2_000) { subject.deleteInProgress.first { !it } }
@@ -151,7 +151,7 @@ class IssuesViewModelInstrumentedTest {
             },
         )
 
-        subject.deleteSong("song")
+        subject.deleteSong("song", "content://song")
         // Simulate the NavBackStackEntry (and this ViewModel) being torn down mid-delete — the
         // repository call above is still suspended on `gate` at this point.
         subject.viewModelScope.cancel()

@@ -12,7 +12,7 @@ import androidx.room.PrimaryKey
 data class AlbumEntity(
     // UUID
     @PrimaryKey val id: String,
-    val title: String,
+    @ColumnInfo(collate = ColumnInfo.NOCASE) val title: String,
     val year: Int?,
     @ColumnInfo(name = "album_art_uri") val albumArtUri: String?,
 )

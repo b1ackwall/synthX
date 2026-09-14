@@ -136,6 +136,17 @@ internal object BackupSchemaContracts {
                 ),
             hasMigrationPathToCurrent = true,
         ),
+        // 15_16 changes albums.title collation only. Room's identity model does not include
+        // column collation, so the exported identity hash and managed table set are unchanged.
+        BackupSchemaContract(
+            userVersion = 16,
+            roomIdentityHash = "3e0e2f38ca17807335cfa847b095f2fd",
+            expectedTables = coreTables +
+                setOf(
+                    "queue_items", "queue_baseline_items", "playback_cursor", "pending_cleanups",
+                ),
+            hasMigrationPathToCurrent = true,
+        ),
     ).associateBy { it.userVersion }
 
     val current: BackupSchemaContract

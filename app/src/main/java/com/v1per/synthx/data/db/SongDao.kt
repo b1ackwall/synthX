@@ -183,6 +183,7 @@ interface SongDao {
             songs.id AS id,
             songs.title AS title,
             COALESCE(artists.name, 'Unknown Artist') AS artist,
+            songs.file_path AS file_path,
             COALESCE(songs.missing_since, 0) AS missing_since
         FROM songs
         LEFT JOIN artists ON artists.id = (

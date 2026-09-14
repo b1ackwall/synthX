@@ -23,7 +23,7 @@ import com.v1per.synthx.data.backup.RestoreStartup
         PlaybackCursorEntity::class,
         PendingCleanupEntity::class,
     ],
-    version = 15,
+    version = 16,
     exportSchema = true,
 )
 abstract class SynthXDatabase : RoomDatabase() {
@@ -38,7 +38,7 @@ abstract class SynthXDatabase : RoomDatabase() {
 
     companion object {
         /** Must track the `version` in the @Database annotation above. */
-        const val VERSION = 15
+        const val VERSION = 16
 
         const val DB_NAME = "synthx.db"
 
@@ -413,6 +413,104 @@ abstract class SynthXDatabase : RoomDatabase() {
         }
 
         /**
+         * Makes album identity's case-insensitive title comparison index-backed. Before the
+         * rebuild, confidently equivalent rows (same NOCASE title and derived primary artist)
+         * are folded into the lexicographically first id and every song is repointed first.
+         */
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TEMP TABLE album_case_identity AS
+                    SELECT albums.id, albums.title,
+                        COALESCE((
+                            SELECT artists.name_normalized
+                            FROM songs
+                            INNER JOIN song_artists ON song_artists.song_id = songs.id
+                                AND song_artists.position = 0
+                            INNER JOIN artists ON artists.id = song_artists.artist_id
+                            WHERE songs.album_id = albums.id
+                            ORDER BY songs.track_number IS NULL, songs.track_number, songs.rowid
+                            LIMIT 1
+                        ), '') AS primary_artist
+                    FROM albums
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    CREATE TEMP TABLE album_case_merges AS
+                    SELECT identity.id AS duplicate_id, grouped.survivor_id
+                    FROM album_case_identity AS identity
+                    INNER JOIN (
+                        SELECT title COLLATE NOCASE AS title_key, primary_artist, MIN(id) AS survivor_id
+                        FROM album_case_identity
+                        GROUP BY title COLLATE NOCASE, primary_artist
+                        HAVING COUNT(*) > 1
+                    ) AS grouped
+                    ON identity.title = grouped.title_key COLLATE NOCASE
+                        AND identity.primary_artist = grouped.primary_artist
+                    WHERE identity.id != grouped.survivor_id
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    UPDATE songs SET album_id = (
+                        SELECT survivor_id FROM album_case_merges
+                        WHERE duplicate_id = songs.album_id
+                    )
+                    WHERE album_id IN (SELECT duplicate_id FROM album_case_merges)
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    UPDATE albums SET
+                        year = COALESCE(year, (
+                            SELECT duplicate.year FROM albums AS duplicate
+                            INNER JOIN album_case_merges AS merge
+                                ON merge.duplicate_id = duplicate.id
+                            WHERE merge.survivor_id = albums.id AND duplicate.year IS NOT NULL
+                            LIMIT 1
+                        )),
+                        album_art_uri = COALESCE(album_art_uri, (
+                            SELECT duplicate.album_art_uri FROM albums AS duplicate
+                            INNER JOIN album_case_merges AS merge
+                                ON merge.duplicate_id = duplicate.id
+                            WHERE merge.survivor_id = albums.id
+                                AND duplicate.album_art_uri IS NOT NULL
+                            LIMIT 1
+                        ))
+                    WHERE id IN (SELECT survivor_id FROM album_case_merges)
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "DELETE FROM albums WHERE id IN (SELECT duplicate_id FROM album_case_merges)"
+                )
+                database.execSQL("DROP TABLE album_case_merges")
+                database.execSQL("DROP TABLE album_case_identity")
+
+                database.execSQL(
+                    """
+                    CREATE TABLE albums_new (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT COLLATE NOCASE NOT NULL,
+                        year INTEGER,
+                        album_art_uri TEXT
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "INSERT INTO albums_new (id, title, year, album_art_uri) " +
+                        "SELECT id, title, year, album_art_uri FROM albums"
+                )
+                database.execSQL("DROP TABLE albums")
+                database.execSQL("ALTER TABLE albums_new RENAME TO albums")
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_albums_title ON albums(title)"
+                )
+            }
+        }
+
+        /**
          * The canonical migration chain, in order. Single source of truth for every Room
          * builder in this file — the live singleton in [getOrCreate] and the offline
          * restore candidate in [createStandalone] must migrate identically, so neither
@@ -433,6 +531,7 @@ abstract class SynthXDatabase : RoomDatabase() {
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
             MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
             MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
+            MIGRATION_15_16,
         )
 
         fun getInstance(context: Context): SynthXDatabase {

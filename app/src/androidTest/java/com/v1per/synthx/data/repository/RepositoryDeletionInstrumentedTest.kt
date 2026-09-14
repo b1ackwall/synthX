@@ -7,6 +7,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.FileOperationCoordinator
+import com.v1per.synthx.data.AudioFileDeletion
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.BackupReason
@@ -119,6 +120,57 @@ class RepositoryDeletionInstrumentedTest {
         assertBackupAttempt(BackupReason.DELETE_SONG)
         assertEquals(1, PreferencesManager(context).destructiveActionsSinceBackup)
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+    }
+
+    @Test fun deletePreviewNamesMembershipsAndDetectsOnlyMemberPlaylist() = runBlocking {
+        database.songDao().upsertSong(
+            SongEntity(
+                id = "other", title = "Other", albumId = null, duration = 1,
+                filePath = "test://other", albumArtUri = null, year = null, dateAdded = 2,
+            ),
+        )
+        database.playlistDao().insertPlaylist(
+            PlaylistEntity("shared", "Shared", null, null, 1, 1, 1, null, 120, 43L),
+        )
+        database.playlistDao().insertPlaylistSong(PlaylistSongEntity("shared", "song", 0, 1))
+        database.playlistDao().insertPlaylistSong(PlaylistSongEntity("shared", "other", 1, 2))
+
+        assertEquals(
+            DeleteSongPreview(
+                listOf(
+                    DeleteSongPlaylistImpact("Playlist", willBecomeEmpty = true),
+                    DeleteSongPlaylistImpact("Shared", willBecomeEmpty = false),
+                )
+            ),
+            repository.previewDeleteSong("song"),
+        )
+    }
+
+    @Test fun audioFileRetryReattemptsCapturedPathAndCanSucceed() = runBlocking {
+        val attemptedPaths = mutableListOf<String>()
+        val outcomes = ArrayDeque(
+            listOf(AudioFileDeletion.Failed, AudioFileDeletion.ConfirmedAbsent)
+        )
+        val retryingRepository = repositoryWithPreflight(
+            result = DestructiveFilePreflightResult.Ambiguous,
+            audioFileDelete = { path ->
+                attemptedPaths += path
+                outcomes.removeFirst()
+            },
+        )
+
+        assertEquals(
+            SongDeletionOutcome.FileRemained,
+            retryingRepository.retryAudioFileDeletion("content://captured/audio"),
+        )
+        assertEquals(
+            SongDeletionOutcome.Deleted,
+            retryingRepository.retryAudioFileDeletion("content://captured/audio"),
+        )
+        assertEquals(
+            listOf("content://captured/audio", "content://captured/audio"),
+            attemptedPaths,
+        )
     }
 
     @Test fun successfulSongDeletionSchedulesPlaylistExport() = runBlocking {
@@ -312,6 +364,7 @@ class RepositoryDeletionInstrumentedTest {
     private fun repositoryWithPreflight(
         result: DestructiveFilePreflightResult,
         schedulePlaylistExport: () -> Unit = exports::scheduleExport,
+        audioFileDelete: (String) -> AudioFileDeletion = { AudioFileDeletion.Unknown },
     ): SongRepositoryImpl = SongRepositoryImpl(
         context, database, database.songDao(), database.artistDao(), database.albumDao(),
         database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
@@ -323,6 +376,7 @@ class RepositoryDeletionInstrumentedTest {
         destructiveFileCheck = { _, _ -> result },
         replacementFileCheck = { _, _ -> ReplacementFilePreflightResult.Ambiguous },
         schedulePlaylistExport = schedulePlaylistExport,
+        audioFileDelete = audioFileDelete,
     )
 
     /** Keeps all preference/art writes separate from the installed app's library. */

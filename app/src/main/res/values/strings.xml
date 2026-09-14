@@ -183,7 +183,12 @@
     <string name="issues_scan_status_never">Not checked yet — tap Scan</string>
     <string name="issues_scan_status_last">Last checked %1$s — %2$d issue(s) found</string>
     <string name="delete_song_dialog_title">Delete this song?</string>
-    <string name="delete_song_dialog_message">This permanently removes the song from your library, along with its playlist entries and artist and album links, and permanently deletes the audio file from your device. This cannot be undone.</string>
+    <string name="delete_song_dialog_message">This permanently removes the song from your library, along with its artist and album links, and permanently deletes the audio file from your device. If it is currently playing, playback will skip to another track. This cannot be undone.</string>
+    <string name="delete_song_playlists_heading">Removed from playlists (%1$d)</string>
+    <string name="delete_song_playlist_will_empty">%1$s — will become empty</string>
+    <string name="delete_song_no_playlists">Not in any playlist.</string>
+    <string name="delete_song_preview_loading">Checking playlist consequences…</string>
+    <string name="delete_song_preview_failed">Couldn’t load playlist consequences. Retry before deleting.</string>
     <string name="typed_confirmation_label">Type %1$s to confirm</string>
 
     <!-- Replace Song -->
@@ -207,7 +212,10 @@
     <string name="replace_song_conflict_keep_new_detail">The replacement stays exactly where it already is.</string>
     <string name="replace_song_conflict_merge">Merge</string>
     <string name="replace_song_conflict_merge_detail">Fold the two entries into one at the old song\'s position.</string>
-    <string name="replace_song_summary">The replacement also inherits the old song\'s date added. The old song is then permanently deleted from your library and its audio file removed from your device. This cannot be undone.</string>
+    <string name="replace_song_summary">The replacement inherits the old song\'s date added. If it stays in Starred/inbox, that older date may place it far down the date-sorted list. If it lands in any playlist, it is dismissed from Starred/inbox. The old song is then permanently deleted from your library and its audio file removed from your device. If the old song is currently playing, playback will skip to another track. This cannot be undone.</string>
+    <string name="replace_song_done">Replacement complete.</string>
+    <string name="audio_cleanup_retry_succeeded">Audio file deleted.</string>
+    <string name="audio_cleanup_retry_failed">The audio file still couldn’t be deleted.</string>
     <string name="replace_song_action_replace">Replace</string>
     <string name="replace_song_preview_loading">Working out what will change…</string>
     <string name="replace_song_working">Replacing…</string>
