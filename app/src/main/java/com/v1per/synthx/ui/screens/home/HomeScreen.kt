@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,18 +59,23 @@ fun HomeScreen(
         BaseSurfaceSaturation,
         BaseSurfaceLightness,
     )
+    val hasPalette = paletteSwatches != null
+    val renderedBlobs = remember(debugState.blobs, hasPalette) {
+        if (hasPalette) debugState.blobs else debugState.blobs.map { it.copy(opacity = 0f) }
+    }
 
     // MainScaffold's innerPadding already confines this screen to the safe area between
     // the system bars; the gradient clips its blur to those bounds itself.
     Box(Modifier.fillMaxSize().background(SurfaceVariant)) {
-        if (paletteSwatches != null) {
-            AmbientBlobBackground(
-                blobs = debugState.blobs,
-                baseSurfaceColor = baseSurfaceColor,
-                blurRadiusDp = debugState.blurRadiusDp.dp,
-                paused = ambientPaused,
-            )
-        }
+        AmbientBlobBackground(
+            blobs = renderedBlobs,
+            baseSurfaceColor = if (hasPalette) baseSurfaceColor else SurfaceVariant,
+            blurRadiusDp = debugState.blurRadiusDp.dp,
+            paused = ambientPaused || !hasPalette,
+            // A debug opacity randomizer can override BlobParams.opacity, so suppress only
+            // drawing while retaining the randomizer's enabled structure and remembered phase.
+            blobAlphaMultiplier = if (hasPalette) 1f else 0f,
+        )
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,

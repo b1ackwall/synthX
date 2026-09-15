@@ -31,9 +31,21 @@ class PaletteRecoveryTest {
         assertEquals(listOf("compressed", "full"), PaletteRecovery.findMissingPalette(rows).map { it.id })
     }
 
-    @Test fun firstHueIsTheLockedEligibilitySentinelEvenForPartialRows() {
-        assertEquals(emptyList(), PaletteRecovery.findMissingPalette(listOf(song.copy(swatch1Hue = 0f))))
-        assertEquals(listOf(song), PaletteRecovery.findMissingPalette(listOf(song)))
+    @Test fun anyMissingComponentIsEligibleAndOnlyACompletePaletteIsExcluded() {
+        val complete = PaletteRecovery.mergePaletteRecoveryResult(song, swatches)
+        val partials = listOf(
+            complete.copy(swatch1Hue = null),
+            complete.copy(swatch1Saturation = null),
+            complete.copy(swatch1Lightness = null),
+            complete.copy(swatch2Hue = null),
+            complete.copy(swatch2Saturation = null),
+            complete.copy(swatch2Lightness = null),
+            complete.copy(swatch3Hue = null),
+            complete.copy(swatch3Saturation = null),
+            complete.copy(swatch3Lightness = null),
+        )
+        assertEquals(partials, PaletteRecovery.findMissingPalette(partials))
+        assertEquals(emptyList(), PaletteRecovery.findMissingPalette(listOf(complete)))
     }
 
     @Test fun failedOrIncompleteExtractionPreservesEveryExistingValue() {

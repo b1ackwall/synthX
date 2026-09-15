@@ -70,9 +70,11 @@ fun AmbientBlobBackground(
     blurRadiusDp: Dp,
     modifier: Modifier = Modifier,
     paused: Boolean = false,
+    blobAlphaMultiplier: Float = 1f,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
     val motionPaused = shouldPauseAmbientMotion(paused, rememberSystemReducedMotionActive())
+    val drawAlphaMultiplier = blobAlphaMultiplier.coerceIn(0f, 1f)
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
     val animations = blobs.mapIndexed { index, blob ->
         key(index) {
@@ -125,6 +127,7 @@ fun AmbientBlobBackground(
                         FloatArray(blob.pointCount.coerceIn(6, 8) * 2)
                     }
                     onDrawBehind {
+                        if (drawAlphaMultiplier == 0f) return@onDrawBehind
                         // All shapes share this blurred drawing layer. Read animated
                         // state only here, so drifting invalidates drawing, not composition.
                         animations.forEachIndexed { index, animation ->
@@ -148,7 +151,7 @@ fun AmbientBlobBackground(
                                 drawPath(
                                     path = organicPath,
                                     brush = brushes[index],
-                                    alpha = animation.opacity.value,
+                                    alpha = animation.opacity.value * drawAlphaMultiplier,
                                     blendMode = BlendMode.Plus,
                                 )
                             }

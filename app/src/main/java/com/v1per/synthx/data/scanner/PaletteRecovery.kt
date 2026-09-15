@@ -29,7 +29,9 @@ internal object PaletteRecovery {
     /** Same predicate as SongDao's palette count and ID queries. Null art is not fixable. */
     internal fun findMissingPalette(songs: List<SongEntity>): List<SongEntity> = songs.filter { song ->
         !song.isMissing && (song.albumArtUri != null || song.albumArtFullUri != null) &&
-            song.swatch1Hue == null
+            (song.swatch1Hue == null || song.swatch1Saturation == null || song.swatch1Lightness == null ||
+                song.swatch2Hue == null || song.swatch2Saturation == null || song.swatch2Lightness == null ||
+                song.swatch3Hue == null || song.swatch3Saturation == null || song.swatch3Lightness == null)
     }
 
     suspend fun recover(

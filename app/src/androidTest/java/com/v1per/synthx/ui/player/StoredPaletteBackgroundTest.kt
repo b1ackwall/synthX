@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PixelMap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
@@ -15,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongPaletteSwatch
+import com.v1per.synthx.ui.components.DefaultInitialBlobs
+import com.v1per.synthx.ui.components.ExtractedSwatchHsl
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import org.junit.Assert.*
 import org.junit.Rule
@@ -57,12 +61,72 @@ class StoredPaletteBackgroundTest {
         assertFlatFallback()
     }
 
+    @Test fun paletteToNullToPalettePreservesThePausedBlobFrame() {
+        composeRule.mainClock.autoAdvance = false
+        val paletteState = PlayerAmbientBackgroundState(
+            blobs = DefaultInitialBlobs.mapIndexed { index, blob ->
+                blob.copy(
+                    hue = listOf(15f, 145f, 265f)[index],
+                    saturation = 0.9f,
+                    lightness = 0.45f,
+                    opacity = 0.9f,
+                    speedFraction = 0.2f,
+                    wobbleAmountFraction = 0.4f,
+                    wobbleSpeed = 1f,
+                )
+            },
+            baseSurfaceColor = Color.hsl(210f, 0.25f, 0.1f),
+            artworkSwatches = listOf(
+                ExtractedSwatchHsl(15f, 0.9f, 0.45f),
+                ExtractedSwatchHsl(145f, 0.9f, 0.45f),
+                ExtractedSwatchHsl(265f, 0.9f, 0.45f),
+            ),
+        )
+        val state = mutableStateOf<PlayerAmbientBackgroundState?>(paletteState)
+        val progress = mutableStateOf(1f)
+        composeRule.setContent {
+            Box(Modifier.size(320.dp).testTag("background")) {
+                PlayerAmbientBackground(state.value, fullHeight = 320.dp, progress = progress.value)
+            }
+        }
+
+        // Let position and wobble phase advance, then freeze the exact rendered frame.
+        composeRule.mainClock.advanceTimeBy(1_000L)
+        composeRule.runOnUiThread { progress.value = 0f }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.waitForIdle()
+        val beforeNull = captureBackground()
+
+        composeRule.runOnUiThread { state.value = null }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.waitForIdle()
+        assertFlatFallback()
+
+        composeRule.runOnUiThread { state.value = paletteState }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.waitForIdle()
+        assertSamePixels(beforeNull, captureBackground())
+    }
+
     private fun assertFlatFallback() {
-        val pixels = composeRule.onNodeWithTag("background").captureToImage().toPixelMap()
+        val pixels = captureBackground()
         // Full interior coverage catches a leftover hue scrim or a stale blob layer.
         for (x in 1 until pixels.width - 1) {
             for (y in 1 until pixels.height - 1) {
                 assertEquals("Pixel ($x, $y)", SurfaceVariant.toArgb(), pixels[x, y].toArgb())
+            }
+        }
+    }
+
+    private fun captureBackground(): PixelMap =
+        composeRule.onNodeWithTag("background").captureToImage().toPixelMap()
+
+    private fun assertSamePixels(expected: PixelMap, actual: PixelMap) {
+        assertEquals(expected.width, actual.width)
+        assertEquals(expected.height, actual.height)
+        for (x in 0 until expected.width) {
+            for (y in 0 until expected.height) {
+                assertEquals("Pixel ($x, $y)", expected[x, y].toArgb(), actual[x, y].toArgb())
             }
         }
     }

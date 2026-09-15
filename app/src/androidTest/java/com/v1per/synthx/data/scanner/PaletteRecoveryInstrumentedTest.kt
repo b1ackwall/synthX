@@ -53,10 +53,12 @@ class PaletteRecoveryInstrumentedTest {
             song("no-art").copy(albumArtUri = null, albumArtFullUri = null),
             song("missing").copy(isMissing = true),
             PaletteRecovery.mergePaletteRecoveryResult(song("complete"), swatches),
-            song("partial-with-first-hue").copy(swatch1Hue = 0f),
+            PaletteRecovery.mergePaletteRecoveryResult(song("partial-with-first-hue"), swatches)
+                .copy(swatch3Lightness = null),
         )
         rows.forEach { database.songDao().upsertSong(it) }
-        val expected = PaletteRecovery.findMissingPalette(rows).map { it.id }.sorted()
+        val expected = listOf("compressed", "full", "partial-with-first-hue")
+        assertEquals(expected, PaletteRecovery.findMissingPalette(rows).map { it.id }.sorted())
         assertEquals(expected, database.songDao().getSongIdsMissingPalette())
         assertEquals(expected.size, database.songDao().getMissingPaletteCountOnce())
     }

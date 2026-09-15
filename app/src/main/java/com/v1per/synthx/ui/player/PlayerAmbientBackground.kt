@@ -1,7 +1,5 @@
 package com.v1per.synthx.ui.player
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.requiredHeight
@@ -31,6 +29,8 @@ internal data class PlayerAmbientBackgroundState(
     val artworkSwatches: List<ExtractedSwatchHsl>,
 )
 
+private val NeutralPlayerBlobs = DefaultInitialBlobs.map { it.copy(opacity = 0f) }
+
 @Composable
 internal fun rememberPlayerAmbientBackgroundState(song: Song): PlayerAmbientBackgroundState? =
     remember(song.id, song.paletteSwatches) {
@@ -58,27 +58,32 @@ internal fun BoxScope.PlayerAmbientBackground(
             .wrapContentHeight(align = Alignment.Bottom, unbounded = true)
             .requiredHeight(fullHeight)
     }
-    if (state == null) {
-        Box(backgroundBoundsModifier.background(SurfaceVariant))
-        return
+    val scrimColor = state?.let {
+        Color.hsl(it.artworkSwatches[0].hue, 0.3f, 0.05f).copy(alpha = 0.5f)
     }
-    val scrimColor = Color.hsl(state.artworkSwatches[0].hue, 0.3f, 0.05f).copy(alpha = 0.5f)
     val backgroundModifier = remember(backgroundBoundsModifier, scrimColor) {
-        backgroundBoundsModifier.drawWithContent {
-            // Composite the opaque base and already-blurred blobs first. Player art and
-            // controls are later siblings, outside this background-only draw pass.
-            drawContent()
-            drawRect(color = scrimColor, blendMode = BlendMode.SrcOver)
+        if (scrimColor == null) {
+            backgroundBoundsModifier
+        } else {
+            backgroundBoundsModifier.drawWithContent {
+                // Composite the opaque base and already-blurred blobs first. Player art and
+                // controls are later siblings, outside this background-only draw pass.
+                drawContent()
+                drawRect(color = scrimColor, blendMode = BlendMode.SrcOver)
+            }
         }
     }
 
     AmbientBlobBackground(
-        blobs = state.blobs,
-        baseSurfaceColor = state.baseSurfaceColor,
+        blobs = state?.blobs ?: NeutralPlayerBlobs,
+        baseSurfaceColor = state?.baseSurfaceColor ?: SurfaceVariant,
         blurRadiusDp = 150f.dp,
         // Resume within the first 0.1% of travel, retaining the collapsed static frame.
-        paused = progress < 0.001f,
-        // Dragging changes the outer clip; only full collapse pauses motion.
+        paused = state == null || progress < 0.001f,
+        // Base opacity is zero too; this also defeats any future opacity randomizer without
+        // changing its configuration (and therefore without disposing its remembered phase).
+        blobAlphaMultiplier = if (state == null) 0f else 1f,
+        // Dragging changes the outer clip without otherwise affecting motion.
         modifier = backgroundModifier,
     )
 }
