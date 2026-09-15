@@ -20,6 +20,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.work.ExistingWorkPolicy
@@ -139,15 +140,22 @@ class MainActivity : ComponentActivity() {
      * P4-T2 needed: re-syncs the playback engine's cache against the current database state,
      * covering a missed/interrupted emission (a worker interrupted after its DB commit but
      * before it finished emitting a remap/deletion notice) that no live collector ever saw.
-     * Deliberately not gated on [DatabaseStartupGate.isReady] the way [onStop] is — a first
-     * `onStart` can race ahead of startup resolving, but [PlaybackViewModel.reconcileWithDatabase]
-     * only touches the engine's own in-memory cache and a read-only repository query, neither of
-     * which needs the gate the way a live Room write does.
+     * A cold-start `onStart` normally arrives while [resolveDatabaseStartup]'s asynchronous
+     * inspection/migration is still running. Resolving [playbackViewModel] before that completes
+     * constructs QueuePersistence -> SongRepositoryImpl -> SynthXDatabase, whose synchronous
+     * factory correctly fails closed. Join the same process-wide single-flight gate here; a
+     * failed startup is rendered by [resolveDatabaseStartup] and must not create playback state.
      */
     override fun onStart() {
         super.onStart()
-        if (RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL) {
-            playbackViewModel.reconcileWithDatabase()
+        lifecycleScope.launch {
+            val startupReady = runCatching { DatabaseStartupGate.awaitReady() }.isSuccess
+            if (startupReady &&
+                lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) &&
+                RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL
+            ) {
+                playbackViewModel.reconcileWithDatabase()
+            }
         }
     }
 

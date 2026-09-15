@@ -1,0 +1,43 @@
+package com.v1per.synthx.ui
+
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.unit.dp
+import com.v1per.synthx.navigation.Screen
+import com.v1per.synthx.ui.components.shouldPauseAmbientMotion
+import com.v1per.synthx.ui.components.shouldReduceAmbientMotion
+import com.v1per.synthx.ui.player.queueCompositingStrategy
+import com.v1per.synthx.ui.player.quantizePlayerGlowSize
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class AmbientMotionPolicyTest {
+    @Test fun homePausesOnlyWhenHomeIsFullyOccluded() {
+        assertFalse(isHomeAmbientFullyOccluded(Screen.Home.route, 0f))
+        assertFalse(isHomeAmbientFullyOccluded(Screen.Home.route, 0.5f))
+        assertFalse(isHomeAmbientFullyOccluded(Screen.Home.route, 0.9989f))
+        assertTrue(isHomeAmbientFullyOccluded(Screen.Home.route, 0.999f))
+        assertFalse(isHomeAmbientFullyOccluded(Screen.Library.route, 1f))
+    }
+
+    @Test fun eitherSystemPolicyForcesReducedMotion() {
+        assertFalse(shouldReduceAmbientMotion(powerSaveMode = false, animatorDurationScale = 1f))
+        assertTrue(shouldReduceAmbientMotion(powerSaveMode = true, animatorDurationScale = 1f))
+        assertTrue(shouldReduceAmbientMotion(powerSaveMode = false, animatorDurationScale = 0f))
+        assertTrue(shouldPauseAmbientMotion(instancePaused = false, systemReducedMotionActive = true))
+        assertTrue(shouldPauseAmbientMotion(instancePaused = true, systemReducedMotionActive = false))
+        assertFalse(shouldPauseAmbientMotion(instancePaused = false, systemReducedMotionActive = false))
+    }
+
+    @Test fun queueUsesOffscreenCompositingOnlyWhileVisible() {
+        assertTrue(queueCompositingStrategy(0f) == CompositingStrategy.Auto)
+        assertTrue(queueCompositingStrategy(0.01f) == CompositingStrategy.Offscreen)
+    }
+
+    @Test fun glowQuantizationPreservesMiniEndpointAndAdvancesInEightDpSteps() {
+        assertEquals(60.dp, quantizePlayerGlowSize(60.dp))
+        assertEquals(60.dp, quantizePlayerGlowSize(63.9.dp))
+        assertEquals(68.dp, quantizePlayerGlowSize(64.1.dp))
+    }
+}

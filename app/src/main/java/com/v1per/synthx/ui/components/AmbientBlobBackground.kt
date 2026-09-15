@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Dp
@@ -71,11 +72,12 @@ fun AmbientBlobBackground(
     paused: Boolean = false,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
+    val motionPaused = shouldPauseAmbientMotion(paused, rememberSystemReducedMotionActive())
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
     val animations = blobs.mapIndexed { index, blob ->
         key(index) {
             if (blob.enabled) {
-                rememberBlobAnimation(index, blob, layerSize, paused)
+                rememberBlobAnimation(index, blob, layerSize, motionPaused)
             } else {
                 null
             }
@@ -85,7 +87,7 @@ fun AmbientBlobBackground(
     val wobbles = blobs.mapIndexed { index, blob ->
         key(index) {
             if (blob.enabled) {
-                rememberOrganicWobble(index, blob, layerSize, paused)
+                rememberOrganicWobble(index, blob, layerSize, motionPaused)
             } else {
                 null
             }
@@ -106,7 +108,22 @@ fun AmbientBlobBackground(
                         Color.hsl(blob.hue, blob.saturation, blob.lightness)
                     }
                     val falloffs = blobs.map { it.gradientFalloffFraction.coerceIn(0f, 0.9f) }
+                    // Build gradients in normalized local coordinates. Per-frame translation and
+                    // scaling move them with each blob, so immutable Brushes only need rebuilding
+                    // when their color/falloff cache inputs change.
+                    val brushes = colors.mapIndexed { index, color ->
+                        Brush.radialGradient(
+                            0f to color,
+                            falloffs[index] to color,
+                            1f to color.copy(alpha = 0f),
+                            center = Offset.Zero,
+                            radius = 1f,
+                        )
+                    }
                     val organicPath = Path()
+                    val pointBuffers = blobs.map { blob ->
+                        FloatArray(blob.pointCount.coerceIn(6, 8) * 2)
+                    }
                     onDrawBehind {
                         // All shapes share this blurred drawing layer. Read animated
                         // state only here, so drifting invalidates drawing, not composition.
@@ -117,21 +134,24 @@ fun AmbientBlobBackground(
                             if (radius <= 0f) return@forEachIndexed
 
                             val center = animation.motion.position.value
-                            val color = colors[index].copy(alpha = animation.opacity.value)
-                            val gradientRadius = updateOrganicPath(
-                                organicPath, center, radius, wobble.offsets.value, wobble.directions,
+                            val normalizedGradientRadius = updateOrganicPath(
+                                organicPath,
+                                wobble.updateOffsets(),
+                                wobble.directions,
+                                pointBuffers[index],
                             )
-                            drawPath(
-                                path = organicPath,
-                                brush = Brush.radialGradient(
-                                    0f to color,
-                                    falloffs[index] to color,
-                                    1f to color.copy(alpha = 0f),
-                                    center = center,
-                                    radius = gradientRadius,
-                                ),
-                                blendMode = BlendMode.Plus,
-                            )
+                            val drawScale = radius * normalizedGradientRadius
+                            withTransform({
+                                translate(center.x, center.y)
+                                scale(drawScale, drawScale, pivot = Offset.Zero)
+                            }) {
+                                drawPath(
+                                    path = organicPath,
+                                    brush = brushes[index],
+                                    alpha = animation.opacity.value,
+                                    blendMode = BlendMode.Plus,
+                                )
+                            }
                         }
                     }
                 },
@@ -148,9 +168,9 @@ private fun rememberOrganicWobble(
     paused: Boolean,
 ): OrganicWobble {
     val pointCount = blob.pointCount.coerceIn(6, 8)
-    var phase by remember { mutableStateOf(0.0) }
+    val phase = remember { mutableStateOf(0.0) }
     val speed by rememberUpdatedState(blob.wobbleSpeed)
-    val amount by rememberUpdatedState(blob.wobbleAmountFraction.coerceIn(0f, 0.5f))
+    val amount = rememberUpdatedState(blob.wobbleAmountFraction.coerceIn(0f, 0.5f))
     LaunchedEffect(blobIndex, layerSize, paused) {
         if (paused || layerSize.width <= 0 || layerSize.height <= 0) return@LaunchedEffect
         // Restart only the frame baseline; the remembered phase survives pauses/resizes.
@@ -160,16 +180,19 @@ private fun rememberOrganicWobble(
                 if (previousFrame != 0L) {
                     val deltaSeconds = (frameTime - previousFrame) / 1_000_000_000.0
                     // Speed is measured in radians per second.
-                    phase += deltaSeconds * speed.coerceAtLeast(0f)
+                    phase.value += deltaSeconds * speed.coerceAtLeast(0f)
                 }
                 previousFrame = frameTime
             }
         }
     }
     val directions = remember(pointCount) {
-        List(pointCount) { index ->
-            val angle = 2f * PI.toFloat() * index / pointCount
-            Offset(cos(angle), sin(angle))
+        FloatArray(pointCount * 2).also { values ->
+            repeat(pointCount) { index ->
+                val angle = 2f * PI.toFloat() * index / pointCount
+                values[index * 2] = cos(angle)
+                values[index * 2 + 1] = sin(angle)
+            }
         }
     }
     return remember(blobIndex, pointCount) {
@@ -178,58 +201,100 @@ private fun rememberOrganicWobble(
         }
         OrganicWobble(
             directions = directions,
-            offsets = derivedStateOf {
-                // One snapshot reader/pass per blob, retaining both original sine terms.
-                val currentPhase = phase
-                val currentAmount = amount
-                FloatArray(pointCount) { pointIndex ->
-                    val angle = currentPhase + startingAngles[pointIndex]
-                    ((sin(angle) * 0.7 + sin(angle * 1.618 + pointIndex) * 0.3) * currentAmount).toFloat()
-                }
-            },
+            offsets = FloatArray(pointCount),
+            startingAngles = startingAngles,
+            phase = phase,
+            amount = amount,
         )
     }
 }
 
 private class OrganicWobble(
-    val directions: List<Offset>,
-    val offsets: State<FloatArray>,
-)
+    val directions: FloatArray,
+    private val offsets: FloatArray,
+    private val startingAngles: DoubleArray,
+    private val phase: State<Double>,
+    private val amount: State<Float>,
+) {
+    fun updateOffsets(): FloatArray {
+        // Reading phase/amount from the draw pass retains snapshot-driven invalidation while the
+        // same primitive buffer is rewritten instead of allocating a new array every frame.
+        val currentPhase = phase.value
+        val currentAmount = amount.value
+        for (pointIndex in offsets.indices) {
+            val angle = currentPhase + startingAngles[pointIndex]
+            offsets[pointIndex] =
+                ((sin(angle) * 0.7 + sin(angle * 1.618 + pointIndex) * 0.3) * currentAmount).toFloat()
+        }
+        return offsets
+    }
+}
 
 private fun updateOrganicPath(
     path: Path,
-    center: Offset,
-    radius: Float,
     offsets: FloatArray,
-    directions: List<Offset>,
+    directions: FloatArray,
+    points: FloatArray,
 ): Float {
     path.reset()
     val count = offsets.size
-    if (count < 3) return radius
-    val points = List(count) { index ->
-        val pointRadius = radius * (1f + offsets[index])
-        center + directions[index] * pointRadius
+    if (count < 3) return 1f
+    for (index in 0 until count) {
+        val pointRadius = 1f + offsets[index]
+        points[index * 2] = directions[index * 2] * pointRadius
+        points[index * 2 + 1] = directions[index * 2 + 1] * pointRadius
     }
-    path.moveTo(points[0].x, points[0].y)
-    var gradientRadiusSquared = points.maxOf { (it - center).getDistanceSquared() }
-    for (index in points.indices) {
-        val previous = points[(index - 1 + count) % count]
-        val current = points[index]
-        val next = points[(index + 1) % count]
-        val nextNext = points[(index + 2) % count]
-        val cp1 = current + (next - previous) / 6f
-        val cp2 = next - (nextNext - current) / 6f
+    var gradientRadiusSquared = 0f
+    for (index in 0 until count) {
+        val x = points[index * 2]
+        val y = points[index * 2 + 1]
+        gradientRadiusSquared = maxOf(gradientRadiusSquared, x * x + y * y)
+    }
+    for (index in 0 until count) {
+        val previous = (index - 1 + count) % count
+        val next = (index + 1) % count
+        val nextNext = (index + 2) % count
+        val currentX = points[index * 2]
+        val currentY = points[index * 2 + 1]
+        val nextX = points[next * 2]
+        val nextY = points[next * 2 + 1]
+        val cp1X = currentX + (nextX - points[previous * 2]) / 6f
+        val cp1Y = currentY + (nextY - points[previous * 2 + 1]) / 6f
+        val cp2X = nextX - (points[nextNext * 2] - currentX) / 6f
+        val cp2Y = nextY - (points[nextNext * 2 + 1] - currentY) / 6f
         // A cubic stays inside its control-point hull. Include the handles so the
         // gradient also covers any curve overshoot beyond the live perimeter points.
         gradientRadiusSquared = maxOf(
             gradientRadiusSquared,
-            (cp1 - center).getDistanceSquared(),
-            (cp2 - center).getDistanceSquared(),
+            cp1X * cp1X + cp1Y * cp1Y,
+            cp2X * cp2X + cp2Y * cp2Y,
         )
-        path.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, next.x, next.y)
+    }
+    val gradientRadius = sqrt(gradientRadiusSquared)
+    path.moveTo(points[0] / gradientRadius, points[1] / gradientRadius)
+    for (index in 0 until count) {
+        val previous = (index - 1 + count) % count
+        val next = (index + 1) % count
+        val nextNext = (index + 2) % count
+        val currentX = points[index * 2]
+        val currentY = points[index * 2 + 1]
+        val nextX = points[next * 2]
+        val nextY = points[next * 2 + 1]
+        val cp1X = currentX + (nextX - points[previous * 2]) / 6f
+        val cp1Y = currentY + (nextY - points[previous * 2 + 1]) / 6f
+        val cp2X = nextX - (points[nextNext * 2] - currentX) / 6f
+        val cp2Y = nextY - (points[nextNext * 2 + 1] - currentY) / 6f
+        path.cubicTo(
+            cp1X / gradientRadius,
+            cp1Y / gradientRadius,
+            cp2X / gradientRadius,
+            cp2Y / gradientRadius,
+            nextX / gradientRadius,
+            nextY / gradientRadius,
+        )
     }
     path.close()
-    return sqrt(gradientRadiusSquared)
+    return gradientRadius
 }
 
 private class BlobMotionState {

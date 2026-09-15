@@ -332,6 +332,17 @@ class DatabaseStartupProductionOrderingTest {
         assertFalse(source.contains("lastKnownDbVersion"))
     }
 
+    @Test fun foregroundReconciliationAwaitsGateBeforeCreatingPlaybackViewModel() {
+        val source = productionFile("com/v1per/synthx/MainActivity.kt").readText()
+        val onStart = source.substringAfter("override fun onStart()")
+            .substringBefore("private fun pruneFinishedWork")
+        val await = onStart.indexOf("DatabaseStartupGate.awaitReady()")
+        val playback = onStart.indexOf("playbackViewModel.reconcileWithDatabase()")
+
+        assertTrue(await >= 0, "onStart must join database startup before resolving playback")
+        assertTrue(playback > await, "playback creation must follow database-gate readiness")
+    }
+
     @Test fun productionMigrationBackupSelectsRawPreRoomSnapshotPath() {
         val manager = productionFile("com/v1per/synthx/data/backup/BackupManager.kt").readText()
         val snapshotter = productionFile("com/v1per/synthx/data/backup/BackupSnapshot.kt").readText()

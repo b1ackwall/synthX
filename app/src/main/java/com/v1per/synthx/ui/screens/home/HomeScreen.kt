@@ -28,7 +28,10 @@ import com.v1per.synthx.ui.components.rememberWordmark
 import com.v1per.synthx.ui.theme.SurfaceVariant
 
 @Composable
-fun HomeScreen(playbackViewModel: PlaybackViewModel) {
+fun HomeScreen(
+    playbackViewModel: PlaybackViewModel,
+    ambientPaused: Boolean = false,
+) {
     var debugState by HomeBlobDebugStateHolder.state
     val currentSong by playbackViewModel.currentSong.collectAsState()
     val paletteSwatches = currentSong?.paletteSwatches
@@ -64,6 +67,7 @@ fun HomeScreen(playbackViewModel: PlaybackViewModel) {
                 blobs = debugState.blobs,
                 baseSurfaceColor = baseSurfaceColor,
                 blurRadiusDp = debugState.blurRadiusDp.dp,
+                paused = ambientPaused,
             )
         }
         Box(

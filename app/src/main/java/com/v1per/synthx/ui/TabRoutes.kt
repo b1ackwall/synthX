@@ -26,10 +26,14 @@ fun NavGraphBuilder.tabRoutes(
     playbackViewModel: PlaybackViewModel,
     chromeBottomPadding: Dp,
     searchReselectEvents: SharedFlow<Unit>,
+    homeAmbientPaused: Boolean = false,
 ) {
     composable(Screen.Home.route) {
         RouteContent(chromeBottomPadding) {
-            HomeScreen(playbackViewModel = playbackViewModel)
+            HomeScreen(
+                playbackViewModel = playbackViewModel,
+                ambientPaused = homeAmbientPaused,
+            )
         }
     }
     composable(Screen.Library.route) {

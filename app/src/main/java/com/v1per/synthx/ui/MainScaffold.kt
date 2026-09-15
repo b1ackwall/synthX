@@ -256,6 +256,7 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
     // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerSheet and used
     // to slide the bottom nav down in lockstep with the sheet's expansion.
     var playerProgress by remember { mutableStateOf(0f) }
+    val homeAmbientPaused = isHomeAmbientFullyOccluded(currentRoute, playerProgress)
 
     // Incremented to signal "collapse the expanded player" — e.g. when "Go to Album"/"Go to
     // Artist" navigates away from underneath it. An Int counter rather than a Boolean so a
@@ -338,6 +339,7 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
                 playbackViewModel = playbackViewModel,
                 chromeBottomPadding = chromeBottomPadding,
                 searchReselectEvents = searchReselectEvents,
+                homeAmbientPaused = homeAmbientPaused,
                 onShowSortSheet = { order, onOrderSelected ->
                     sortSheetTarget = SortSheetTarget(order, onOrderSelected)
                 },
@@ -437,6 +439,9 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
     }
     }
 }
+
+internal fun isHomeAmbientFullyOccluded(currentRoute: String?, playerProgress: Float): Boolean =
+    currentRoute == Screen.Home.route && playerProgress >= 0.999f
 
 private data class SortSheetTarget(
     val selectedOrder: SortOrder,

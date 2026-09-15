@@ -17,6 +17,15 @@ import androidx.compose.ui.unit.dp
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.components.PlayerAlbumArt
 import com.v1per.synthx.ui.components.animatedPlayerAlbumArtScale
+import kotlin.math.round
+
+private val MiniPlayerGlowSize = 60.dp
+private const val GlowSizeStepDp = 8f
+
+internal fun quantizePlayerGlowSize(size: Dp): Dp {
+    val stepsFromMini = round((size.value - MiniPlayerGlowSize.value) / GlowSizeStepDp)
+    return (MiniPlayerGlowSize.value + stepsFromMini * GlowSizeStepDp).dp
+}
 
 @Composable
 internal fun PlayerAlbumArtWithGlow(
@@ -30,7 +39,9 @@ internal fun PlayerAlbumArtWithGlow(
     Box(modifier = modifier.size(size)) {
         val artScale = animatedPlayerAlbumArtScale(isPlaying)
         val glowColor = Color.Black.copy(alpha = 0.9f)
-        val glowSize = size + 8f.dp * 2
+        // The 80dp blur hides these small steps, while keeping the RenderEffect layer from
+        // reallocating/rasterizing at every one-pixel size change during a sheet drag.
+        val glowSize = quantizePlayerGlowSize(size + 8f.dp * 2)
         Box(
             modifier = Modifier
                 // requiredSize preserves the spread even under the mini art's

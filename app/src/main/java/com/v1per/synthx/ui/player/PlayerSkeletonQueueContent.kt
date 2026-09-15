@@ -250,7 +250,7 @@ fun PlayerSkeletonQueueContent(
                         alpha = queueContentAlpha
                         // DstIn must multiply only the queue pixels, never the blobs or
                         // sibling controls. Keep its existing crossfade in the same layer.
-                        compositingStrategy = CompositingStrategy.Offscreen
+                        compositingStrategy = queueCompositingStrategy(queueContentAlpha)
                     }
                     .drawWithCache {
                         // The list measures at sheet height, then is offset downward. Its
@@ -278,3 +278,6 @@ fun PlayerSkeletonQueueContent(
         }
     }
 }
+
+internal fun queueCompositingStrategy(contentAlpha: Float): CompositingStrategy =
+    if (contentAlpha > 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
