@@ -55,6 +55,7 @@ import com.v1per.synthx.ui.components.QueuePromptDialog
 import com.v1per.synthx.ui.components.hiddenFromAccessibilityWhileSheetShown
 import com.v1per.synthx.ui.components.SongActionsHost
 import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
+import com.v1per.synthx.ui.components.rememberSharedSongBlobColors
 import com.v1per.synthx.ui.screens.songs.SortBottomSheet
 import com.v1per.synthx.ui.screens.songs.SortOrder
 import com.v1per.synthx.ui.theme.Background
@@ -250,6 +251,9 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
     // currentSong stays here: chromeBottomPadding below and the SnackbarHost Box's padding
     // both derive from it, and unlike position it only changes when the song itself changes.
     val currentSong by playbackViewModel.currentSong.collectAsState()
+    // One arrangement for both Home and player. The helper keys arrangement only by song id and
+    // reapplies it when the same Song copy receives backfilled palette values.
+    val ambientColors = rememberSharedSongBlobColors(currentSong)
 
     val backupFolderNeedsAttention by BackupFolderLaunchCheck.grantLost.collectAsState()
 
@@ -340,6 +344,7 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
                 chromeBottomPadding = chromeBottomPadding,
                 searchReselectEvents = searchReselectEvents,
                 homeAmbientPaused = homeAmbientPaused,
+                ambientColors = ambientColors,
                 onShowSortSheet = { order, onOrderSelected ->
                     sortSheetTarget = SortSheetTarget(order, onOrderSelected)
                 },
@@ -354,6 +359,7 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
                 currentRoute = currentRoute,
                 showBottomBar = showBottomBar,
                 currentSong = currentSong,
+                ambientColors = ambientColors,
                 playerProgress = playerProgress,
                 onPlayerProgressChanged = { playerProgress = it },
                 collapsePlayerSignal = collapsePlayerSignal,

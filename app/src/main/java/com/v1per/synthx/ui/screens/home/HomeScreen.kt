@@ -9,7 +9,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -18,40 +17,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.AmbientBlobBackground
 import com.v1per.synthx.ui.components.BaseSurfaceLightness
 import com.v1per.synthx.ui.components.BaseSurfaceSaturation
+import com.v1per.synthx.ui.components.BlobBackgroundDebugState
 import com.v1per.synthx.ui.components.HomeBlobDebugStateHolder
-import com.v1per.synthx.ui.components.ExtractedSwatchHsl
-import com.v1per.synthx.ui.components.deriveBlobColors
+import com.v1per.synthx.ui.components.DerivedBlobColors
+import com.v1per.synthx.ui.components.ProductionAmbientBackgroundStyle
+import com.v1per.synthx.ui.components.productionAmbientScrim
+import com.v1per.synthx.ui.components.productionAmbientScrimColor
 import com.v1per.synthx.ui.components.rememberWordmark
 import com.v1per.synthx.ui.theme.SurfaceVariant
 
 @Composable
-fun HomeScreen(
-    playbackViewModel: PlaybackViewModel,
+internal fun HomeScreen(
+    ambientColors: DerivedBlobColors?,
     ambientPaused: Boolean = false,
 ) {
     var debugState by HomeBlobDebugStateHolder.state
-    val currentSong by playbackViewModel.currentSong.collectAsState()
-    val paletteSwatches = currentSong?.paletteSwatches
 
-    LaunchedEffect(currentSong?.id, paletteSwatches) {
-        val song = currentSong ?: return@LaunchedEffect
-        val swatches = paletteSwatches ?: return@LaunchedEffect
-        if (HomeBlobDebugStateHolder.lastPaletteSongId == song.id &&
-            HomeBlobDebugStateHolder.lastPaletteSwatches == swatches
-        ) return@LaunchedEffect
-        val colors = deriveBlobColors(swatches.map { ExtractedSwatchHsl(it.hue, it.saturation, it.lightness) })
-            ?: return@LaunchedEffect
-        // Apply only when the song/palette changes; ordinary tuning edits remain intact.
-        debugState = debugState.copy(
-            baseSurfaceHue = colors.baseSurfaceHue,
-            blobs = colors.applyTo(debugState.blobs),
-        )
-        HomeBlobDebugStateHolder.lastPaletteSongId = song.id
-        HomeBlobDebugStateHolder.lastPaletteSwatches = swatches
+    LaunchedEffect(ambientColors) {
+        val colors = ambientColors ?: return@LaunchedEffect
+        // MainScaffold already chose the slots. Apply only received values here so ordinary
+        // developer tuning edits remain intact until the shared song/palette model changes.
+        debugState = applyHomeAmbientColors(debugState, colors)
     }
 
     val baseSurfaceColor = Color.hsl(
@@ -59,7 +48,7 @@ fun HomeScreen(
         BaseSurfaceSaturation,
         BaseSurfaceLightness,
     )
-    val hasPalette = paletteSwatches != null
+    val hasPalette = ambientColors != null
     val renderedBlobs = remember(debugState.blobs, hasPalette) {
         if (hasPalette) debugState.blobs else debugState.blobs.map { it.copy(opacity = 0f) }
     }
@@ -70,11 +59,13 @@ fun HomeScreen(
         AmbientBlobBackground(
             blobs = renderedBlobs,
             baseSurfaceColor = if (hasPalette) baseSurfaceColor else SurfaceVariant,
-            blurRadiusDp = debugState.blurRadiusDp.dp,
+            // The debug state's 40dp slider remains a testbed value, not production policy.
+            blurRadiusDp = ProductionAmbientBackgroundStyle.BlurRadiusDp.dp,
             paused = ambientPaused || !hasPalette,
             // A debug opacity randomizer can override BlobParams.opacity, so suppress only
             // drawing while retaining the randomizer's enabled structure and remembered phase.
             blobAlphaMultiplier = if (hasPalette) 1f else 0f,
+            modifier = Modifier.productionAmbientScrim(productionAmbientScrimColor(ambientColors)),
         )
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -92,3 +83,11 @@ fun HomeScreen(
         }
     }
 }
+
+internal fun applyHomeAmbientColors(
+    debugState: BlobBackgroundDebugState,
+    colors: DerivedBlobColors,
+): BlobBackgroundDebugState = debugState.copy(
+    baseSurfaceHue = colors.baseSurfaceHue,
+    blobs = colors.applyTo(debugState.blobs),
+)

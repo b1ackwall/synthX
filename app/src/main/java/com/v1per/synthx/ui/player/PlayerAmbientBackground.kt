@@ -8,19 +8,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.components.AmbientBlobBackground
 import com.v1per.synthx.ui.components.BaseSurfaceLightness
 import com.v1per.synthx.ui.components.BaseSurfaceSaturation
 import com.v1per.synthx.ui.components.BlobParams
 import com.v1per.synthx.ui.components.DefaultInitialBlobs
+import com.v1per.synthx.ui.components.DerivedBlobColors
 import com.v1per.synthx.ui.components.ExtractedSwatchHsl
-import com.v1per.synthx.ui.components.deriveBlobColors
+import com.v1per.synthx.ui.components.ProductionAmbientBackgroundStyle
+import com.v1per.synthx.ui.components.productionAmbientScrim
+import com.v1per.synthx.ui.components.productionAmbientScrimColor
 import com.v1per.synthx.ui.theme.SurfaceVariant
 
 internal data class PlayerAmbientBackgroundState(
@@ -32,11 +32,11 @@ internal data class PlayerAmbientBackgroundState(
 private val NeutralPlayerBlobs = DefaultInitialBlobs.map { it.copy(opacity = 0f) }
 
 @Composable
-internal fun rememberPlayerAmbientBackgroundState(song: Song): PlayerAmbientBackgroundState? =
-    remember(song.id, song.paletteSwatches) {
-        val swatches = song.paletteSwatches ?: return@remember null
-        val colors = deriveBlobColors(swatches.map { ExtractedSwatchHsl(it.hue, it.saturation, it.lightness) })
-            ?: return@remember null
+internal fun rememberPlayerAmbientBackgroundState(colors: DerivedBlobColors?): PlayerAmbientBackgroundState? =
+    remember(colors) { playerAmbientBackgroundState(colors) }
+
+internal fun playerAmbientBackgroundState(colors: DerivedBlobColors?): PlayerAmbientBackgroundState? =
+    colors?.let {
         PlayerAmbientBackgroundState(
             blobs = colors.applyTo(DefaultInitialBlobs),
             baseSurfaceColor = Color.hsl(colors.baseSurfaceHue, BaseSurfaceSaturation, BaseSurfaceLightness),
@@ -58,26 +58,16 @@ internal fun BoxScope.PlayerAmbientBackground(
             .wrapContentHeight(align = Alignment.Bottom, unbounded = true)
             .requiredHeight(fullHeight)
     }
-    val scrimColor = state?.let {
-        Color.hsl(it.artworkSwatches[0].hue, 0.3f, 0.05f).copy(alpha = 0.5f)
-    }
+    val scrimColor = productionAmbientScrimColor(state?.artworkSwatches)
     val backgroundModifier = remember(backgroundBoundsModifier, scrimColor) {
-        if (scrimColor == null) {
-            backgroundBoundsModifier
-        } else {
-            backgroundBoundsModifier.drawWithContent {
-                // Composite the opaque base and already-blurred blobs first. Player art and
-                // controls are later siblings, outside this background-only draw pass.
-                drawContent()
-                drawRect(color = scrimColor, blendMode = BlendMode.SrcOver)
-            }
-        }
+        // Player art and controls are later siblings, outside this background-only draw pass.
+        backgroundBoundsModifier.productionAmbientScrim(scrimColor)
     }
 
     AmbientBlobBackground(
         blobs = state?.blobs ?: NeutralPlayerBlobs,
         baseSurfaceColor = state?.baseSurfaceColor ?: SurfaceVariant,
-        blurRadiusDp = 150f.dp,
+        blurRadiusDp = ProductionAmbientBackgroundStyle.BlurRadiusDp.dp,
         // Resume within the first 0.1% of travel, retaining the collapsed static frame.
         paused = state == null || progress < 0.001f,
         // Base opacity is zero too; this also defeats any future opacity randomizer without

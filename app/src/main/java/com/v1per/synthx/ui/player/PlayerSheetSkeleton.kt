@@ -43,6 +43,7 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
+import com.v1per.synthx.ui.components.DerivedBlobColors
 import com.v1per.synthx.ui.components.PlayerSheetValue
 import com.v1per.synthx.ui.theme.Motion
 import kotlinx.coroutines.launch
@@ -96,8 +97,9 @@ internal val ContentSlideDistance: Dp = 40.dp
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PlayerSheetSkeleton(
+internal fun PlayerSheetSkeleton(
     song: Song,
+    ambientColors: DerivedBlobColors?,
     isPlaying: Boolean,
     isBuffering: Boolean,
     currentPosition: Long,
@@ -128,7 +130,7 @@ fun PlayerSheetSkeleton(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    val ambientState = rememberPlayerAmbientBackgroundState(song)
+    val ambientState = rememberPlayerAmbientBackgroundState(ambientColors)
 
     val scope = rememberCoroutineScope()
     val collapsedHeightPx = with(density) { CollapsedPlayerHeight.toPx() }

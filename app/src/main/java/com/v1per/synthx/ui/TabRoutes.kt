@@ -17,21 +17,23 @@ import com.v1per.synthx.ui.screens.search.SearchViewModel
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
 import com.v1per.synthx.ui.screens.developersettings.DeveloperSettingsScreen
 import com.v1per.synthx.ui.components.DetailTopBar
+import com.v1per.synthx.ui.components.DerivedBlobColors
 import com.v1per.synthx.R
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.flow.SharedFlow
 
-fun NavGraphBuilder.tabRoutes(
+internal fun NavGraphBuilder.tabRoutes(
     navController: NavHostController,
     playbackViewModel: PlaybackViewModel,
     chromeBottomPadding: Dp,
     searchReselectEvents: SharedFlow<Unit>,
     homeAmbientPaused: Boolean = false,
+    ambientColors: DerivedBlobColors? = null,
 ) {
     composable(Screen.Home.route) {
         RouteContent(chromeBottomPadding) {
             HomeScreen(
-                playbackViewModel = playbackViewModel,
+                ambientColors = ambientColors,
                 ambientPaused = homeAmbientPaused,
             )
         }

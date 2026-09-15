@@ -38,6 +38,7 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.BottomNavHeight
+import com.v1per.synthx.ui.components.DerivedBlobColors
 import com.v1per.synthx.ui.components.next
 import com.v1per.synthx.ui.player.PlayerSheetSkeleton
 import com.v1per.synthx.ui.theme.Accent
@@ -46,11 +47,12 @@ import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextSecondary
 
 @Composable
-fun BottomChromeOverlay(
+internal fun BottomChromeOverlay(
     navController: NavController,
     currentRoute: String?,
     showBottomBar: Boolean,
     currentSong: Song?,
+    ambientColors: DerivedBlobColors?,
     playerProgress: Float,
     onPlayerProgressChanged: (Float) -> Unit,
     collapsePlayerSignal: Int,
@@ -122,6 +124,7 @@ fun BottomChromeOverlay(
             // real MoreOptionsButton).
             PlayerSheetSkeleton(
                 song = song,
+                ambientColors = ambientColors,
                 isPlaying = isPlaying,
                 isBuffering = isBuffering,
                 currentPosition = currentPosition,

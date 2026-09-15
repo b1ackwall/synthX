@@ -1,5 +1,8 @@
 package com.v1per.synthx.ui.components
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import com.v1per.synthx.data.repository.Song
 import kotlin.random.Random
 
 internal const val BaseSurfaceSaturation = 0.25f
@@ -13,6 +16,7 @@ internal val DefaultInitialBlobs = listOf(
 )
 
 internal data class DerivedBlobColors(
+    val arrangement: BlobColorArrangement,
     val baseSurfaceHue: Float,
     val blobs: List<BlobColorUpdate>,
     // Original extraction order, retained for consumers such as the player's locked scrim.
@@ -41,18 +45,34 @@ internal data class BlobColorUpdate(
     val gradientFalloffFraction: Float,
 )
 
-internal fun deriveBlobColors(
+/** Four render slots (base surface, then three blobs) expressed as raw swatch indices. */
+internal data class BlobColorArrangement(val swatchIndicesBySlot: List<Int>)
+
+/**
+ * Stable per-song arrangement for the shared Home/player background. The caller still remembers
+ * this by song id so one object is retained while same-song palette values are backfilled.
+ */
+internal fun generateBlobColorArrangement(songId: String): BlobColorArrangement =
+    generateBlobColorArrangement(Random(songId.hashCode()))
+
+internal fun generateBlobColorArrangement(random: Random): BlobColorArrangement {
+    val doubledIndex = random.nextInt(3)
+    return BlobColorArrangement(
+        (listOf(doubledIndex, doubledIndex) + (0 until 3).filter { it != doubledIndex })
+            .shuffled(random),
+    )
+}
+
+/** Applies the latest swatch values without changing their already-chosen render slots. */
+internal fun applyBlobColorArrangement(
+    arrangement: BlobColorArrangement,
     swatches: List<ExtractedSwatchHsl>,
-    random: Random = Random.Default,
 ): DerivedBlobColors? {
     if (swatches.size != 3) return null
-    // Only raw swatches are persisted. Home and Player assign them afresh when the song
-    // or its stored palette changes, and retain that assignment across recompositions.
-    val doubledIndex = random.nextInt(swatches.size)
-    // Select by index: the extractor may reuse colors when artwork has a limited palette.
-    val slots = (listOf(swatches[doubledIndex], swatches[doubledIndex]) +
-        swatches.filterIndexed { index, _ -> index != doubledIndex }).shuffled(random)
+    val slots = arrangement.swatchIndicesBySlot.map { index -> swatches.getOrNull(index) ?: return null }
+    if (slots.size != 4) return null
     return DerivedBlobColors(
+        arrangement = arrangement,
         baseSurfaceHue = slots[0].hue,
         blobs = slots.drop(1).map { swatch ->
             // Additive blending blows out light colors, so intensity scales inversely
@@ -67,4 +87,28 @@ internal fun deriveBlobColors(
         },
         artworkSwatches = swatches,
     )
+}
+
+/** One derivation for the shell to share with every surface rendering the current song. */
+@Composable
+internal fun rememberSharedSongBlobColors(song: Song?): DerivedBlobColors? {
+    val arrangement = remember(song?.id) {
+        song?.id?.let(::generateBlobColorArrangement)
+    }
+    return remember(arrangement, song?.paletteSwatches) {
+        val stableArrangement = arrangement ?: return@remember null
+        val swatches = song?.paletteSwatches ?: return@remember null
+        applyBlobColorArrangement(
+            stableArrangement,
+            swatches.map { ExtractedSwatchHsl(it.hue, it.saturation, it.lightness) },
+        )
+    }
+}
+
+internal fun deriveBlobColors(
+    swatches: List<ExtractedSwatchHsl>,
+    random: Random = Random.Default,
+): DerivedBlobColors? {
+    if (swatches.size != 3) return null
+    return applyBlobColorArrangement(generateBlobColorArrangement(random), swatches)
 }

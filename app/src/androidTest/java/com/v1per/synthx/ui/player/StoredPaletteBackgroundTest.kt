@@ -18,7 +18,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongPaletteSwatch
 import com.v1per.synthx.ui.components.DefaultInitialBlobs
+import com.v1per.synthx.ui.components.DerivedBlobColors
 import com.v1per.synthx.ui.components.ExtractedSwatchHsl
+import com.v1per.synthx.ui.components.rememberSharedSongBlobColors
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import org.junit.Assert.*
 import org.junit.Rule
@@ -29,13 +31,18 @@ import org.junit.runner.RunWith
 class StoredPaletteBackgroundTest {
     @get:Rule val composeRule = createComposeRule()
 
-    @Test fun nullPaletteIsFlatAndSameSongBackfillUpdatesRememberedColors() {
+    @Test fun sameSongPaletteUpdatesColorsWithoutReplacingItsSharedArrangement() {
         // No art URI: the renderer must be able to use stored colors without decoding.
         val song = mutableStateOf(Song("song", "Title", "Artist", "Album", 1000L, "audio"))
         var rendered: PlayerAmbientBackgroundState? = null
+        var sharedColors: DerivedBlobColors? = null
         composeRule.setContent {
-            val state = rememberPlayerAmbientBackgroundState(song.value)
-            SideEffect { rendered = state }
+            val colors = rememberSharedSongBlobColors(song.value)
+            val state = rememberPlayerAmbientBackgroundState(colors)
+            SideEffect {
+                sharedColors = colors
+                rendered = state
+            }
             Box(Modifier.size(96.dp).testTag("background")) {
                 PlayerAmbientBackground(state, fullHeight = 96.dp, progress = 0f)
             }
@@ -51,6 +58,20 @@ class StoredPaletteBackgroundTest {
         composeRule.runOnIdle { song.value = song.value.copy(paletteSwatches = raw) }
         composeRule.runOnIdle {
             assertEquals(raw.map { it.hue }, requireNotNull(rendered).artworkSwatches.map { it.hue })
+        }
+        val arrangement = requireNotNull(sharedColors).arrangement
+        val changed = listOf(
+            SongPaletteSwatch(40f, 0.45f, 0.35f),
+            SongPaletteSwatch(160f, 0.55f, 0.45f),
+            SongPaletteSwatch(280f, 0.65f, 0.55f),
+        )
+        composeRule.runOnIdle { song.value = song.value.copy(paletteSwatches = changed) }
+        composeRule.runOnIdle {
+            val updated = requireNotNull(sharedColors)
+            assertSame("Same-song palette changes must retain the arrangement object", arrangement, updated.arrangement)
+            val expectedHues = arrangement.swatchIndicesBySlot.map { changed[it].hue }
+            assertEquals(expectedHues, listOf(updated.baseSurfaceHue) + updated.blobs.map { it.hue })
+            assertEquals(changed.map { it.hue }, requireNotNull(rendered).artworkSwatches.map { it.hue })
         }
         val assigned = rendered
         composeRule.runOnIdle { song.value = song.value.copy(title = "Retagged") }
