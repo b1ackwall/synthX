@@ -158,14 +158,13 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
         assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
     }
 
-    @Test fun completeStructurallyCorruptLiveFailsClosedWithoutRollback() {
+    @Test fun cleanedCompleteHistoryDoesNotGateStructurallyCorruptLive() {
         val completed = completeInstalledScenario()
         liveFile().writeText("genuinely corrupt current live")
         assertOperationArtifactsAbsent(completed.state)
 
-        assertEquals(RestoreRecovery.EMERGENCY, RestoreStartup.recoverNowForTest(context))
-        assertEquals(RestoreCoordinator.Terminal.EMERGENCY, RestoreCoordinator.current())
-        expectFailure { SynthXDatabase.getInstance(context) }
+        assertEquals(RestoreRecovery.NORMAL, RestoreStartup.recoverNowForTest(context))
+        assertEquals(RestoreCoordinator.Terminal.NORMAL, RestoreCoordinator.current())
         assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
         assertOperationArtifactsAbsent(completed.state)
     }

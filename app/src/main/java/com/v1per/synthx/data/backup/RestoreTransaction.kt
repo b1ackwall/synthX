@@ -336,36 +336,26 @@ internal object RestoreTransaction {
         faults: RestoreFaultInjector,
     ): RestoreRecovery {
         lastDiagnosticOperationId = state.operationId
+        if (state.phase == Phase.COMPLETE) {
+            return recoverCompletedHistory(context, dir, state, faults)
+        }
+
         val live = context.getDatabasePath(SynthXDatabase.DB_NAME)
         val old = File(dir, state.oldName)
         val safety = File(dir, state.safetyName)
         val candidate = File(dir, state.candidateName)
         val liveValid = validateStandalone(live, currentOnly = true)
-        val facts = if (state.phase == Phase.COMPLETE) {
-            // COMPLETE is completed history. Do not hash the current live database
-            // against the historical candidate or inspect cleaned transaction copies.
-            RestoreArtifactFacts(
-                liveExists = live.isFile,
-                liveValid = liveValid,
-                liveIsCandidate = false,
-                oldExists = false,
-                oldValid = false,
-                safetyValid = false,
-                candidateExists = false,
-            )
-        } else {
-            RestoreArtifactFacts(
-                liveExists = live.isFile,
-                liveValid = liveValid,
-                liveIsCandidate = runCatching { validateInstalled(live, state) }.isSuccess,
-                oldExists = old.isFile,
-                oldValid = validateOld(old, state),
-                safetyValid = validateSafety(safety, state),
-                candidateExists = candidate.isFile,
-                liveMatchesOld = validateOld(live, state),
-                liveMatchesSafety = validateSafety(live, state),
-            )
-        }
+        val facts = RestoreArtifactFacts(
+            liveExists = live.isFile,
+            liveValid = liveValid,
+            liveIsCandidate = runCatching { validateInstalled(live, state) }.isSuccess,
+            oldExists = old.isFile,
+            oldValid = validateOld(old, state),
+            safetyValid = validateSafety(safety, state),
+            candidateExists = candidate.isFile,
+            liveMatchesOld = validateOld(live, state),
+            liveMatchesSafety = validateSafety(live, state),
+        )
 
         return when (
             RestoreRecoveryPlanner.decide(
@@ -406,17 +396,8 @@ internal object RestoreTransaction {
                 markArtSweepPending(context)
                 RestoreRecovery.NORMAL
             }
-            RestoreRecoveryAction.ACCEPT_COMPLETE_HISTORY_AND_NORMAL -> {
-                check(validateStandalone(live, currentOnly = true)) {
-                    "Current live database did not validate after completed restore"
-                }
-                // Operation artifacts may already be gone. Retrying their cleanup is
-                // idempotent and deliberately leaves normal synthx.db WAL/SHM alone.
-                cleanupAfterColdValidation(context, dir, state, faults)
-                clearIncident(dir)
-                markArtSweepPending(context)
-                RestoreRecovery.NORMAL
-            }
+            RestoreRecoveryAction.ACCEPT_COMPLETE_HISTORY_AND_NORMAL ->
+                error("COMPLETE history must be handled before active recovery planning")
             RestoreRecoveryAction.PROMOTE_OLD ->
                 completeStartupRollback(context, dir, live, state, RollbackSource.OLD, faults)
             RestoreRecoveryAction.PROMOTE_SAFETY ->
@@ -515,6 +496,33 @@ internal object RestoreTransaction {
             }
             StatelessRecoveryAction.EMERGENCY -> RestoreRecovery.EMERGENCY
         }
+    }
+
+    /**
+     * COMPLETE is durable history, not authority over the live database. Once cleanup artifacts
+     * are gone it must not impose restore-specific schema checks on later app versions; the normal
+     * database startup gate owns version inspection and migration. If completion cleanup was
+     * interrupted, resume only that idempotent cleanup without reopening recovery or inspecting
+     * the live database.
+     */
+    private fun recoverCompletedHistory(
+        context: Context,
+        dir: File,
+        state: State,
+        faults: RestoreFaultInjector,
+    ): RestoreRecovery {
+        val artifactsRemain = dir.listFiles().orEmpty().any {
+            RestoreArtifactNames.parseOperationId(it.name) == state.operationId
+        }
+        if (!artifactsRemain) {
+            clearIncident(dir)
+            return RestoreRecovery.NORMAL
+        }
+
+        cleanupAfterColdValidation(context, dir, state, faults)
+        clearIncident(dir)
+        if (state.outcome == Outcome.INSTALLED) markArtSweepPending(context)
+        return RestoreRecovery.NORMAL
     }
 
     private fun createStatelessRecoveryState(
@@ -925,6 +933,11 @@ internal object RestoreTransaction {
         json.decodeFromString(State.serializer(), encoded).also(::validateState)
 
     private fun validateState(state: State) {
+        validateStateStructure(state)
+        if (state.phase != Phase.COMPLETE) validateActiveStateVersion(state)
+    }
+
+    private fun validateStateStructure(state: State) {
         val names = RestoreArtifactNames(state.operationId)
         require(state.candidateName == names.candidate)
         require(state.oldName == names.old)
@@ -933,9 +946,14 @@ internal object RestoreTransaction {
         require(state.candidateSha256.matches(Regex("[0-9a-f]{64}")))
         require(state.safetySha256.matches(Regex("[0-9a-f]{64}")))
         require(state.candidateSize > 0 && state.safetySize > 0)
-        require(state.candidateVersion == SynthXDatabase.VERSION)
+        require(state.candidateVersion > 0)
         require(state.oldSha256 == null || state.oldSha256.matches(Regex("[0-9a-f]{64}")))
         require(state.oldSize == null || state.oldSize > 0)
+        require(state.oldVersion == null || state.oldVersion > 0)
+    }
+
+    private fun validateActiveStateVersion(state: State) {
+        require(state.candidateVersion == SynthXDatabase.VERSION)
         require(state.oldVersion == null || state.oldVersion == SynthXDatabase.VERSION)
     }
 

@@ -58,7 +58,10 @@ internal object SafetySnapshotPromoter {
                     faults,
                 )
             }
-            if (staged.isFile) publishSafetyPromotion(context, staged)
+            if (staged.isFile) {
+                val validated = validateHistoricalSafetySnapshot(staged, state)
+                publishSafetyPromotion(context, staged, validated)
+            }
         } catch (error: Exception) {
             Log.w(TAG, "Could not promote pre-restore safety snapshot to Auto tier", error)
             throw error
@@ -72,14 +75,30 @@ internal object SafetySnapshotPromoter {
         )
     }
 
-    private fun publishSafetyPromotion(context: Context, staged: File) {
+    private fun validateHistoricalSafetySnapshot(
+        staged: File,
+        state: RestoreTransaction.State,
+    ): ValidatedBackupSnapshot {
+        check(staged.length() == state.safetySize) {
+            "Completed restore safety snapshot size does not match journal"
+        }
+        check(BackupHashing.hash(staged).sha256 == state.safetySha256) {
+            "Completed restore safety snapshot hash does not match journal"
+        }
+        return BackupSnapshotValidator.validate(staged, migrationSnapshot = true)
+    }
+
+    private fun publishSafetyPromotion(
+        context: Context,
+        staged: File,
+        validated: ValidatedBackupSnapshot,
+    ) {
         val treeUri = PreferencesManager(context).backupFolderUri?.let(Uri::parse) ?: return
         val root = DocumentFile.fromTreeUri(context, treeUri) ?: return
         val tierDirectory = root.findFile(BackupTier.Auto.folderName)?.takeIf { it.isDirectory }
             ?: root.createDirectory(BackupTier.Auto.folderName)
             ?: return
 
-        val validated = BackupSnapshotValidator.validate(staged, migrationSnapshot = false)
         val digest = BackupHashing.hash(staged)
         val identity = BackupFileNames.create()
         val metadata = BackupMetadata(

@@ -114,7 +114,9 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
        a deliberate scoping decision (versions 1-7 predate that convention and were not
        retroactively backfilled) — so it will not catch a missing file for an
        already-old leg, only for the new one you just added.
-    6. Never write a destructive migration (one that deletes or overwrites existing data
+    6. Run PhaseBRestoreJournalUpgradeInstrumentedTest to verify a retained COMPLETE restore
+       journal from the prior schema version does not block startup or the normal Room migration.
+    7. Never write a destructive migration (one that deletes or overwrites existing data
        with no backfill path) unless there is a genuinely unavoidable reason — see the
        note above ALL_MIGRATIONS in SynthXDatabase.kt. Treat it as an exceptional,
        carefully reviewed decision, not routine practice: every migration since
