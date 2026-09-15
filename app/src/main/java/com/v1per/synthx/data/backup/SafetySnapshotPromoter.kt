@@ -16,9 +16,9 @@ import java.io.File
  *
  * It is the one part of that file with no stake in the crash-resumable phase machine: it is reached
  * only from cleanupAfterColdValidation, strictly after Phase.COMPLETE is already durable, it reads
- * nothing beyond the [RestoreTransaction.State] handed to it, and it is best-effort by construction
- * (see [promoteSafetyToAutoTier]). Everything else in RestoreTransaction.kt stays put — that
- * coupling is what makes its safety guarantees provable.
+ * nothing beyond the [RestoreTransaction.State] handed to it, and failures are retryable from that
+ * completed phase (see [promoteSafetyToAutoTier]). Everything else in RestoreTransaction.kt stays
+ * put — that coupling is what makes its safety guarantees provable.
  *
  * Following [MigrationRecoveryAction], this object keeps its own private copies of the three
  * filesystem primitives it needs rather than widening RestoreTransaction's private members to
@@ -30,16 +30,21 @@ internal object SafetySnapshotPromoter {
     private const val TAG = "RestoreTransaction"
 
     /**
-     * Best-effort republish of the pre-restore safety snapshot as an ordinary Auto-tier
-     * backup. Never allowed to fail the surrounding cold-start cleanup — the restore itself
-     * already succeeded regardless of whether this bonus backup gets created. The rename to
+     * Retryable republish of the pre-restore safety snapshot as an ordinary Auto-tier
+     * backup. The restore itself is already complete, but a local filesystem failure aborts
+     * this cold-start cleanup so its owned staging evidence survives for the next attempt. The rename to
      * the reserved `safetyPromotion` name happens first so a crash between rename and publish
      * still leaves behind a file [RestoreArtifactNames.parseOperationId] recognizes as owned
      * by this operation (rather than an unrecognized stray triggering emergency recovery), and
      * so a retried cleanup pass (idempotent, like the rest of this recovery path) can resume
      * from either the original or the already-renamed location.
      */
-    fun promoteSafetyToAutoTier(context: Context, dir: File, state: RestoreTransaction.State) {
+    fun promoteSafetyToAutoTier(
+        context: Context,
+        dir: File,
+        state: RestoreTransaction.State,
+        faults: RestoreFaultInjector = RestoreFaultInjector.NONE,
+    ) {
         val names = RestoreArtifactNames(state.operationId)
         val safety = File(dir, state.safetyName)
         val staged = File(dir, names.safetyPromotion)
@@ -47,16 +52,24 @@ internal object SafetySnapshotPromoter {
             if (safety.isFile) {
                 if (staged.exists()) deleteFileSet(staged)
                 rawRename(safety, staged)
-                syncDirectory(dir)
+                syncDirectory(
+                    dir,
+                    RestoreFaultPoint.SAFETY_PROMOTION_STAGE_DIRECTORY_SYNC,
+                    faults,
+                )
             }
             if (staged.isFile) publishSafetyPromotion(context, staged)
         } catch (error: Exception) {
             Log.w(TAG, "Could not promote pre-restore safety snapshot to Auto tier", error)
-        } finally {
-            deleteFileSet(staged)
-            deleteFileSet(safety)
-            syncDirectory(dir)
+            throw error
         }
+        deleteFileSet(staged)
+        deleteFileSet(safety)
+        syncDirectory(
+            dir,
+            RestoreFaultPoint.SAFETY_PROMOTION_CLEANUP_DIRECTORY_SYNC,
+            faults,
+        )
     }
 
     private fun publishSafetyPromotion(context: Context, staged: File) {
@@ -113,14 +126,25 @@ internal object SafetySnapshotPromoter {
         ).forEach { it.delete() }
     }
 
-    private fun syncDirectory(dir: File) {
-        runCatching {
-            Os.open(dir.path, OsConstants.O_RDONLY, 0).also { descriptor ->
-                try {
-                    Os.fsync(descriptor)
-                } finally {
-                    Os.close(descriptor)
-                }
+    private fun syncDirectory(
+        dir: File,
+        faultPoint: RestoreFaultPoint,
+        faults: RestoreFaultInjector,
+    ) {
+        faults.hit(faultPoint)
+        val descriptor = Os.open(dir.path, OsConstants.O_RDONLY, 0)
+        var primaryFailure: Throwable? = null
+        try {
+            Os.fsync(descriptor)
+        } catch (error: Throwable) {
+            primaryFailure = error
+            throw error
+        } finally {
+            try {
+                Os.close(descriptor)
+            } catch (closeError: Throwable) {
+                val fsyncFailure = primaryFailure
+                if (fsyncFailure != null) fsyncFailure.addSuppressed(closeError) else throw closeError
             }
         }
     }

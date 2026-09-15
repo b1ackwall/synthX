@@ -184,6 +184,38 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
         assertEquals(RestoreCoordinator.Mode.NORMAL, RestoreCoordinator.currentMode())
     }
 
+    @Test fun journalDirectorySyncFailureAbortsBeforeLiveRename() = runBlocking {
+        createLive("state-a")
+        val source = newTrustedSource("state-b")
+
+        val result = execute(
+            source,
+            metadata(source),
+            failAt(RestoreFaultPoint.STATE_JOURNAL_DIRECTORY_SYNC),
+        )
+
+        assertTrue(result.isFailure)
+        assertEquals("state-a", readMarker(liveFile()))
+        assertTrue(databaseDir.listFiles().orEmpty().none { it.name.endsWith(".old.db") })
+        assertEquals(RestoreCoordinator.Mode.NORMAL, RestoreCoordinator.currentMode())
+    }
+
+    @Test fun preCloseCleanupSyncFailureEndsInEmergencyRatherThanPreparing() = runBlocking {
+        createLive("state-a")
+        val source = newTrustedSource("state-b")
+        val faults = RestoreFaultInjector { point ->
+            if (point == RestoreFaultPoint.SAFETY_SNAPSHOT ||
+                point == RestoreFaultPoint.PRE_CLOSE_FAILURE_CLEANUP_DIRECTORY_SYNC
+            ) error("Injected $point")
+        }
+
+        val result = execute(source, metadata(source), faults)
+
+        assertTrue(result.isFailure)
+        assertEquals("state-a", readMarker(liveFile()))
+        assertEquals(RestoreCoordinator.Mode.EMERGENCY, RestoreCoordinator.currentMode())
+    }
+
     @Test fun injectedWalCheckpointFailureForcesTerminalRestartWithoutRename() = runBlocking {
         createLive("state-a")
         val source = newTrustedSource("state-b")

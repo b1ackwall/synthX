@@ -264,6 +264,120 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
         assertEquals(first, RestoreTransaction.diagnosticOperationId())
     }
 
+    @Test fun candidateOnlyWithoutJournalKeepsValidUntouchedLive() {
+        createLive("untouched-live")
+        val op = newOp()
+        val candidate = File(databaseDir, RestoreArtifactNames(op).candidate)
+        createDatabaseFile(candidate, "uncommitted-candidate")
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        assertEquals("untouched-live", readMarker(liveFile()))
+        assertFalse(candidate.exists())
+        assertTrue(File(candidate.path + ".recovered").isFile)
+    }
+
+    @Test fun statelessRecoveryIntentRecognizesOldAlreadyInstalledBeforeArchival() {
+        val interrupted = scenario(
+            RestoreTransaction.Phase.STATELESS_RECOVERY_INTENT,
+            old = "recovered-old",
+            outcome = RestoreTransaction.Outcome.ROLLED_BACK,
+            rollbackSource = RestoreTransaction.RollbackSource.OLD,
+        )
+        val old = File(databaseDir, interrupted.state.oldName)
+        Os.rename(old.path, liveFile().path)
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        assertEquals("recovered-old", readMarker(liveFile()))
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+    }
+
+    @Test fun statelessRecoveryIntentResumesAfterLiveWasParked() {
+        val interrupted = scenario(
+            RestoreTransaction.Phase.STATELESS_RECOVERY_INTENT,
+            old = "selected-old",
+            outcome = RestoreTransaction.Outcome.ROLLED_BACK,
+            rollbackSource = RestoreTransaction.RollbackSource.OLD,
+        )
+        createDatabaseFile(File(databaseDir, interrupted.state.failedName), "parked-live")
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        assertEquals("selected-old", readMarker(liveFile()))
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+    }
+
+    @Test fun rollbackIntentRecognizesConsumedSafetyDespitePresentHashInvalidOld() {
+        val interrupted = scenario(
+            RestoreTransaction.Phase.ROLLBACK_INTENT,
+            old = "recorded-old",
+            outcome = RestoreTransaction.Outcome.ROLLED_BACK,
+            rollbackSource = RestoreTransaction.RollbackSource.SAFETY,
+        )
+        val safety = File(databaseDir, interrupted.state.safetyName)
+        Os.rename(safety.path, liveFile().path)
+        File(databaseDir, interrupted.state.oldName).writeText("hash-invalid old still present")
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        assertEquals("safety", readMarker(liveFile()))
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+    }
+
+    @Test fun statelessFallbackSyncFailureRecoversOnNextCleanLaunch() {
+        val op = newOp()
+        createDatabaseFile(File(databaseDir, RestoreArtifactNames(op).old), "old-after-sync-failure")
+        val faults = failOnceAt(RestoreFaultPoint.STATELESS_FALLBACK_DIRECTORY_SYNC)
+
+        assertEquals(
+            RestoreRecovery.EMERGENCY,
+            RestoreTransaction.recoverIfNeeded(context, databaseDir, faults),
+        )
+        assertEquals("old-after-sync-failure", readMarker(liveFile()))
+        assertEquals(RestoreTransaction.Phase.STATELESS_RECOVERY_INTENT, readState().phase)
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        assertEquals("old-after-sync-failure", readMarker(liveFile()))
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+    }
+
+    @Test fun safetyPromotionSyncFailurePreservesStagingAndRetriesFromComplete() {
+        val pending = scenario(
+            RestoreTransaction.Phase.POST_VALIDATED,
+            old = "pre-restore",
+            installCandidate = true,
+        )
+        val staged = File(
+            databaseDir,
+            RestoreArtifactNames(pending.state.operationId).safetyPromotion,
+        )
+
+        assertEquals(
+            RestoreRecovery.EMERGENCY,
+            RestoreTransaction.recoverIfNeeded(
+                context,
+                databaseDir,
+                failOnceAt(RestoreFaultPoint.SAFETY_PROMOTION_STAGE_DIRECTORY_SYNC),
+            ),
+        )
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+        assertTrue(staged.isFile)
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        assertFalse(staged.exists())
+        assertEquals("candidate", readMarker(liveFile()))
+    }
+
+    @Test fun incidentDirectorySyncFailureStillReturnsEmergency() {
+        stateFile().writeText("bad state")
+        assertEquals(
+            RestoreRecovery.EMERGENCY,
+            RestoreTransaction.recoverIfNeeded(
+                context,
+                databaseDir,
+                failOnceAt(RestoreFaultPoint.INCIDENT_DIRECTORY_SYNC),
+            ),
+        )
+        assertTrue(RestoreTransaction.diagnosticOperationId().orEmpty().startsWith("recovery-"))
+    }
+
     private data class Scenario(val state: RestoreTransaction.State)
 
     private fun completeInstalledScenario(): Scenario {
@@ -285,6 +399,7 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
         old: String? = null,
         installCandidate: Boolean = false,
         outcome: RestoreTransaction.Outcome = RestoreTransaction.Outcome.INSTALLED,
+        rollbackSource: RestoreTransaction.RollbackSource? = null,
     ): Scenario {
         val op = newOp()
         val names = RestoreArtifactNames(op)
@@ -317,6 +432,7 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
             oldSize = oldDigest?.sizeBytes,
             oldVersion = oldDigest?.let { SynthXDatabase.VERSION },
             outcome = outcome,
+            rollbackSource = rollbackSource,
         )
         RestoreTransaction.writeStateForTest(databaseDir, state)
         if (installCandidate) Os.rename(candidate.path, liveFile().path)
@@ -360,4 +476,14 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
         }
 
     private fun newOp(): String = UUID.randomUUID().toString().replace("-", "")
+
+    private fun failOnceAt(point: RestoreFaultPoint): RestoreFaultInjector {
+        var fired = false
+        return RestoreFaultInjector { actual ->
+            if (!fired && actual == point) {
+                fired = true
+                error("Injected $point")
+            }
+        }
+    }
 }

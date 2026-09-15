@@ -6,6 +6,7 @@ import android.os.StatFs
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
+import android.util.Log
 import androidx.work.WorkManager
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.LibraryScanWorker
@@ -23,7 +24,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-// NOTE: This file (922 lines) intentionally exceeds the project's 500-line
+// NOTE: This file intentionally exceeds the project's 500-line
 // guideline. It has been re-evaluated for a split rather than grandfathered in:
 // the pure phase-recovery decision table already left as RestoreRecoveryPlanner
 // (RestorePrimitives.kt), and the safety-snapshot promotion as
@@ -39,13 +40,14 @@ import kotlinx.serialization.json.Json
 // require widening nine of this file's private FS/state primitives plus an
 // accessor for lastDiagnosticOperationId — an encapsulation loss, not a
 // line-count nicety. And this file's guarantee is durability ordering: every
-// rename is immediately followed by its own syncDirectory, with nothing able to
-// interleave. That ordering is invisible to the PhaseB instrumented suite, which
-// injects exceptions rather than killing the process mid-fsync — a split that
-// separated a rename from its sync would pass every test we have. Treat this as
-// a deliberate, re-examined exception, not an oversight.
+// recovery-critical rename is immediately followed by its own syncDirectory,
+// with nothing able to interleave. The PhaseB instrumented suite injects
+// call-site-specific directory-sync failures and proves that later destructive
+// phases do not run across a failed durability boundary. Treat this as a
+// deliberate, re-examined exception, not an oversight.
 /** The durable, on-disk boundary of a restore. All database artifacts are same-directory. */
 internal object RestoreTransaction {
+    private const val TAG = "RestoreTransaction"
     private const val STATE_FILE = "synthx.restore-state.json"
     private const val STATE_TEMP_FILE = "synthx.restore-state.tmp"
     private const val INCIDENT_FILE = "synthx.restore-incident.id"
@@ -63,11 +65,16 @@ internal object RestoreTransaction {
         POST_VALIDATED,
         ROLLBACK_INTENT,
         ROLLED_BACK,
+        STATELESS_RECOVERY_INTENT,
+        STATELESS_RECOVERED,
         COMPLETE,
     }
 
     @Serializable
     enum class Outcome { INSTALLED, ROLLED_BACK }
+
+    @Serializable
+    enum class RollbackSource { OLD, SAFETY }
 
     @Serializable
     data class State(
@@ -90,6 +97,7 @@ internal object RestoreTransaction {
         val oldSize: Long? = null,
         val oldVersion: Int? = null,
         val outcome: Outcome = Outcome.INSTALLED,
+        val rollbackSource: RollbackSource? = null,
     )
 
     class PostCloseFailure(message: String, cause: Throwable? = null) :
@@ -216,14 +224,14 @@ internal object RestoreTransaction {
                     state = state.copy(phase = Phase.LIVE_MOVE_INTENT, updatedAt = System.currentTimeMillis())
                     writeState(dir, state, faults)
                     rename(live, old, RestoreFaultPoint.LIVE_TO_OLD_RENAME, faults)
-                    syncDirectory(dir)
+                    syncDirectory(dir, RestoreFaultPoint.LIVE_TO_OLD_DIRECTORY_SYNC, faults)
                     state = state.copy(phase = Phase.LIVE_MOVED, updatedAt = System.currentTimeMillis())
                     writeState(dir, state, faults)
 
                     state = state.copy(phase = Phase.INSTALL_INTENT, updatedAt = System.currentTimeMillis())
                     writeState(dir, state, faults)
                     rename(candidate, live, RestoreFaultPoint.CANDIDATE_TO_LIVE_RENAME, faults)
-                    syncDirectory(dir)
+                    syncDirectory(dir, RestoreFaultPoint.CANDIDATE_TO_LIVE_DIRECTORY_SYNC, faults)
                     state = state.copy(phase = Phase.CANDIDATE_INSTALLED, updatedAt = System.currentTimeMillis())
                     writeState(dir, state, faults)
 
@@ -267,8 +275,22 @@ internal object RestoreTransaction {
                     deleteFileSet(safety)
                     File(dir, STATE_FILE).delete()
                     File(dir, STATE_TEMP_FILE).delete()
-                    syncDirectory(dir)
-                    RestoreCoordinator.markNormal()
+                    try {
+                        syncDirectory(
+                            dir,
+                            RestoreFaultPoint.PRE_CLOSE_FAILURE_CLEANUP_DIRECTORY_SYNC,
+                            faults,
+                        )
+                        RestoreCoordinator.markNormal()
+                    } catch (syncFailure: Exception) {
+                        failure.addSuppressed(syncFailure)
+                        lastDiagnosticOperationId = op
+                        RestoreCoordinator.markEmergency(op)
+                        throw PostCloseFailure(
+                            "Restore cleanup could not be made durable; close and reopen synthX",
+                            failure,
+                        )
+                    }
                 }
                 else -> Unit
             }
@@ -301,6 +323,7 @@ internal object RestoreTransaction {
             lastDiagnosticOperationId = stableIncidentId(
                 dir,
                 lastDiagnosticOperationId ?: discoveredOperation,
+                faults,
             )
             RestoreRecovery.EMERGENCY
         }
@@ -339,12 +362,21 @@ internal object RestoreTransaction {
                 oldValid = validateOld(old, state),
                 safetyValid = validateSafety(safety, state),
                 candidateExists = candidate.isFile,
+                liveMatchesOld = validateOld(live, state),
+                liveMatchesSafety = validateSafety(live, state),
             )
         }
 
-        return when (RestoreRecoveryPlanner.decide(state.phase, state.outcome, facts)) {
+        return when (
+            RestoreRecoveryPlanner.decide(
+                state.phase,
+                state.outcome,
+                facts,
+                state.rollbackSource,
+            )
+        ) {
             RestoreRecoveryAction.CLEAN_PRE_CLOSE_AND_NORMAL -> {
-                cleanupPreClose(dir, state)
+                cleanupPreClose(dir, state, faults)
                 clearIncident(dir)
                 RestoreRecovery.NORMAL
             }
@@ -369,7 +401,7 @@ internal object RestoreTransaction {
                     updatedAt = System.currentTimeMillis(),
                 )
                 writeState(dir, complete, faults)
-                cleanupAfterColdValidation(context, dir, complete)
+                cleanupAfterColdValidation(context, dir, complete, faults)
                 clearIncident(dir)
                 markArtSweepPending(context)
                 RestoreRecovery.NORMAL
@@ -380,26 +412,32 @@ internal object RestoreTransaction {
                 }
                 // Operation artifacts may already be gone. Retrying their cleanup is
                 // idempotent and deliberately leaves normal synthx.db WAL/SHM alone.
-                cleanupAfterColdValidation(context, dir, state)
+                cleanupAfterColdValidation(context, dir, state, faults)
                 clearIncident(dir)
                 markArtSweepPending(context)
                 RestoreRecovery.NORMAL
             }
             RestoreRecoveryAction.PROMOTE_OLD ->
-                completeStartupRollback(context, dir, live, state, useSafety = false, faults)
+                completeStartupRollback(context, dir, live, state, RollbackSource.OLD, faults)
             RestoreRecoveryAction.PROMOTE_SAFETY ->
-                completeStartupRollback(context, dir, live, state, useSafety = true, faults)
+                completeStartupRollback(context, dir, live, state, RollbackSource.SAFETY, faults)
             RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL -> {
                 check(validateStandalone(live, currentOnly = true)) {
                     "Recovered live database did not validate"
                 }
+                val statelessRecovery = state.phase == Phase.STATELESS_RECOVERY_INTENT ||
+                    state.phase == Phase.STATELESS_RECOVERED
                 val complete = state.copy(
                     phase = Phase.COMPLETE,
                     outcome = Outcome.ROLLED_BACK,
                     updatedAt = System.currentTimeMillis(),
                 )
                 writeState(dir, complete, faults)
-                cleanupAfterColdValidation(context, dir, complete)
+                if (statelessRecovery) {
+                    archiveOperationArtifacts(dir, state.operationId, faults)
+                } else {
+                    cleanupAfterColdValidation(context, dir, complete, faults)
+                }
                 clearIncident(dir)
                 RestoreRecovery.NORMAL
             }
@@ -435,7 +473,7 @@ internal object RestoreTransaction {
         }
         val operationIds = artifacts.mapNotNull { RestoreArtifactNames.parseOperationId(it.name) }.toSet()
         if (operationIds.size != 1) {
-            lastDiagnosticOperationId = stableIncidentId(dir, null)
+            lastDiagnosticOperationId = stableIncidentId(dir, null, faults)
             return RestoreRecovery.EMERGENCY
         }
 
@@ -445,31 +483,77 @@ internal object RestoreTransaction {
         val live = context.getDatabasePath(SynthXDatabase.DB_NAME)
         val old = File(dir, names.old)
         val safety = File(dir, names.safety)
-        val source = when {
-            validateStandalone(old, currentOnly = true) -> old
-            validateStandalone(safety, currentOnly = true) -> safety
-            else -> return RestoreRecovery.EMERGENCY
+        val oldValid = validateStandalone(old, currentOnly = true)
+        val safetyValid = validateStandalone(safety, currentOnly = true)
+        return when (
+            StatelessRecoveryPlanner.decide(
+                operationCount = operationIds.size,
+                liveValid = validateStandalone(live, currentOnly = true),
+                oldValid = oldValid,
+                safetyValid = safetyValid,
+            )
+        ) {
+            StatelessRecoveryAction.KEEP_VALID_LIVE -> {
+                if (malformedStateExists) archiveCorruptState(dir, op, faults)
+                archiveRecoveredArtifacts(artifacts, dir, faults)
+                clearIncident(dir)
+                RestoreRecovery.NORMAL
+            }
+            StatelessRecoveryAction.PROMOTE_OLD,
+            StatelessRecoveryAction.PROMOTE_SAFETY -> {
+                val rollbackSource = if (oldValid) RollbackSource.OLD else RollbackSource.SAFETY
+                val source = if (rollbackSource == RollbackSource.OLD) old else safety
+                if (malformedStateExists) archiveCorruptState(dir, op, faults)
+                val state = createStatelessRecoveryState(
+                    op = op,
+                    names = names,
+                    source = source,
+                    rollbackSource = rollbackSource,
+                )
+                writeState(dir, state, faults)
+                completeStartupRollback(context, dir, live, state, rollbackSource, faults)
+            }
+            StatelessRecoveryAction.EMERGENCY -> RestoreRecovery.EMERGENCY
         }
+    }
 
-        parkLiveIfPresent(dir, live, names.failed)
-        val point = if (source == old) {
-            RestoreFaultPoint.OLD_ROLLBACK_RENAME
-        } else {
-            RestoreFaultPoint.SAFETY_FALLBACK_PROMOTION
-        }
-        rename(source, live, point, faults)
-        syncDirectory(dir)
-        check(validateStandalone(live, currentOnly = true)) {
-            "Recovered database did not validate"
-        }
-        if (malformedStateExists) archiveCorruptState(dir, op)
-        archiveRecoveredArtifacts(
-            dir.listFiles().orEmpty().filter {
-                RestoreArtifactNames.parseOperationId(it.name) == op
-            },
+    private fun createStatelessRecoveryState(
+        op: String,
+        names: RestoreArtifactNames,
+        source: File,
+        rollbackSource: RollbackSource,
+    ): State {
+        val sourceDigest = BackupHashing.hash(source)
+        val candidate = File(source.parentFile, names.candidate)
+        val candidateDigest = candidate.takeIf {
+            validateStandalone(it, currentOnly = true)
+        }?.let(BackupHashing::hash) ?: sourceDigest
+        val safety = File(source.parentFile, names.safety)
+        val safetyDigest = safety.takeIf {
+            validateStandalone(it, currentOnly = true)
+        }?.let(BackupHashing::hash) ?: sourceDigest
+        val now = System.currentTimeMillis()
+        return State(
+            operationId = op,
+            sourceName = "startup-recovery",
+            sourceUri = "",
+            candidateName = names.candidate,
+            oldName = names.old,
+            safetyName = names.safety,
+            failedName = names.failed,
+            candidateSha256 = candidateDigest.sha256,
+            candidateSize = candidateDigest.sizeBytes,
+            candidateVersion = SynthXDatabase.VERSION,
+            safetySha256 = safetyDigest.sha256,
+            safetySize = safetyDigest.sizeBytes,
+            phase = Phase.STATELESS_RECOVERY_INTENT,
+            createdAt = now,
+            oldSha256 = sourceDigest.sha256.takeIf { rollbackSource == RollbackSource.OLD },
+            oldSize = sourceDigest.sizeBytes.takeIf { rollbackSource == RollbackSource.OLD },
+            oldVersion = SynthXDatabase.VERSION.takeIf { rollbackSource == RollbackSource.OLD },
+            outcome = Outcome.ROLLED_BACK,
+            rollbackSource = rollbackSource,
         )
-        clearIncident(dir)
-        return RestoreRecovery.NORMAL
     }
 
     private fun completeStartupRollback(
@@ -477,33 +561,62 @@ internal object RestoreTransaction {
         dir: File,
         live: File,
         original: State,
-        useSafety: Boolean,
+        rollbackSource: RollbackSource,
         faults: RestoreFaultInjector,
     ): RestoreRecovery {
-        var state = original.copy(
-            phase = Phase.ROLLBACK_INTENT,
+        val statelessRecovery = original.phase == Phase.STATELESS_RECOVERY_INTENT ||
+            original.phase == Phase.STATELESS_RECOVERED
+        val source = File(
+            dir,
+            if (rollbackSource == RollbackSource.SAFETY) original.safetyName else original.oldName,
+        )
+        val stateWithSourceIdentity = if (
+            rollbackSource == RollbackSource.OLD &&
+            (original.oldSha256 == null || original.oldSize == null || original.oldVersion == null)
+        ) {
+            val digest = BackupHashing.hash(source)
+            original.copy(
+                oldSha256 = digest.sha256,
+                oldSize = digest.sizeBytes,
+                oldVersion = SynthXDatabase.VERSION,
+            )
+        } else original
+        var state = stateWithSourceIdentity.copy(
+            phase = if (statelessRecovery) Phase.STATELESS_RECOVERY_INTENT else Phase.ROLLBACK_INTENT,
             outcome = Outcome.ROLLED_BACK,
+            rollbackSource = rollbackSource,
             updatedAt = System.currentTimeMillis(),
         )
         writeState(dir, state, faults)
-        parkLiveIfPresent(dir, live, state.failedName)
-        val source = File(dir, if (useSafety) state.safetyName else state.oldName)
+        parkLiveIfPresent(dir, live, state.failedName, faults)
         rename(
             source,
             live,
-            if (useSafety) RestoreFaultPoint.SAFETY_FALLBACK_PROMOTION
+            if (rollbackSource == RollbackSource.SAFETY) RestoreFaultPoint.SAFETY_FALLBACK_PROMOTION
             else RestoreFaultPoint.OLD_ROLLBACK_RENAME,
             faults,
         )
-        syncDirectory(dir)
+        syncDirectory(
+            dir,
+            if (statelessRecovery) RestoreFaultPoint.STATELESS_FALLBACK_DIRECTORY_SYNC
+            else RestoreFaultPoint.STARTUP_ROLLBACK_DIRECTORY_SYNC,
+            faults,
+        )
         check(validateStandalone(live, currentOnly = true)) {
             "Startup rollback database validation failed"
         }
-        state = state.copy(phase = Phase.ROLLED_BACK, updatedAt = System.currentTimeMillis())
+        state = state.copy(
+            phase = if (statelessRecovery) Phase.STATELESS_RECOVERED else Phase.ROLLED_BACK,
+            updatedAt = System.currentTimeMillis(),
+        )
         writeState(dir, state, faults)
         state = state.copy(phase = Phase.COMPLETE, updatedAt = System.currentTimeMillis())
         writeState(dir, state, faults)
-        cleanupAfterColdValidation(context, dir, state)
+        if (statelessRecovery) {
+            archiveOperationArtifacts(dir, state.operationId, faults)
+        } else {
+            cleanupAfterColdValidation(context, dir, state, faults)
+        }
         clearIncident(dir)
         return RestoreRecovery.NORMAL
     }
@@ -515,35 +628,41 @@ internal object RestoreTransaction {
         cause: Exception,
         faults: RestoreFaultInjector,
     ) {
-        var state = original.copy(
-            phase = Phase.ROLLBACK_INTENT,
-            outcome = Outcome.ROLLED_BACK,
-            updatedAt = System.currentTimeMillis(),
-        )
-        writeState(dir, state, faults)
-        val old = File(dir, state.oldName)
-        val safety = File(dir, state.safetyName)
+        val old = File(dir, original.oldName)
+        val safety = File(dir, original.safetyName)
         // SQLite's corruption handler may rename an invalid database to *.db.corrupt
         // while validateOld is running. Preserve the pre-validation fact so that rename
         // cannot be mistaken for "live->old never happened".
         val oldWasPresent = old.isFile
-        val oldIsValid = validateOld(old, state)
-        when {
-            oldIsValid -> {
-                parkLiveIfPresent(dir, live, state.failedName)
-                rename(old, live, RestoreFaultPoint.OLD_ROLLBACK_RENAME, faults)
-            }
-            !oldWasPresent && validateStandalone(live, currentOnly = true) -> Unit
-            validateSafety(safety, state) -> {
-                parkLiveIfPresent(dir, live, state.failedName)
-                rename(safety, live, RestoreFaultPoint.SAFETY_FALLBACK_PROMOTION, faults)
-            }
+        val oldIsValid = validateOld(old, original)
+        val liveIsOld = !oldWasPresent && validateOld(live, original)
+        val safetyIsValid = validateSafety(safety, original)
+        val rollbackSource = when {
+            oldIsValid || liveIsOld -> RollbackSource.OLD
+            safetyIsValid -> RollbackSource.SAFETY
             else -> throw IllegalStateException(
                 "Automatic rollback could not validate old or safety database",
                 cause,
             )
         }
-        syncDirectory(dir)
+        var state = original.copy(
+            phase = Phase.ROLLBACK_INTENT,
+            outcome = Outcome.ROLLED_BACK,
+            rollbackSource = rollbackSource,
+            updatedAt = System.currentTimeMillis(),
+        )
+        writeState(dir, state, faults)
+        when (rollbackSource) {
+            RollbackSource.OLD -> if (oldIsValid) {
+                parkLiveIfPresent(dir, live, state.failedName, faults)
+                rename(old, live, RestoreFaultPoint.OLD_ROLLBACK_RENAME, faults)
+            }
+            RollbackSource.SAFETY -> {
+                parkLiveIfPresent(dir, live, state.failedName, faults)
+                rename(safety, live, RestoreFaultPoint.SAFETY_FALLBACK_PROMOTION, faults)
+            }
+        }
+        syncDirectory(dir, RestoreFaultPoint.CURRENT_ROLLBACK_DIRECTORY_SYNC, faults)
         check(validateStandalone(live, currentOnly = true)) {
             "Rollback database validation failed"
         }
@@ -746,7 +865,12 @@ internal object RestoreTransaction {
         }
     }
 
-    private fun parkLiveIfPresent(dir: File, live: File, preferredName: String) {
+    private fun parkLiveIfPresent(
+        dir: File,
+        live: File,
+        preferredName: String,
+        faults: RestoreFaultInjector,
+    ) {
         if (!live.exists()) return
         var failed = File(dir, preferredName)
         var index = 1
@@ -756,7 +880,7 @@ internal object RestoreTransaction {
         }
         rawRename(live, failed)
         detachSidecars(live, failed)
-        syncDirectory(dir)
+        syncDirectory(dir, RestoreFaultPoint.PARK_LIVE_DIRECTORY_SYNC, faults)
     }
 
     private fun quarantineSidecars(live: File, old: File) = detachSidecars(live, old)
@@ -786,7 +910,7 @@ internal object RestoreTransaction {
         } catch (error: ErrnoException) {
             throw IllegalStateException("Could not atomically promote restore state", error)
         }
-        syncDirectory(dir)
+        syncDirectory(dir, RestoreFaultPoint.STATE_JOURNAL_DIRECTORY_SYNC, faults)
     }
 
     internal fun encodeState(state: State): String {
@@ -815,15 +939,20 @@ internal object RestoreTransaction {
         require(state.oldVersion == null || state.oldVersion == SynthXDatabase.VERSION)
     }
 
-    private fun cleanupPreClose(dir: File, state: State) {
+    private fun cleanupPreClose(dir: File, state: State, faults: RestoreFaultInjector) {
         deleteFileSet(File(dir, state.candidateName))
         deleteFileSet(File(dir, state.safetyName))
         File(dir, STATE_FILE).delete()
         File(dir, STATE_TEMP_FILE).delete()
-        syncDirectory(dir)
+        syncDirectory(dir, RestoreFaultPoint.PRE_CLOSE_CLEANUP_DIRECTORY_SYNC, faults)
     }
 
-    private fun cleanupAfterColdValidation(context: Context, dir: File, state: State) {
+    private fun cleanupAfterColdValidation(
+        context: Context,
+        dir: File,
+        state: State,
+        faults: RestoreFaultInjector,
+    ) {
         // P4.4: only a successful install's safety snapshot is worth keeping around as a
         // bonus Auto-tier backup — a rolled-back attempt's safety copy either already became
         // live via completeStartupRollback/rollbackCurrentProcess, or is just ordinary
@@ -832,7 +961,7 @@ internal object RestoreTransaction {
         // the safety file has been untouched (available for rollback) through every phase up
         // to this point.
         if (state.outcome == Outcome.INSTALLED) {
-            SafetySnapshotPromoter.promoteSafetyToAutoTier(context, dir, state)
+            SafetySnapshotPromoter.promoteSafetyToAutoTier(context, dir, state, faults)
         }
         // candidate was checkpoint-proven, old sidecars were detached only after full
         // checkpoint proof, and safety is a standalone VACUUM snapshot. Failed/unknown
@@ -840,10 +969,29 @@ internal object RestoreTransaction {
         listOf(state.candidateName, state.oldName, state.safetyName).forEach {
             deleteFileSet(File(dir, it))
         }
-        syncDirectory(dir)
+        syncDirectory(dir, RestoreFaultPoint.POST_COMPLETE_CLEANUP_DIRECTORY_SYNC, faults)
     }
 
-    private fun archiveRecoveredArtifacts(artifacts: List<File>) {
+    private fun archiveOperationArtifacts(
+        dir: File,
+        operationId: String,
+        faults: RestoreFaultInjector,
+    ) {
+        archiveRecoveredArtifacts(
+            dir.listFiles().orEmpty().filter {
+                RestoreArtifactNames.parseOperationId(it.name) == operationId
+            },
+            dir,
+            faults,
+        )
+    }
+
+    private fun archiveRecoveredArtifacts(
+        artifacts: List<File>,
+        dir: File,
+        faults: RestoreFaultInjector,
+    ) {
+        var renamed = false
         artifacts.filter(File::exists).forEach { artifact ->
             var archive = File(artifact.path + ".recovered")
             var index = 1
@@ -852,6 +1000,14 @@ internal object RestoreTransaction {
                 index++
             }
             rawRename(artifact, archive)
+            renamed = true
+        }
+        if (renamed) {
+            syncDirectory(
+                dir,
+                RestoreFaultPoint.RECOVERED_ARTIFACT_ARCHIVE_DIRECTORY_SYNC,
+                faults,
+            )
         }
     }
 
@@ -867,7 +1023,11 @@ internal object RestoreTransaction {
         ).forEach { it.delete() }
     }
 
-    private fun archiveCorruptState(dir: File, operationId: String) {
+    private fun archiveCorruptState(
+        dir: File,
+        operationId: String,
+        faults: RestoreFaultInjector,
+    ) {
         val state = File(dir, STATE_FILE)
         if (!state.exists()) return
         var archive = File(dir, "synthx.restore-state.corrupt-$operationId.json")
@@ -878,10 +1038,14 @@ internal object RestoreTransaction {
         }
         rawRename(state, archive)
         File(dir, STATE_TEMP_FILE).delete()
-        syncDirectory(dir)
+        syncDirectory(dir, RestoreFaultPoint.CORRUPT_STATE_ARCHIVE_DIRECTORY_SYNC, faults)
     }
 
-    private fun stableIncidentId(dir: File, preferred: String?): String {
+    private fun stableIncidentId(
+        dir: File,
+        preferred: String?,
+        faults: RestoreFaultInjector,
+    ): String {
         if (!preferred.isNullOrBlank()) return preferred
         val file = File(dir, INCIDENT_FILE)
         val existing = runCatching { file.readText().trim() }.getOrNull()
@@ -902,7 +1066,13 @@ internal object RestoreTransaction {
             rawRename(file, archive)
         }
         rawRename(temp, file)
-        syncDirectory(dir)
+        try {
+            syncDirectory(dir, RestoreFaultPoint.INCIDENT_DIRECTORY_SYNC, faults)
+        } catch (error: Exception) {
+            // Recovery is already constructing an EMERGENCY result. Do not let failure to
+            // durably publish its diagnostic ID prevent that result from reaching startup.
+            Log.e(TAG, "Could not sync restore incident ID directory entry", error)
+        }
         return generated
     }
 
@@ -914,14 +1084,25 @@ internal object RestoreTransaction {
 
     fun diagnosticOperationId(): String? = lastDiagnosticOperationId
 
-    private fun syncDirectory(dir: File) {
-        runCatching {
-            Os.open(dir.path, OsConstants.O_RDONLY, 0).also { descriptor ->
-                try {
-                    Os.fsync(descriptor)
-                } finally {
-                    Os.close(descriptor)
-                }
+    private fun syncDirectory(
+        dir: File,
+        faultPoint: RestoreFaultPoint,
+        faults: RestoreFaultInjector,
+    ) {
+        faults.hit(faultPoint)
+        val descriptor = Os.open(dir.path, OsConstants.O_RDONLY, 0)
+        var primaryFailure: Throwable? = null
+        try {
+            Os.fsync(descriptor)
+        } catch (error: Throwable) {
+            primaryFailure = error
+            throw error
+        } finally {
+            try {
+                Os.close(descriptor)
+            } catch (closeError: Throwable) {
+                val fsyncFailure = primaryFailure
+                if (fsyncFailure != null) fsyncFailure.addSuppressed(closeError) else throw closeError
             }
         }
     }

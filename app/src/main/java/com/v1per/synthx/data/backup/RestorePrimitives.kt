@@ -99,6 +99,21 @@ internal enum class RestoreFaultPoint {
     INSTALLED_VALIDATION,
     OLD_ROLLBACK_RENAME,
     SAFETY_FALLBACK_PROMOTION,
+    LIVE_TO_OLD_DIRECTORY_SYNC,
+    CANDIDATE_TO_LIVE_DIRECTORY_SYNC,
+    PRE_CLOSE_FAILURE_CLEANUP_DIRECTORY_SYNC,
+    STATELESS_FALLBACK_DIRECTORY_SYNC,
+    STARTUP_ROLLBACK_DIRECTORY_SYNC,
+    CURRENT_ROLLBACK_DIRECTORY_SYNC,
+    PARK_LIVE_DIRECTORY_SYNC,
+    STATE_JOURNAL_DIRECTORY_SYNC,
+    PRE_CLOSE_CLEANUP_DIRECTORY_SYNC,
+    POST_COMPLETE_CLEANUP_DIRECTORY_SYNC,
+    CORRUPT_STATE_ARCHIVE_DIRECTORY_SYNC,
+    INCIDENT_DIRECTORY_SYNC,
+    RECOVERED_ARTIFACT_ARCHIVE_DIRECTORY_SYNC,
+    SAFETY_PROMOTION_STAGE_DIRECTORY_SYNC,
+    SAFETY_PROMOTION_CLEANUP_DIRECTORY_SYNC,
 }
 
 internal fun interface RestoreFaultInjector {
@@ -133,6 +148,8 @@ internal data class RestoreArtifactFacts(
     val oldValid: Boolean,
     val safetyValid: Boolean,
     val candidateExists: Boolean,
+    val liveMatchesOld: Boolean = false,
+    val liveMatchesSafety: Boolean = false,
 )
 
 internal enum class RestoreRecoveryAction {
@@ -152,6 +169,7 @@ internal object RestoreRecoveryPlanner {
         phase: RestoreTransaction.Phase,
         outcome: RestoreTransaction.Outcome,
         facts: RestoreArtifactFacts,
+        rollbackSource: RestoreTransaction.RollbackSource? = null,
     ): RestoreRecoveryAction = when (phase) {
         RestoreTransaction.Phase.PREPARED,
         RestoreTransaction.Phase.LIVE_MOVE_INTENT -> {
@@ -175,14 +193,11 @@ internal object RestoreRecoveryPlanner {
             } else fallback(facts)
         }
 
-        RestoreTransaction.Phase.ROLLBACK_INTENT -> when {
-            facts.oldValid -> RestoreRecoveryAction.PROMOTE_OLD
-            facts.liveValid && !facts.oldExists -> RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL
-            facts.safetyValid -> RestoreRecoveryAction.PROMOTE_SAFETY
-            else -> RestoreRecoveryAction.EMERGENCY
-        }
+        RestoreTransaction.Phase.ROLLBACK_INTENT,
+        RestoreTransaction.Phase.STATELESS_RECOVERY_INTENT -> rollback(rollbackSource, facts)
 
-        RestoreTransaction.Phase.ROLLED_BACK -> {
+        RestoreTransaction.Phase.ROLLED_BACK,
+        RestoreTransaction.Phase.STATELESS_RECOVERED -> {
             if (facts.liveValid) RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL
             else fallback(facts)
         }
@@ -202,5 +217,47 @@ internal object RestoreRecoveryPlanner {
         facts.oldValid -> RestoreRecoveryAction.PROMOTE_OLD
         facts.safetyValid -> RestoreRecoveryAction.PROMOTE_SAFETY
         else -> RestoreRecoveryAction.EMERGENCY
+    }
+
+    private fun rollback(
+        source: RestoreTransaction.RollbackSource?,
+        facts: RestoreArtifactFacts,
+    ): RestoreRecoveryAction = when (source) {
+        RestoreTransaction.RollbackSource.OLD -> when {
+            facts.oldValid -> RestoreRecoveryAction.PROMOTE_OLD
+            facts.liveMatchesOld -> RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL
+            else -> RestoreRecoveryAction.EMERGENCY
+        }
+        RestoreTransaction.RollbackSource.SAFETY -> when {
+            facts.safetyValid -> RestoreRecoveryAction.PROMOTE_SAFETY
+            facts.liveMatchesSafety -> RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL
+            else -> RestoreRecoveryAction.EMERGENCY
+        }
+        null -> fallback(facts)
+    }
+}
+
+internal enum class StatelessRecoveryAction {
+    KEEP_VALID_LIVE,
+    PROMOTE_OLD,
+    PROMOTE_SAFETY,
+    EMERGENCY,
+}
+
+/** Decision table for recovery when no trustworthy state journal exists. */
+internal object StatelessRecoveryPlanner {
+    fun decide(
+        operationCount: Int,
+        liveValid: Boolean,
+        oldValid: Boolean,
+        safetyValid: Boolean,
+    ): StatelessRecoveryAction {
+        if (operationCount != 1) return StatelessRecoveryAction.EMERGENCY
+        return when {
+            liveValid -> StatelessRecoveryAction.KEEP_VALID_LIVE
+            oldValid -> StatelessRecoveryAction.PROMOTE_OLD
+            safetyValid -> StatelessRecoveryAction.PROMOTE_SAFETY
+            else -> StatelessRecoveryAction.EMERGENCY
+        }
     }
 }

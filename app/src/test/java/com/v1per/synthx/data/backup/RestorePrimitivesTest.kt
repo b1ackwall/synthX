@@ -185,6 +185,7 @@ class RestorePrimitivesTest {
                 RestoreTransaction.Phase.ROLLBACK_INTENT,
                 facts(oldExists = true, oldValid = true, safetyValid = true),
                 RestoreTransaction.Outcome.ROLLED_BACK,
+                RestoreTransaction.RollbackSource.OLD,
             ),
         )
         assertEquals(
@@ -193,15 +194,59 @@ class RestorePrimitivesTest {
                 RestoreTransaction.Phase.ROLLBACK_INTENT,
                 facts(safetyValid = true),
                 RestoreTransaction.Outcome.ROLLED_BACK,
+                RestoreTransaction.RollbackSource.SAFETY,
             ),
         )
         assertEquals(
             RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL,
             decide(
                 RestoreTransaction.Phase.ROLLBACK_INTENT,
-                facts(liveExists = true, liveValid = true),
+                facts(liveExists = true, liveValid = true, liveMatchesOld = true),
                 RestoreTransaction.Outcome.ROLLED_BACK,
+                RestoreTransaction.RollbackSource.OLD,
             ),
+        )
+    }
+
+    @Test fun selectedSafetyAlreadyInLiveIgnoresPresentInvalidOld() {
+        assertEquals(
+            RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL,
+            decide(
+                RestoreTransaction.Phase.ROLLBACK_INTENT,
+                facts(
+                    liveExists = true,
+                    liveValid = true,
+                    oldExists = true,
+                    oldValid = false,
+                    safetyValid = false,
+                    liveMatchesSafety = true,
+                ),
+                RestoreTransaction.Outcome.ROLLED_BACK,
+                RestoreTransaction.RollbackSource.SAFETY,
+            ),
+        )
+    }
+
+    @Test fun statelessRecoveryRecognizesSelectedSourceAlreadyInLive() {
+        assertEquals(
+            RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL,
+            decide(
+                RestoreTransaction.Phase.STATELESS_RECOVERY_INTENT,
+                facts(liveExists = true, liveValid = true, liveMatchesOld = true),
+                RestoreTransaction.Outcome.ROLLED_BACK,
+                RestoreTransaction.RollbackSource.OLD,
+            ),
+        )
+    }
+
+    @Test fun statelessPlannerKeepsValidLiveOnlyForUnambiguousOwnedDebris() {
+        assertEquals(
+            StatelessRecoveryAction.KEEP_VALID_LIVE,
+            StatelessRecoveryPlanner.decide(1, liveValid = true, oldValid = false, safetyValid = false),
+        )
+        assertEquals(
+            StatelessRecoveryAction.EMERGENCY,
+            StatelessRecoveryPlanner.decide(2, liveValid = true, oldValid = true, safetyValid = true),
         )
     }
 
@@ -300,6 +345,21 @@ class RestorePrimitivesTest {
             RestoreFaultPoint.INSTALLED_VALIDATION,
             RestoreFaultPoint.OLD_ROLLBACK_RENAME,
             RestoreFaultPoint.SAFETY_FALLBACK_PROMOTION,
+            RestoreFaultPoint.LIVE_TO_OLD_DIRECTORY_SYNC,
+            RestoreFaultPoint.CANDIDATE_TO_LIVE_DIRECTORY_SYNC,
+            RestoreFaultPoint.PRE_CLOSE_FAILURE_CLEANUP_DIRECTORY_SYNC,
+            RestoreFaultPoint.STATELESS_FALLBACK_DIRECTORY_SYNC,
+            RestoreFaultPoint.STARTUP_ROLLBACK_DIRECTORY_SYNC,
+            RestoreFaultPoint.CURRENT_ROLLBACK_DIRECTORY_SYNC,
+            RestoreFaultPoint.PARK_LIVE_DIRECTORY_SYNC,
+            RestoreFaultPoint.STATE_JOURNAL_DIRECTORY_SYNC,
+            RestoreFaultPoint.PRE_CLOSE_CLEANUP_DIRECTORY_SYNC,
+            RestoreFaultPoint.POST_COMPLETE_CLEANUP_DIRECTORY_SYNC,
+            RestoreFaultPoint.CORRUPT_STATE_ARCHIVE_DIRECTORY_SYNC,
+            RestoreFaultPoint.INCIDENT_DIRECTORY_SYNC,
+            RestoreFaultPoint.RECOVERED_ARTIFACT_ARCHIVE_DIRECTORY_SYNC,
+            RestoreFaultPoint.SAFETY_PROMOTION_STAGE_DIRECTORY_SYNC,
+            RestoreFaultPoint.SAFETY_PROMOTION_CLEANUP_DIRECTORY_SYNC,
         )
         assertEquals(expected, RestoreFaultPoint.entries.toSet())
         var injected: RestoreFaultPoint? = null
@@ -311,7 +371,8 @@ class RestorePrimitivesTest {
         phase: RestoreTransaction.Phase,
         facts: RestoreArtifactFacts,
         outcome: RestoreTransaction.Outcome = RestoreTransaction.Outcome.INSTALLED,
-    ) = RestoreRecoveryPlanner.decide(phase, outcome, facts)
+        rollbackSource: RestoreTransaction.RollbackSource? = null,
+    ) = RestoreRecoveryPlanner.decide(phase, outcome, facts, rollbackSource)
 
     private fun facts(
         liveExists: Boolean = false,
@@ -321,6 +382,8 @@ class RestorePrimitivesTest {
         oldValid: Boolean = false,
         safetyValid: Boolean = false,
         candidateExists: Boolean = false,
+        liveMatchesOld: Boolean = false,
+        liveMatchesSafety: Boolean = false,
     ) = RestoreArtifactFacts(
         liveExists,
         liveValid,
@@ -329,6 +392,8 @@ class RestorePrimitivesTest {
         oldValid,
         safetyValid,
         candidateExists,
+        liveMatchesOld,
+        liveMatchesSafety,
     )
 
     private fun state(phase: RestoreTransaction.Phase): RestoreTransaction.State {
@@ -351,6 +416,12 @@ class RestorePrimitivesTest {
             oldSha256 = "c".repeat(64),
             oldSize = 4096,
             oldVersion = SynthXDatabase.VERSION,
+            rollbackSource = if (
+                phase == RestoreTransaction.Phase.ROLLBACK_INTENT ||
+                phase == RestoreTransaction.Phase.ROLLED_BACK ||
+                phase == RestoreTransaction.Phase.STATELESS_RECOVERY_INTENT ||
+                phase == RestoreTransaction.Phase.STATELESS_RECOVERED
+            ) RestoreTransaction.RollbackSource.OLD else null,
         )
     }
 
