@@ -13,6 +13,7 @@ import com.v1per.synthx.data.backup.DatabaseStartupGate
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.RestoreStartup
 import com.v1per.synthx.data.backup.TestWorkManager
+import com.v1per.synthx.RestoreTerminalContent
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.navigation.Screen
@@ -214,6 +215,16 @@ class RestoreShellInstrumentedTest {
         }
         true
     }.getOrDefault(false)
+
+    @Test
+    fun emergencyTerminalOffersDiagnosticsBackupRecoveryAndClose() {
+        composeRule.setContent {
+            SynthXTheme { RestoreTerminalContent(RestoreCoordinator.Terminal.EMERGENCY) }
+        }
+        composeRule.onNodeWithText("Export diagnostics").assertExists()
+        composeRule.onNodeWithText("Choose backup").assertExists()
+        composeRule.onNodeWithText("Close").assertExists()
+    }
 
     private companion object {
         const val TIMEOUT_MS = 10_000L

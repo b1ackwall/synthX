@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.db.SynthXDatabase
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
+import java.io.InputStream
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -71,11 +72,60 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
             context,
             backupInfo(source),
             metadata(source).copy(dbVersion = SynthXDatabase.VERSION + 1),
+            UUID.randomUUID().toString(),
             sourceOpener = RestoreSourceOpener { _, _ -> opens.incrementAndGet(); null },
         )
         assertTrue(result.isFailure)
         assertEquals(0, opens.get())
         assertEquals("state-a", readMarker(liveFile()))
+    }
+
+    @Test fun storagePreflightRunsBeforeSafSourceIsOpened() = runBlocking {
+        createLive("state-a")
+        val source = newTrustedSource("state-b")
+        val opens = AtomicInteger()
+        val result = RestoreTransaction.execute(
+            context,
+            backupInfo(source),
+            metadata(source),
+            UUID.randomUUID().toString(),
+            faults = RestoreFaultInjector { point ->
+                if (point == RestoreFaultPoint.FREE_SPACE_PREFLIGHT) error("no space")
+            },
+            sourceOpener = RestoreSourceOpener { _, _ -> opens.incrementAndGet(); source.inputStream() },
+        )
+        assertTrue(result.isFailure)
+        assertEquals(0, opens.get())
+        assertEquals("state-a", readMarker(liveFile()))
+    }
+
+    @Test fun growingSourceIsAbortedBeforeItCanBeFullyCopied() {
+        val destination = ownedFile("phaseb-growing-source.db")
+        var bytesRead = 0
+        val source = object : InputStream() {
+            private val bytes = ByteArray(1_000) { 1 }
+            private var position = 0
+            override fun read(): Int = if (position == bytes.size) -1 else bytes[position++].toInt().also { bytesRead++ }
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (position == bytes.size) return -1
+                val count = minOf(4, length, bytes.size - position)
+                bytes.copyInto(buffer, offset, position, position + count)
+                position += count
+                bytesRead += count
+                return count
+            }
+        }
+        expectFailure {
+            RestoreTransaction.copySafOnce(
+                context,
+                "content://growing",
+                destination,
+                sourceOpener = RestoreSourceOpener { _, _ -> source },
+                expectedSizeBytes = 10,
+            )
+        }
+        assertTrue(bytesRead < 1_000)
+        assertTrue(destination.length() <= 10)
     }
 
     @Test fun legacyBackupRejected() {

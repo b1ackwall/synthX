@@ -36,9 +36,18 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
         createNotificationChannel()
         setForeground(buildForegroundInfo(R.string.restore_notification_checking))
         setForeground(buildForegroundInfo(R.string.restore_notification_restoring))
-        return BackupManager.create(applicationContext).restore(backup).fold(
+        return BackupManager.create(applicationContext).restore(backup, id.toString()).fold(
             onSuccess = { Result.success() },
-            onFailure = { error -> Result.failure(workDataOf(KEY_ERROR to error.message.orEmpty())) },
+            onFailure = { error ->
+                Result.failure(
+                    workDataOf(
+                        KEY_ERROR to RestoreFailureFormatter.describe(
+                            error,
+                            RestoreCoordinator.diagnosticOperationId.value,
+                        )
+                    )
+                )
+            },
         )
     }
 

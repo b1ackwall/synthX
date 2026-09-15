@@ -3,4 +3,7 @@
     <files-path
         name="album_art"
         path="art/" />
+    <files-path
+        name="restore_incidents"
+        path="restore_incidents/" />
 </paths>

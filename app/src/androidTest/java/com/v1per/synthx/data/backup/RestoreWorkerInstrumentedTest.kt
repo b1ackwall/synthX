@@ -99,6 +99,11 @@ class RestoreWorkerInstrumentedTest {
         WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
         assertEquals(WorkInfo.State.SUCCEEDED, awaitFinished(request.id).state)
         assertEquals(RestoreCoordinator.Terminal.RESTART_REQUIRED, RestoreCoordinator.current())
+        val state = RestoreTransaction.decodeStateOrNull(
+            File(databaseDir, "synthx.restore-state.json").readText()
+        )
+        assertEquals(request.id.toString().replace("-", ""), state?.operationId)
+        assertEquals(request.id.toString().replace("-", ""), state?.requestId)
     }
 
     @Test fun workerRerunDoesNotBlindlyRepairPostCloseState() = runBlocking {
@@ -117,6 +122,22 @@ class RestoreWorkerInstrumentedTest {
         WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(rerun.id)
         assertEquals(WorkInfo.State.FAILED, awaitFinished(rerun.id).state)
         assertEquals(RestoreCoordinator.Terminal.RESTART_REQUIRED, RestoreCoordinator.current())
+    }
+
+    @Test fun workerFailureOutputPreservesNestedCauseDetail() = runBlocking {
+        createDatabaseFile(context.getDatabasePath(SynthXDatabase.DB_NAME), "state-a")
+        val source = File(databaseDir, validBackupName()).apply { writeText("not a sqlite database") }
+        val metadataFile = File(databaseDir, source.name.removeSuffix(".db") + ".json")
+        metadataFile.writeBytes(BackupMetadataCodec.encode(metadata(source)))
+        val request = RestoreWorker.request(backupInfo(source, metadataFile))
+        workManager.enqueue(request).result.get()
+        WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
+
+        val finished = awaitFinished(request.id)
+        assertEquals(WorkInfo.State.FAILED, finished.state)
+        val detail = finished.outputData.getString(RestoreWorker.KEY_ERROR).orEmpty()
+        assertTrue(detail.contains("restore failed:"))
+        assertTrue(detail.contains("caused by") || detail.lines().size > 1)
     }
 
     private suspend fun awaitFinished(id: UUID): WorkInfo =

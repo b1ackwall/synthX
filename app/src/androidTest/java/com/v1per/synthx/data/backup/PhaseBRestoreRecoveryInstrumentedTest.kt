@@ -377,6 +377,115 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
         assertTrue(RestoreTransaction.diagnosticOperationId().orEmpty().startsWith("recovery-"))
     }
 
+    @Test fun recoveryExceptionIsCapturedInIncidentReport() {
+        scenario(RestoreTransaction.Phase.POST_VALIDATED, old = "original", installCandidate = true)
+        assertEquals(
+            RestoreRecovery.EMERGENCY,
+            RestoreTransaction.recoverIfNeeded(
+                context,
+                databaseDir,
+                failOnceAt(RestoreFaultPoint.STATE_PERSISTENCE),
+            ),
+        )
+        val id = requireNotNull(RestoreTransaction.diagnosticOperationId())
+        val report = RestoreIncidentReports.decode(RestoreIncidentReports.reportFile(context, id))
+        assertEquals("RECOVERY_EXCEPTION", report.triggerCategory)
+        assertTrue(report.exceptions.any { it.message.orEmpty().contains("STATE_PERSISTENCE") })
+        assertEquals(RestoreTransaction.Phase.POST_VALIDATED.name, report.journalPhase)
+    }
+
+    @Test fun everyIncidentPersistenceFailureStillReturnsEmergency() {
+        val points = listOf(
+            RestoreFaultPoint.INCIDENT_ID_OPEN,
+            RestoreFaultPoint.INCIDENT_ID_WRITE,
+            RestoreFaultPoint.INCIDENT_ID_FILE_SYNC,
+            RestoreFaultPoint.INCIDENT_ID_ARCHIVE_RENAME,
+            RestoreFaultPoint.INCIDENT_ID_PROMOTE_RENAME,
+            RestoreFaultPoint.INCIDENT_REPORT_OPEN,
+            RestoreFaultPoint.INCIDENT_REPORT_WRITE,
+            RestoreFaultPoint.INCIDENT_REPORT_FILE_SYNC,
+            RestoreFaultPoint.INCIDENT_REPORT_PROMOTE_RENAME,
+            RestoreFaultPoint.INCIDENT_REPORT_DIRECTORY_SYNC,
+        )
+        points.forEach { point ->
+            cleanOwnedFiles()
+            File(context.filesDir, "restore_incidents").listFiles().orEmpty().forEach(File::delete)
+            stateFile().writeText("bad state")
+            if (point == RestoreFaultPoint.INCIDENT_ID_ARCHIVE_RENAME) {
+                File(databaseDir, "synthx.restore-incident.id").writeText("invalid")
+            }
+            assertEquals(
+                "fault $point escaped the emergency boundary",
+                RestoreRecovery.EMERGENCY,
+                RestoreTransaction.recoverIfNeeded(
+                    context,
+                    databaseDir,
+                    RestoreFaultInjector { actual -> if (actual == point) error("injected $point") },
+                ),
+            )
+            assertTrue(RestoreTransaction.diagnosticOperationId().orEmpty().startsWith("recovery-"))
+        }
+    }
+
+    @Test fun completedInstalledRequestIdentityMakesReplayANoOp() = runBlocking {
+        val requestId = newOp()
+        scenario(
+            RestoreTransaction.Phase.POST_VALIDATED,
+            old = "original",
+            installCandidate = true,
+            requestId = requestId,
+        )
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        updateMarker(liveFile(), "user-change-after-first-restore")
+        val replaySource = newTrustedSource("replay-source")
+
+        assertTrue(
+            RestoreTransaction.execute(
+                context, backupInfo(replaySource), metadata(replaySource), requestId,
+            ).isSuccess
+        )
+        assertEquals("user-change-after-first-restore", readMarker(liveFile()))
+    }
+
+    @Test fun completedRolledBackRequestIdentityMakesReplayANoOp() = runBlocking {
+        val requestId = newOp()
+        scenario(
+            RestoreTransaction.Phase.ROLLED_BACK,
+            live = "rolled-back-live",
+            old = "old-copy",
+            outcome = RestoreTransaction.Outcome.ROLLED_BACK,
+            requestId = requestId,
+        )
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        val replaySource = newTrustedSource("must-not-install")
+
+        assertTrue(
+            RestoreTransaction.execute(
+                context, backupInfo(replaySource), metadata(replaySource), requestId,
+            ).isSuccess
+        )
+        assertEquals("rolled-back-live", readMarker(liveFile()))
+    }
+
+    @Test fun unseenRequestIdentityStillExecutes() = runBlocking {
+        val completedRequest = newOp()
+        scenario(
+            RestoreTransaction.Phase.POST_VALIDATED,
+            old = "original",
+            installCandidate = true,
+            requestId = completedRequest,
+        )
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        val newSource = newTrustedSource("new-request-installed")
+
+        assertTrue(
+            RestoreTransaction.execute(
+                context, backupInfo(newSource), metadata(newSource), newOp(),
+            ).isSuccess
+        )
+        assertEquals("new-request-installed", readMarker(liveFile()))
+    }
+
     private data class Scenario(val state: RestoreTransaction.State)
 
     private fun completeInstalledScenario(): Scenario {
@@ -399,6 +508,7 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
         installCandidate: Boolean = false,
         outcome: RestoreTransaction.Outcome = RestoreTransaction.Outcome.INSTALLED,
         rollbackSource: RestoreTransaction.RollbackSource? = null,
+        requestId: String? = null,
     ): Scenario {
         val op = newOp()
         val names = RestoreArtifactNames(op)
@@ -432,6 +542,7 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
             oldVersion = oldDigest?.let { SynthXDatabase.VERSION },
             outcome = outcome,
             rollbackSource = rollbackSource,
+            requestId = requestId,
         )
         RestoreTransaction.writeStateForTest(databaseDir, state)
         if (installCandidate) Os.rename(candidate.path, liveFile().path)

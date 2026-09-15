@@ -12,7 +12,6 @@ import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
 import java.io.FileOutputStream
 import java.time.Instant
-import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -132,8 +131,8 @@ class BackupManager(private val context: Context) {
 
         val tierDirectory = resolveTierDir(treeUri, tier)
             ?: error("Backup folder is unreachable — re-select it in Backups and Restore")
-        val stagingDirectory = File(context.noBackupFilesDir, STAGING_DIRECTORY)
-        val snapshot = File(stagingDirectory, "snapshot-${UUID.randomUUID()}.partial.db")
+        val stage = BackupStagingCoordinator.acquire(context, "snapshot")
+        val snapshot = stage.file
 
         return try {
             val migrationSnapshot = reason == BackupReason.MIGRATION
@@ -180,7 +179,7 @@ class BackupManager(private val context: Context) {
                 .onFailure { Log.w(TAG, "Backup retention skipped", it) }
             identity.databaseFileName
         } finally {
-            deleteLocalStage(snapshot)
+            stage.close()
         }
     }
 
@@ -250,14 +249,13 @@ class BackupManager(private val context: Context) {
     suspend fun verifyMostRecentBackup(): Result<Unit> = withContext(Dispatchers.IO) {
         val result = runCatching {
             val backup = listBackups().firstOrNull() ?: return@runCatching
-            val stagingDirectory = File(context.noBackupFilesDir, STAGING_DIRECTORY)
-            if (!stagingDirectory.exists()) stagingDirectory.mkdirs()
-            val copy = File(stagingDirectory, "verify-${UUID.randomUUID()}.db")
+            val stage = BackupStagingCoordinator.acquire(context, "verify")
+            val copy = stage.file
             try {
                 RestoreTransaction.copySafOnce(context, backup.databaseUri.toString(), copy)
                 BackupSnapshotValidator.validate(copy, migrationSnapshot = false)
             } finally {
-                copy.delete()
+                stage.close()
             }
             Unit
         }
@@ -276,9 +274,8 @@ class BackupManager(private val context: Context) {
      */
     suspend fun previewBackup(backup: BackupInfo): Result<BackupPreviewCounts> = withContext(Dispatchers.IO) {
         runCatching {
-            val stagingDirectory = File(context.noBackupFilesDir, STAGING_DIRECTORY)
-            if (!stagingDirectory.exists()) stagingDirectory.mkdirs()
-            val copy = File(stagingDirectory, "preview-${UUID.randomUUID()}.db")
+            val stage = BackupStagingCoordinator.acquire(context, "preview")
+            val copy = stage.file
             try {
                 RestoreTransaction.copySafOnce(context, backup.databaseUri.toString(), copy)
                 // migrationSnapshot=true: a preview must work on a candidate at any restorable
@@ -292,7 +289,7 @@ class BackupManager(private val context: Context) {
                     )
                 }
             } finally {
-                deleteLocalStage(copy)
+                stage.close()
             }
         }
     }
@@ -308,15 +305,25 @@ class BackupManager(private val context: Context) {
      * Overwrites the live database with [backup]. The caller must terminate the process
      * immediately afterwards — see [SynthXDatabase.closeInstance].
      */
-    suspend fun restore(backup: BackupInfo): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun restore(backup: BackupInfo, requestId: String): Result<Unit> = withContext(Dispatchers.IO) {
         RestoreStartup.await()
         // A pending restore may itself be the first Worker in a new app process. Its safety
         // snapshot opens live Room, so it must cross C1 just like every other live Room owner.
         DatabaseStartupGate.awaitReady()
         val metadata = readRestoreMetadata(backup)
             ?: return@withContext Result.failure(IllegalArgumentException("Legacy backup — restore unavailable"))
-        RestoreTransaction.execute(context, backup, metadata)
+        RestoreTransaction.execute(context, backup, metadata, requestId)
     }
+
+    /** Terminal-only SAF recovery. Deliberately bypasses normal startup/Room gates. */
+    suspend fun emergencyRestore(backup: BackupInfo, requestId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            val metadata = readRestoreMetadata(backup)
+                ?: return@withContext Result.failure(
+                    IllegalArgumentException("Legacy backup — recovery unavailable")
+                )
+            RestoreTransaction.executeEmergencyReplacement(context, backup, metadata, requestId)
+        }
 
     /** Phase-A metadata is mandatory for a trustworthy restore, though old files may still list. */
     internal suspend fun readRestoreMetadata(backup: BackupInfo): BackupMetadata? = withContext(Dispatchers.IO) {
@@ -399,20 +406,8 @@ class BackupManager(private val context: Context) {
         }
     }.getOrNull()
 
-    private fun deleteLocalStage(snapshot: File) {
-        listOf(
-            snapshot,
-            File("${snapshot.path}-journal"),
-            File("${snapshot.path}-wal"),
-            File("${snapshot.path}-shm"),
-        ).filter(File::exists).forEach { file ->
-            if (!file.delete()) Log.w(TAG, "Could not remove local backup stage ${file.name}")
-        }
-    }
-
     companion object {
         private const val TAG = "BackupManager"
-        private const val STAGING_DIRECTORY = "backup_staging"
 
         /** Manual-DI entry point, matching SongRepositoryImpl.create. */
         fun create(context: Context): BackupManager = BackupManager(context.applicationContext)

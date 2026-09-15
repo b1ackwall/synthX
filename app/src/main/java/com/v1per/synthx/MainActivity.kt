@@ -1,6 +1,7 @@
 package com.v1per.synthx
 
 import android.Manifest
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -15,11 +16,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -35,6 +41,8 @@ import com.v1per.synthx.data.backup.DatabaseStartupGate
 import com.v1per.synthx.data.backup.MigrationInvariantFailedException
 import com.v1per.synthx.data.backup.MigrationRecoveryAction
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.backup.RestoreFailureFormatter
+import com.v1per.synthx.data.backup.RestoreIncidentReports
 import com.v1per.synthx.data.backup.UnsupportedLiveDatabaseVersionException
 import com.v1per.synthx.data.playlistart.PlaylistArtBackfill
 import com.v1per.synthx.data.repository.SongRepositoryImpl
@@ -51,6 +59,7 @@ import com.v1per.synthx.ui.theme.TextPrimary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
 
@@ -396,15 +405,21 @@ private fun MigrationRecoveryContent(applicationContext: android.content.Context
 }
 
 @Composable
-private fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
+internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val diagnosticId = RestoreCoordinator.diagnosticOperationId.value ?: "unavailable"
+    var availableBackups by remember { mutableStateOf<List<com.v1per.synthx.data.backup.BackupInfo>?>(null) }
+    var actionError by remember { mutableStateOf<String?>(null) }
+    var actionRunning by remember { mutableStateOf(false) }
     val message = when (state) {
         RestoreCoordinator.Terminal.RESTART_REQUIRED -> "Restore complete. Close and reopen synthX to continue."
         RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED -> "Restore was rolled back safely. Close and reopen synthX to continue."
         RestoreCoordinator.Terminal.EMERGENCY ->
             "Automatic database recovery could not validate a usable database.\n\n" +
                 "Normal app use is disabled to protect your data.\n\n" +
-                "Diagnostic operation ID:\n$diagnosticId"
+                "Diagnostic operation ID:\n$diagnosticId" +
+                (actionError?.let { "\n\n$it" } ?: "")
         RestoreCoordinator.Terminal.NORMAL -> ""
     }
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -416,7 +431,84 @@ private fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
                     onClick = { exitProcess(0) },
                     colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
                 ) { Text("Close") }
-            })
+            },
+            dismissButton = {
+                if (state == RestoreCoordinator.Terminal.EMERGENCY) {
+                    Row {
+                        TextButton(
+                            enabled = !actionRunning,
+                            onClick = {
+                                val uri = RestoreIncidentReports.shareUri(context, diagnosticId)
+                                if (uri == null) {
+                                    actionError = "No persisted diagnostic report is available to export."
+                                } else {
+                                    val send = Intent(Intent.ACTION_SEND)
+                                        .setType("application/json")
+                                        .putExtra(Intent.EXTRA_STREAM, uri)
+                                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    runCatching {
+                                        context.startActivity(Intent.createChooser(send, "Export restore diagnostics"))
+                                    }.onFailure { actionError = "No app could export the diagnostic report." }
+                                }
+                            },
+                        ) { Text("Export diagnostics") }
+                        TextButton(
+                            enabled = !actionRunning,
+                            onClick = {
+                                actionRunning = true
+                                scope.launch {
+                                    runCatching { BackupManager.create(context).listBackups() }
+                                        .onSuccess { backups ->
+                                            availableBackups = backups.filter { it.restoreEligible }
+                                            actionError = if (availableBackups.isNullOrEmpty()) {
+                                                "No eligible backup is available in the selected backup folder."
+                                            } else null
+                                        }
+                                        .onFailure { actionError = it.message ?: "Could not read backups." }
+                                    actionRunning = false
+                                }
+                            },
+                        ) { Text(if (actionRunning) "Checking…" else "Choose backup") }
+                    }
+                }
+            },
+        )
+    }
+
+    availableBackups?.takeIf { it.isNotEmpty() }?.let { backups ->
+        AlertDialog(
+            onDismissRequest = { if (!actionRunning) availableBackups = null },
+            title = { Text("Choose recovery backup") },
+            text = {
+                Column(modifier = androidx.compose.ui.Modifier.verticalScroll(rememberScrollState())) {
+                    backups.forEach { backup ->
+                        TextButton(
+                            enabled = !actionRunning,
+                            onClick = {
+                                actionRunning = true
+                                scope.launch {
+                                    BackupManager.create(context)
+                                        .emergencyRestore(backup, UUID.randomUUID().toString())
+                                        .onSuccess { exitProcess(0) }
+                                        .onFailure {
+                                            actionError = RestoreFailureFormatter.describe(it, diagnosticId)
+                                            actionRunning = false
+                                            availableBackups = null
+                                        }
+                                }
+                            },
+                        ) { Text(backup.fileName) }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(
+                    enabled = !actionRunning,
+                    onClick = { availableBackups = null },
+                ) { Text("Cancel") }
+            },
+        )
     }
 }
 

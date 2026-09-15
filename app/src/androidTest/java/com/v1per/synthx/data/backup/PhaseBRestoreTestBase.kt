@@ -55,6 +55,7 @@ abstract class PhaseBRestoreTestBase {
         RestoreCoordinator.resetForTest()
         DatabaseStartupGate.markReadyForTest()
         cleanOwnedFiles()
+        File(context.filesDir, "restore_incidents").listFiles().orEmpty().forEach(File::delete)
     }
 
     @After
@@ -64,6 +65,7 @@ abstract class PhaseBRestoreTestBase {
         if (RestoreCoordinator.activeOperationCountForTest() == 0) RestoreCoordinator.resetForTest()
         registeredDatabaseNames.forEach(context::deleteDatabase)
         cleanOwnedFiles()
+        File(context.filesDir, "restore_incidents").listFiles().orEmpty().forEach(File::delete)
     }
 
     // `internal`, not `protected`: BackupMetadata / RestoreFaultInjector / RestoreTransaction are
@@ -77,6 +79,7 @@ abstract class PhaseBRestoreTestBase {
         context,
         backupInfo(source),
         metadata,
+        UUID.randomUUID().toString(),
         faults,
     )
 

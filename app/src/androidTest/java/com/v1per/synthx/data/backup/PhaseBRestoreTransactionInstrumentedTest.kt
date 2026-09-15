@@ -3,6 +3,7 @@ package com.v1per.synthx.data.backup
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.db.SynthXDatabase
 import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -16,6 +17,24 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
+
+    @Test fun emergencyReplacementUsesScopedClosedModePath() = runBlocking {
+        liveFile().writeText("unusable live database")
+        val source = newTrustedSource("emergency replacement")
+        RestoreCoordinator.markEmergency("original-incident")
+
+        val result = RestoreTransaction.executeEmergencyReplacement(
+            context,
+            backupInfo(source),
+            metadata(source),
+            UUID.randomUUID().toString(),
+        )
+
+        assertTrue(result.isSuccess)
+        assertEquals("emergency replacement", readMarker(liveFile()))
+        assertEquals(RestoreCoordinator.Terminal.RESTART_REQUIRED, RestoreCoordinator.current())
+        assertEquals(RestoreTransaction.Phase.POST_VALIDATED, readState().phase)
+    }
 
     @Test fun safetySnapshotFailureLeavesLiveUntouched() = runBlocking {
         createLive("state-a")

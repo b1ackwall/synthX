@@ -3,6 +3,7 @@ package com.v1per.synthx.data.backup
 import android.content.Context
 import com.v1per.synthx.data.db.SynthXDatabase
 import java.util.concurrent.CountDownLatch
+import android.util.Log
 
 /** A one-shot process gate. Room callers block only if startup recovery is still running. */
 internal object RestoreStartup {
@@ -10,8 +11,7 @@ internal object RestoreStartup {
     @Volatile private var result: RestoreRecovery = RestoreRecovery.NORMAL
     fun begin(context: Context) {
         Thread({
-            result = recoverAndPublish(context)
-            ready.countDown()
+            result = runProtectedRecovery(context, onReady = ready::countDown)
         }, "synthx-restore-recovery").start()
     }
     fun await() { ready.await() }
@@ -26,13 +26,16 @@ internal object RestoreStartup {
         RestoreCoordinator.requireNormal()
     }
 
-    private fun recoverAndPublish(context: Context): RestoreRecovery {
+    private fun recover(context: Context): RestoreRecovery {
         val dir = context.getDatabasePath(SynthXDatabase.DB_NAME).parentFile
-        val recovery = if (dir == null) {
+        return if (dir == null) {
             RestoreRecovery.EMERGENCY
         } else {
             RestoreTransaction.recoverIfNeeded(context, dir)
         }
+    }
+
+    private fun publish(recovery: RestoreRecovery) {
         when (recovery) {
             RestoreRecovery.NORMAL -> RestoreCoordinator.markNormal()
             RestoreRecovery.RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(false)
@@ -41,12 +44,36 @@ internal object RestoreStartup {
                 RestoreTransaction.diagnosticOperationId(),
             )
         }
-        return recovery
+    }
+
+    internal fun runProtectedRecovery(
+        context: Context,
+        recovery: () -> RestoreRecovery = { recover(context) },
+        onReady: () -> Unit = {},
+    ): RestoreRecovery {
+        var resolved = RestoreRecovery.EMERGENCY
+        try {
+            resolved = recovery()
+            publish(resolved)
+        } catch (failure: Throwable) {
+            resolved = RestoreRecovery.EMERGENCY
+            val incidentId = runCatching {
+                RestoreTransaction.publishUnexpectedStartupIncident(context, failure)
+            }.getOrElse {
+                Log.e("RestoreStartup", "Could not persist unexpected startup incident", it)
+                null
+            }
+            runCatching { RestoreCoordinator.markEmergency(incidentId) }
+                .onFailure { Log.e("RestoreStartup", "Could not publish emergency state", it) }
+        } finally {
+            onReady()
+        }
+        return resolved
     }
 
     /** Runs the production startup recovery boundary synchronously for instrumentation. */
     internal fun recoverNowForTest(context: Context): RestoreRecovery {
-        val recovery = recoverAndPublish(context)
+        val recovery = runProtectedRecovery(context)
         result = recovery
         return recovery
     }
