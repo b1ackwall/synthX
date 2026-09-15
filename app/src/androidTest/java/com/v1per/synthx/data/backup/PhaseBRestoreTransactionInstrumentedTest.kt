@@ -30,7 +30,15 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
         createLive("initial")
         val room = SynthXDatabase.getInstance(context)
         room.openHelper.writableDatabase.query("PRAGMA wal_autocheckpoint=0").use { assertTrue(it.moveToFirst()) }
-        room.playlistDao().insertGroup(group("wal-committed"))
+        // This test proves an update to the existing "marker" row survives via WAL, so it must
+        // update that row, not insert a second one. createLive("initial") already committed a
+        // "marker"-id row into this same live database — group()'s default id also being
+        // "marker" made the old insertGroup(group("wal-committed")) here a same-id INSERT
+        // against an already-occupied primary key, which insertGroup's OnConflictStrategy.ABORT
+        // (deliberately not REPLACE, see PlaylistDao.insertGroup's kdoc) rejects outright. Pre
+        // P3-T2's REPLACE, this silently deleted-and-reinserted the row instead of throwing -
+        // renameGroup is the correct, already-existing way to update it in place.
+        room.playlistDao().renameGroup(id = "marker", name = "wal-committed")
         val wal = File(liveFile().path + "-wal")
         assertTrue(wal.isFile && wal.length() > 0)
         val source = newTrustedSource("state-b")
@@ -43,7 +51,10 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
         createLive("state-a")
         val room = SynthXDatabase.getInstance(context)
         room.openHelper.writableDatabase.query("PRAGMA wal_autocheckpoint=0").close()
-        room.playlistDao().insertGroup(group("old-wal"))
+        // Same fix as walCommittedDataPreservedInOldSnapshot above: this must update the
+        // existing "marker" row (to prove a stale/uncommitted change doesn't leak into the
+        // restored candidate), not insert an id-colliding duplicate.
+        room.playlistDao().renameGroup(id = "marker", name = "old-wal")
         assertTrue(File(liveFile().path + "-wal").isFile)
         val source = newTrustedSource("state-b")
         assertTrue(execute(source, metadata(source)).isSuccess)

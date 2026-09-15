@@ -76,23 +76,20 @@ fun AmbientBlobBackground(
     val motionPaused = shouldPauseAmbientMotion(paused, rememberSystemReducedMotionActive())
     val drawAlphaMultiplier = blobAlphaMultiplier.coerceIn(0f, 1f)
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
+    // R5-F17: composition must stay unconditional regardless of blob.enabled, mirroring the
+    // draw-time-only gating P5-T4 already established for the null-palette case (see the
+    // blobAlphaMultiplier/radius<=0f skip below). Gating rememberBlobAnimation/rememberOrganicWobble
+    // themselves behind `if (blob.enabled)` disposes their remember slots when a blob is disabled,
+    // so re-enabling respawns at a fresh random position with phase reset to 0 instead of resuming.
     val animations = blobs.mapIndexed { index, blob ->
         key(index) {
-            if (blob.enabled) {
-                rememberBlobAnimation(index, blob, layerSize, motionPaused)
-            } else {
-                null
-            }
+            rememberBlobAnimation(index, blob, layerSize, motionPaused)
         }
     }
     // Wobble lives separately from movement and opacity/size randomizers.
     val wobbles = blobs.mapIndexed { index, blob ->
         key(index) {
-            if (blob.enabled) {
-                rememberOrganicWobble(index, blob, layerSize, motionPaused)
-            } else {
-                null
-            }
+            rememberOrganicWobble(index, blob, layerSize, motionPaused)
         }
     }
 
@@ -131,8 +128,10 @@ fun AmbientBlobBackground(
                         // All shapes share this blurred drawing layer. Read animated
                         // state only here, so drifting invalidates drawing, not composition.
                         animations.forEachIndexed { index, animation ->
-                            if (animation == null) return@forEachIndexed
-                            val wobble = wobbles[index] ?: return@forEachIndexed
+                            // Enabled is a draw-time visibility flag only; the composition above
+                            // always runs so a disabled blob's motion/wobble state keeps living.
+                            if (!blobs[index].enabled) return@forEachIndexed
+                            val wobble = wobbles[index]
                             val radius = animation.sizeFraction.value * size.minDimension
                             if (radius <= 0f) return@forEachIndexed
 

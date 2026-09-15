@@ -36,10 +36,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.ui.components.BaseSurfaceLightness
 import com.v1per.synthx.ui.components.BaseSurfaceSaturation
+import com.v1per.synthx.ui.components.BlobBackgroundDebugState
 import com.v1per.synthx.ui.components.BlobParams
+import com.v1per.synthx.ui.components.ExtractedSwatchHsl
 import com.v1per.synthx.ui.components.HomeBlobDebugStateHolder
+import com.v1per.synthx.ui.components.ProductionAmbientBackgroundStyle
 import com.v1per.synthx.ui.components.RefinedBottomSheet
 import com.v1per.synthx.ui.components.RefinedBottomSheetState
+import com.v1per.synthx.ui.components.productionAmbientScrimColor
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 import kotlin.math.roundToInt
@@ -73,6 +77,9 @@ internal fun BlobBackgroundDebugSheet(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Blob background", modifier = Modifier.weight(1f))
+                // P5-T6: explicit escape hatch for the process-lifetime holder — without this,
+                // tuning here (including a disabled blob) sticks for the rest of the process.
+                TextButton(onClick = { debugState = BlobBackgroundDebugState() }) { Text("Reset") }
                 TextButton(onClick = onDismissRequest) { Text("Close") }
             }
             Row(
@@ -83,14 +90,7 @@ internal fun BlobBackgroundDebugSheet(
                 DebugColorSwatch(baseSurfaceColor)
             }
             DebugHueLabel(debugState.baseSurfaceHue)
-            DebugSlider(
-                label = "Blur",
-                value = debugState.blurRadiusDp,
-                valueRange = 0f..600f,
-                suffix = " dp",
-            ) { value ->
-                debugState = debugState.copy(blurRadiusDp = value)
-            }
+            ProductionAmbientPreview(debugState.baseSurfaceHue)
             debugState.blobs.forEachIndexed { index, blob ->
                 key(index) {
                     BlobDebugSection(
@@ -205,4 +205,27 @@ private fun DebugHueLabel(hue: Float) {
 @Composable
 private fun DebugColorSwatch(color: Color) {
     Box(Modifier.size(24.dp).clip(CircleShape).background(color))
+}
+
+// P5-T6 (R5-F11(b)): Home/player both render at ProductionAmbientBackgroundStyle's fixed
+// 150dp blur/scrim, not the debug holder's blurRadiusDp — a slider that wrote to that field
+// silently did nothing for what the user actually sees. Replaced with a read-only preview of
+// the real production values instead of presenting a dead control.
+@Composable
+private fun ProductionAmbientPreview(baseSurfaceHue: Float) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "Production blur: ${ProductionAmbientBackgroundStyle.BlurRadiusDp.roundToInt()}dp (fixed)",
+            style = MaterialTheme.typography.labelSmall,
+        )
+        val previewScrimColor = productionAmbientScrimColor(
+            listOf(ExtractedSwatchHsl(baseSurfaceHue, saturation = 1f, lightness = 0.5f)),
+        )
+        if (previewScrimColor != null) {
+            DebugColorSwatch(previewScrimColor)
+        }
+    }
 }

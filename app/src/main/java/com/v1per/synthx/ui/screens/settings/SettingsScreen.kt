@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.SettingsDetailScaffold
 import com.v1per.synthx.ui.theme.Accent
@@ -69,10 +70,17 @@ private fun SettingsScreenContent(
             title = stringResource(R.string.settings_backups_and_restore),
             onClick = onBackupsAndRestoreClick,
         )
-        SettingsRow(
-            title = stringResource(R.string.settings_developer_settings),
-            onClick = onDeveloperSettingsClick,
-        )
+        // R5-F11(a): Developer Settings exposes a process-lifetime blob-tuning testbed and
+        // playlist-seed bootstrap tools that must never be reachable in a signed production
+        // build. Recorded decision (P5-T6): gate the entry point on BuildConfig.DEBUG rather
+        // than relying on nobody tapping it — this is the only place the screen is reachable
+        // from, so hiding the row is sufficient to keep it off production.
+        if (BuildConfig.DEBUG) {
+            SettingsRow(
+                title = stringResource(R.string.settings_developer_settings),
+                onClick = onDeveloperSettingsClick,
+            )
+        }
     }
 }
 
