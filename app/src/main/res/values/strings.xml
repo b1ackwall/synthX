@@ -237,7 +237,16 @@
     <string name="delete_group_dialog_message">This permanently removes \"%1$s\". The playlists in it are not deleted — they move back to your ungrouped playlists. This cannot be undone.</string>
 
     <!-- Backup &amp; restore -->
-    <string name="restore_empty">No backups found. Pick a backup folder in Backups and Restore first.</string>
+    <string name="restore_empty">No backups found in this folder yet.</string>
+    <string name="restore_no_folder_configured">No backup folder selected. Choose one above to see your backups.</string>
+    <string name="restore_folder_unreachable">This backup folder can\'t be read right now. Check the folder above, or choose a different one.</string>
+    <string name="restore_all_ineligible">None of the backups in this folder can be restored right now.</string>
+    <string name="restore_ineligible_missing_metadata">Missing backup details — restore unavailable</string>
+    <string name="restore_ineligible_size_mismatch">Backup file size doesn\'t match its details — restore unavailable</string>
+    <string name="restore_ineligible_duplicate_name">Duplicate backup name — restore unavailable</string>
+    <string name="restore_ineligible_unsupported_schema">Backup from an unsupported app version — restore unavailable</string>
+    <string name="restore_ineligible_unknown">Restore unavailable</string>
+    <string name="action_go_back">Go back</string>
     <string name="restore_tier_with_reason">%1$s · %2$s</string>
     <string name="restore_confirm_title">Restore this backup?</string>
     <string name="restore_confirm_message">This replaces your entire library — songs, playlists, queue, and Starred state — with the contents of %1$s. A validated local safety snapshot is taken first. synthX will close when the restore finishes and must be reopened manually. This cannot be undone.</string>

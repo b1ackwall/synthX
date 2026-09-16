@@ -92,7 +92,12 @@ class RestoreStatusObserverInstrumentedTest {
         composeRule.onNodeWithText(base.getString(R.string.restore_failed_title)).assertExists()
         composeRule.waitUntil(10_000) { preferences.restoreOutcomeAcknowledged }
         assertTrue(viewModel.status.value is RestoreAppStatus.Failed)
-        assertTrue((viewModel.status.value as RestoreAppStatus.Failed).message.contains("Legacy backup"))
+        // The raw exception message (see BackupManager.restore) is wrapped by
+        // RestoreFailureFormatter.describe with a "restore failed: <ExceptionType>: " prefix.
+        assertTrue(
+            (viewModel.status.value as RestoreAppStatus.Failed).message
+                .contains(base.getString(R.string.restore_ineligible_missing_metadata)),
+        )
     }
 
     @Test fun pruningRetainsUnshownTerminalWorkThenRemovesAcknowledgedWork() {

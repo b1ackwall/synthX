@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -37,7 +38,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
+import com.v1per.synthx.data.backup.BackupIneligibilityReason
 import com.v1per.synthx.data.backup.BackupInfo
+import com.v1per.synthx.data.backup.BackupListResult
 import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.ui.common.UiState
@@ -47,6 +50,7 @@ import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -65,6 +69,7 @@ fun RestoreScreen(
     ),
     onRestoreInitiated: () -> Unit = {},
     onTerminalOutcomeShown: (UUID) -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val outcome by viewModel.outcome.collectAsState()
@@ -85,6 +90,7 @@ fun RestoreScreen(
             uiState = uiState,
             enabled = !isRestoring && !isPreviewing,
             onSelect = { viewModel.beginPreview(it) },
+            onBack = onBack,
         )
     }
 
@@ -188,11 +194,14 @@ fun RestoreScreen(
     }
 }
 
+/** Internal (not private) so instrumented tests can drive it directly with a constructed
+ *  [BackupListResult], the same technique this file's own `@Preview`s already use. */
 @Composable
-private fun RestoreContent(
-    uiState: UiState<List<BackupInfo>>,
+internal fun RestoreContent(
+    uiState: UiState<BackupListResult>,
     enabled: Boolean = true,
     onSelect: (BackupInfo) -> Unit,
+    onBack: () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
@@ -213,17 +222,83 @@ private fun RestoreContent(
                     .align(Alignment.Center)
                     .padding(horizontal = Spacing.HorizontalPadding),
             )
-            is UiState.Success -> LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(uiState.data, key = { it.databaseUri.toString() }) { backup ->
-                    BackupRow(
-                        backup = backup,
-                        enabled = enabled && backup.restoreEligible,
-                        onClick = { onSelect(backup) },
-                    )
+            is UiState.Success -> when (val result = uiState.data) {
+                is BackupListResult.NoFolderConfigured -> EmptyStateMessage(
+                    text = stringResource(R.string.restore_no_folder_configured),
+                )
+                is BackupListResult.FolderUnreachable -> EmptyStateMessage(
+                    text = stringResource(R.string.restore_folder_unreachable),
+                )
+                is BackupListResult.Empty -> EmptyStateMessage(
+                    text = stringResource(R.string.restore_empty),
+                )
+                is BackupListResult.Success -> {
+                    val allIneligible = result.backups.isNotEmpty() &&
+                        result.backups.none { it.restoreEligible }
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        if (allIneligible) {
+                            AllIneligibleBanner(onBack = onBack)
+                        }
+                        LazyColumn(modifier = Modifier.weight(1f)) {
+                            items(result.backups, key = { it.databaseUri.toString() }) { backup ->
+                                BackupRow(
+                                    backup = backup,
+                                    enabled = enabled && backup.restoreEligible,
+                                    onClick = { onSelect(backup) },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun EmptyStateMessage(text: String) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge,
+            color = TextSecondary,
+            modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
+        )
+    }
+}
+
+@Composable
+private fun AllIneligibleBanner(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
+    ) {
+        Text(
+            text = stringResource(R.string.restore_all_ineligible),
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Button(
+            onClick = onBack,
+            shape = MaterialTheme.shapes.small,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SurfaceVariant,
+                contentColor = TextPrimary,
+            ),
+        ) {
+            Text(text = stringResource(R.string.action_go_back))
+        }
+    }
+}
+
+private fun ineligibilityMessage(reason: BackupIneligibilityReason?): Int = when (reason) {
+    is BackupIneligibilityReason.MissingMetadata -> R.string.restore_ineligible_missing_metadata
+    is BackupIneligibilityReason.SizeMismatch -> R.string.restore_ineligible_size_mismatch
+    is BackupIneligibilityReason.DuplicateDisplayName -> R.string.restore_ineligible_duplicate_name
+    is BackupIneligibilityReason.UnsupportedSchema -> R.string.restore_ineligible_unsupported_schema
+    is BackupIneligibilityReason.Unrecognized, null -> R.string.restore_ineligible_unknown
 }
 
 @Composable
@@ -262,7 +337,7 @@ private fun BackupRow(
             if (!backup.restoreEligible) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = backup.restoreIneligibleReason ?: "Restore unavailable",
+                    text = stringResource(ineligibilityMessage(backup.restoreIneligibleReason)),
                     style = MaterialTheme.typography.bodySmall,
                     color = Error,
                 )
@@ -344,24 +419,28 @@ private fun RestoreListPreview() {
         Surface(modifier = Modifier.fillMaxSize(), color = Background) {
             RestoreContent(
                 uiState = UiState.Success(
-                    listOf(
-                        BackupInfo(
-                            databaseUri = Uri.EMPTY,
-                            metadataUri = null,
-                            fileName = "synthx_backup_2026-08-06_143022.db",
-                            tier = BackupTier.Manual,
-                            timestamp = now - DateUtils.HOUR_IN_MILLIS,
-                            reason = null,
-                            sizeBytes = 2_400_000,
-                        ),
-                        BackupInfo(
-                            databaseUri = Uri.parse("content://x/2"),
-                            metadataUri = null,
-                            fileName = "synthx_backup_2026-08-05_090114.db",
-                            tier = BackupTier.Auto,
-                            timestamp = now - DateUtils.DAY_IN_MILLIS,
-                            reason = "delete_song",
-                            sizeBytes = 2_390_000,
+                    BackupListResult.Success(
+                        listOf(
+                            BackupInfo(
+                                databaseUri = Uri.EMPTY,
+                                metadataUri = null,
+                                fileName = "synthx_backup_2026-08-06_143022.db",
+                                tier = BackupTier.Manual,
+                                timestamp = now - DateUtils.HOUR_IN_MILLIS,
+                                reason = null,
+                                sizeBytes = 2_400_000,
+                                restoreEligible = true,
+                            ),
+                            BackupInfo(
+                                databaseUri = Uri.parse("content://x/2"),
+                                metadataUri = null,
+                                fileName = "synthx_backup_2026-08-05_090114.db",
+                                tier = BackupTier.Auto,
+                                timestamp = now - DateUtils.DAY_IN_MILLIS,
+                                reason = "delete_song",
+                                sizeBytes = 2_390_000,
+                                restoreEligible = true,
+                            ),
                         ),
                     ),
                 ),
@@ -376,7 +455,7 @@ private fun RestoreListPreview() {
 private fun RestoreEmptyPreview() {
     SynthXTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = Background) {
-            RestoreContent(uiState = UiState.Empty, onSelect = {})
+            RestoreContent(uiState = UiState.Success(BackupListResult.Empty), onSelect = {})
         }
     }
 }

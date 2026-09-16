@@ -43,6 +43,7 @@ import com.v1per.synthx.data.backup.MigrationRecoveryAction
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.RestoreFailureFormatter
 import com.v1per.synthx.data.backup.RestoreIncidentReports
+import com.v1per.synthx.data.backup.backupsOrEmpty
 import com.v1per.synthx.data.backup.pruneFinishedWorkIfRestoreAcknowledged
 import com.v1per.synthx.data.backup.UnsupportedLiveDatabaseVersionException
 import com.v1per.synthx.data.playlistart.PlaylistArtBackfill
@@ -502,7 +503,7 @@ internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
                             onClick = {
                                 actionRunning = true
                                 scope.launch {
-                                    runCatching { BackupManager.create(context).listBackups() }
+                                    runCatching { BackupManager.create(context).listBackups().backupsOrEmpty() }
                                         .onSuccess { backups ->
                                             availableBackups = backups.filter { it.restoreEligible }
                                             actionError = if (availableBackups.isNullOrEmpty()) {

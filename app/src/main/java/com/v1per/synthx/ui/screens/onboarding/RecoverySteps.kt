@@ -205,6 +205,7 @@ internal fun RecoveryBackupSelectStep(
         // RESTORE_PREPARING. Until then this route stays alive to show queued/failed work.
         onRestoreInitiated = onComplete,
         onTerminalOutcomeShown = onRestoreTerminalShown,
+        onBack = goBack,
         topBar = {
             DetailTopBar(
                 title = stringResource(R.string.onboarding_recovery_backup_title),

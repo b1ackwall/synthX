@@ -11,6 +11,7 @@ import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.BackupTier
+import com.v1per.synthx.data.backup.backupsOrEmpty
 import com.v1per.synthx.data.scanner.RootNesting
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PreferencesManager
@@ -101,8 +102,9 @@ class BackupsAndRestoreViewModel(
 
     init {
         viewModelScope.launch {
-            _lastSuccessfulBackup.value = runCatching { backupManager.listBackups().firstOrNull() }
-                .getOrNull()
+            _lastSuccessfulBackup.value = runCatching {
+                backupManager.listBackups().backupsOrEmpty().firstOrNull()
+            }.getOrNull()
         }
         // Re-validate on every screen entry (P7.3) — a fresh ViewModel is constructed each
         // time this screen is opened, so this doubles as "check whenever the user looks."
@@ -163,23 +165,24 @@ class BackupsAndRestoreViewModel(
                             _backupFolderError.value = null
                             _backupStatus.value = null
                         }
-                        Outcome.NESTED -> _backupFolderError.showTemporarily(
+                        // Persistent (not showTemporarily), matching the same convention used
+                        // for the launch-time/screen-entry health check above: a rejected pick
+                        // is a real, unresolved problem and should stay visible until the user
+                        // either fixes it or picks a different folder, not vanish after 4s while
+                        // the row above still says "No folder selected."
+                        Outcome.NESTED -> _backupFolderError.value =
                             context.getString(R.string.error_backup_folder_nested)
-                        )
                         // Nesting couldn't be ruled out (opaque provider ids) rather than
                         // confirmed — fail closed with a message that doesn't overclaim.
-                        Outcome.NESTING_UNDETERMINED -> _backupFolderError.showTemporarily(
+                        Outcome.NESTING_UNDETERMINED -> _backupFolderError.value =
                             context.getString(R.string.error_backup_folder_nesting_undetermined)
-                        )
-                        Outcome.UNUSABLE -> _backupFolderError.showTemporarily(
+                        Outcome.UNUSABLE -> _backupFolderError.value =
                             context.getString(R.string.backup_status_folder_create_failed)
-                        )
                     }
                 },
                 onFailure = {
-                    _backupFolderError.showTemporarily(
+                    _backupFolderError.value =
                         context.getString(R.string.backup_status_folder_check_failed)
-                    )
                 },
             )
         }
@@ -192,8 +195,9 @@ class BackupsAndRestoreViewModel(
             _backupStatus.value = context.getString(R.string.backup_status_backing_up)
             val result = backupManager.createBackup(BackupTier.Manual)
             result.onSuccess {
-                _lastSuccessfulBackup.value = runCatching { backupManager.listBackups().firstOrNull() }
-                    .getOrNull()
+                _lastSuccessfulBackup.value = runCatching {
+                    backupManager.listBackups().backupsOrEmpty().firstOrNull()
+                }.getOrNull()
             }
             _backupStatus.showTemporarily(
                 result.fold(

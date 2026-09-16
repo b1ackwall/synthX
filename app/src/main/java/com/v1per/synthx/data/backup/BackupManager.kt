@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.WorkManager
+import com.v1per.synthx.R
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.preferences.PreferencesManager
@@ -50,8 +51,67 @@ data class BackupInfo(
     val reason: String?,
     val sizeBytes: Long,
     val restoreEligible: Boolean = false,
-    val restoreIneligibleReason: String? = null,
+    val restoreIneligibleReason: BackupIneligibilityReason? = null,
 )
+
+/**
+ * Why a listed backup can't be restored — distinguishing causes that [BackupManager.listBackups]
+ * used to collapse into one "Legacy backup" literal (R7-F07). Derived from data already read
+ * while listing (metadata presence/contents, actual file size, display-name collisions, schema
+ * contract lookup) rather than a value discarded elsewhere — nothing upstream already computes
+ * this breakdown. [Unrecognized] is the residual bucket: [BackupManager]'s authoritative eligibility
+ * check (a fully validated [CompletedBackup] pair with a supported schema) failed for a reason
+ * none of the other cases identify, e.g. a structurally invalid metadata field.
+ */
+sealed interface BackupIneligibilityReason {
+    data object MissingMetadata : BackupIneligibilityReason
+    data class SizeMismatch(val expectedBytes: Long, val actualBytes: Long) : BackupIneligibilityReason
+    data object DuplicateDisplayName : BackupIneligibilityReason
+    data class UnsupportedSchema(val dbVersion: Int) : BackupIneligibilityReason
+    data object Unrecognized : BackupIneligibilityReason
+}
+
+/**
+ * Derives [BackupIneligibilityReason] from facts already on hand while listing a candidate —
+ * pure and Android-free so it is unit-testable without a real SAF tree. Checked in this order:
+ * a duplicate display name makes the entry ambiguous regardless of what its metadata claims;
+ * missing metadata is worse than a stale one; a size mismatch is checked before schema support
+ * since a corrupt/truncated file's schema claim can't be trusted either. Returns null when none
+ * of these checks find fault — callers combine that with their own authoritative eligibility
+ * check, since this function alone cannot see every validation [CompletedBackupCatalog] applies.
+ */
+internal fun classifyIneligibility(
+    metadata: BackupMetadata?,
+    actualSizeBytes: Long,
+    isDuplicateName: Boolean,
+    schemaSupported: Boolean,
+): BackupIneligibilityReason? = when {
+    isDuplicateName -> BackupIneligibilityReason.DuplicateDisplayName
+    metadata == null -> BackupIneligibilityReason.MissingMetadata
+    metadata.sizeBytes != null && metadata.sizeBytes != actualSizeBytes ->
+        BackupIneligibilityReason.SizeMismatch(metadata.sizeBytes, actualSizeBytes)
+    !schemaSupported -> BackupIneligibilityReason.UnsupportedSchema(metadata.dbVersion)
+    else -> null
+}
+
+/**
+ * The outcome of listing candidate backups (R7-F04) — distinguishes situations
+ * [BackupManager.listBackups] used to collapse into one identical empty list: no folder chosen
+ * yet, a folder that can't currently be read (missing/renamed tier directories or a provider
+ * listing failure — merged into one case because both mean the same thing to the user: "we can't
+ * see what's in the folder you picked," with the same remedy), a folder that reads fine but
+ * genuinely holds nothing, and an actual list.
+ */
+sealed interface BackupListResult {
+    data object NoFolderConfigured : BackupListResult
+    data object FolderUnreachable : BackupListResult
+    data object Empty : BackupListResult
+    data class Success(val backups: List<BackupInfo>) : BackupListResult
+}
+
+/** For callers that only want "whatever's there, or nothing" without caring why. */
+internal fun BackupListResult.backupsOrEmpty(): List<BackupInfo> =
+    (this as? BackupListResult.Success)?.backups.orEmpty()
 
 class BackupNotConfiguredException : IllegalStateException("No backup folder selected")
 
@@ -185,14 +245,38 @@ class BackupManager(private val context: Context) {
 
     // --------------------------------------------------------------- listing
 
-    /** All backups across every tier, newest first. Unreadable tiers are skipped. */
-    suspend fun listBackups(): List<BackupInfo> = withContext(Dispatchers.IO) {
+    /** All backups across every tier, newest first, distinguishing why the list might be empty. */
+    suspend fun listBackups(): BackupListResult = withContext(Dispatchers.IO) {
         val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) }
-            ?: return@withContext emptyList()
-        BackupTier.entries.flatMap { tier ->
-            val directory = resolveTierDir(treeUri, tier, create = false)
-                ?: return@flatMap emptyList()
-            val children = runCatching { directory.listFiles().toList() }.getOrDefault(emptyList())
+            ?: return@withContext BackupListResult.NoFolderConfigured
+        val root = runCatching { DocumentFile.fromTreeUri(context, treeUri) }.getOrNull()
+        classifyBackupList(root)
+    }
+
+    /**
+     * Split out from [listBackups] so tests can supply a real, file-backed [DocumentFile] root
+     * (as [SafBackupPublisherInstrumentedTest] already does via `DocumentFile.fromFile`) instead
+     * of needing a genuine SAF tree grant, which `DocumentFile.fromTreeUri` requires.
+     */
+    internal fun classifyBackupList(root: DocumentFile?): BackupListResult {
+        // A revoked grant or a provider that has gone away can make even `.isDirectory` throw,
+        // not just return false — this is the same distrust-the-provider posture as the
+        // `runCatching` around `listFiles()` below.
+        val safeRoot = root?.takeIf { runCatching { it.isDirectory }.getOrDefault(false) }
+            ?: return BackupListResult.FolderUnreachable
+
+        var anyTierUnreadable = false
+        val backups = BackupTier.entries.flatMap { tier ->
+            val directory = runCatching { safeRoot.findFile(tier.folderName) }.getOrNull()
+                ?.takeIf { runCatching { it.isDirectory }.getOrDefault(false) }
+            if (directory == null) {
+                anyTierUnreadable = true
+                return@flatMap emptyList()
+            }
+            val children = runCatching { directory.listFiles().toList() }
+                .onFailure { anyTierUnreadable = true }
+                .getOrDefault(emptyList())
+            val nameCounts = children.groupingBy { it.name.orEmpty() }.eachCount()
             val byName = children.associateBy { it.name.orEmpty() }
             val completedByDatabaseName = completedPairs(children, tier)
                 .associateBy { it.databaseName }
@@ -210,12 +294,23 @@ class BackupManager(private val context: Context) {
                         ?: byName["$stem.json"]
                     val metadata = completePair?.metadata
                         ?: metadataDocument?.let { readMetadata(it.uri) }
-                    val eligible = completePair?.metadata?.let { value ->
+                    val schemaSupported = metadata?.let { value ->
                         runCatching {
                             value.dbVersion <= SynthXDatabase.VERSION &&
                                 BackupSchemaContracts.forVersion(value.dbVersion)?.hasMigrationPathToCurrent == true
                         }.getOrDefault(false)
                     } == true
+                    val eligible = completePair != null && schemaSupported
+                    val ineligibleReason = if (eligible) {
+                        null
+                    } else {
+                        classifyIneligibility(
+                            metadata = metadata,
+                            actualSizeBytes = databaseDocument.length(),
+                            isDuplicateName = (nameCounts[name] ?: 0) > 1,
+                            schemaSupported = schemaSupported,
+                        ) ?: BackupIneligibilityReason.Unrecognized
+                    }
                     BackupInfo(
                         databaseUri = databaseDocument.uri,
                         metadataUri = metadataDocument?.uri,
@@ -227,10 +322,16 @@ class BackupManager(private val context: Context) {
                         reason = metadata?.reason?.takeIf { it.isNotBlank() },
                         sizeBytes = databaseDocument.length(),
                         restoreEligible = eligible,
-                        restoreIneligibleReason = if (eligible) null else "Legacy backup — restore unavailable",
+                        restoreIneligibleReason = ineligibleReason,
                     )
                 }
         }.sortedByDescending { it.timestamp }
+
+        return when {
+            backups.isNotEmpty() -> BackupListResult.Success(backups)
+            anyTierUnreadable -> BackupListResult.FolderUnreachable
+            else -> BackupListResult.Empty
+        }
     }
 
     // ------------------------------------------------------------ verification (P3.2)
@@ -248,7 +349,7 @@ class BackupManager(private val context: Context) {
      */
     suspend fun verifyMostRecentBackup(): Result<Unit> = withContext(Dispatchers.IO) {
         val result = runCatching {
-            val backup = listBackups().firstOrNull() ?: return@runCatching
+            val backup = listBackups().backupsOrEmpty().firstOrNull() ?: return@runCatching
             val stage = BackupStagingCoordinator.acquire(context, "verify")
             val copy = stage.file
             try {
@@ -311,7 +412,9 @@ class BackupManager(private val context: Context) {
         // snapshot opens live Room, so it must cross C1 just like every other live Room owner.
         DatabaseStartupGate.awaitReady()
         val metadata = readRestoreMetadata(backup)
-            ?: return@withContext Result.failure(IllegalArgumentException("Legacy backup — restore unavailable"))
+            ?: return@withContext Result.failure(
+                IllegalArgumentException(context.getString(R.string.restore_ineligible_missing_metadata)),
+            )
         RestoreTransaction.execute(context, backup, metadata, requestId)
     }
 
@@ -320,7 +423,7 @@ class BackupManager(private val context: Context) {
         withContext(Dispatchers.IO) {
             val metadata = readRestoreMetadata(backup)
                 ?: return@withContext Result.failure(
-                    IllegalArgumentException("Legacy backup — recovery unavailable")
+                    IllegalArgumentException(context.getString(R.string.restore_ineligible_missing_metadata)),
                 )
             RestoreTransaction.executeEmergencyReplacement(context, backup, metadata, requestId)
         }

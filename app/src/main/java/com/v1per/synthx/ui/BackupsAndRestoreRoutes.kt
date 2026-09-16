@@ -52,6 +52,7 @@ fun NavGraphBuilder.backupsAndRestoreRoutes(
                 },
                 viewModel = restoreViewModel,
                 onTerminalOutcomeShown = onRestoreTerminalShown,
+                onBack = { navController.popBackStack() },
             )
         }
     }

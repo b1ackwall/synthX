@@ -8,6 +8,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupInfo
+import com.v1per.synthx.data.backup.BackupListResult
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.data.backup.RestoreCoordinator
@@ -55,8 +56,8 @@ class RestoreViewModel(
 
     private val workManager = WorkManager.getInstance(context)
 
-    private val _uiState = MutableStateFlow<UiState<List<BackupInfo>>>(UiState.Loading)
-    val uiState: StateFlow<UiState<List<BackupInfo>>> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow<UiState<BackupListResult>>(UiState.Loading)
+    val uiState: StateFlow<UiState<BackupListResult>> = _uiState.asStateFlow()
 
     // The single source of truth for restore state — reading it from WorkManager (rather
     // than a local flow the ViewModel owns) is what makes an in-flight restore survive
@@ -132,8 +133,7 @@ class RestoreViewModel(
         _uiState.value = UiState.Loading
         refreshJob = viewModelScope.launch {
             val result = try {
-                val backups = backupManager.listBackups()
-                if (backups.isEmpty()) UiState.Empty else UiState.Success(backups)
+                UiState.Success(backupManager.listBackups())
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
