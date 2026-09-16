@@ -83,7 +83,7 @@ import kotlin.system.exitProcess
 @Composable
 fun MainScaffold(
     navController: NavHostController = rememberNavController(),
-    // Resolved once in MainActivity from PreferencesManager.musicFolderUri == null — see
+    // Resolved once in MainActivity from PreferencesManager.onboardingComplete — see
     // SynthXNavHost's startDestination parameter for where this ends up.
     startDestination: String = Screen.Home.route,
     restoreStatusViewModel: RestoreStatusViewModel? = null,

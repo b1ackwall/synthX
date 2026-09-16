@@ -9,6 +9,7 @@
 
     <!-- Onboarding -->
     <string name="onboarding_welcome_title">Welcome to synthX</string>
+    <string name="onboarding_resuming_recovery">Resuming recovery…</string>
     <string name="onboarding_welcome_subtitle">Let\'s get your library set up.</string>
     <string name="onboarding_fresh_install">Fresh install</string>
     <string name="onboarding_recover_backup">Recover from backup</string>

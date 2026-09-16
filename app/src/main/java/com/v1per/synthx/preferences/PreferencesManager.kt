@@ -235,6 +235,55 @@ class PreferencesManager(context: Context) {
         return prefs.edit().putBoolean(KEY_RESTORE_OUTCOME_ACKNOWLEDGED, true).commit()
     }
 
+    // --------------------------------------------------------- onboarding/recovery completion (P7-T2)
+
+    /**
+     * True only once onboarding has genuinely finished — a fresh-install music-folder pick, or
+     * (R7-F02) a recovery restore reaching genuine terminal success. Deliberately NOT derived
+     * from [musicFolderUri] != null: recovery's first step sets that long before its restore
+     * actually succeeds, which is exactly the bug this flag exists to fix. Read-only here by
+     * design, same reasoning as [migrationInvariantFailurePending]: the sole writer is
+     * [setOnboardingCompleteDurably], which blocks on `commit()` since this flag gates
+     * MainActivity's cold-start destination choice — a lost `apply()` write would silently
+     * strand the user in (or bounce them out of) the wizard on the very next launch.
+     */
+    val onboardingComplete: Boolean
+        get() = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
+
+    /**
+     * Synchronous counterpart to [onboardingComplete]'s (removed) setter. Also clears any
+     * persisted wizard position in the same commit once [value] is true — that position exists
+     * only to resume an in-progress wizard, and becomes stale the instant onboarding is done.
+     */
+    fun setOnboardingCompleteDurably(value: Boolean): Boolean {
+        val editor = prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETE, value)
+        if (value) {
+            editor.remove(KEY_ONBOARDING_STEP).remove(KEY_ONBOARDING_RETURNING_FROM_RECOVERY)
+        }
+        return editor.commit()
+    }
+
+    /**
+     * Name of the wizard's current [com.v1per.synthx.ui.screens.onboarding.OnboardingStep],
+     * persisted so process death or a swipe-away mid-recovery resumes at the correct step
+     * instead of silently restarting at Choice (R7-F13). Null once onboarding is complete or
+     * has never been started. Read-only here, same reasoning as [onboardingComplete] — the sole
+     * writer is [setOnboardingProgressDurably].
+     */
+    val onboardingStepName: String?
+        get() = prefs.getString(KEY_ONBOARDING_STEP, null)
+
+    /** Companion to [onboardingStepName] — see OnboardingViewModel.returningFromRecovery. */
+    val onboardingReturningFromRecovery: Boolean
+        get() = prefs.getBoolean(KEY_ONBOARDING_RETURNING_FROM_RECOVERY, false)
+
+    /** Commits both fields together so a reader never observes one updated without the other. */
+    fun setOnboardingProgressDurably(stepName: String, returningFromRecovery: Boolean): Boolean =
+        prefs.edit()
+            .putString(KEY_ONBOARDING_STEP, stepName)
+            .putBoolean(KEY_ONBOARDING_RETURNING_FROM_RECOVERY, returningFromRecovery)
+            .commit()
+
     // ------------------------------------------------- issues scan cache (see IssuesScanWorker)
     // Six categories stay live. Missing-art and missing-palette aggregate IDs are persisted
     // so the screen and both Fix actions share the last worker snapshot across cold starts.
@@ -296,6 +345,9 @@ class PreferencesManager(context: Context) {
         private const val KEY_RESTORE_REQUEST_ID = "restore_request_id"
         private const val KEY_RESTORE_REQUEST_SUBMITTED_AT = "restore_request_submitted_at"
         private const val KEY_RESTORE_OUTCOME_ACKNOWLEDGED = "restore_outcome_acknowledged"
+        private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
+        private const val KEY_ONBOARDING_STEP = "onboarding_step"
+        private const val KEY_ONBOARDING_RETURNING_FROM_RECOVERY = "onboarding_returning_from_recovery"
         private const val KEY_LAST_ISSUES_SCAN_TIMESTAMP = "last_issues_scan_timestamp"
         private const val KEY_LAST_ISSUES_SCAN_ISSUE_COUNT = "last_issues_scan_issue_count"
         private const val KEY_MISSING_ART_SONG_IDS = "missing_art_song_ids"

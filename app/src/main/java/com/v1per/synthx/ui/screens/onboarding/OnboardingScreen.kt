@@ -24,6 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -46,6 +49,7 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 
 /**
  * First-run wizard shown by [com.v1per.synthx.ui.onboardingRoutes] whenever
@@ -63,7 +67,9 @@ import com.v1per.synthx.ui.theme.TextSecondary
 fun OnboardingScreen(
     onOnboardingComplete: () -> Unit,
     onRestoreTerminalShown: (UUID) -> Unit = {},
-    viewModel: OnboardingViewModel = viewModel(),
+    viewModel: OnboardingViewModel = viewModel(
+        factory = OnboardingViewModel.Factory(LocalContext.current),
+    ),
 ) {
     val context = LocalContext.current
     val step by viewModel.step.collectAsState()
@@ -75,44 +81,83 @@ fun OnboardingScreen(
         factory = BackupsAndRestoreViewModel.Factory(context),
     )
 
-    when (step) {
-        OnboardingStep.Choice -> ChoiceStep(
-            onFreshInstall = {
-                // Recovery may have persisted a root without ever scanning it. Switching to
-                // fresh install must start its usual scan before Done can enter ScanningStep.
-                if (viewModel.returningFromRecovery) {
-                    libraryManagementViewModel.musicFolderUri.value?.let {
-                        libraryManagementViewModel.saveMusicFolder(it)
+    // Only true when this instance actually resumed a persisted mid-wizard position (process
+    // death/swipe-away) — see OnboardingViewModel.resumedFromPersistedStep. Auto-dismisses;
+    // this is an orientation notice, not something the user needs to act on.
+    var showResumeNotice by remember { mutableStateOf(viewModel.resumedFromPersistedStep) }
+    LaunchedEffect(showResumeNotice) {
+        if (showResumeNotice) {
+            delay(2500)
+            showResumeNotice = false
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        when (step) {
+            OnboardingStep.Choice -> ChoiceStep(
+                onFreshInstall = {
+                    // Recovery may have persisted a root without ever scanning it. Switching to
+                    // fresh install must start its usual scan before Done can enter ScanningStep.
+                    if (viewModel.returningFromRecovery) {
+                        libraryManagementViewModel.musicFolderUri.value?.let {
+                            libraryManagementViewModel.saveMusicFolder(it)
+                        }
                     }
-                }
-                viewModel.goToFolderSetup()
-            },
-            onRecoverFromBackup = viewModel::goToRecoveryFolderSetup,
-        )
-        OnboardingStep.FolderSetup -> FolderSetupStep(
-            libraryManagementViewModel = libraryManagementViewModel,
-            backupsAndRestoreViewModel = backupsAndRestoreViewModel,
-            onBack = viewModel::goToChoice,
-            onDone = viewModel::goToScanning,
-        )
-        OnboardingStep.Scanning -> ScanningStep(
-            libraryManagementViewModel = libraryManagementViewModel,
-            onComplete = onOnboardingComplete,
-        )
-        OnboardingStep.RecoveryFolderSetup -> RecoveryFolderSetupStep(
-            libraryManagementViewModel = libraryManagementViewModel,
-            onBack = viewModel::goToChoice,
-            onDone = viewModel::goToRecoveryBackupSelect,
-        )
-        OnboardingStep.RecoveryBackupSelect -> RecoveryBackupSelectStep(
-            backupsAndRestoreViewModel = backupsAndRestoreViewModel,
-            onBack = viewModel::goToRecoveryFolderSetup,
-            onComplete = onOnboardingComplete,
-            onRestoreTerminalShown = onRestoreTerminalShown,
+                    viewModel.goToFolderSetup()
+                },
+                onRecoverFromBackup = viewModel::goToRecoveryFolderSetup,
+            )
+            OnboardingStep.FolderSetup -> FolderSetupStep(
+                libraryManagementViewModel = libraryManagementViewModel,
+                backupsAndRestoreViewModel = backupsAndRestoreViewModel,
+                onBack = viewModel::goToChoice,
+                onDone = viewModel::goToScanning,
+            )
+            OnboardingStep.Scanning -> ScanningStep(
+                libraryManagementViewModel = libraryManagementViewModel,
+                onComplete = onOnboardingComplete,
+            )
+            OnboardingStep.RecoveryFolderSetup -> RecoveryFolderSetupStep(
+                libraryManagementViewModel = libraryManagementViewModel,
+                onBack = viewModel::goToChoice,
+                onDone = viewModel::goToRecoveryBackupSelect,
+            )
+            OnboardingStep.RecoveryBackupSelect -> RecoveryBackupSelectStep(
+                backupsAndRestoreViewModel = backupsAndRestoreViewModel,
+                onBack = viewModel::goToRecoveryFolderSetup,
+                onComplete = onOnboardingComplete,
+                onRestoreTerminalShown = onRestoreTerminalShown,
+            )
+        }
+
+        if (showResumeNotice) {
+            ResumingRecoveryNotice()
+        }
+    }
+}
+
+@Composable
+private fun ResumingRecoveryNotice() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(SurfaceVariant)
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
+    ) {
+        Text(
+            text = stringResource(R.string.onboarding_resuming_recovery),
+            style = MaterialTheme.typography.bodySmall,
+            color = TextSecondary,
         )
     }
 }
 
+/**
+ * No [androidx.activity.compose.BackHandler] here, unlike the recovery steps below — deliberate
+ * (P7-T2): now that wizard position is persisted (R7-F13), a back-press here that finishes the
+ * Activity is harmless. No progress has been made yet at Choice, so relaunching lands right back
+ * on this same screen instead of losing anything or resuming somewhere confusing.
+ */
 @Composable
 private fun ChoiceStep(
     onFreshInstall: () -> Unit,

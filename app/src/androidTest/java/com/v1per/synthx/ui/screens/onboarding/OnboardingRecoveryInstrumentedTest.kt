@@ -5,6 +5,8 @@ import android.content.ContextWrapper
 import android.content.SharedPreferences
 import android.net.Uri
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.Composable
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -121,7 +123,7 @@ class OnboardingRecoveryInstrumentedTest {
             )
             backups = BackupsAndRestoreViewModel(context, preferences, BackupManager(context))
             restore = RestoreViewModel(context, BackupManager(context), preferences)
-            onboarding = OnboardingViewModel()
+            onboarding = OnboardingViewModel(preferences)
             listOf(library, backups, restore, onboarding).forEach { store.put(it.javaClass.name, it) }
         }
     }
@@ -379,6 +381,98 @@ class OnboardingRecoveryInstrumentedTest {
         }
     }
 
+    /** Acceptance test for P7-T2 / R7-F02 + R7-F13. */
+    @Test fun processDeathMidRecoveryResumesWizardNotHome() {
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recover_backup)).performClick()
+        saveMusic()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled().performClick()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_backup_title)).assertExists()
+        // Ground truth: recovery's folder pick alone must NOT have satisfied completion.
+        assertFalse(preferences.onboardingComplete)
+        assertEquals(OnboardingStep.RecoveryBackupSelect.name, preferences.onboardingStepName)
+
+        relaunchWizardAfterSimulatedProcessDeath()
+
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_backup_title)).assertExists()
+        composeRule.onNodeWithText("Home after onboarding").assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertEquals(Screen.Onboarding.route, navController.currentDestination?.route)
+        }
+    }
+
+    /**
+     * Mutation test for the acceptance test above: substituting the pre-P7-T2 gating condition
+     * (musicFolderUri == null) reproduces R7-F02 exactly — the wizard vanishes and Home is
+     * shown with an empty library instead. Kept as a permanent, automated guard rather than a
+     * one-off manual revert of MainActivity.kt, since this suite already mirrors that gating
+     * condition locally instead of launching the real Activity (see [gatingStartDestination]).
+     */
+    @Test fun mutationTestLegacyGatingConditionWouldHaveShownHomeInstead() {
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recover_backup)).performClick()
+        saveMusic()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_backup_title)).assertExists()
+
+        relaunchWizardAfterSimulatedProcessDeath(gating = ::legacyGatingStartDestination)
+
+        composeRule.onNodeWithText("Home after onboarding").assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_backup_title)).assertDoesNotExist()
+    }
+
+    @Test fun pickingRecoveryFolderAloneDoesNotSetOnboardingComplete() {
+        saveMusic()
+        composeRule.runOnIdle { }
+        assertFalse(preferences.onboardingComplete)
+    }
+
+    /** Regression protection: fresh installs never had a scan/restore step, only a folder pick. */
+    @Test fun freshInstallSetsOnboardingCompleteAtFolderPickTime() {
+        assertFalse(preferences.onboardingComplete)
+        composeRule.runOnUiThread { library.saveMusicFolder(music) }
+        await(library.musicFolderUri) { it == music }
+        composeRule.runOnIdle { }
+        assertTrue(preferences.onboardingComplete)
+        assertNull(preferences.onboardingStepName)
+    }
+
+    /**
+     * Regression guard for MainActivity.runLaunchMaintenance()'s separate, deliberately
+     * untouched `musicFolderUri != null` scan-trigger check (see MainActivity.kt) — proves the
+     * two preferences stay independent rather than getting coupled by this fix. MainActivity
+     * itself is not launched by this suite (no existing harness does so, see also
+     * [gatingStartDestination]'s local mirror), so this asserts the underlying preference
+     * invariant that check actually depends on.
+     */
+    @Test fun musicFolderUriAndOnboardingCompleteAreIndependentPreferences() {
+        saveMusic()
+        assertEquals(music.toString(), preferences.musicFolderUri)
+        assertFalse(preferences.onboardingComplete)
+
+        composeRule.runOnUiThread { check(preferences.setOnboardingCompleteDurably(true)) }
+        assertEquals(music.toString(), preferences.musicFolderUri)
+        assertTrue(preferences.onboardingComplete)
+
+        preferences.musicFolderUri = null
+        assertTrue(preferences.onboardingComplete)
+        assertNull(preferences.musicFolderUri)
+    }
+
+    @Test fun completingOnboardingClearsPersistedStep() {
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recover_backup)).performClick()
+        saveMusic()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_backup_title)).assertExists()
+        assertEquals(OnboardingStep.RecoveryBackupSelect.name, preferences.onboardingStepName)
+
+        composeRule.runOnUiThread { check(preferences.setOnboardingCompleteDurably(true)) }
+
+        assertNull(preferences.onboardingStepName)
+        assertTrue(preferences.onboardingComplete)
+    }
+
     private fun saveMusic() {
         composeRule.runOnUiThread { library.saveRecoveryMusicFolder(music) }
         await(library.musicFolderUri) { it == music }
@@ -454,35 +548,104 @@ class OnboardingRecoveryInstrumentedTest {
         }
     }
 
-    private fun startWizard() {
-        val factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
-                LibraryManagementViewModel::class.java -> library
-                BackupsAndRestoreViewModel::class.java -> backups
-                RestoreViewModel::class.java -> restore
-                OnboardingViewModel::class.java -> onboarding
-                else -> error("Unexpected ViewModel: $modelClass")
-            } as T
-        }
-        composeRule.setContent {
-            SynthXTheme {
-                navController = rememberNavController().also { controller ->
-                    controller.addOnDestinationChangedListener { nav, destination, _ ->
-                        if (destination.route == Screen.Onboarding.route) {
-                            val provider = ViewModelProvider(nav.getBackStackEntry(Screen.Onboarding.route), factory)
-                            provider[LibraryManagementViewModel::class.java]
-                            provider[BackupsAndRestoreViewModel::class.java]
-                            provider[RestoreViewModel::class.java]
-                            provider[OnboardingViewModel::class.java]
-                        }
+    @Composable
+    private fun WizardContent(factory: ViewModelProvider.Factory, startDestination: String) {
+        SynthXTheme {
+            navController = rememberNavController().also { controller ->
+                controller.addOnDestinationChangedListener { nav, destination, _ ->
+                    if (destination.route == Screen.Onboarding.route) {
+                        val provider = ViewModelProvider(nav.getBackStackEntry(Screen.Onboarding.route), factory)
+                        provider[LibraryManagementViewModel::class.java]
+                        provider[BackupsAndRestoreViewModel::class.java]
+                        provider[RestoreViewModel::class.java]
+                        provider[OnboardingViewModel::class.java]
                     }
                 }
-                NavHost(navController, startDestination = Screen.Onboarding.route) {
-                    onboardingRoutes(navController)
-                    composable(Screen.Home.route) { Text("Home after onboarding") }
-                }
+            }
+            NavHost(navController, startDestination = startDestination) {
+                onboardingRoutes(navController)
+                composable(Screen.Home.route) { Text("Home after onboarding") }
             }
         }
+    }
+
+    private fun wizardFactory(
+        library: LibraryManagementViewModel,
+        backups: BackupsAndRestoreViewModel,
+        restore: RestoreViewModel,
+        onboarding: OnboardingViewModel,
+    ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = when (modelClass) {
+            LibraryManagementViewModel::class.java -> library
+            BackupsAndRestoreViewModel::class.java -> backups
+            RestoreViewModel::class.java -> restore
+            OnboardingViewModel::class.java -> onboarding
+            else -> error("Unexpected ViewModel: $modelClass")
+        } as T
+    }
+
+    /** Mirrors MainActivity's cold-start gating condition post P7-T2 — see MainActivity.kt:107. */
+    private fun gatingStartDestination(): String =
+        if (preferences.onboardingComplete) Screen.Home.route else Screen.Onboarding.route
+
+    /**
+     * Mirrors MainActivity's PRE-P7-T2 gating condition (R7-F02's exact bug). Used only by
+     * [mutationTestLegacyGatingConditionWouldHaveShownHomeInstead] to prove the acceptance test
+     * actually exercises the fix rather than passing vacuously.
+     */
+    private fun legacyGatingStartDestination(): String =
+        if (preferences.musicFolderUri == null) Screen.Onboarding.route else Screen.Home.route
+
+    private fun startWizard(
+        library: LibraryManagementViewModel = this.library,
+        backups: BackupsAndRestoreViewModel = this.backups,
+        restore: RestoreViewModel = this.restore,
+        onboarding: OnboardingViewModel = this.onboarding,
+        startDestination: String = gatingStartDestination(),
+    ) {
+        val factory = wizardFactory(library, backups, restore, onboarding)
+        composeRule.setContent { WizardContent(factory, startDestination) }
+    }
+
+    /**
+     * Simulates process death mid-wizard: discards the in-memory ViewModel instances (a fresh
+     * quartet, exactly as a real process recreation would produce) and recomposes onto the same
+     * Activity with a brand new NavHostController and backstack, while [preferences]' backing
+     * SharedPreferences file — the one thing that actually survives — is left untouched.
+     * [gating] lets [mutationTestLegacyGatingConditionWouldHaveShownHomeInstead] substitute the
+     * pre-fix condition without needing to edit MainActivity.kt itself.
+     */
+    private fun relaunchWizardAfterSimulatedProcessDeath(gating: () -> String = ::gatingStartDestination) {
+        val repository = Proxy.newProxyInstance(
+            SongRepository::class.java.classLoader,
+            arrayOf(SongRepository::class.java),
+        ) { _, method, _ ->
+            check(method.name == "getMissingSongCount") { "Unexpected repository access: ${method.name}" }
+            flowOf(0)
+        } as SongRepository
+        composeRule.runOnUiThread {
+            library = LibraryManagementViewModel(
+                context,
+                preferences,
+                repository,
+                BackupManager(context),
+                releasePersistableGrant = { uri ->
+                    releasedGrants += uri
+                    persistedGrants -= uri
+                },
+            )
+            backups = BackupsAndRestoreViewModel(context, preferences, BackupManager(context))
+            restore = RestoreViewModel(context, BackupManager(context), preferences)
+            onboarding = OnboardingViewModel(preferences)
+            store.clear()
+            listOf(library, backups, restore, onboarding).forEach { store.put(it.javaClass.name, it) }
+        }
+        val factory = wizardFactory(library, backups, restore, onboarding)
+        val startDestination = gating()
+        composeRule.runOnUiThread {
+            composeRule.activity.setContent { WizardContent(factory, startDestination) }
+        }
+        composeRule.waitForIdle()
     }
 }

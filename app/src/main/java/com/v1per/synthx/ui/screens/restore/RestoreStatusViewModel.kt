@@ -72,8 +72,20 @@ class RestoreStatusViewModel internal constructor(
                         }
                         WorkInfo.State.RUNNING, WorkInfo.State.BLOCKED ->
                             _status.value = RestoreAppStatus.Working(info.id)
-                        WorkInfo.State.SUCCEEDED ->
+                        WorkInfo.State.SUCCEEDED -> {
+                            // P7-T2 / R7-F02: this is recovery's genuine completion signal — the
+                            // restore actually landed, not merely RESTORE_PREPARING being
+                            // reached (RestoreViewModel.restore navigates the wizard to Home on
+                            // that alone, well before this point, so the flag can't be set
+                            // there). Idempotent once onboarding is already complete (e.g. a
+                            // later restore from Settings, long after the wizard finished).
+                            if (!preferences.onboardingComplete) {
+                                check(preferences.setOnboardingCompleteDurably(true)) {
+                                    "Could not persist onboarding completion after restore success"
+                                }
+                            }
                             _status.value = RestoreAppStatus.Succeeded(info.id)
+                        }
                         WorkInfo.State.FAILED -> _status.value = RestoreAppStatus.Failed(
                             info.id,
                             info.outputData.getString(RestoreWorker.KEY_ERROR)

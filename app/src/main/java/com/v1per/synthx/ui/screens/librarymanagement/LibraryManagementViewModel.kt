@@ -378,6 +378,15 @@ class LibraryManagementViewModel(
             _musicFolderUri.value = uri
             clearFolderError()
             _localStatus.value = null
+            // Fresh-install onboarding's own folder-pick is genuinely "done" the moment this
+            // lands (P7-T2) — unlike saveRecoveryMusicFolder below, which must NOT set this.
+            // Idempotent no-op when this is a later re-pick from Library Management, long after
+            // onboarding already completed.
+            if (!preferencesManager.onboardingComplete) {
+                check(preferencesManager.setOnboardingCompleteDurably(true)) {
+                    "Could not persist onboarding completion"
+                }
+            }
             // REPLACE, not KEEP: any scan still running is walking the folder the user just
             // replaced, so its results are already stale.
             LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE)

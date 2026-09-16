@@ -103,11 +103,14 @@ class MainActivity : ComponentActivity() {
             // Synchronous SharedPreferences read, not a Room/DAO read — safe ahead of the
             // database gate resolving. Onboarding shows for a genuine fresh install, a
             // post-uninstall reinstall, or cleared app data alike: all three collapse to this
-            // one condition.
-            val startDestination = if (PreferencesManager(applicationContext).musicFolderUri == null) {
-                Screen.Onboarding.route
-            } else {
+            // one condition. Gated on the explicit completion flag (P7-T2), not merely
+            // musicFolderUri == null — recovery's first step sets that folder long before its
+            // restore actually succeeds (R7-F02), and a stale-but-incomplete recovery must still
+            // resume the wizard rather than bounce straight to an empty Home.
+            val startDestination = if (PreferencesManager(applicationContext).onboardingComplete) {
                 Screen.Home.route
+            } else {
+                Screen.Onboarding.route
             }
             enableEdgeToEdge()
             setContent {
