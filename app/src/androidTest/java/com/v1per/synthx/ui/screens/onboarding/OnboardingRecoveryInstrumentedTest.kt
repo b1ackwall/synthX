@@ -33,6 +33,7 @@ import com.v1per.synthx.data.backup.BackupHashing
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupMetadata
 import com.v1per.synthx.data.backup.BackupMetadataCodec
+import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.RestoreWorker
@@ -61,7 +62,9 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -427,7 +430,12 @@ class OnboardingRecoveryInstrumentedTest {
         assertFalse(preferences.onboardingComplete)
     }
 
-    /** Regression protection: fresh installs never had a scan/restore step, only a folder pick. */
+    /**
+     * Regression protection: fresh installs never had a scan/restore step, only a folder pick.
+     * Also covers P7-T3 / R7-F08's regression requirement — no backup folder is configured at
+     * this point in a fresh install, so the completion side effect must survive the new
+     * skip-the-backup-attempt pre-check unchanged.
+     */
     @Test fun freshInstallSetsOnboardingCompleteAtFolderPickTime() {
         assertFalse(preferences.onboardingComplete)
         composeRule.runOnUiThread { library.saveMusicFolder(music) }
@@ -435,6 +443,84 @@ class OnboardingRecoveryInstrumentedTest {
         composeRule.runOnIdle { }
         assertTrue(preferences.onboardingComplete)
         assertNull(preferences.onboardingStepName)
+        assertEquals(123L, preferences.lastBackupAttemptTimestamp)
+    }
+
+    /**
+     * Acceptance test for R7-F08 (P7-T3): nothing has actually been backed up yet at this point
+     * on a fresh install — the backup folder is a later, separate step — so saveMusicFolder must
+     * skip the attempt entirely rather than let it fail and have BackupOutcomeStore durably
+     * record a false "Failed" health warning for an operation that was never possible.
+     */
+    @Test fun saveMusicFolderSkipsBackupAttemptWhenNoBackupFolderConfigured() {
+        assertNull(preferences.backupFolderUri)
+        val outcomeBefore = BackupOutcomeStore.lastBackupOutcome.value
+
+        composeRule.runOnUiThread { library.saveMusicFolder(music) }
+        await(library.musicFolderUri) { it == music }
+        composeRule.runOnIdle { }
+
+        // Sentinel from setUp() — unchanged proves createBackup was never invoked at all, not
+        // merely that a thrown exception didn't propagate.
+        assertEquals(123L, preferences.lastBackupAttemptTimestamp)
+        assertSame(outcomeBefore, BackupOutcomeStore.lastBackupOutcome.value)
+        assertTrue(preferences.onboardingComplete)
+    }
+
+    /**
+     * Edge-case regression: FolderSetupStep lets the backup folder be picked before the (only
+     * mandatory) music folder within the same onboarding step — nothing enforces picker order.
+     * When that happens, saveMusicFolder's Auto backup must still fire as before; the R7-F08
+     * pre-check must only suppress the attempt when nothing is configured, not narrow it further.
+     */
+    @Test fun saveMusicFolderStillAttemptsBackupWhenBackupFolderAlreadyConfigured() {
+        preferences.backupFolderUri = arrivals.toString()
+
+        composeRule.runOnUiThread { library.saveMusicFolder(music) }
+        await(library.musicFolderUri) { it == music }
+        composeRule.runOnIdle { }
+
+        // The attempt fails (arrivals isn't a real backup tree) but must still be RECORDED —
+        // proving createBackup was actually invoked, unlike the no-folder-configured case above.
+        assertNotEquals(123L, preferences.lastBackupAttemptTimestamp)
+        assertTrue(preferences.onboardingComplete)
+    }
+
+    /**
+     * Acceptance test for the no-interruption Choice-switch variant of R7-F03 (P7-T3): explore
+     * recovery, persist its music folder via saveRecoveryMusicFolder, back out to Choice without
+     * ever completing the restore, then pick Fresh Install. Must NOT re-attempt a backup snapshot
+     * of a folder whose contents haven't changed since being picked — but still must complete
+     * onboarding and trigger the first scan, exactly as a genuine fresh install would.
+     */
+    @Test fun freshInstallFromAbandonedRecoveryDoesNotReattemptBackupButStillScansAndCompletes() {
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recover_backup)).performClick()
+        saveMusic()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled().performClick()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_backup_title)).assertExists()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.cd_back)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_folder_title)).assertExists()
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_welcome_title)).assertExists()
+        assertFalse(preferences.onboardingComplete)
+        assertEquals(123L, preferences.lastBackupAttemptTimestamp)
+        assertTrue(scanIds().isEmpty())
+
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
+        composeRule.runOnIdle { }
+
+        // R7-F03: no re-attempted backup on the already-persisted recovery folder.
+        assertEquals(123L, preferences.lastBackupAttemptTimestamp)
+        // The two genuine fresh-install side effects still need to land.
+        assertTrue(preferences.onboardingComplete)
+        val scanWork = runBlocking {
+            withTimeout(10_000) {
+                workManager.getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
+                    .first { infos -> infos.isNotEmpty() }
+            }
+        }
+        assertTrue(scanWork.isNotEmpty())
     }
 
     /**

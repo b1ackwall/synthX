@@ -367,7 +367,18 @@ class LibraryManagementViewModel(
             )
             if (rejected) return@launchCatching
 
-            backupManager.createBackup(BackupTier.Auto, BackupReason.FOLDER_CHANGE)
+            // P7-T3 / R7-F08: nothing has actually been backed up yet at this point on a fresh
+            // install — the backup folder is a later, separate step in the same wizard — so
+            // attempting the snapshot here would only ever throw BackupNotConfiguredException,
+            // which BackupOutcomeStore would then durably record as a genuine backup *failure*.
+            // That surfaces as a false "Failed" health warning the very first time the user
+            // opens Backups and Restore, for an operation that was never actually possible.
+            // Skip the attempt entirely (not merely catch the exception) so no outcome is
+            // recorded at all — a later re-pick from Library Management, once a backup folder
+            // is actually configured, still takes its snapshot as before.
+            if (preferencesManager.backupFolderUri != null) {
+                backupManager.createBackup(BackupTier.Auto, BackupReason.FOLDER_CHANGE)
+            }
 
             releaseGrantIfSuperseded(
                 old = _musicFolderUri.value,
@@ -378,17 +389,48 @@ class LibraryManagementViewModel(
             _musicFolderUri.value = uri
             clearFolderError()
             _localStatus.value = null
-            // Fresh-install onboarding's own folder-pick is genuinely "done" the moment this
-            // lands (P7-T2) — unlike saveRecoveryMusicFolder below, which must NOT set this.
-            // Idempotent no-op when this is a later re-pick from Library Management, long after
-            // onboarding already completed.
-            if (!preferencesManager.onboardingComplete) {
-                check(preferencesManager.setOnboardingCompleteDurably(true)) {
-                    "Could not persist onboarding completion"
-                }
-            }
+            markOnboardingCompleteIfNeeded()
             // REPLACE, not KEEP: any scan still running is walking the folder the user just
             // replaced, so its results are already stale.
+            LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE)
+        }
+    }
+
+    /**
+     * Fresh-install onboarding's own folder-pick is genuinely "done" the moment it lands
+     * (P7-T2) — unlike [saveRecoveryMusicFolder], which must NOT set this. Idempotent no-op
+     * once onboarding is already complete, whether that's a later re-pick from Library
+     * Management or a second call within the same wizard session (see
+     * [finishFreshInstallFromAbandonedRecovery]).
+     */
+    private fun markOnboardingCompleteIfNeeded() {
+        if (!preferencesManager.onboardingComplete) {
+            check(preferencesManager.setOnboardingCompleteDurably(true)) {
+                "Could not persist onboarding completion"
+            }
+        }
+    }
+
+    /**
+     * P7-T3 / R7-F03 (no-interruption variant): the Choice step's Fresh Install button, when
+     * switching away from an abandoned recovery attempt, used to re-call [saveMusicFolder] on
+     * the folder [saveRecoveryMusicFolder] had already persisted — retaking a
+     * [BackupReason.FOLDER_CHANGE] snapshot of a folder whose contents haven't changed since
+     * being picked, into a backup tier that may not even be configured yet, and which could
+     * evict a genuine Daily backup on the very next retention pass. Recovery's own folder-save
+     * never took that snapshot precisely because nothing library-relevant existed at that point
+     * to protect — that reasoning still holds here.
+     *
+     * The only two things this transition genuinely still needs, that [saveRecoveryMusicFolder]
+     * deliberately skipped: marking onboarding complete (fresh install owns that, recovery
+     * doesn't) and enqueuing the first scan (recovery leaves the folder unscanned on purpose).
+     * Both run here, without the unsafe backup.
+     */
+    fun finishFreshInstallFromAbandonedRecovery() {
+        launchCatching(onError = {
+            _folderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
+        }) {
+            markOnboardingCompleteIfNeeded()
             LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE)
         }
     }

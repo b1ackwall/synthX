@@ -98,10 +98,14 @@ fun OnboardingScreen(
                 onFreshInstall = {
                     // Recovery may have persisted a root without ever scanning it. Switching to
                     // fresh install must start its usual scan before Done can enter ScanningStep.
-                    if (viewModel.returningFromRecovery) {
-                        libraryManagementViewModel.musicFolderUri.value?.let {
-                            libraryManagementViewModel.saveMusicFolder(it)
-                        }
+                    // P7-T3 / R7-F03: deliberately NOT saveMusicFolder — the folder is already
+                    // correctly persisted via saveRecoveryMusicFolder earlier in the recovery
+                    // branch, so re-saving it would only re-trigger an unsafe, unnecessary
+                    // backup snapshot. See finishFreshInstallFromAbandonedRecovery's kdoc.
+                    if (viewModel.returningFromRecovery &&
+                        libraryManagementViewModel.musicFolderUri.value != null
+                    ) {
+                        libraryManagementViewModel.finishFreshInstallFromAbandonedRecovery()
                     }
                     viewModel.goToFolderSetup()
                 },

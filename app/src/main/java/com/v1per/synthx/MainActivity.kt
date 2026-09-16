@@ -63,6 +63,15 @@ import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
 import java.util.UUID
 
+/**
+ * The real decision [MainActivity.runLaunchMaintenance] gates on — factored to file scope
+ * (rather than inlined) purely so an instrumented test can exercise the actual condition
+ * without needing to launch the full Activity. See [MainActivity.runLaunchMaintenance]'s kdoc
+ * for why it exists (P7-T3 / R7-F03).
+ */
+internal fun shouldRunLaunchMaintenance(preferences: PreferencesManager): Boolean =
+    preferences.onboardingComplete
+
 class MainActivity : ComponentActivity() {
 
     private var databaseStartupAttemptRunning = false
@@ -199,9 +208,27 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    /** Runs only after C1 has granted process-wide Room permission. */
+    /**
+     * Runs only after C1 has granted process-wide Room permission.
+     *
+     * P7-T3 / R7-F03: also gated on [PreferencesManager.onboardingComplete]. Recovery's own
+     * steps persist a music folder (and sometimes a backup folder) long before a restore
+     * actually succeeds — without this gate, an interrupted recovery relaunching straight back
+     * into the wizard (see [resolveDatabaseStartup]) would still race this function's daily
+     * backup and launch-scan chain against the just-picked folders on the very same launch,
+     * publishing a snapshot of the still-empty database into the user's real Daily tier and
+     * scanning/overwriting rows recovery was meant to replace. Deferring the rest of this
+     * function's work (queue restore, art sweep, playlist art backfill) alongside it is
+     * deliberate, not incidental: none of those have anything real to act on before onboarding
+     * has actually produced a library, and by the time any of them would — a successful
+     * fresh-install scan or a genuinely completed restore — [onboardingComplete] is already
+     * true (recovery's [artSweepPending][PreferencesManager.artSweepPending] flag is only ever
+     * set alongside it, deep inside [com.v1per.synthx.data.backup.RestoreTransaction]'s success
+     * path, never before), so the next launch (or later in this same one) runs them normally.
+     */
     private fun runLaunchMaintenance() {
         val preferences = PreferencesManager(applicationContext)
+        if (!shouldRunLaunchMaintenance(preferences)) return
         val backupManager = BackupManager.create(applicationContext)
         // Resolved on the main thread before the coroutine: ViewModel creation (and the
         // MediaController binding it starts) belongs there, unlike the call below.
