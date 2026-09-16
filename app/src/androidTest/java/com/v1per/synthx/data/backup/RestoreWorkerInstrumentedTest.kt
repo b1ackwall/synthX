@@ -48,14 +48,16 @@ class RestoreWorkerInstrumentedTest {
         DatabaseStartupGate.resetForTest(context)
     }
 
-    @Test fun uniqueRestoreUsesKeepSemantics() {
+    @Test fun uniqueRestoreUsesKeepSemanticsAndReturnsTheActualOwner() = runBlocking {
         val first = backupInfo(File(databaseDir, validBackupName()))
         val second = backupInfo(File(databaseDir, validBackupName()))
-        RestoreWorker.enqueue(context, first)
-        RestoreWorker.enqueue(context, second)
+        val firstOwner = RestoreWorker.enqueue(context, first)
+        val secondOwner = RestoreWorker.enqueue(context, second)
         val infos = workManager.getWorkInfosForUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).get()
         assertEquals(1, infos.size)
         assertEquals(WorkInfo.State.ENQUEUED, infos.single().state)
+        assertEquals(infos.single().id, firstOwner)
+        assertEquals(firstOwner, secondOwner)
     }
 
     @Test fun restoreRequestRoundTripsTrustedReference() {

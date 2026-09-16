@@ -195,6 +195,46 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_ART_SWEEP_PENDING, false)
         set(value) = prefs.edit().putBoolean(KEY_ART_SWEEP_PENDING, value).apply()
 
+    // --------------------------------------------------------- durable restore observation
+
+    /** WorkManager UUID for the restore whose outcome still belongs to the user. */
+    var restoreRequestId: String?
+        get() = prefs.getString(KEY_RESTORE_REQUEST_ID, null)
+        private set(value) = prefs.edit().putString(KEY_RESTORE_REQUEST_ID, value).apply()
+
+    /** Wall-clock submission time used only for the queued-work grace period. */
+    var restoreRequestSubmittedAt: Long
+        get() = prefs.getLong(KEY_RESTORE_REQUEST_SUBMITTED_AT, 0L)
+        private set(value) = prefs.edit().putLong(KEY_RESTORE_REQUEST_SUBMITTED_AT, value).apply()
+
+    /** True only after a terminal WorkInfo has actually been put on screen. */
+    var restoreOutcomeAcknowledged: Boolean
+        get() = prefs.getBoolean(KEY_RESTORE_OUTCOME_ACKNOWLEDGED, false)
+        private set(value) = prefs.edit().putBoolean(KEY_RESTORE_OUTCOME_ACKNOWLEDGED, value).apply()
+
+    /**
+     * Commits the identity before enqueue returns to UI code. KEEP can resolve to an already
+     * active request; retain that request's original clock in that case so its wait is not reset
+     * by a duplicate tap/recreated caller.
+     */
+    fun trackRestoreRequestDurably(requestId: String, submittedAt: Long): Boolean {
+        val sameRequest = restoreRequestId == requestId
+        return prefs.edit()
+            .putString(KEY_RESTORE_REQUEST_ID, requestId)
+            .putLong(
+                KEY_RESTORE_REQUEST_SUBMITTED_AT,
+                if (sameRequest && restoreRequestSubmittedAt > 0L) restoreRequestSubmittedAt else submittedAt,
+            )
+            .putBoolean(KEY_RESTORE_OUTCOME_ACKNOWLEDGED, false)
+            .commit()
+    }
+
+    /** The observer calls this at composition time, not merely when it discovers terminal work. */
+    fun acknowledgeRestoreOutcomeDurably(requestId: String): Boolean {
+        if (restoreRequestId != requestId) return false
+        return prefs.edit().putBoolean(KEY_RESTORE_OUTCOME_ACKNOWLEDGED, true).commit()
+    }
+
     // ------------------------------------------------- issues scan cache (see IssuesScanWorker)
     // Six categories stay live. Missing-art and missing-palette aggregate IDs are persisted
     // so the screen and both Fix actions share the last worker snapshot across cold starts.
@@ -253,6 +293,9 @@ class PreferencesManager(context: Context) {
         private const val KEY_MIGRATION_SNAPSHOT_LAUNCHES = "migration_snapshot_confirmed_launches"
         private const val KEY_MIGRATION_INVARIANT_FAILURE_PENDING = "migration_invariant_failure_pending"
         private const val KEY_ART_SWEEP_PENDING = "art_sweep_pending"
+        private const val KEY_RESTORE_REQUEST_ID = "restore_request_id"
+        private const val KEY_RESTORE_REQUEST_SUBMITTED_AT = "restore_request_submitted_at"
+        private const val KEY_RESTORE_OUTCOME_ACKNOWLEDGED = "restore_outcome_acknowledged"
         private const val KEY_LAST_ISSUES_SCAN_TIMESTAMP = "last_issues_scan_timestamp"
         private const val KEY_LAST_ISSUES_SCAN_ISSUE_COUNT = "last_issues_scan_issue_count"
         private const val KEY_MISSING_ART_SONG_IDS = "missing_art_song_ids"

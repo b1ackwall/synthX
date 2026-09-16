@@ -43,6 +43,7 @@ import com.v1per.synthx.data.backup.MigrationRecoveryAction
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.RestoreFailureFormatter
 import com.v1per.synthx.data.backup.RestoreIncidentReports
+import com.v1per.synthx.data.backup.pruneFinishedWorkIfRestoreAcknowledged
 import com.v1per.synthx.data.backup.UnsupportedLiveDatabaseVersionException
 import com.v1per.synthx.data.playlistart.PlaylistArtBackfill
 import com.v1per.synthx.data.repository.SongRepositoryImpl
@@ -54,6 +55,7 @@ import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.MainScaffold
+import com.v1per.synthx.ui.screens.restore.RestoreStatusViewModel
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import kotlinx.coroutines.Dispatchers
@@ -74,6 +76,13 @@ class MainActivity : ComponentActivity() {
     private val playbackViewModel: PlaybackViewModel by lazy {
         ViewModelProvider(this, PlaybackViewModel.Factory(applicationContext))[
             PlaybackViewModel::class.java
+        ]
+    }
+
+    /** Activity-owned for the same reason as playback: it must outlive every nav destination. */
+    private val restoreStatusViewModel: RestoreStatusViewModel by lazy {
+        ViewModelProvider(this, RestoreStatusViewModel.Factory(applicationContext))[
+            RestoreStatusViewModel::class.java
         ]
     }
 
@@ -114,7 +123,10 @@ class MainActivity : ComponentActivity() {
                         )
                         else -> {
                             NotificationPermissionEffect()
-                            MainScaffold(startDestination = startDestination)
+                            MainScaffold(
+                                startDestination = startDestination,
+                                restoreStatusViewModel = restoreStatusViewModel,
+                            )
                         }
                     }
                 }
@@ -173,12 +185,15 @@ class MainActivity : ComponentActivity() {
      * around until it's explicitly pruned or the unique name is enqueued again — without this,
      * RestoreViewModel reading RestoreWorker.UNIQUE_WORK_NAME's WorkInfo on a later, unrelated
      * visit to the Restore screen would still see last session's SUCCEEDED state and resurface
-     * the "restore complete, reopen synthX" dialog. WorkManager has no per-unique-work prune,
-     * only this database-wide one — harmless here since nothing else in the app persists across
-     * restarts by reading a finished WorkInfo the way Restore does.
+     * the "restore complete, reopen synthX" dialog. WorkManager has no per-unique-work prune.
+     * The restore-status observer now deliberately retains an unshown terminal result across
+     * process death, so the guard below must approve database-wide pruning.
      */
-    private fun pruneFinishedWork() {
-        WorkManager.getInstance(applicationContext).pruneWork()
+    private suspend fun pruneFinishedWork() {
+        pruneFinishedWorkIfRestoreAcknowledged(
+            WorkManager.getInstance(applicationContext),
+            PreferencesManager(applicationContext),
+        )
     }
 
     /** Runs only after C1 has granted process-wide Room permission. */

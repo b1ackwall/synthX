@@ -55,4 +55,5 @@ internal object RestoreShellPolicy {
 internal object ShellTestTags {
     const val RestoreMaintenanceSurface = "shell:restore-maintenance"
     const val NavHost = "shell:nav-host"
+    const val RestorePending = "shell:restore-pending"
 }

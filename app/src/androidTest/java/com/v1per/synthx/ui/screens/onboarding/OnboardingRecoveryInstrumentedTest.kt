@@ -23,10 +23,16 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.testing.WorkManagerTestInitHelper
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupInfo
+import com.v1per.synthx.data.backup.BackupFileNames
+import com.v1per.synthx.data.backup.BackupHashing
 import com.v1per.synthx.data.backup.BackupManager
+import com.v1per.synthx.data.backup.BackupMetadata
+import com.v1per.synthx.data.backup.BackupMetadataCodec
 import com.v1per.synthx.data.backup.BackupTier
+import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.RestoreWorker
 import com.v1per.synthx.data.backup.TestWorkManager
 import com.v1per.synthx.data.db.SynthXDatabase
@@ -42,6 +48,8 @@ import com.v1per.synthx.ui.screens.restore.RestorePreview
 import com.v1per.synthx.ui.screens.restore.RestoreViewModel
 import com.v1per.synthx.ui.theme.SynthXTheme
 import java.lang.reflect.Proxy
+import java.io.File
+import java.io.RandomAccessFile
 import java.util.UUID
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -79,12 +87,16 @@ class OnboardingRecoveryInstrumentedTest {
     private lateinit var navController: NavHostController
     private val persistedGrants = mutableSetOf<Uri>()
     private val releasedGrants = mutableListOf<Uri>()
+    private val createdFiles = mutableListOf<File>()
     private val workManager get() = WorkManager.getInstance(context)
     private val music = Uri.parse("content://synthx.test.music/tree/primary%3AMusic")
     private val arrivals = Uri.parse("content://synthx.test.arrivals/tree/primary%3AArrivals")
 
     @Before fun setUp() {
         TestWorkManager.ensureInitialized(context)
+        workManager.cancelUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).result.get()
+        workManager.pruneWork().result.get()
+        if (RestoreCoordinator.activeOperationCountForTest() == 0) RestoreCoordinator.resetForTest()
         val repository = Proxy.newProxyInstance(
             SongRepository::class.java.classLoader,
             arrayOf(SongRepository::class.java),
@@ -95,6 +107,7 @@ class OnboardingRecoveryInstrumentedTest {
         preferences.lastBackupAttemptTimestamp = 123L
         persistedGrants.clear()
         releasedGrants.clear()
+        createdFiles.clear()
         composeRule.runOnUiThread {
             library = LibraryManagementViewModel(
                 context,
@@ -115,11 +128,15 @@ class OnboardingRecoveryInstrumentedTest {
 
     @After fun tearDown() {
         composeRule.runOnUiThread { store.clear() }
-        // TestWorkManager holds requests in its test database. Constraints are never satisfied,
-        // so the restore submission test cannot run RestoreWorker or replace a live database.
         workManager.cancelUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).result.get()
         workManager.pruneWork().result.get()
-        context.deleteDatabase("$testId.db")
+        if (RestoreCoordinator.currentMode() == RestoreCoordinator.Mode.RESTORE_PREPARING) {
+            RestoreCoordinator.markNormal()
+        }
+        createdFiles.forEach { file ->
+            context.deleteDatabase(file.name)
+            file.delete()
+        }
         appContext.deleteSharedPreferences("$testId-synthx_prefs")
     }
 
@@ -306,17 +323,8 @@ class OnboardingRecoveryInstrumentedTest {
         assertEquals(123L, preferences.lastBackupAttemptTimestamp)
     }
 
-    @Test fun confirmedRestoreUsesProductionCompletionAndRemovesWizardFromBackStack() {
-        // A standalone, empty Room database is enough for the existing preview's schema/count
-        // checks. Only the preview reads it; TestWorkManager never runs the restore request.
-        val databaseName = "$testId.db"
-        val database = SynthXDatabase.createStandalone(context, databaseName)
-        try {
-            database.openHelper.writableDatabase
-        } finally {
-            database.close()
-        }
-        val candidate = backup(Uri.fromFile(context.getDatabasePath(databaseName)))
+    @Test fun failedRestoreRunsAndStaysInWizardWithWorkerDiagnostic() {
+        val (candidate, source) = validCandidateWithMetadata()
         saveMusic()
         startWizard()
         composeRule.runOnUiThread { onboarding.goToRecoveryBackupSelect() }
@@ -324,20 +332,51 @@ class OnboardingRecoveryInstrumentedTest {
         composeRule.runOnUiThread { restore.beginPreview(candidate) }
         await(restore.preview) { it is RestorePreview.Ready || it is RestorePreview.Failed }
         assertTrue(restore.preview.value is RestorePreview.Ready)
-        // Exercise cancel first: it must leave the wizard and its current step intact.
-        composeRule.onNodeWithText(context.getString(R.string.action_cancel)).performClick()
-        composeRule.runOnIdle { assertEquals(Screen.Onboarding.route, navController.currentDestination?.route) }
+        // Metadata was complete and matched during preview; mutate bytes afterward so the worker
+        // reaches RestoreTransaction's source-size/SHA validation and fails before exclusive.
+        RandomAccessFile(source, "rw").use { file ->
+            file.seek(file.length() - 1L)
+            val original = file.readByte().toInt()
+            file.seek(file.length() - 1L)
+            file.writeByte(original xor 0x01)
+        }
+        composeRule.onNodeWithText(context.getString(R.string.restore_confirm_action)).performClick()
+        val request = awaitRequest()
+        WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
+        await(restore.outcome) { it is RestoreOutcome.Failed }
+
+        composeRule.onNodeWithText(context.getString(R.string.restore_failed_title)).assertExists()
+        composeRule.onNodeWithText("Home after onboarding").assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertEquals(Screen.Onboarding.route, navController.currentDestination?.route)
+        }
+        assertTrue((restore.outcome.value as RestoreOutcome.Failed).message.contains("verified size and SHA-256"))
+        composeRule.onNodeWithText(context.getString(R.string.action_ok)).performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.cd_back)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_folder_title)).assertExists()
+    }
+
+    @Test fun submittedRestoreNavigatesOnlyAfterRestorePreparing() {
+        val (candidate) = validCandidateWithMetadata()
+        saveMusic()
+        startWizard()
+        composeRule.runOnUiThread { onboarding.goToRecoveryBackupSelect() }
         composeRule.runOnUiThread { restore.beginPreview(candidate) }
         await(restore.preview) { it is RestorePreview.Ready }
         composeRule.onNodeWithText(context.getString(R.string.restore_confirm_action)).performClick()
+        awaitRequest()
+
+        composeRule.onNodeWithText("Home after onboarding").assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertEquals(Screen.Onboarding.route, navController.currentDestination?.route)
+        }
+
+        runBlocking { RestoreCoordinator.exclusive { } }
         composeRule.onNodeWithText("Home after onboarding").assertExists()
         composeRule.runOnIdle {
             assertEquals(Screen.Home.route, navController.currentDestination?.route)
             assertNull(navController.previousBackStackEntry)
         }
-        val requests = workManager.getWorkInfosForUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).get()
-        assertEquals(1, requests.size)
-        assertEquals(WorkInfo.State.ENQUEUED, requests.single().state)
     }
 
     private fun saveMusic() {
@@ -368,6 +407,52 @@ class OnboardingRecoveryInstrumentedTest {
         sizeBytes = 0,
         restoreEligible = true,
     )
+
+    private fun validCandidateWithMetadata(): Pair<BackupInfo, File> {
+        val names = BackupFileNames.create()
+        val databaseName = names.databaseFileName
+        val source = context.getDatabasePath(databaseName)
+        val database = SynthXDatabase.createStandalone(context, databaseName)
+        try {
+            database.openHelper.writableDatabase
+        } finally {
+            database.close()
+        }
+        val digest = BackupHashing.hash(source)
+        val metadataFile = File(source.parentFile, names.metadataFileName)
+        createdFiles += source
+        createdFiles += metadataFile
+        metadataFile.writeBytes(
+            BackupMetadataCodec.encode(
+                BackupMetadata(
+                    timestamp = System.currentTimeMillis(),
+                    tier = BackupTier.Manual.name,
+                    dbVersion = SynthXDatabase.VERSION,
+                    file = source.name,
+                    sizeBytes = digest.sizeBytes,
+                    sha256 = digest.sha256,
+                )
+            )
+        )
+        return BackupInfo(
+            databaseUri = Uri.fromFile(source),
+            metadataUri = Uri.fromFile(metadataFile),
+            fileName = source.name,
+            tier = BackupTier.Manual,
+            timestamp = System.currentTimeMillis(),
+            reason = null,
+            sizeBytes = source.length(),
+            restoreEligible = true,
+        ) to source
+    }
+
+    private fun awaitRequest(): WorkInfo = runBlocking {
+        withTimeout(10_000) {
+            workManager.getWorkInfosForUniqueWorkFlow(RestoreWorker.UNIQUE_WORK_NAME)
+                .first { infos -> infos.singleOrNull()?.state == WorkInfo.State.ENQUEUED }
+                .single()
+        }
+    }
 
     private fun startWizard() {
         val factory = object : ViewModelProvider.Factory {

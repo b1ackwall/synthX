@@ -20,6 +20,7 @@ import com.v1per.synthx.ui.screens.songs.SortOrder
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextPrimary
 import kotlinx.coroutines.flow.SharedFlow
+import java.util.UUID
 
 @Composable
 internal fun SynthXNavHost(
@@ -43,6 +44,7 @@ internal fun SynthXNavHost(
     // down through MainScaffold/NormalShell — Screen.Onboarding.route on a first run/reinstall/
     // cleared-data launch, Screen.Home.route otherwise.
     startDestination: String = Screen.Home.route,
+    onRestoreTerminalShown: (UUID) -> Unit = {},
 ) {
     Scaffold(
         containerColor = Background,
@@ -67,6 +69,7 @@ internal fun SynthXNavHost(
         ) {
             onboardingRoutes(
                 navController = navController,
+                onRestoreTerminalShown = onRestoreTerminalShown,
             )
             tabRoutes(
                 navController = navController,
@@ -83,6 +86,7 @@ internal fun SynthXNavHost(
             backupsAndRestoreRoutes(
                 navController = navController,
                 chromeBottomPadding = chromeBottomPadding,
+                onRestoreTerminalShown = onRestoreTerminalShown,
             )
             browseRoutes(
                 navController = navController,

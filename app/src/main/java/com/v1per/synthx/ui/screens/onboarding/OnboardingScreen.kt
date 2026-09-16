@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.util.UUID
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.screens.backupsandrestore.BackupsAndRestoreViewModel
@@ -61,6 +62,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 @Composable
 fun OnboardingScreen(
     onOnboardingComplete: () -> Unit,
+    onRestoreTerminalShown: (UUID) -> Unit = {},
     viewModel: OnboardingViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -106,6 +108,7 @@ fun OnboardingScreen(
             backupsAndRestoreViewModel = backupsAndRestoreViewModel,
             onBack = viewModel::goToRecoveryFolderSetup,
             onComplete = onOnboardingComplete,
+            onRestoreTerminalShown = onRestoreTerminalShown,
         )
     }
 }

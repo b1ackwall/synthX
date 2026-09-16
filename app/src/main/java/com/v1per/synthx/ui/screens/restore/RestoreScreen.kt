@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -52,6 +53,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 import kotlin.system.exitProcess
 import android.net.Uri
+import java.util.UUID
 // Aliased: the Material3 `Surface` composable already owns this simple name in this file.
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
@@ -62,10 +64,17 @@ fun RestoreScreen(
         factory = RestoreViewModel.Factory(LocalContext.current),
     ),
     onRestoreInitiated: () -> Unit = {},
+    onTerminalOutcomeShown: (UUID) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val outcome by viewModel.outcome.collectAsState()
     val preview by viewModel.preview.collectAsState()
+
+    LaunchedEffect(outcome) {
+        if (outcome is RestoreOutcome.Complete || outcome is RestoreOutcome.Failed) {
+            viewModel.terminalOutcomeWasShown(onTerminalOutcomeShown)
+        }
+    }
 
     val isRestoring = outcome is RestoreOutcome.InProgress
     val isPreviewing = preview !is RestorePreview.Idle

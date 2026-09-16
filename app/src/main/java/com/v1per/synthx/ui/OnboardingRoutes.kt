@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.ui.screens.onboarding.OnboardingScreen
+import java.util.UUID
 
 /**
  * First-run wizard route — the [SynthXNavHost] start destination whenever
@@ -15,6 +16,7 @@ import com.v1per.synthx.ui.screens.onboarding.OnboardingScreen
  */
 fun NavGraphBuilder.onboardingRoutes(
     navController: NavHostController,
+    onRestoreTerminalShown: (UUID) -> Unit = {},
 ) {
     composable(Screen.Onboarding.route) {
         OnboardingScreen(
@@ -25,6 +27,7 @@ fun NavGraphBuilder.onboardingRoutes(
                     popUpTo(Screen.Onboarding.route) { inclusive = true }
                 }
             },
+            onRestoreTerminalShown = onRestoreTerminalShown,
         )
     }
 }

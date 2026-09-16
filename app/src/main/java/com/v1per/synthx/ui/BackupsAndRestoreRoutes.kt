@@ -13,10 +13,12 @@ import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.screens.backupsandrestore.BackupsAndRestoreScreen
 import com.v1per.synthx.ui.screens.restore.RestoreScreen
 import com.v1per.synthx.ui.screens.restore.RestoreViewModel
+import java.util.UUID
 
 fun NavGraphBuilder.backupsAndRestoreRoutes(
     navController: NavHostController,
     chromeBottomPadding: Dp,
+    onRestoreTerminalShown: (UUID) -> Unit = {},
 ) {
     composable(Screen.BackupsAndRestore.route) {
         RouteContent(chromeBottomPadding) {
@@ -49,6 +51,7 @@ fun NavGraphBuilder.backupsAndRestoreRoutes(
                     )
                 },
                 viewModel = restoreViewModel,
+                onTerminalOutcomeShown = onRestoreTerminalShown,
             )
         }
     }

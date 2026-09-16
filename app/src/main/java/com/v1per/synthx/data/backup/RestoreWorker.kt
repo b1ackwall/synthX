@@ -16,6 +16,14 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.v1per.synthx.R
+import com.v1per.synthx.preferences.PreferencesManager
+import java.util.UUID
+import java.util.concurrent.Executor
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** WorkManager orchestrates restore; RestoreTransaction owns its crash-safe filesystem work. */
 class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
@@ -80,9 +88,35 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
         private const val KEY_SIZE_BYTES = "sizeBytes"
         private const val CHANNEL_ID = "db_restore"
         private const val NOTIFICATION_ID = 1002
-        fun enqueue(context: Context, backup: BackupInfo) {
-            WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP,
-                request(backup))
+        suspend fun enqueue(context: Context, backup: BackupInfo): UUID {
+            val workManager = WorkManager.getInstance(context)
+            val requested = request(backup)
+            val ownerBeforeEnqueue = withContext(Dispatchers.IO) {
+                workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+                    .singleOrNull { !it.state.isFinished }
+                    ?.id
+            }
+            workManager.enqueueUniqueWork(
+                UNIQUE_WORK_NAME,
+                ExistingWorkPolicy.KEEP,
+                requested,
+            ).awaitCompletion()
+
+            val infos = withContext(Dispatchers.IO) {
+                workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+            }
+            val owner = infos.firstOrNull { it.id == requested.id }
+                ?: infos.singleOrNull { !it.state.isFinished }
+                ?: ownerBeforeEnqueue?.let { priorId -> infos.firstOrNull { it.id == priorId } }
+                ?: error("Could not resolve the WorkManager request owning $UNIQUE_WORK_NAME")
+            check(
+                PreferencesManager(context.applicationContext).trackRestoreRequestDurably(
+                    owner.id.toString(),
+                    System.currentTimeMillis(),
+                )
+            ) { "Could not persist restore request identity" }
+            RestoreRequestTracking.changed()
+            return owner.id
         }
         internal fun request(backup: BackupInfo) =
             OneTimeWorkRequestBuilder<RestoreWorker>().setInputData(backup.toInputData())
@@ -99,6 +133,19 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
             return BackupInfo(uri, getString(KEY_METADATA_URI)?.let(Uri::parse), getString(KEY_FILE_NAME) ?: return null,
                 tier, getLong(KEY_TIMESTAMP, -1).takeIf { it >= 0 } ?: return null,
                 getString(KEY_REASON), getLong(KEY_SIZE_BYTES, -1).takeIf { it >= 0 } ?: return null)
+        }
+
+        private suspend fun androidx.work.Operation.awaitCompletion() {
+            suspendCancellableCoroutine { continuation ->
+                result.addListener(
+                    {
+                        runCatching { result.get() }
+                            .onSuccess { if (continuation.isActive) continuation.resume(Unit) }
+                            .onFailure { if (continuation.isActive) continuation.resumeWithException(it) }
+                    },
+                    Executor(Runnable::run),
+                )
+            }
         }
     }
 }

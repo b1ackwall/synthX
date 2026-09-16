@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.util.UUID
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.screens.backupsandrestore.BackupsAndRestoreViewModel
@@ -157,6 +158,7 @@ internal fun RecoveryBackupSelectStep(
     backupsAndRestoreViewModel: BackupsAndRestoreViewModel,
     onBack: () -> Unit,
     onComplete: () -> Unit,
+    onRestoreTerminalShown: (UUID) -> Unit = {},
     restoreViewModel: RestoreViewModel = viewModel(
         factory = RestoreViewModel.Factory(LocalContext.current),
     ),
@@ -199,9 +201,10 @@ internal fun RecoveryBackupSelectStep(
 
     RestoreScreen(
         viewModel = restoreViewModel,
-        // Submission is the last synchronous navigation opportunity: MainScaffold removes the
-        // nav graph in RESTORE_PREPARING and owns the mandatory close/reopen UI after Room closes.
+        // RestoreViewModel invokes this only when the submitted request reaches
+        // RESTORE_PREPARING. Until then this route stays alive to show queued/failed work.
         onRestoreInitiated = onComplete,
+        onTerminalOutcomeShown = onRestoreTerminalShown,
         topBar = {
             DetailTopBar(
                 title = stringResource(R.string.onboarding_recovery_backup_title),

@@ -58,6 +58,8 @@ import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
 import com.v1per.synthx.ui.components.rememberSharedSongBlobColors
 import com.v1per.synthx.ui.screens.songs.SortBottomSheet
 import com.v1per.synthx.ui.screens.songs.SortOrder
+import com.v1per.synthx.ui.screens.restore.RestoreAppStatus
+import com.v1per.synthx.ui.screens.restore.RestoreStatusViewModel
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
@@ -84,6 +86,7 @@ fun MainScaffold(
     // Resolved once in MainActivity from PreferencesManager.musicFolderUri == null — see
     // SynthXNavHost's startDestination parameter for where this ends up.
     startDestination: String = Screen.Home.route,
+    restoreStatusViewModel: RestoreStatusViewModel? = null,
 ) {
     val restoreMode by RestoreCoordinator.mode.collectAsState()
     val restoreTerminal by RestoreCoordinator.terminal.collectAsState()
@@ -92,7 +95,11 @@ fun MainScaffold(
     when (RestoreShellPolicy.decide(restoreMode, restoreTerminal)) {
         RestoreShellSurface.Maintenance -> RestoreMaintenanceSurface()
         RestoreShellSurface.Terminal -> RestoreTerminalSurface(restoreTerminal, diagnosticOperationId)
-        RestoreShellSurface.Normal -> NormalShell(navController, startDestination)
+        RestoreShellSurface.Normal -> NormalShell(
+            navController,
+            startDestination,
+            restoreStatusViewModel,
+        )
     }
 }
 
@@ -200,9 +207,19 @@ private fun BackupFolderNotice(onClick: () -> Unit) {
 }
 
 @Composable
-private fun NormalShell(navController: NavHostController, startDestination: String) {
+private fun NormalShell(
+    navController: NavHostController,
+    startDestination: String,
+    restoreStatusViewModel: RestoreStatusViewModel?,
+) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val restoreStatus = if (restoreStatusViewModel == null) {
+        RestoreAppStatus.Idle
+    } else {
+        val value by restoreStatusViewModel.status.collectAsState()
+        value
+    }
 
     // Home/Library/Search plus every route in Library's own detail hierarchy — see
     // Screen.libraryDetailRoutes, also shared by SynthXBottomNav.
@@ -352,6 +369,10 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
                     groupPickerTarget = GroupPickerTarget(groups, currentGroupId, onGroupSelected)
                 },
                 startDestination = startDestination,
+                onRestoreTerminalShown = {
+                    restoreStatusViewModel?.terminalWasShown(it)
+                    restoreStatusViewModel?.dismissTerminal(it)
+                },
             )
 
             BottomChromeOverlay(
@@ -442,8 +463,71 @@ private fun NormalShell(navController: NavHostController, startDestination: Stri
                 onDismiss = { queuePrompt = null },
             )
         }
+
+        val routeOwnsRestoreOutcome = currentRoute == Screen.Onboarding.route ||
+            currentRoute == Screen.Restore.route
+        RestoreObservedStatusHost(restoreStatus, routeOwnsRestoreOutcome, restoreStatusViewModel)
     }
     }
+}
+
+@Composable
+internal fun RestoreObservedStatusHost(
+    status: RestoreAppStatus,
+    routeOwnsRestoreOutcome: Boolean,
+    viewModel: RestoreStatusViewModel?,
+) {
+    if (status is RestoreAppStatus.WaitingForStorage) RestorePendingBanner()
+
+    val terminal = status as? RestoreAppStatus.Terminal
+    if (terminal != null && !routeOwnsRestoreOutcome) {
+        LaunchedEffect(terminal.requestId) { viewModel?.terminalWasShown(terminal.requestId) }
+        RestoreObservedOutcomeDialog(
+            terminal = terminal,
+            onDismiss = { viewModel?.dismissTerminal(terminal.requestId) },
+        )
+    }
+}
+
+@Composable
+private fun RestorePendingBanner() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .background(SurfaceVariant)
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm)
+            .testTag(ShellTestTags.RestorePending),
+    ) {
+        Text(
+            text = stringResource(R.string.restore_pending_storage),
+            style = MaterialTheme.typography.bodySmall,
+            color = TextPrimary,
+        )
+    }
+}
+
+@Composable
+private fun RestoreObservedOutcomeDialog(
+    terminal: RestoreAppStatus.Terminal,
+    onDismiss: () -> Unit,
+) {
+    val succeeded = terminal is RestoreAppStatus.Succeeded
+    AlertDialog(
+        onDismissRequest = {},
+        title = {
+            Text(stringResource(if (succeeded) R.string.restore_done_title else R.string.restore_failed_title))
+        },
+        text = {
+            Text(
+                if (terminal is RestoreAppStatus.Failed) terminal.message
+                else stringResource(R.string.restore_done_message),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_ok)) }
+        },
+    )
 }
 
 internal fun isHomeAmbientFullyOccluded(currentRoute: String?, playerProgress: Float): Boolean =
