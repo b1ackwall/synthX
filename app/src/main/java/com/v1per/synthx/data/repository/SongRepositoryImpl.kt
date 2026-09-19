@@ -915,26 +915,34 @@ class SongRepositoryImpl(
     override suspend fun createPlaylist(name: String, groupId: String?): String = dbOperation {
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
-        // The playlist's generated cover art, decided once here and never again (see
-        // PlaylistEntity.artHue). Done on the creation path rather than left to
-        // PlaylistArtBackfill so a user-created playlist already has its art the first time
-        // the list redraws, with no placeholder flash.
-        val hue = selectDistancedHue(playlistDao.getExistingArtHues())
         val structureSeed = Random.nextLong()
-        playlistDao.insertPlaylist(
-            PlaylistEntity(
-                id = id,
-                name = name,
-                description = null,
-                groupId = groupId,
-                position = 0,
-                createdAt = now,
-                updatedAt = now,
-                coverArtUri = null,
-                artHue = hue,
-                artStructureSeed = structureSeed,
+        // P8-T1/R1-F07: reading the existing hues and inserting the new row must be one
+        // transaction — otherwise two concurrent creators (or a creator overlapping a
+        // PlaylistArtBackfill pass) can both read the same used-hue snapshot and pick the same
+        // "unused" hue before either write lands. Room/SQLite serializes writers at the
+        // transaction level, so this alone is enough; it needs no visibility into a concurrent
+        // backfill pass's in-flight choices (see PlaylistArtBackfill's own mutex for that half).
+        database.withTransaction {
+            // The playlist's generated cover art, decided once here and never again (see
+            // PlaylistEntity.artHue). Done on the creation path rather than left to
+            // PlaylistArtBackfill so a user-created playlist already has its art the first time
+            // the list redraws, with no placeholder flash.
+            val hue = selectDistancedHue(playlistDao.getExistingArtHues())
+            playlistDao.insertPlaylist(
+                PlaylistEntity(
+                    id = id,
+                    name = name,
+                    description = null,
+                    groupId = groupId,
+                    position = 0,
+                    createdAt = now,
+                    updatedAt = now,
+                    coverArtUri = null,
+                    artHue = hue,
+                    artStructureSeed = structureSeed,
+                )
             )
-        )
+        }
         playlistExportManager.scheduleExport()
         id
     }

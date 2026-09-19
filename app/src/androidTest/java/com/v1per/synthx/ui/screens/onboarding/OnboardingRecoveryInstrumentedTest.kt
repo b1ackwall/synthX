@@ -10,10 +10,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -345,7 +349,7 @@ class OnboardingRecoveryInstrumentedTest {
             file.seek(file.length() - 1L)
             file.writeByte(original xor 0x01)
         }
-        composeRule.onNodeWithText(context.getString(R.string.restore_confirm_action)).performClick()
+        confirmRestoreWithTypedWord()
         val request = awaitRequest()
         WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
         await(restore.outcome) { it is RestoreOutcome.Failed }
@@ -368,7 +372,7 @@ class OnboardingRecoveryInstrumentedTest {
         composeRule.runOnUiThread { onboarding.goToRecoveryBackupSelect() }
         composeRule.runOnUiThread { restore.beginPreview(candidate) }
         await(restore.preview) { it is RestorePreview.Ready }
-        composeRule.onNodeWithText(context.getString(R.string.restore_confirm_action)).performClick()
+        confirmRestoreWithTypedWord()
         awaitRequest()
 
         composeRule.onNodeWithText("Home after onboarding").assertDoesNotExist()
@@ -557,6 +561,21 @@ class OnboardingRecoveryInstrumentedTest {
 
         assertNull(preferences.onboardingStepName)
         assertTrue(preferences.onboardingComplete)
+    }
+
+    /**
+     * P7-T7/R7-F17: the dialog's confirm button stays disabled until the required word is typed
+     * exactly, so a bare click on it (what these tests did before P7-T7) is a silent no-op that
+     * never enqueues the restore. Once typed, the field's own text also reads the required word
+     * and is itself clickable — exclude anything with a set-text action to isolate the button.
+     */
+    private fun confirmRestoreWithTypedWord() {
+        val requiredWord = context.getString(R.string.restore_confirm_action)
+        composeRule.onNode(hasSetTextAction()).performTextInput(requiredWord)
+        composeRule
+            .onNode(hasText(requiredWord).and(hasClickAction()).and(!hasSetTextAction()))
+            .assertIsEnabled()
+            .performClick()
     }
 
     private fun saveMusic() {

@@ -10,8 +10,11 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 
 class PlaylistArtBackfillTest {
 
@@ -78,6 +81,46 @@ class PlaylistArtBackfillTest {
         assertEquals(20, seeds.toSet().size, "Structure seeds repeated: $seeds")
     }
 
+    // ---------------------------------------------------------------- P8-T1/R6-C1 (mutex half)
+
+    /**
+     * The corruption half of the overlapping-pass problem is covered at the DAO/SQL level by
+     * PlaylistArtDaoInstrumentedTest's `setPlaylistArtIsANoOpOnceAlreadyAssigned` (needs real
+     * SQLite for the `IS NULL` guard). This covers the OTHER half — that PlaylistArtBackfill's
+     * own single-flight [kotlinx.coroutines.sync.Mutex] genuinely serializes two overlapping
+     * calls rather than merely making their outcome harmless. Pure-Kotlin coroutines, no Room
+     * needed, so this lives here as a fast JVM test rather than an instrumented one.
+     */
+    @Test
+    fun `a second overlapping pass does not start its own work until the first releases the lock`() = runTest {
+        val order = mutableListOf<String>()
+        val releaseA = CompletableDeferred<Unit>()
+        val daoA = FakePlaylistDao(
+            missing = listOf("only"),
+            onGetMissingArtIds = { order += "A:start"; releaseA.await() },
+        )
+        val daoB = FakePlaylistDao(
+            missing = emptyList(),
+            onGetMissingArtIds = { order += "B:start" },
+        )
+
+        val passA = async { PlaylistArtBackfill.backfill(daoA, Random(1)) }
+        yield()
+        val passB = async { PlaylistArtBackfill.backfill(daoB, Random(2)) }
+        yield()
+
+        assertEquals(
+            listOf("A:start"),
+            order,
+            "Pass B must not begin its own work while pass A still holds the lock",
+        )
+
+        releaseA.complete(Unit)
+        assertEquals(1, passA.await())
+        assertEquals(0, passB.await())
+        assertEquals(listOf("A:start", "B:start"), order)
+    }
+
     private data class ArtWrite(val id: String, val hue: Int, val seed: Long)
 
     /**
@@ -87,12 +130,16 @@ class PlaylistArtBackfillTest {
     private class FakePlaylistDao(
         private val missing: List<String>,
         private val existingHues: List<Int> = emptyList(),
+        private val onGetMissingArtIds: suspend () -> Unit = {},
     ) : PlaylistDao {
         val writes = mutableListOf<ArtWrite>()
         var existingHueQueries = 0
             private set
 
-        override suspend fun getPlaylistIdsMissingArt(): List<String> = missing
+        override suspend fun getPlaylistIdsMissingArt(): List<String> {
+            onGetMissingArtIds()
+            return missing
+        }
 
         override suspend fun getExistingArtHues(): List<Int> {
             existingHueQueries++

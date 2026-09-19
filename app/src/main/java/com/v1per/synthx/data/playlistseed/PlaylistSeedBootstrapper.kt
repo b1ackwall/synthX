@@ -7,6 +7,7 @@ import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.backup.PlaylistExportManager
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.playlistart.PlaylistArtBackfill
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -38,6 +39,12 @@ class PlaylistSeedBootstrapper internal constructor(
     // playlist structure has zero export coverage until some unrelated later mutation happens
     // to trigger one. Defaulted to a no-op so existing direct-constructor tests are unaffected.
     private val scheduleExport: () -> Unit = {},
+    // P8-T1/R6-C3: PlaylistEntity rows this bootstrapper inserts deliberately leave art_hue/
+    // art_structure_seed null (see the seed() body below) — without this, a seeded library
+    // shows the flat grey placeholder for every playlist until the next cold start's launch
+    // maintenance runs PlaylistArtBackfill. Same shape and same reasoning as scheduleExport
+    // above: a no-op default so existing direct-constructor tests are unaffected.
+    private val backfillArt: suspend () -> Int = { 0 },
 ) {
 
     suspend fun seed(): PlaylistSeedBootstrapResult = withContext(Dispatchers.IO) {
@@ -105,6 +112,16 @@ class PlaylistSeedBootstrapper internal constructor(
 
         if (result is PlaylistSeedBootstrapResult.Complete) {
             scheduleExport()
+            // Cosmetic only — a failure here must not turn an otherwise-successful seed into a
+            // reported DatabaseFailure. Same reasoning as MainActivity.backfillPlaylistArt's own
+            // runCatching around this exact call.
+            try {
+                backfillArt()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Left for the next cold start's launch maintenance to pick up instead.
+            }
         }
         result
     }
@@ -136,6 +153,7 @@ class PlaylistSeedBootstrapper internal constructor(
                 },
                 database = RoomPlaylistSeedDatabase(roomDatabase),
                 scheduleExport = playlistExportManager::scheduleExport,
+                backfillArt = { PlaylistArtBackfill.run(appContext) },
             )
         }
     }

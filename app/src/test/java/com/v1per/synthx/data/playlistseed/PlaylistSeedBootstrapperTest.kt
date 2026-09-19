@@ -268,13 +268,60 @@ class PlaylistSeedBootstrapperTest {
         assertEquals(0, database.transactionsStarted)
     }
 
+    // ---------------------------------------------------------------- P8-T1/R6-C3
+
+    @Test
+    fun successfulSeedTriggersBackfillArtExactlyOnce() = runBlocking {
+        val database = FakePlaylistSeedDatabase(approvedSongHashes.toSet())
+        var backfillCalls = 0
+        val seed = bootstrapper(database, backfillArt = { backfillCalls++; 68 })
+
+        assertIs<PlaylistSeedBootstrapResult.Complete>(seed.seed())
+
+        assertEquals(1, backfillCalls, "backfillArt must run exactly once after a successful seed")
+    }
+
+    @Test
+    fun refusedSeedNeverTriggersBackfillArt() = runBlocking {
+        val existingPlaylist = playlistEntity(
+            id = "33333333-3333-4333-8333-333333333333",
+            name = "Existing",
+        )
+        val database = FakePlaylistSeedDatabase(
+            availableSongIds = approvedSongHashes.toSet(),
+            initialPlaylists = listOf(existingPlaylist),
+        )
+        var backfillCalls = 0
+        val seed = bootstrapper(database, backfillArt = { backfillCalls++; 0 })
+
+        assertEquals(PlaylistSeedBootstrapResult.PlaylistsAlreadyExist, seed.seed())
+
+        assertEquals(0, backfillCalls, "A refused seed inserted nothing, so there is nothing to backfill")
+    }
+
+    @Test
+    fun backfillArtFailureDoesNotTurnASuccessfulSeedIntoAReportedFailure() = runBlocking {
+        val database = FakePlaylistSeedDatabase(approvedSongHashes.toSet())
+        val seed = bootstrapper(database, backfillArt = { error("simulated backfill failure") })
+
+        val result = seed.seed()
+
+        assertIs<PlaylistSeedBootstrapResult.Complete>(
+            result,
+            "A cosmetic backfillArt failure must not mask an otherwise-successful seed",
+        )
+        assertEquals(68, database.playlists.size)
+    }
+
     private fun bootstrapper(
         database: PlaylistSeedDatabase,
         bytes: ByteArray = approvedManifestBytes,
+        backfillArt: suspend () -> Int = { 0 },
     ) = PlaylistSeedBootstrapper(
         readManifestBytes = { bytes },
         database = database,
         currentTimeMillis = { 123_456L },
+        backfillArt = backfillArt,
     )
 
     private fun manifestBytes(manifest: PlaylistSeedManifest): ByteArray =

@@ -164,6 +164,10 @@ dependencies {
     // Shell-level Compose assertions (RestoreShellInstrumentedTest); versioned by the BOM above.
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
+    // ui-test-junit4 drags in espresso-core 3.5.0 transitively, whose Espresso.onIdle() reflects on
+    // InputManager.getInstance() — removed on recent platform releases (API 37 emulator: every
+    // Compose UI test died with NoSuchMethodException). Pin a release that no longer does.
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)

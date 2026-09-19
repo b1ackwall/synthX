@@ -73,16 +73,28 @@ interface PlaylistDao {
      * PlaylistArtBackfill's work list. Either column being NULL counts as missing — both are
      * needed to render, and they are only ever written together. Ordered by creation so the
      * backfill assigns hues to a library's oldest playlists first, giving the same result
-     * whatever order the rows happen to sit in.
+     * whatever order the rows happen to sit in. `id` is a tie-breaker (P8-T1/R6-C2):
+     * PlaylistSeedBootstrapper stamps every row it inserts with the SAME `created_at`, so a
+     * seeded batch would otherwise tie on the primary sort and come back in whatever order
+     * SQLite happens to return them — not reproducible across devices/runs.
      */
     @Query(
         "SELECT id FROM playlists WHERE art_hue IS NULL OR art_structure_seed IS NULL " +
-            "ORDER BY created_at ASC"
+            "ORDER BY created_at ASC, id ASC"
     )
     suspend fun getPlaylistIdsMissingArt(): List<String>
 
-    /** Written once per playlist and immutable afterwards — there is deliberately no regenerate path. */
-    @Query("UPDATE playlists SET art_hue = :hue, art_structure_seed = :seed WHERE id = :id")
+    /**
+     * Written once per playlist and immutable afterwards — there is deliberately no regenerate
+     * path. The `IS NULL` guard (P8-T1/R6-C1) makes this idempotent: if two backfill passes
+     * somehow overlap and both pick a (possibly different) hue for the same row, only the first
+     * write to actually land sticks — the second becomes a no-op rather than silently re-rolling
+     * art that was already decided.
+     */
+    @Query(
+        "UPDATE playlists SET art_hue = :hue, art_structure_seed = :seed " +
+            "WHERE id = :id AND art_hue IS NULL AND art_structure_seed IS NULL"
+    )
     suspend fun setPlaylistArt(id: String, hue: Int, seed: Long)
 
     // Playlist songs
