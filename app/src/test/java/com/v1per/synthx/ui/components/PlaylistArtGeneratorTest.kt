@@ -62,9 +62,39 @@ class PlaylistArtGeneratorTest {
     @Test
     fun `different seeds do not all collapse onto one picture`() {
         val patterns = (0L until 200L).map(::generatePlaylistArt)
-        assertTrue(patterns.toSet().size > 20, "Seeds produced only ${patterns.toSet().size} distinct patterns")
+        // Measured 190 of 200 after P8-T4 (169 before it), so 180 leaves room for noise while
+        // still failing on a return to the old concentration. The old `> 20` bar would have
+        // passed a generator four times more concentrated than the one it replaced.
+        assertTrue(patterns.toSet().size >= 180, "Seeds produced only ${patterns.toSet().size} distinct patterns of 200")
         // Every plane should turn up across 200 draws of a uniform 1-in-4 choice.
         assertEquals(SymmetryPlane.entries.toSet(), patterns.mapTo(mutableSetOf()) { it.plane })
+    }
+
+    @Test
+    fun `the structure space is wide rather than concentrated on a few common shapes`() {
+        // 1/sum(p^2) estimated without the sampling bias: sum of c*(c-1) counts ordered colliding
+        // pairs. Measured ~1,825 after P8-T4 and ~260 before it, so 1,000 sits well inside the new
+        // behaviour and far outside the old.
+        val counts = sample.groupingBy { it }.eachCount().values
+        val collidingPairs = counts.sumOf { it.toDouble() * (it - 1) }
+        val effective = SAMPLE_SIZE.toDouble() * (SAMPLE_SIZE - 1) / collidingPairs
+        assertTrue(effective >= 1_000, "Effective distinct patterns fell to ${effective.toInt()} (expected >= 1000)")
+
+        // The audit's most common pattern took 3.55% of seeds; now ~0.7%.
+        val topShare = counts.max().toDouble() / SAMPLE_SIZE
+        assertTrue(topShare <= 0.015, "One pattern accounts for ${"%.2f".format(topShare * 100)}% of seeds (expected <= 1.5%)")
+    }
+
+    @Test
+    fun `a good share of covers contain at least one filled diamond`() {
+        // Diamond fills are a consequence of the same short-walk tendency as the variety above.
+        // Measured ~54% after P8-T4 and ~23% before it; 45% catches a slide back without being
+        // brittle to a small change in how the walk is tuned.
+        val withDiamond = sample.count { pattern ->
+            (0 until ROWS).any { r -> (0 until COLS).any { c -> PlaylistArtGeometry.isFullyLit(pattern, r, c) } }
+        }
+        val share = withDiamond.toDouble() / SAMPLE_SIZE
+        assertTrue(share >= 0.45, "Only ${"%.1f".format(share * 100)}% of covers contain a diamond (expected >= 45%)")
     }
 
     @Test
@@ -146,7 +176,10 @@ class PlaylistArtGeneratorTest {
     @Test
     fun `the documented diagonal example seeds fill the frame`() {
         // Recorded in docs/audit-round-06-playlist-art.md: before the D4 fix these lit only
-        // quadrants {1,2} (24 segments, DIAG1) and {0,3} (36 segments, DIAG2).
+        // quadrants {1,2} (24 segments, DIAG1) and {0,3} (36 segments, DIAG2). The P8-T4 tuning
+        // changed their walks (now 84 and 64 lit segments) but both still fall short of one
+        // quadrant before the fallback runs, so they still exercise it - checked against an
+        // instrumented copy at the time of that change, and by mutation (see the test below).
         val diag1 = generatePlaylistArt(1238145679872042884L)
         assertEquals(SymmetryPlane.DIAG1, diag1.plane)
         assertEquals(setOf(0, 1, 2, 3), quadrantsLit(diag1))
@@ -170,20 +203,25 @@ class PlaylistArtGeneratorTest {
     }
 
     @Test
-    fun `axis-aligned patterns are byte-for-byte what they were before the diagonal fix`() {
-        // Captured from the generator before the D4 change (seed, plane, lit count, hash of the
-        // sorted lit-segment indices). The diagonal fix must not touch VERTICAL/HORIZONTAL output.
+    fun `axis-aligned patterns match the recorded post-tuning output`() {
+        // Captured from the generator after P8-T4 (GREEDY_EXIT_PROBABILITY 0.4, no forced centre
+        // exit): seed, plane, lit count, hash of the sorted lit-segment indices. This is the
+        // baseline going forward, NOT the pre-P8-T2 output the previous version of this test pinned
+        // - that one had to be re-recorded because the tuning changes nearly every walk. Any
+        // change to how VERTICAL/HORIZONTAL patterns come out must now be deliberate: re-record
+        // these and say so, the same as this change did. Four of these ten seeds run through the
+        // perpendicular-axis fallback and six do not, so both paths are pinned.
         val golden = listOf(
-            Golden(-6367288518484839692L, SymmetryPlane.VERTICAL, 24, -1718485543),
-            Golden(-3350035376205273921L, SymmetryPlane.VERTICAL, 46, -585626260),
-            Golden(-2252118164433982605L, SymmetryPlane.VERTICAL, 32, 512900317),
-            Golden(-2780912622345900595L, SymmetryPlane.VERTICAL, 32, -124830499),
-            Golden(2036865227790292842L, SymmetryPlane.VERTICAL, 40, 1962004821),
-            Golden(7288696731122253832L, SymmetryPlane.HORIZONTAL, 20, -2020984655),
-            Golden(4129736453975454884L, SymmetryPlane.HORIZONTAL, 60, -1428434933),
+            Golden(-6367288518484839692L, SymmetryPlane.VERTICAL, 40, 436484065),
+            Golden(-3350035376205273921L, SymmetryPlane.VERTICAL, 54, -1225228884),
+            Golden(-2252118164433982605L, SymmetryPlane.VERTICAL, 44, 1414225191),
+            Golden(-2780912622345900595L, SymmetryPlane.VERTICAL, 28, 2131454901),
+            Golden(2036865227790292842L, SymmetryPlane.VERTICAL, 88, -1761161735),
+            Golden(7288696731122253832L, SymmetryPlane.HORIZONTAL, 48, 1118770369),
+            Golden(4129736453975454884L, SymmetryPlane.HORIZONTAL, 56, -709132143),
             Golden(357622638577873973L, SymmetryPlane.HORIZONTAL, 20, 1009211249),
-            Golden(6025340343269824406L, SymmetryPlane.HORIZONTAL, 40, -562882591),
-            Golden(-766224462991485607L, SymmetryPlane.HORIZONTAL, 42, -1718058027),
+            Golden(6025340343269824406L, SymmetryPlane.HORIZONTAL, 36, 398287039),
+            Golden(-766224462991485607L, SymmetryPlane.HORIZONTAL, 46, -859859639),
         )
         golden.forEach { g ->
             val pattern = generatePlaylistArt(g.seed)
@@ -232,6 +270,9 @@ class PlaylistArtGeneratorTest {
     }
 
     private companion object {
+        const val SAMPLE_SIZE = 20_000
+        val sample: List<PlaylistArtPattern> by lazy { (0L until SAMPLE_SIZE).map(::generatePlaylistArt) }
+
         const val ROWS = PlaylistArtGeometry.ROWS
         const val COLS = PlaylistArtGeometry.COLS
         const val MAX_INDEX = PlaylistArtGeometry.COLS - 1

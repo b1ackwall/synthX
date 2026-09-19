@@ -165,8 +165,15 @@ internal fun generatePlaylistArt(structureSeed: Long): PlaylistArtPattern {
 /** How many walk steps to allow before giving up; a path to the centre needs far fewer. */
 private const val WALK_STEP_LIMIT = 60
 
-/** Probability of taking the greediest (most centre-ward) exit rather than any of the three. */
-private const val GREEDY_EXIT_PROBABILITY = 0.7f
+/**
+ * Probability of taking the greediest (most centre-ward) exit rather than any of the three. The
+ * "any of the three" branch includes the greedy option, so the effective greedy rate is
+ * 0.4 + 0.6/3 = 60%. Measured over 200k seeds (see P8-T4): 0.7 with a forced centre exit gave
+ * ~260 effectively distinct covers and diamonds on 23% of them; 0.4 with no forced exit gives
+ * ~1,800 and ~54%. Going lower stops helping variety (0.0 is worse than 0.3) while covers get
+ * steadily fuller, so do not push it further without re-measuring.
+ */
+private const val GREEDY_EXIT_PROBABILITY = 0.4f
 
 private const val QUADRANTS = 4
 
@@ -299,8 +306,9 @@ private fun buildPath(random: Random): GridPath {
             // Stable sort, so equally central options keep their TL, TR, BL, BR ordering.
             .sortedBy { it.distance }
 
-        // Never gamble away an exit that lands exactly on the centre — that ends the walk.
-        val exit = if (options[0].distance == 0 || random.nextFloat() < GREEDY_EXIT_PROBABILITY) {
+        // No special case for an exit that lands on the centre: it is gambled like any other, so
+        // the walk ends there only when selection happens to pick it (see the break below).
+        val exit = if (random.nextFloat() < GREEDY_EXIT_PROBABILITY) {
             options[0]
         } else {
             options[random.nextInt(options.size)]

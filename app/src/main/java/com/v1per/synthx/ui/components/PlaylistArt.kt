@@ -3,6 +3,7 @@ package com.v1per.synthx.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
+import androidx.collection.LruCache
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -13,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import com.v1per.synthx.data.playlistart.DiamondRole
@@ -23,8 +25,10 @@ import com.v1per.synthx.data.playlistart.PlaylistArtRole
 /**
  * A playlist's generated cover art, drawn live from the two values stored on the row — never
  * rasterised to a file. The picture is completely static once generated, so everything that
- * costs an allocation (brushes, diamond paths, scaled coordinates) is built once per
- * hue/seed/size and the draw pass only issues commands.
+ * costs an allocation (brushes, diamond paths, the backbone path, scaled coordinates) is built
+ * once per hue/seed/size and the draw pass only issues commands. "Once" is per process, not per
+ * composition: every call site is a lazy-list item, so `remember` alone would rebuild the model
+ * each time a row scrolls off and back — see [PlaylistArtModelCache].
  *
  * A playlist with no art yet — a row that predates the v13->v14 schema and has not met
  * PlaylistArtBackfill, or one seeded by PlaylistSeedBootstrapper — falls back to the same flat
@@ -45,8 +49,10 @@ internal fun PlaylistArt(
     }
 
     val sizePx = with(LocalDensity.current) { size.toPx() }
+    // remember still earns its keep: it spares recomposition the cache's lock. The cache is what
+    // survives the item leaving and re-entering composition.
     val model = remember(hue, structureSeed, sizePx) {
-        playlistArtRenderModel(hue, structureSeed, sizePx)
+        cachedPlaylistArtRenderModel(hue, structureSeed, sizePx)
     }
 
     Canvas(
@@ -78,20 +84,23 @@ private const val DiamondAlpha = 0.5f
  */
 private val DiamondWinding = listOf(0 to 0, 0 to 1, 1 to 1, 1 to 0)
 
-private class ScaledSegment(val start: Offset, val end: Offset)
+internal class LitSegment(val start: Offset, val end: Offset, val brush: Brush)
 
-private class LitSegment(val start: Offset, val end: Offset, val brush: Brush)
-
-private class PlaylistArtRenderModel(
+internal class PlaylistArtRenderModel(
     val background: Brush,
     val strokeWidth: Float,
-    val unlit: List<ScaledSegment>,
+    /**
+     * Every segment the walk did not light, as one path of two-point subpaths. They all share
+     * [UnlitSegmentColor], [strokeWidth] and a round cap, and no two come closer than the stroke
+     * is wide, so one stroked path paints exactly what ~100 separate lines did.
+     */
+    val backbone: Path,
     val lit: List<LitSegment>,
     val diamonds: List<Path>,
     val diamondColor: Color,
 )
 
-private fun playlistArtRenderModel(
+internal fun playlistArtRenderModel(
     hue: Int,
     structureSeed: Long,
     sizePx: Float,
@@ -103,7 +112,7 @@ private fun playlistArtRenderModel(
     val litStart = LitStartRole.colorAt(hueDegrees)
     val litEnd = LitEndRole.colorAt(hueDegrees)
 
-    val unlit = mutableListOf<ScaledSegment>()
+    val backbone = Path()
     val lit = mutableListOf<LitSegment>()
     PlaylistArtGeometry.segments.forEachIndexed { index, segment ->
         val start = Offset(segment.x1 * scale, segment.y1 * scale)
@@ -117,7 +126,8 @@ private fun playlistArtRenderModel(
                 brush = Brush.linearGradient(listOf(litStart, litEnd), start = start, end = end),
             )
         } else {
-            unlit += ScaledSegment(start, end)
+            backbone.moveTo(start.x, start.y)
+            backbone.lineTo(end.x, end.y)
         }
     }
 
@@ -135,7 +145,7 @@ private fun playlistArtRenderModel(
         // Scaled with the geometry, then floored at a pixel so the backbone cannot thin out to
         // nothing at small sizes on low-density screens.
         strokeWidth = (PlaylistArtGeometry.REFERENCE_STROKE_WIDTH * scale).coerceAtLeast(1f),
-        unlit = unlit,
+        backbone = backbone,
         lit = lit,
         diamonds = diamonds,
         diamondColor = DiamondRole.colorAt(hueDegrees),
@@ -175,17 +185,13 @@ private fun backgroundBrush(hueDegrees: Float, plane: SymmetryPlane, sizePx: Flo
     return Brush.linearGradient(colors, start = start, end = end)
 }
 
-private fun DrawScope.drawPlaylistArt(model: PlaylistArtRenderModel) {
+internal fun DrawScope.drawPlaylistArt(model: PlaylistArtRenderModel) {
     drawRect(brush = model.background)
-    model.unlit.forEach { segment ->
-        drawLine(
-            color = UnlitSegmentColor,
-            start = segment.start,
-            end = segment.end,
-            strokeWidth = model.strokeWidth,
-            cap = StrokeCap.Round,
-        )
-    }
+    drawPath(
+        path = model.backbone,
+        color = UnlitSegmentColor,
+        style = Stroke(width = model.strokeWidth, cap = StrokeCap.Round),
+    )
     // Under the lit strokes, so their bright inner ends stay crisp on top of the fill.
     model.diamonds.forEach { path ->
         drawPath(path = path, color = model.diamondColor, alpha = DiamondAlpha)
@@ -198,5 +204,60 @@ private fun DrawScope.drawPlaylistArt(model: PlaylistArtRenderModel) {
             strokeWidth = model.strokeWidth,
             cap = StrokeCap.Round,
         )
+    }
+}
+
+/**
+ * The finished model for ([hue], [structureSeed], [sizePx]), built at most once per process for
+ * as long as it stays among the most recently used [PlaylistArtCache.MAX_ENTRIES].
+ */
+internal fun cachedPlaylistArtRenderModel(hue: Int, structureSeed: Long, sizePx: Float): PlaylistArtRenderModel =
+    PlaylistArtModelCache.cache.get(hue, structureSeed, sizePx)
+
+/**
+ * Process-wide home for [PlaylistArtRenderModel]s. Deliberately a plain object rather than
+ * anything wired through a ViewModel factory: it is a pure function of its key (nothing here reads
+ * a composition local, a theme or a clock), so it has no lifecycle to manage and nothing that
+ * could go stale — the same reasoning as `PlaybackCacheRevision` and the other process-level
+ * objects in `data/`.
+ */
+private object PlaylistArtModelCache {
+    val cache = PlaylistArtCache(PlaylistArtCache.MAX_ENTRIES, ::playlistArtRenderModel)
+}
+
+/**
+ * A small least-recently-used cache from (hue, seed, size) to whatever [build] makes of them.
+ * Generic in the value so eviction and key equality can be unit-tested on the plain JVM without
+ * constructing a Compose `Brush` or `Path`.
+ *
+ * Sized by entry count. Each playlist has exactly one (hue, seed) and the only call site draws
+ * at a single size, so the number of live keys is the number of playlists — about 68 in the
+ * default library — and 128 leaves headroom before a scrolled-back row ever has to rebuild.
+ *
+ * [androidx.collection.LruCache] is plain Kotlin (no Android framework types) and synchronised,
+ * which matters because lazy-list prefetch and ordinary composition can both ask. [get] builds
+ * outside any lock: two callers racing on the same missing key may each build once and the later
+ * put wins, which is harmless because the value is immutable and equal either way.
+ */
+internal class PlaylistArtCache<V : Any>(
+    maxEntries: Int,
+    private val build: (hue: Int, structureSeed: Long, sizePx: Float) -> V,
+) {
+    private data class Key(val hue: Int, val structureSeed: Long, val sizePx: Float)
+
+    private val entries = LruCache<Key, V>(maxEntries)
+
+    fun get(hue: Int, structureSeed: Long, sizePx: Float): V {
+        val key = Key(hue, structureSeed, sizePx)
+        entries[key]?.let { return it }
+        val built = build(hue, structureSeed, sizePx)
+        entries.put(key, built)
+        return built
+    }
+
+    val size: Int get() = entries.size()
+
+    companion object {
+        const val MAX_ENTRIES = 128
     }
 }
