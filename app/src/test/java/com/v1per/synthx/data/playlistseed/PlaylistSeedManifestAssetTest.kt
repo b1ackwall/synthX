@@ -108,7 +108,7 @@ class PlaylistSeedManifestAssetTest {
         const val EXPECTED_UNIQUE_SONG_HASH_COUNT = 1_405
         const val EXPECTED_REUSED_SONG_HASH_COUNT = 414
         const val EXPECTED_RAW_SHA256 =
-            "daac4516f0b6e82e528198418bbc9d18cf517496134dd61e89526032f6ca9c09"
+            "9819f08c9bf4c8fb8763518a7856e412428b8ea32001733459677cff4bcd798e"
 
         val SONG_HASH_REGEX = Regex("^[0-9a-f]{64}$")
         val approvedManifestBytes: ByteArray by lazy {
