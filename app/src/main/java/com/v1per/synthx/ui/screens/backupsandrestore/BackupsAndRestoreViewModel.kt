@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -92,19 +94,35 @@ class BackupsAndRestoreViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ExportHealthState.Unknown)
 
-    /** P3.2: non-null only when the most recent known-good backup failed re-validation. */
+    /**
+     * P3.2: non-null only when the most recent known-good backup failed re-validation.
+     * `skippedNoEligibleBackup` (R8-A11/P7-T5) deliberately excluded here — "nothing was
+     * eligible to check" is not itself a validation failure and must not surface as one.
+     */
     val verificationFailure: StateFlow<VerificationFailure?> = BackupOutcomeStore.lastVerificationOutcome
-        .map { outcome -> outcome?.takeIf { !it.succeeded }?.let { VerificationFailure(it.timestamp, it.failureMessage) } }
+        .map { outcome ->
+            outcome?.takeIf { !it.succeeded && !it.skippedNoEligibleBackup }
+                ?.let { VerificationFailure(it.timestamp, it.failureMessage) }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** P3.3: delete-song/delete-playlist mutations since the last successful backup. */
     val destructiveActionCount: StateFlow<Int> = DestructiveActionTracker.count
 
     init {
+        viewModelScope.launch { refreshLastSuccessfulBackup() }
+        // R8-B02/P7-T5: BackupOutcomeStore.lastBackupOutcome already reflects every
+        // BackupManager.createBackup() call regardless of tier or call site — automatic/Daily
+        // backups go through BackupManager directly and never touch this ViewModel otherwise.
+        // Reacting to it here (rather than only refreshing from this ViewModel's own
+        // createManualBackup success) is what keeps _lastSuccessfulBackup from ever going stale
+        // relative to a later automatic success, without maintaining two independently-updated
+        // caches that can disagree.
         viewModelScope.launch {
-            _lastSuccessfulBackup.value = runCatching {
-                backupManager.listBackups().backupsOrEmpty().firstOrNull()
-            }.getOrNull()
+            BackupOutcomeStore.lastBackupOutcome
+                .filterNotNull()
+                .filter { it.succeeded }
+                .collect { refreshLastSuccessfulBackup() }
         }
         // Re-validate on every screen entry (P7.3) — a fresh ViewModel is constructed each
         // time this screen is opened, so this doubles as "check whenever the user looks."
@@ -123,6 +141,21 @@ class BackupsAndRestoreViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * R8-B02/P7-T5: filters to [BackupInfo.restoreEligible] — the same cheap, already-computed
+     * signal [BackupManager.verifyMostRecentBackup] filters on — so an orphan or sidecar-
+     * mismatched file with a recent timestamp can no longer render as "last successful backup".
+     * Deliberately does NOT run the expensive byte-level SHA verification
+     * [BackupManager.verifyMostRecentBackup] does: this is read on every screen open/composition,
+     * so eligibility (structural/metadata-complete) is the right-cost bar for display, not a full
+     * reread+hash of the backup file.
+     */
+    private suspend fun refreshLastSuccessfulBackup() {
+        _lastSuccessfulBackup.value = runCatching {
+            backupManager.listBackups().backupsOrEmpty().firstOrNull { it.restoreEligible }
+        }.getOrNull()
     }
 
     private fun MutableStateFlow<String?>.showTemporarily(message: String?) {
@@ -164,6 +197,9 @@ class BackupsAndRestoreViewModel(
                             _backupFolderUri.value = uri
                             _backupFolderError.value = null
                             _backupStatus.value = null
+                            // R8-B02/P7-T5: a folder change must not leave the OLD folder's
+                            // cached success displayed against the newly-selected folder.
+                            viewModelScope.launch { refreshLastSuccessfulBackup() }
                         }
                         // Persistent (not showTemporarily), matching the same convention used
                         // for the launch-time/screen-entry health check above: a rejected pick
@@ -193,12 +229,11 @@ class BackupsAndRestoreViewModel(
     fun createManualBackup() {
         viewModelScope.launch {
             _backupStatus.value = context.getString(R.string.backup_status_backing_up)
+            // A successful createBackup() below updates BackupOutcomeStore.lastBackupOutcome
+            // (BackupManager's single outcome-recording choke point), which this ViewModel's
+            // init-time collector already reacts to by refreshing _lastSuccessfulBackup — no
+            // separate refresh needed here, see the init block.
             val result = backupManager.createBackup(BackupTier.Manual)
-            result.onSuccess {
-                _lastSuccessfulBackup.value = runCatching {
-                    backupManager.listBackups().backupsOrEmpty().firstOrNull()
-                }.getOrNull()
-            }
             _backupStatus.showTemporarily(
                 result.fold(
                     onSuccess = { context.getString(R.string.backup_status_created) },

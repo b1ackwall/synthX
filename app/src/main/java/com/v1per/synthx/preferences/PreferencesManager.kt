@@ -116,6 +116,14 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_LAST_VERIFICATION_ATTEMPT_FAILURE_MESSAGE, null)
         set(value) = prefs.edit().putString(KEY_LAST_VERIFICATION_ATTEMPT_FAILURE_MESSAGE, value).apply()
 
+    /** R8-A11/P7-T5: true when the last verification found no restore-eligible backup to check
+     *  at all — distinct from an actual pass/fail, see [lastVerificationAttemptSucceeded]. */
+    var lastVerificationAttemptSkippedNoEligibleBackup: Boolean
+        get() = prefs.getBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SKIPPED_NO_ELIGIBLE_BACKUP, false)
+        set(value) = prefs.edit()
+            .putBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SKIPPED_NO_ELIGIBLE_BACKUP, value)
+            .apply()
+
     // --------------------------------------------------------------- destructive-action counter (P3.3)
 
     /** Delete-song/delete-playlist mutations since the last successful backup of any tier. */
@@ -334,6 +342,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_EXPORT_ATTEMPT_FAILURE_MESSAGE = "last_export_attempt_failure_message"
         private const val KEY_LAST_VERIFICATION_ATTEMPT_TIMESTAMP = "last_verification_attempt_timestamp"
         private const val KEY_LAST_VERIFICATION_ATTEMPT_SUCCEEDED = "last_verification_attempt_succeeded"
+        private const val KEY_LAST_VERIFICATION_ATTEMPT_SKIPPED_NO_ELIGIBLE_BACKUP =
+            "last_verification_attempt_skipped_no_eligible_backup"
         private const val KEY_LAST_VERIFICATION_ATTEMPT_FAILURE_MESSAGE =
             "last_verification_attempt_failure_message"
         private const val KEY_DESTRUCTIVE_ACTIONS_SINCE_BACKUP = "destructive_actions_since_backup"

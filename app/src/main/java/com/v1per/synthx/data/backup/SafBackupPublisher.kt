@@ -48,6 +48,7 @@ internal class SafBackupPublisher(private val context: Context) {
             ) ?: throw BackupPublicationException("SAF provider could not create temporary metadata")
             requireDocumentName(temporaryMetadata, identity.temporaryMetadataFileName)
             writeBytes(temporaryMetadata.uri, metadataBytes, "metadata")
+            val metadataDigest = BackupHashing.hash(metadataBytes.inputStream())
 
             if (!temporaryMetadata.renameTo(identity.metadataFileName)) {
                 throw BackupPublicationException(
@@ -56,6 +57,11 @@ internal class SafBackupPublisher(private val context: Context) {
             }
             val finalMetadata = tierDirectory.findFile(identity.metadataFileName)
                 ?: throw BackupPublicationException("Published metadata document is not visible")
+            // R8-A10: metadata was, until now, never reread after its rename — a provider that
+            // truncates or alters it post-rename without throwing could publish a "successful"
+            // backup whose metadata the restore catalog later rejects. Same reread posture as
+            // the database's own re-verification below, just against the metadata bytes.
+            verifyExternalBytes(resolver, finalMetadata.uri, metadataDigest, "metadata")
 
             // The recognizable database name is deliberately published last.
             if (!temporaryDatabase.renameTo(identity.databaseFileName)) {
@@ -85,8 +91,8 @@ internal class SafBackupPublisher(private val context: Context) {
         }
     }
 
-    internal fun verifyExternalBytes(uri: Uri, expected: ByteDigest) {
-        verifyExternalBytes(resolver, uri, expected)
+    internal fun verifyExternalBytes(uri: Uri, expected: ByteDigest, label: String = "database") {
+        verifyExternalBytes(resolver, uri, expected, label)
     }
 
     private fun copySnapshot(snapshot: File, destination: Uri) {
@@ -173,17 +179,18 @@ internal class SafBackupPublisher(private val context: Context) {
             resolver: ContentResolver,
             uri: Uri,
             expected: ByteDigest,
+            label: String = "database",
         ) {
             val actual = resolver.openInputStream(uri)?.use { input -> BackupHashing.hash(input) }
-                ?: throw BackupPublicationException("Could not re-read temporary SAF database")
+                ?: throw BackupPublicationException("Could not re-read temporary SAF $label")
             if (actual.sizeBytes != expected.sizeBytes) {
                 throw BackupPublicationException(
-                    "SAF database byte count mismatch: expected ${expected.sizeBytes}, " +
+                    "SAF $label byte count mismatch: expected ${expected.sizeBytes}, " +
                         "read ${actual.sizeBytes}"
                 )
             }
             if (actual.sha256 != expected.sha256) {
-                throw BackupPublicationException("SAF database SHA-256 mismatch")
+                throw BackupPublicationException("SAF $label SHA-256 mismatch")
             }
         }
     }

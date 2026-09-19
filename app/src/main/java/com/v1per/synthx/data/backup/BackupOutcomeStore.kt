@@ -21,10 +21,20 @@ data class ExportAttemptOutcome(
     val failureMessage: String?,
 )
 
+/**
+ * [skippedNoEligibleBackup]: R8-A11/P7-T5 — true only when [BackupManager.verifyMostRecentBackup]
+ * found no [BackupInfo.restoreEligible] entry to check at all (no backup yet, or every listed
+ * entry is ineligible). Distinct from [succeeded]`= true` (a real byte-level check ran and
+ * passed) and from [succeeded]`= false` with this flag clear (a real check ran and failed) —
+ * collapsing "nothing to verify" into either of those was the false-assurance bug this splits
+ * apart. [succeeded] is always `false` alongside this flag; callers that only care whether a
+ * real failure occurred should check `!succeeded && !skippedNoEligibleBackup`.
+ */
 data class VerificationAttemptOutcome(
     val timestamp: Long,
     val succeeded: Boolean,
     val failureMessage: String?,
+    val skippedNoEligibleBackup: Boolean = false,
 )
 
 /**
@@ -85,6 +95,7 @@ object BackupOutcomeStore {
                 timestamp = prefs.lastVerificationAttemptTimestamp,
                 succeeded = prefs.lastVerificationAttemptSucceeded,
                 failureMessage = prefs.lastVerificationAttemptFailureMessage,
+                skippedNoEligibleBackup = prefs.lastVerificationAttemptSkippedNoEligibleBackup,
             )
         }
     }
@@ -136,11 +147,30 @@ object BackupOutcomeStore {
             timestamp = System.currentTimeMillis(),
             succeeded = result.isSuccess,
             failureMessage = result.exceptionOrNull()?.message,
+            skippedNoEligibleBackup = false,
         )
         PreferencesManager(context.applicationContext).apply {
             lastVerificationAttemptTimestamp = outcome.timestamp
             lastVerificationAttemptSucceeded = outcome.succeeded
             lastVerificationAttemptFailureMessage = outcome.failureMessage
+            lastVerificationAttemptSkippedNoEligibleBackup = outcome.skippedNoEligibleBackup
+        }
+        _lastVerificationOutcome.value = outcome
+    }
+
+    /** R8-A11/P7-T5: records "nothing eligible was available to verify", never a false success. */
+    internal fun recordVerificationSkipped(context: Context) {
+        val outcome = VerificationAttemptOutcome(
+            timestamp = System.currentTimeMillis(),
+            succeeded = false,
+            failureMessage = null,
+            skippedNoEligibleBackup = true,
+        )
+        PreferencesManager(context.applicationContext).apply {
+            lastVerificationAttemptTimestamp = outcome.timestamp
+            lastVerificationAttemptSucceeded = outcome.succeeded
+            lastVerificationAttemptFailureMessage = outcome.failureMessage
+            lastVerificationAttemptSkippedNoEligibleBackup = outcome.skippedNoEligibleBackup
         }
         _lastVerificationOutcome.value = outcome
     }

@@ -122,7 +122,7 @@ class BackupNotConfiguredException : IllegalStateException("No backup folder sel
  * deliberately special: it snapshots through a raw framework handle so opening Room cannot migrate
  * the source before its pre-migration state is captured.
  */
-class BackupManager(private val context: Context) {
+open class BackupManager(private val context: Context) {
 
     private val preferences = PreferencesManager(context)
 
@@ -245,8 +245,13 @@ class BackupManager(private val context: Context) {
 
     // --------------------------------------------------------------- listing
 
-    /** All backups across every tier, newest first, distinguishing why the list might be empty. */
-    suspend fun listBackups(): BackupListResult = withContext(Dispatchers.IO) {
+    /**
+     * All backups across every tier, newest first, distinguishing why the list might be empty.
+     * `open`: a test seam so [BackupsAndRestoreViewModel] tests can substitute a fixed
+     * [BackupListResult] without a genuine SAF tree grant — the same reason [ensureFolderStructure]
+     * is `open` below.
+     */
+    open suspend fun listBackups(): BackupListResult = withContext(Dispatchers.IO) {
         val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) }
             ?: return@withContext BackupListResult.NoFolderConfigured
         val root = runCatching { DocumentFile.fromTreeUri(context, treeUri) }.getOrNull()
@@ -337,24 +342,56 @@ class BackupManager(private val context: Context) {
     // ------------------------------------------------------------ verification (P3.2)
 
     /**
-     * Re-validates the most recent successful backup's actual file — integrity_check,
-     * foreign_key_check, Room identity hash, expected tables, via the same
-     * [BackupSnapshotValidator] every backup is validated with at write time — catching
-     * corruption a healthy write wouldn't have (bit rot, a provider that silently truncated
-     * the file after publish, etc.). A no-op success if there is no backup yet: nothing to
-     * verify is not a verification failure.
+     * Re-validates the most recent restore-*eligible* backup's actual bytes against the same
+     * ground truth [RestoreTransaction.execute] itself checks: a fresh SHA-256/size compare
+     * against metadata's declared values (R8-A11), not just structural validation — catching
+     * corruption a healthy write wouldn't have (bit rot, a provider that silently truncated the
+     * file after publish, a SAF provider that edited a syntactically-valid file in place, etc.).
+     * Only [BackupInfo.restoreEligible] entries are candidates: P7-T4's eligibility check is
+     * cheap/already computed during listing and correctly excludes duplicate-named, missing-
+     * metadata, or size-mismatched entries before this expensive byte-level pass ever runs.
+     * `migrationSnapshot = true` matches restore's own first-pass validation (RestoreTransaction
+     * line ~173) so a genuinely supported older-schema backup is not rejected here just because
+     * it isn't already at the current schema version.
+     *
+     * No eligible backup to check (none published yet, or every listed entry is ineligible) is
+     * recorded as a distinct "nothing to verify" outcome, never as a false verification success —
+     * see [BackupOutcomeStore.recordVerificationSkipped].
      *
      * Called from [com.v1per.synthx.MainActivity]'s existing once-per-day gate rather than a
      * second, uncoordinated timer — see `backupDailyIfDue`.
      */
-    suspend fun verifyMostRecentBackup(): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun verifyMostRecentBackup(): Result<Unit> =
+        verifyBackupList(runCatching { listBackups() }.getOrDefault(BackupListResult.FolderUnreachable))
+
+    /**
+     * Split out from [verifyMostRecentBackup] so tests can supply a [BackupListResult] directly
+     * — real [BackupInfo] entries built with `file://` URIs and a genuine SQLite backup file —
+     * the same technique [classifyBackupList] uses to avoid needing a genuine SAF tree grant.
+     */
+    internal suspend fun verifyBackupList(listing: BackupListResult): Result<Unit> = withContext(Dispatchers.IO) {
+        val eligible = listing.backupsOrEmpty().firstOrNull { it.restoreEligible }
+
+        if (eligible == null) {
+            BackupOutcomeStore.recordVerificationSkipped(context)
+            return@withContext Result.success(Unit)
+        }
+
         val result = runCatching {
-            val backup = listBackups().backupsOrEmpty().firstOrNull() ?: return@runCatching
+            val metadata = requireNotNull(readRestoreMetadata(eligible)) {
+                "Eligible backup is missing valid metadata"
+            }
             val stage = BackupStagingCoordinator.acquire(context, "verify")
             val copy = stage.file
             try {
-                RestoreTransaction.copySafOnce(context, backup.databaseUri.toString(), copy)
-                BackupSnapshotValidator.validate(copy, migrationSnapshot = false)
+                val digest = RestoreTransaction.copySafOnce(context, eligible.databaseUri.toString(), copy)
+                require(digest.sizeBytes == metadata.sizeBytes && digest.sha256 == metadata.sha256) {
+                    "Backup bytes do not match its declared size and SHA-256 metadata"
+                }
+                val validated = BackupSnapshotValidator.validate(copy, migrationSnapshot = true)
+                require(validated.schema.userVersion == metadata.dbVersion) {
+                    "Backup metadata version does not match the database"
+                }
             } finally {
                 stage.close()
             }
@@ -440,8 +477,11 @@ class BackupManager(private val context: Context) {
 
     // ----------------------------------------------------------------- setup
 
-    /** Creates Daily/Auto/Manual under [treeUri] if absent. Safe to call repeatedly. */
-    fun ensureFolderStructure(treeUri: Uri): Boolean {
+    /**
+     * Creates Daily/Auto/Manual under [treeUri] if absent. Safe to call repeatedly. `open`: test
+     * seam, see [listBackups].
+     */
+    open fun ensureFolderStructure(treeUri: Uri): Boolean {
         val root = DocumentFile.fromTreeUri(context, treeUri) ?: return false
         return BackupTier.entries.all { tier ->
             val existing = root.findFile(tier.folderName)

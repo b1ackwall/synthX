@@ -6,7 +6,11 @@ import android.net.Uri
 import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.v1per.synthx.data.backup.BackupInfo
+import com.v1per.synthx.data.backup.BackupListResult
 import com.v1per.synthx.data.backup.BackupManager
+import com.v1per.synthx.data.backup.BackupOutcomeStore
+import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.preferences.PreferencesManager
 import java.util.UUID
 import kotlinx.coroutines.delay
@@ -15,6 +19,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,7 +45,42 @@ class BackupsAndRestoreViewModelInstrumentedTest {
     fun tearDown() {
         store.clear()
         appContext.deleteSharedPreferences("$testId-synthx_prefs")
+        BackupOutcomeStore.resetForTest()
     }
+
+    /**
+     * R8-B02/P7-T5: `listBackups()`/`ensureFolderStructure()` are `open` specifically so tests
+     * can substitute canned results without a genuine SAF tree grant — the same problem
+     * [BackupListResultInstrumentedTest] solves for `classifyBackupList` by working against a
+     * file-backed [androidx.documentfile.provider.DocumentFile] instead; a ViewModel test needs
+     * the whole [BackupManager] substituted, not just that one method.
+     */
+    private class FakeBackupManager(context: Context, var result: BackupListResult) : BackupManager(context) {
+        override suspend fun listBackups(): BackupListResult = result
+        override fun ensureFolderStructure(treeUri: Uri): Boolean = true
+    }
+
+    private fun eligibleBackup(timestamp: Long, tier: BackupTier = BackupTier.Manual) = BackupInfo(
+        databaseUri = Uri.parse("content://synthx.test.fixture/tree/eligible-$timestamp"),
+        metadataUri = Uri.parse("content://synthx.test.fixture/tree/eligible-$timestamp.json"),
+        fileName = "synthx_backup_eligible_$timestamp.db",
+        tier = tier,
+        timestamp = timestamp,
+        reason = null,
+        sizeBytes = 128L,
+        restoreEligible = true,
+    )
+
+    private fun ineligibleBackup(timestamp: Long) = BackupInfo(
+        databaseUri = Uri.parse("content://synthx.test.fixture/tree/ineligible-$timestamp"),
+        metadataUri = null,
+        fileName = "synthx_backup_ineligible_$timestamp.db",
+        tier = BackupTier.Manual,
+        timestamp = timestamp,
+        reason = null,
+        sizeBytes = 128L,
+        restoreEligible = false,
+    )
 
     @Test
     fun rejectedFolderPickErrorPersistsPastTheOldFourSecondWindow() {
@@ -62,6 +102,62 @@ class BackupsAndRestoreViewModelInstrumentedTest {
             delay(5_000)
             assertNotNull(viewModel.backupFolderError.value)
         }
+    }
+
+    @Test
+    fun lastSuccessfulBackupExcludesIneligibleEntryEvenWhenMostRecentByTimestamp() {
+        val newerIneligible = ineligibleBackup(timestamp = 2_000L)
+        val olderEligible = eligibleBackup(timestamp = 1_000L)
+        val manager = FakeBackupManager(
+            context,
+            BackupListResult.Success(listOf(newerIneligible, olderEligible)),
+        )
+        val viewModel = BackupsAndRestoreViewModel(context, preferences, manager)
+        store.put("under-test", viewModel)
+
+        val health = await(viewModel.backupHealth) { it is BackupHealthState.Succeeded }
+        val succeeded = health as BackupHealthState.Succeeded
+        assertEquals(olderEligible.timestamp, succeeded.timestamp)
+    }
+
+    @Test
+    fun folderChangeClearsStaleCachedSuccessFromThePreviousFolder() {
+        val manager = FakeBackupManager(context, BackupListResult.Success(listOf(eligibleBackup(1_000L))))
+        val viewModel = BackupsAndRestoreViewModel(context, preferences, manager)
+        store.put("under-test", viewModel)
+        await(viewModel.backupHealth) { it is BackupHealthState.Succeeded }
+
+        // Simulates picking a different, currently-empty backup folder.
+        manager.result = BackupListResult.Empty
+        viewModel.saveBackupFolder(Uri.parse("content://synthx.test.fixture/tree/other-folder"))
+
+        val health = await(viewModel.backupHealth) { it !is BackupHealthState.Succeeded }
+        assertEquals(BackupHealthState.Unknown, health)
+    }
+
+    @Test
+    fun laterSuccessfulAutomaticBackupIsReflectedInHealthDisplay() {
+        val manager = FakeBackupManager(context, BackupListResult.Empty)
+        val viewModel = BackupsAndRestoreViewModel(context, preferences, manager)
+        store.put("under-test", viewModel)
+        await(viewModel.backupHealth) { it == BackupHealthState.Unknown }
+
+        // Simulates an Auto-tier backup written by BackupManager.createBackup from outside this
+        // ViewModel entirely (e.g. the daily WorkManager job) — the newly-written file is now
+        // listable, and BackupManager's single outcome-recording choke point fires.
+        val automatic = eligibleBackup(timestamp = 5_000L, tier = BackupTier.Auto)
+        manager.result = BackupListResult.Success(listOf(automatic))
+        BackupOutcomeStore.recordBackupOutcome(
+            context,
+            BackupTier.Auto,
+            reason = null,
+            result = Result.success(automatic.fileName),
+        )
+
+        val health = await(viewModel.backupHealth) { it is BackupHealthState.Succeeded }
+        val succeeded = health as BackupHealthState.Succeeded
+        assertEquals(automatic.timestamp, succeeded.timestamp)
+        assertEquals(BackupTier.Auto, succeeded.tier)
     }
 
     private fun <T> await(flow: StateFlow<T>, predicate: (T) -> Boolean) = runBlocking {

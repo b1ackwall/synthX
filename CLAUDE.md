@@ -4,38 +4,45 @@
 Claude Code must never run any git command (add, commit, push, checkout, branch, etc.).
  handles all git operations manually. Report changes made; do not stage or commit them.
 
-## Connected Device — PRODUCTION APP, DO NOT TOUCH
-The Android device normally connected via adb is 's daily-use phone. It has the real
-production build installed under package `com.v1per.synthx` — this is 's actual music
-library and daily data, not a test fixture.
-- `com.v1per.synthx` (no suffix) = PRODUCTION. NEVER run `adb shell pm clear`, `adb uninstall`,
-  `adb shell pm uninstall`, or any other destructive/data-touching adb command against this
-  package, under any circumstances, even to "rule out stale state" while debugging a test.
+## Connected Device — VERIFY BEFORE TOUCHING
+Run `adb devices -l` to see what's actually connected before running any adb command that
+touches app data or packages — do not assume which device is plugged in.
+- As of the last environment check on this machine (CachyOS), the only device attached was
+  serial `` (`model:Redmi_Note_7_Pro`, `device:violet`), and `pm list packages` on it
+  showed **only** `com.v1per.synthx.debug` installed — no `com.v1per.synthx` (production)
+  package was present on this device at all.
+  **OPEN QUESTION for  to confirm**: is this Redmi Note 7 Pro actually the daily-use
+  production phone (just currently without the production build installed), or a separate
+  test/debug-only device? Don't assume either answer — confirm before treating any device as
+  "the production phone" the safety rules below are protecting.
+- `com.v1per.synthx` (no suffix) = PRODUCTION, wherever it is actually installed. NEVER run
+  `adb shell pm clear`, `adb uninstall`, `adb shell pm uninstall`, or any other
+  destructive/data-touching adb command against this package, under any circumstances, even to
+  "rule out stale state" while debugging a test.
 - `com.v1per.synthx.debug` (note the `.debug` suffix) = the debug build package
   (`applicationIdSuffix`), used by `assembleDebug` / `connectedDebugAndroidTest` / instrumented
   tests. This one is fair game — clear it, uninstall it, wipe it, reinstall it freely as needed
   for debugging or testing, no need to ask first.
 - Before any adb command that touches app data or packages, double-check the package name
-  argument is the `.debug`-suffixed one. If a command's target package is ambiguous or you're
-  about to run something broad (e.g. an adb command without an explicit package filter), stop
-  and ask first rather than guessing.
+  argument is the `.debug`-suffixed one. If a command's target package is ambiguous, or more
+  than one device is attached, or you're about to run something broad (e.g. an adb command
+  without an explicit package filter), stop and ask first rather than guessing.
 
 ## Environment Setup (machine-aware)
 
 First, check the machine:
-    $env:COMPUTERNAME
+    hostname
 
 Then set JAVA_HOME for this session accordingly:
-- --15 → $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.15.6-hotspot\"
-- V1PER → $env:JAVA_HOME = "C:\Users\\.jdks\jbr-21.0.11"
+- cachyOS → set -x JAVA_HOME /usr/lib/jvm/java-17-openjdk
 
 Verify before building:
-    & "$env:JAVA_HOME\bin\java.exe" -version
-Expect OpenJDK 17.x on --15, OpenJDK 21.x on V1PER.
+    $JAVA_HOME/bin/java -version
+Expect OpenJDK 17.x on cachyOS.
 
-## Build Command (verified working on )
-    $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.15.6-hotspot\"
-    .\gradlew.bat assembleDebug --console=plain
+## Build Command (verified working on cachyOS)
+    set -x JAVA_HOME /usr/lib/jvm/java-17-openjdk
+    ./gradlew assembleDebug --console=plain
 Expect: BUILD SUCCESSFUL.
 
 Do not probe for JDKs in Program Files\Java, Adoptium, Zulu, Corretto, or .jdks folders —

@@ -2,6 +2,7 @@ package com.v1per.synthx.data.backup
 
 import android.content.Context
 import android.net.Uri
+import androidx.documentfile.provider.CorruptingRenameDocumentFile
 import androidx.documentfile.provider.DocumentFile
 import androidx.documentfile.provider.FailOnSecondCreateDocumentFile
 import androidx.test.core.app.ApplicationProvider
@@ -115,6 +116,41 @@ class SafBackupPublisherInstrumentedTest {
             assertFalse(File(root, identity.temporaryMetadataFileName).exists())
             assertFalse(File(root, identity.metadataFileName).exists())
         }
+    }
+
+    @Test
+    fun metadataCorruptedAfterRenameFailsPublicationDespiteRenameSucceeding() {
+        val root = newRoot()
+        val identity = BackupFileNames.create(randomId = "fedcba98")
+        val directory = CorruptingRenameDocumentFile(root, identity.metadataFileName)
+        val snapshot = File(root.parentFile, "snapshot-${UUID.randomUUID()}.db")
+            .apply { writeBytes(ByteArray(2048) { it.toByte() }) }
+        roots += snapshot
+        val digest = BackupHashing.hash(snapshot)
+        val metadata = BackupMetadata(
+            timestamp = System.currentTimeMillis(),
+            tier = BackupTier.Manual.name,
+            dbVersion = 8,
+            file = identity.databaseFileName,
+            sizeBytes = digest.sizeBytes,
+            sha256 = digest.sha256,
+        )
+
+        try {
+            SafBackupPublisher(context).publish(
+                directory,
+                identity,
+                snapshot,
+                digest,
+                BackupMetadataCodec.encode(metadata),
+            )
+            fail("Metadata silently altered after rename must not be published as a success")
+        } catch (error: BackupPublicationException) {
+            assertTrue(error.message.orEmpty().contains("metadata SHA-256 mismatch"))
+        }
+        // The database's recognizable name must never be published when metadata failed its
+        // post-rename reread — publication is all-or-nothing.
+        assertFalse(File(root, identity.databaseFileName).exists())
     }
 
     private fun newRoot(): File {
