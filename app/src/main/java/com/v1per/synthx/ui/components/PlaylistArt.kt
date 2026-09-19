@@ -15,6 +15,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import com.v1per.synthx.data.playlistart.DiamondRole
+import com.v1per.synthx.data.playlistart.LitEndRole
+import com.v1per.synthx.data.playlistart.LitStartRole
+import com.v1per.synthx.data.playlistart.PlaylistArtRole
 
 /**
  * A playlist's generated cover art, drawn live from the two values stored on the row — never
@@ -55,6 +59,13 @@ internal fun PlaylistArt(
     }
 }
 
+/**
+ * This role's colour at [hue]: fixed saturation, with HSL lightness chosen so the colour has the
+ * same perceived (OkLab) lightness at every hue instead of the same HSL lightness — which at a
+ * flat `hsl(h, s, 0.8)` makes yellow covers far brighter than blue ones.
+ */
+private fun PlaylistArtRole.colorAt(hue: Float): Color = Color.hsl(hue, saturation, hslLightness(hue))
+
 /** Faint always-on backbone, drawn for every segment the walk did not light. */
 private val UnlitSegmentColor = Color.White.copy(alpha = 0.1f)
 
@@ -89,8 +100,8 @@ private fun playlistArtRenderModel(
     val scale = sizePx / PlaylistArtGeometry.REFERENCE_SIZE
     val hueDegrees = hue.toFloat()
 
-    val litStart = Color.hsl(hueDegrees, 0.5f, 0.2f)
-    val litEnd = Color.hsl(hueDegrees, 0.8f, 0.8f)
+    val litStart = LitStartRole.colorAt(hueDegrees)
+    val litEnd = LitEndRole.colorAt(hueDegrees)
 
     val unlit = mutableListOf<ScaledSegment>()
     val lit = mutableListOf<LitSegment>()
@@ -127,7 +138,7 @@ private fun playlistArtRenderModel(
         unlit = unlit,
         lit = lit,
         diamonds = diamonds,
-        diamondColor = Color.hsl(hueDegrees, 0.3f, 0.5f),
+        diamondColor = DiamondRole.colorAt(hueDegrees),
     )
 }
 

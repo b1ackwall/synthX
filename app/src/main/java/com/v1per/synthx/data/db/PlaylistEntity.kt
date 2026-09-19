@@ -31,8 +31,10 @@ data class PlaylistEntity(
     /**
      * Written together at creation (or by PlaylistArtBackfill for rows that predate this
      * schema), and immutable thereafter: the two values that fully determine this playlist's
-     * generated structural cover art. [artHue] is one of the 90 hues 0,4,8,...,356, chosen
-     * to sit as far as possible from every hue already in use; [artStructureSeed] seeds the
+     * generated structural cover art. [artHue] is an HSL hue in degrees — one of the 90
+     * perceptually spaced hues in PlaylistArtHues for playlists created now, or a multiple of 4
+     * (the previous palette) for older rows — chosen to sit as far as possible, by eye, from
+     * every hue already in use; [artStructureSeed] seeds the
      * symmetry plane, path walk and mirroring. Both NULL means "not generated yet", which
      * renders as the flat ArtPlaceholder — the same fallback missing palette data uses.
      *

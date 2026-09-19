@@ -65,8 +65,13 @@ interface PlaylistDao {
 
     // Playlist art (see PlaylistEntity.artHue)
 
-    /** Feeds the farthest-point spreading in PlaylistArtHue.selectDistancedHue. */
-    @Query("SELECT art_hue FROM playlists WHERE art_hue IS NOT NULL")
+    /**
+     * Feeds the farthest-point spreading in PlaylistArtHue.selectDistancedHue. One row per
+     * playlist, duplicates included — the selection counts them. Reduced to 0..359 here (the
+     * double modulo because SQLite's `%` keeps the dividend's sign) so a restored or hand-edited
+     * out-of-range value is read as the hue it wraps to; nothing is rewritten in the table.
+     */
+    @Query("SELECT ((art_hue % 360) + 360) % 360 FROM playlists WHERE art_hue IS NOT NULL")
     suspend fun getExistingArtHues(): List<Int>
 
     /**

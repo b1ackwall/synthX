@@ -126,6 +126,75 @@ class PlaylistArtGeneratorTest {
         }
     }
 
+    @Test
+    fun `every pattern lights all four quadrants of the frame`() {
+        // The property generatePlaylistArt's KDoc promises. Checked per plane as well as overall
+        // so a regression confined to one plane cannot hide behind the others' passing counts.
+        val emptyByPlane = mutableMapOf<SymmetryPlane, MutableList<Long>>()
+        val seenPlanes = mutableSetOf<SymmetryPlane>()
+        (0L until 4_000L).forEach { seed ->
+            val pattern = generatePlaylistArt(seed)
+            seenPlanes += pattern.plane
+            if (quadrantsLit(pattern).size < 4) {
+                emptyByPlane.getOrPut(pattern.plane) { mutableListOf() } += seed
+            }
+        }
+        assertEquals(SymmetryPlane.entries.toSet(), seenPlanes)
+        assertTrue(emptyByPlane.isEmpty(), "Seeds leaving a quadrant dark, by plane: $emptyByPlane")
+    }
+
+    @Test
+    fun `the documented diagonal example seeds fill the frame`() {
+        // Recorded in docs/audit-round-06-playlist-art.md: before the D4 fix these lit only
+        // quadrants {1,2} (24 segments, DIAG1) and {0,3} (36 segments, DIAG2).
+        val diag1 = generatePlaylistArt(1238145679872042884L)
+        assertEquals(SymmetryPlane.DIAG1, diag1.plane)
+        assertEquals(setOf(0, 1, 2, 3), quadrantsLit(diag1))
+
+        val diag2 = generatePlaylistArt(-1006892909181018201L)
+        assertEquals(SymmetryPlane.DIAG2, diag2.plane)
+        assertEquals(setOf(0, 1, 2, 3), quadrantsLit(diag2))
+    }
+
+    @Test
+    fun `a diagonal pattern that needed the fallback is symmetric under all eight square symmetries`() {
+        // Spread across only two of the symmetries would leave the picture symmetric about its own
+        // plane but lopsided about everything else; the orbit has to be closed under all of them.
+        val examples = listOf(1238145679872042884L, -1006892909181018201L)
+        examples.forEach { seed ->
+            val lit = generatePlaylistArt(seed).litSegments
+            listOf(::reflectVertical, ::reflectHorizontal, ::reflectDiag1, ::reflectDiag2).forEach { reflect ->
+                assertEquals(lit, lit.mapTo(mutableSetOf(), reflect), "Seed $seed is not fully symmetric")
+            }
+        }
+    }
+
+    @Test
+    fun `axis-aligned patterns are byte-for-byte what they were before the diagonal fix`() {
+        // Captured from the generator before the D4 change (seed, plane, lit count, hash of the
+        // sorted lit-segment indices). The diagonal fix must not touch VERTICAL/HORIZONTAL output.
+        val golden = listOf(
+            Golden(-6367288518484839692L, SymmetryPlane.VERTICAL, 24, -1718485543),
+            Golden(-3350035376205273921L, SymmetryPlane.VERTICAL, 46, -585626260),
+            Golden(-2252118164433982605L, SymmetryPlane.VERTICAL, 32, 512900317),
+            Golden(-2780912622345900595L, SymmetryPlane.VERTICAL, 32, -124830499),
+            Golden(2036865227790292842L, SymmetryPlane.VERTICAL, 40, 1962004821),
+            Golden(7288696731122253832L, SymmetryPlane.HORIZONTAL, 20, -2020984655),
+            Golden(4129736453975454884L, SymmetryPlane.HORIZONTAL, 60, -1428434933),
+            Golden(357622638577873973L, SymmetryPlane.HORIZONTAL, 20, 1009211249),
+            Golden(6025340343269824406L, SymmetryPlane.HORIZONTAL, 40, -562882591),
+            Golden(-766224462991485607L, SymmetryPlane.HORIZONTAL, 42, -1718058027),
+        )
+        golden.forEach { g ->
+            val pattern = generatePlaylistArt(g.seed)
+            assertEquals(g.plane, pattern.plane, "Seed ${g.seed} changed plane")
+            assertEquals(g.litCount, pattern.litSegments.size, "Seed ${g.seed} lit count changed")
+            assertEquals(g.hash, pattern.litSegments.sorted().hashCode(), "Seed ${g.seed} lit set changed")
+        }
+    }
+
+    private data class Golden(val seed: Long, val plane: SymmetryPlane, val litCount: Int, val hash: Int)
+
     private data class Corner(val r: Int, val c: Int, val dr: Int, val dc: Int)
 
     private fun decode(index: Int) = Corner(
@@ -134,6 +203,33 @@ class PlaylistArtGeneratorTest {
         dr = (index % 4) / 2,
         dc = index % 2,
     )
+
+    /** Which of the four grid quadrants (0=TL, 1=TR, 2=BL, 3=BR) hold at least one lit segment. */
+    private fun quadrantsLit(pattern: PlaylistArtPattern): Set<Int> =
+        pattern.litSegments.mapTo(mutableSetOf()) { index ->
+            val (r, c) = decode(index)
+            (if (r < ROWS / 2) 0 else 2) + (if (c < COLS / 2) 0 else 1)
+        }
+
+    private fun reflectVertical(index: Int): Int {
+        val (r, c, dr, dc) = decode(index)
+        return PlaylistArtGeometry.segmentIndex(r, MAX_INDEX - c, dr, 1 - dc)
+    }
+
+    private fun reflectHorizontal(index: Int): Int {
+        val (r, c, dr, dc) = decode(index)
+        return PlaylistArtGeometry.segmentIndex(MAX_INDEX - r, c, 1 - dr, dc)
+    }
+
+    private fun reflectDiag1(index: Int): Int {
+        val (r, c, dr, dc) = decode(index)
+        return PlaylistArtGeometry.segmentIndex(c, r, dc, dr)
+    }
+
+    private fun reflectDiag2(index: Int): Int {
+        val (r, c, dr, dc) = decode(index)
+        return PlaylistArtGeometry.segmentIndex(MAX_INDEX - c, MAX_INDEX - r, 1 - dc, 1 - dr)
+    }
 
     private companion object {
         const val ROWS = PlaylistArtGeometry.ROWS

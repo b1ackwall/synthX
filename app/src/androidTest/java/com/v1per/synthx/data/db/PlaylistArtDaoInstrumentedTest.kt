@@ -91,4 +91,27 @@ class PlaylistArtDaoInstrumentedTest {
 
         assertEquals(listOf("a-playlist", "b-playlist", "c-playlist"), missing)
     }
+
+    @Test fun getExistingArtHuesReducesOutOfRangeValuesAndKeepsDuplicates() = runBlocking {
+        val dao = database.playlistDao()
+        // In-range, a repeat of it, over 359, negative, and NULL (which must be skipped). These
+        // are the shapes a restored or hand-edited row can have; the read must hand back the
+        // hue each one wraps to, one row per playlist, without touching what is stored.
+        listOf("a" to 40, "b" to 40, "c" to 400, "d" to -10, "e" to 360, "f" to null).forEach { (id, hue) ->
+            dao.insertPlaylist(
+                PlaylistEntity(
+                    id = id, name = id, description = null, groupId = null, position = 0,
+                    createdAt = 1L, updatedAt = 1L, coverArtUri = null,
+                    artHue = hue, artStructureSeed = if (hue == null) null else 1L,
+                ),
+            )
+        }
+
+        assertEquals(listOf(0, 40, 40, 40, 350), dao.getExistingArtHues().sorted())
+        assertEquals(
+            "Normalising on read must not rewrite the stored value",
+            400,
+            dao.getPlaylistsByIds(listOf("c")).single().artHue,
+        )
+    }
 }

@@ -126,8 +126,10 @@ internal object PlaylistArtGeometry {
  * The whole picture for one playlist, derived entirely from [structureSeed].
  *
  * The walk is mirrored once across its own plane; if that still leaves one of the four
- * quadrants empty (a path that never crossed the halfway line), it is mirrored again across
- * the perpendicular plane so the cover always fills its frame.
+ * quadrants empty (a path that never crossed the halfway line), it is spread further so the
+ * cover always fills its frame: across the perpendicular axis for the axis-aligned planes, or
+ * across all eight symmetries of the square for the diagonal ones (see the `when` below for
+ * why the perpendicular diagonal cannot do this job).
  */
 internal fun generatePlaylistArt(structureSeed: Long): PlaylistArtPattern {
     val random = Random(structureSeed)
@@ -136,8 +138,19 @@ internal fun generatePlaylistArt(structureSeed: Long): PlaylistArtPattern {
     val mirrored = lines.map { it.mirroredAcross(plane) }
     var all = lines + mirrored
     if (all.mapTo(mutableSetOf(), PathLine::quadrant).size < QUADRANTS) {
-        val other = plane.perpendicular()
-        all = all + lines.map { it.mirroredAcross(other) } + mirrored.map { it.mirroredAcross(other) }
+        all = when (plane) {
+            // Each axis mirror swaps the covered pair of quadrants with the other pair, so the
+            // perpendicular axis always reaches whatever the first mirror could not.
+            SymmetryPlane.VERTICAL, SymmetryPlane.HORIZONTAL -> {
+                val other = plane.perpendicular()
+                all + lines.map { it.mirroredAcross(other) } + mirrored.map { it.mirroredAcross(other) }
+            }
+            // A diagonal mirror fixes two quadrants outright and its perpendicular diagonal
+            // fixes the same two, so neither can ever leave the pair the walk started in. Only
+            // an axis reflection or a quarter turn moves them; take the whole orbit so the
+            // result stays symmetric under every plane instead of just the two it was built on.
+            SymmetryPlane.DIAG1, SymmetryPlane.DIAG2 -> lines.flatMap { it.d4Orbit() }
+        }
     }
 
     return PlaylistArtPattern(
@@ -173,6 +186,23 @@ private data class PathLine(val r: Int, val c: Int, val dr: Int, val dc: Int) {
         val vertex = mirrorPoint(r + dr, c + dc, plane, PlaylistArtGeometry.COLS)
         val cell = mirrorPoint(r, c, plane, PlaylistArtGeometry.COLS - 1)
         return PathLine(cell.first, cell.second, vertex.first - cell.first, vertex.second - cell.second)
+    }
+}
+
+/**
+ * Every image of this line under the eight symmetries of the square: the identity, the three
+ * rotations, and the four reflections (both axes, both diagonals). Built as the closure of two
+ * generating reflections rather than by naming all eight compositions, so it cannot drift out
+ * of step with [mirroredAcross].
+ */
+private fun PathLine.d4Orbit(): Set<PathLine> {
+    var orbit = setOf(this)
+    while (true) {
+        val grown = orbit + orbit.flatMap { line ->
+            listOf(SymmetryPlane.VERTICAL, SymmetryPlane.DIAG1).map(line::mirroredAcross)
+        }
+        if (grown.size == orbit.size) return orbit
+        orbit = grown
     }
 }
 
