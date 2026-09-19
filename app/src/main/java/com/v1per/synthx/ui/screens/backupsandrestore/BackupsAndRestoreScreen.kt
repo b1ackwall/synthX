@@ -37,6 +37,7 @@ fun BackupsAndRestoreScreen(
     val backupFolderUri by viewModel.backupFolderUri.collectAsState()
     val backupFolderError by viewModel.backupFolderError.collectAsState()
     val backupStatus by viewModel.backupStatus.collectAsState()
+    val isBackingUp by viewModel.isBackingUp.collectAsState()
     val backupHealth by viewModel.backupHealth.collectAsState()
     val exportHealth by viewModel.exportHealth.collectAsState()
     val verificationFailure by viewModel.verificationFailure.collectAsState()
@@ -67,6 +68,7 @@ fun BackupsAndRestoreScreen(
             backupFolderPath = backupFolderUri?.let { FolderPathFormatter.format(context, it) },
             backupFolderError = backupFolderError,
             backupStatus = backupStatus,
+            isBackingUp = isBackingUp,
             backupHealth = backupHealth,
             exportHealth = exportHealth,
             verificationFailure = verificationFailure,
@@ -121,6 +123,7 @@ internal fun BackupsAndRestoreScreenContent(
     backupFolderPath: String?,
     backupFolderError: String?,
     backupStatus: String?,
+    isBackingUp: Boolean = false,
     backupHealth: BackupHealthState = BackupHealthState.Unknown,
     exportHealth: ExportHealthState = ExportHealthState.Unknown,
     verificationFailure: VerificationFailure? = null,
@@ -134,6 +137,7 @@ internal fun BackupsAndRestoreScreenContent(
             backupFolderPath = backupFolderPath,
             backupFolderError = backupFolderError,
             backupStatus = backupStatus,
+            isBackingUp = isBackingUp,
             backupHealth = backupHealth,
             exportHealth = exportHealth,
             verificationFailure = verificationFailure,

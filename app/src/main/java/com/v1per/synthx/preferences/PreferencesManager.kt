@@ -124,6 +124,33 @@ class PreferencesManager(context: Context) {
             .putBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SKIPPED_NO_ELIGIBLE_BACKUP, value)
             .apply()
 
+    /** R8-A12/P7-T6: epoch millis of the last retention pass of any tier. 0 means none yet. */
+    var lastRetentionAttemptTimestamp: Long
+        get() = prefs.getLong(KEY_LAST_RETENTION_ATTEMPT_TIMESTAMP, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_RETENTION_ATTEMPT_TIMESTAMP, value).apply()
+
+    var lastRetentionAttemptTier: String?
+        get() = prefs.getString(KEY_LAST_RETENTION_ATTEMPT_TIER, null)
+        set(value) = prefs.edit().putString(KEY_LAST_RETENTION_ATTEMPT_TIER, value).apply()
+
+    var lastRetentionAttemptAttempted: Int
+        get() = prefs.getInt(KEY_LAST_RETENTION_ATTEMPT_ATTEMPTED, 0)
+        set(value) = prefs.edit().putInt(KEY_LAST_RETENTION_ATTEMPT_ATTEMPTED, value).apply()
+
+    var lastRetentionAttemptSucceeded: Int
+        get() = prefs.getInt(KEY_LAST_RETENTION_ATTEMPT_SUCCEEDED, 0)
+        set(value) = prefs.edit().putInt(KEY_LAST_RETENTION_ATTEMPT_SUCCEEDED, value).apply()
+
+    /** Comma-joined database filenames left as orphans (one half deleted, one survived). */
+    var lastRetentionAttemptOrphanedNames: String?
+        get() = prefs.getString(KEY_LAST_RETENTION_ATTEMPT_ORPHANED_NAMES, null)
+        set(value) = prefs.edit().putString(KEY_LAST_RETENTION_ATTEMPT_ORPHANED_NAMES, value).apply()
+
+    /** Comma-joined database filenames where neither half could be deleted. */
+    var lastRetentionAttemptFailedNames: String?
+        get() = prefs.getString(KEY_LAST_RETENTION_ATTEMPT_FAILED_NAMES, null)
+        set(value) = prefs.edit().putString(KEY_LAST_RETENTION_ATTEMPT_FAILED_NAMES, value).apply()
+
     // --------------------------------------------------------------- destructive-action counter (P3.3)
 
     /** Delete-song/delete-playlist mutations since the last successful backup of any tier. */
@@ -344,6 +371,12 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_VERIFICATION_ATTEMPT_SUCCEEDED = "last_verification_attempt_succeeded"
         private const val KEY_LAST_VERIFICATION_ATTEMPT_SKIPPED_NO_ELIGIBLE_BACKUP =
             "last_verification_attempt_skipped_no_eligible_backup"
+        private const val KEY_LAST_RETENTION_ATTEMPT_TIMESTAMP = "last_retention_attempt_timestamp"
+        private const val KEY_LAST_RETENTION_ATTEMPT_TIER = "last_retention_attempt_tier"
+        private const val KEY_LAST_RETENTION_ATTEMPT_ATTEMPTED = "last_retention_attempt_attempted"
+        private const val KEY_LAST_RETENTION_ATTEMPT_SUCCEEDED = "last_retention_attempt_succeeded"
+        private const val KEY_LAST_RETENTION_ATTEMPT_ORPHANED_NAMES = "last_retention_attempt_orphaned_names"
+        private const val KEY_LAST_RETENTION_ATTEMPT_FAILED_NAMES = "last_retention_attempt_failed_names"
         private const val KEY_LAST_VERIFICATION_ATTEMPT_FAILURE_MESSAGE =
             "last_verification_attempt_failure_message"
         private const val KEY_DESTRUCTIVE_ACTIONS_SINCE_BACKUP = "destructive_actions_since_backup"

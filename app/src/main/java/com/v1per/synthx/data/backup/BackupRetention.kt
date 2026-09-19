@@ -48,23 +48,73 @@ internal object CompletedBackupCatalog {
     }
 }
 
+/** Per-victim outcome of attempting to delete both halves of a [CompletedBackup] pair. */
+internal data class PairDeletionResult(
+    val databaseDeleted: Boolean,
+    val metadataDeleted: Boolean,
+) {
+    val complete: Boolean get() = databaseDeleted && metadataDeleted
+    val orphaned: Boolean get() = databaseDeleted != metadataDeleted
+}
+
+/**
+ * R8-A12: [BackupRetention.prune]'s accounting of what actually happened, so a caller can tell
+ * "nothing needed pruning," "pruned cleanly," and "pruning attempted but some pair failed" apart
+ * — the same three-way distinction [VerificationAttemptOutcome.skippedNoEligibleBackup] draws for
+ * verification, applied here to retention.
+ */
+internal data class RetentionPruneOutcome(
+    val attempted: Int,
+    val succeeded: Int,
+    /** Exactly one half of the pair was deleted — the survivor is now an untracked orphan. */
+    val orphanedDatabaseNames: List<String>,
+    /** Neither half of the pair could be deleted. */
+    val failedDatabaseNames: List<String>,
+) {
+    val hadFailures: Boolean get() = orphanedDatabaseNames.isNotEmpty() || failedDatabaseNames.isNotEmpty()
+}
+
 internal object BackupRetention {
     /**
      * Deletes deterministic oldest unprotected pairs until [limit] is met. The publication name
      * is explicit authority; timestamps and provider ordering can never select it as a victim.
+     *
+     * [deletePair] now reports what actually happened to each half instead of returning `Unit` —
+     * a thrown exception from it is still contained here (an uncooperative provider can't stop
+     * later victims from being attempted), but is folded into the returned [RetentionPruneOutcome]
+     * as a complete failure for that victim rather than silently vanishing.
      */
     fun <T> prune(
         completed: List<CompletedBackup<T>>,
         limit: Int,
         protectedDatabaseName: String,
-        deletePair: (CompletedBackup<T>) -> Unit,
-    ) {
+        deletePair: (CompletedBackup<T>) -> PairDeletionResult,
+    ): RetentionPruneOutcome {
         require(limit > 0)
         val excess = (completed.size - limit).coerceAtLeast(0)
-        completed.asSequence()
+        val victims = completed.asSequence()
             .filterNot { it.databaseName == protectedDatabaseName }
             .sortedWith(compareBy<CompletedBackup<T>>({ it.timestamp }, { it.databaseName }))
             .take(excess)
-            .forEach { pair -> runCatching { deletePair(pair) } }
+            .toList()
+
+        var succeeded = 0
+        val orphaned = mutableListOf<String>()
+        val failed = mutableListOf<String>()
+        victims.forEach { pair ->
+            val result = runCatching { deletePair(pair) }
+                .getOrDefault(PairDeletionResult(databaseDeleted = false, metadataDeleted = false))
+            when {
+                result.complete -> succeeded++
+                result.orphaned -> orphaned += pair.databaseName
+                else -> failed += pair.databaseName
+            }
+        }
+        return RetentionPruneOutcome(
+            attempted = victims.size,
+            succeeded = succeeded,
+            orphanedDatabaseNames = orphaned,
+            failedDatabaseNames = failed,
+        )
     }
 }

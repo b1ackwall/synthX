@@ -1,12 +1,10 @@
 package com.v1per.synthx.data.backup
 
 import android.content.Context
-import android.net.Uri
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
 import android.util.Log
-import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
 
@@ -88,35 +86,32 @@ internal object SafetySnapshotPromoter {
         return BackupSnapshotValidator.validate(staged, migrationSnapshot = true)
     }
 
+    /**
+     * R8-A13/P7-T6: routed through [BackupManager.publishExistingSnapshot] instead of calling
+     * [SafBackupPublisher] directly — this is what gives promotion normal Auto-tier retention
+     * (it used to bypass retention entirely, growing the tier unbounded across repeated restores)
+     * and crash-safe idempotence (a retry after a crash between publish and local cleanup
+     * re-hashes the same staged bytes and finds its own prior publish instead of generating a
+     * fresh name and republishing — see that method's doc).
+     *
+     * "No backup folder configured" is preserved as a deliberate, silent skip (not an error): a
+     * device with backups turned off entirely is a valid steady state and must not fail restore's
+     * cold-start cleanup. Everything else — including a folder that's configured but currently
+     * unreachable — now surfaces as a genuine, logged, retryable failure via the exception this
+     * throws, rather than being silently and permanently dropped as it was before.
+     */
     private fun publishSafetyPromotion(
         context: Context,
         staged: File,
         validated: ValidatedBackupSnapshot,
     ) {
-        val treeUri = PreferencesManager(context).backupFolderUri?.let(Uri::parse) ?: return
-        val root = DocumentFile.fromTreeUri(context, treeUri) ?: return
-        val tierDirectory = root.findFile(BackupTier.Auto.folderName)?.takeIf { it.isDirectory }
-            ?: root.createDirectory(BackupTier.Auto.folderName)
-            ?: return
-
-        val digest = BackupHashing.hash(staged)
-        val identity = BackupFileNames.create()
-        val metadata = BackupMetadata(
-            timestamp = System.currentTimeMillis(),
-            tier = BackupTier.Auto.name,
+        if (PreferencesManager(context).backupFolderUri == null) return
+        BackupManager.create(context).publishExistingSnapshot(
+            tier = BackupTier.Auto,
             reason = BackupReason.PRE_RESTORE_SAFETY,
-            dbVersion = validated.schema.userVersion,
-            file = identity.databaseFileName,
-            sizeBytes = digest.sizeBytes,
-            sha256 = digest.sha256,
-        )
-        SafBackupPublisher(context).publish(
-            tierDirectory = tierDirectory,
-            identity = identity,
             snapshot = staged,
-            digest = digest,
-            metadataBytes = BackupMetadataCodec.encode(metadata),
-        )
+            dbVersion = validated.schema.userVersion,
+        ).exceptionOrNull()?.let { throw it }
     }
 
     // Verbatim copies of RestoreTransaction's file primitives, kept private here for the same

@@ -68,6 +68,11 @@ class BackupsAndRestoreViewModel(
     private val _backupStatus = MutableStateFlow<String?>(null)
     val backupStatus: StateFlow<String?> = _backupStatus.asStateFlow()
 
+    /** R8-B07/P7-T6: guards [createManualBackup] against repeated taps, matching
+     *  [com.v1per.synthx.ui.screens.createplaylist.CreatePlaylistViewModel]'s `_isCreating` shape. */
+    private val _isBackingUp = MutableStateFlow(false)
+    val isBackingUp: StateFlow<Boolean> = _isBackingUp.asStateFlow()
+
     private val _lastSuccessfulBackup = MutableStateFlow<BackupInfo?>(null)
 
     /** N13/P3.1: last successful backup, unless a failed attempt happened more recently. */
@@ -226,25 +231,38 @@ class BackupsAndRestoreViewModel(
 
     private enum class Outcome { OK, NESTED, NESTING_UNDETERMINED, UNUSABLE }
 
+    /**
+     * R8-B07/P7-T6: guarded at entry — a tap while a backup is already in flight is a no-op, not
+     * a second concurrent [BackupManager.createBackup] call. This also closes the status-text
+     * race the finding described ("a later tap's backup still pending" overwriting an earlier
+     * tap's reported success): with only ever one call in flight, there is no later call left to
+     * race the status text against.
+     */
     fun createManualBackup() {
+        if (_isBackingUp.value) return
+        _isBackingUp.value = true
         viewModelScope.launch {
             _backupStatus.value = context.getString(R.string.backup_status_backing_up)
-            // A successful createBackup() below updates BackupOutcomeStore.lastBackupOutcome
-            // (BackupManager's single outcome-recording choke point), which this ViewModel's
-            // init-time collector already reacts to by refreshing _lastSuccessfulBackup — no
-            // separate refresh needed here, see the init block.
-            val result = backupManager.createBackup(BackupTier.Manual)
-            _backupStatus.showTemporarily(
-                result.fold(
-                    onSuccess = { context.getString(R.string.backup_status_created) },
-                    onFailure = { e ->
-                        context.getString(
-                            R.string.backup_status_failed,
-                            e.message ?: context.getString(R.string.scan_status_unknown_error),
-                        )
-                    },
+            try {
+                // A successful createBackup() below updates BackupOutcomeStore.lastBackupOutcome
+                // (BackupManager's single outcome-recording choke point), which this ViewModel's
+                // init-time collector already reacts to by refreshing _lastSuccessfulBackup — no
+                // separate refresh needed here, see the init block.
+                val result = backupManager.createBackup(BackupTier.Manual)
+                _backupStatus.showTemporarily(
+                    result.fold(
+                        onSuccess = { context.getString(R.string.backup_status_created) },
+                        onFailure = { e ->
+                            context.getString(
+                                R.string.backup_status_failed,
+                                e.message ?: context.getString(R.string.scan_status_unknown_error),
+                            )
+                        },
+                    )
                 )
-            )
+            } finally {
+                _isBackingUp.value = false
+            }
         }
     }
 

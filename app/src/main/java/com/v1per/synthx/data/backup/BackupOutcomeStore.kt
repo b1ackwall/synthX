@@ -1,6 +1,7 @@
 package com.v1per.synthx.data.backup
 
 import android.content.Context
+import android.util.Log
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,24 @@ data class VerificationAttemptOutcome(
 )
 
 /**
+ * R8-A12/P7-T6: [BackupRetention.prune]'s own accounting, recorded SEPARATELY from
+ * [BackupAttemptOutcome] — a prune that had failures must never cause the publish it followed to
+ * report as failed (see the "preserve retention's best-effort policy" comment above
+ * [BackupManager]'s retention call site). [attempted]`== 0` means there was nothing to prune;
+ * `hadFailures == false` with `attempted > 0` means every prune completed cleanly.
+ */
+data class RetentionAttemptOutcome(
+    val timestamp: Long,
+    val tier: BackupTier,
+    val attempted: Int,
+    val succeeded: Int,
+    val orphanedDatabaseNames: List<String>,
+    val failedDatabaseNames: List<String>,
+) {
+    val hadFailures: Boolean get() = orphanedDatabaseNames.isNotEmpty() || failedDatabaseNames.isNotEmpty()
+}
+
+/**
  * N13: the missing half of Issue 6.2's [BackupFolderHealth]. That answers "can I write to the
  * backup folder right now" — a pre-condition check. This answers "did the last actual backup or
  * export attempt succeed, and when" — the thing that was never recorded anywhere before this.
@@ -65,6 +84,9 @@ object BackupOutcomeStore {
 
     private val _lastVerificationOutcome = MutableStateFlow<VerificationAttemptOutcome?>(null)
     val lastVerificationOutcome: StateFlow<VerificationAttemptOutcome?> = _lastVerificationOutcome.asStateFlow()
+
+    private val _lastRetentionOutcome = MutableStateFlow<RetentionAttemptOutcome?>(null)
+    val lastRetentionOutcome: StateFlow<RetentionAttemptOutcome?> = _lastRetentionOutcome.asStateFlow()
 
     @Volatile private var initialized = false
 
@@ -98,7 +120,24 @@ object BackupOutcomeStore {
                 skippedNoEligibleBackup = prefs.lastVerificationAttemptSkippedNoEligibleBackup,
             )
         }
+        if (prefs.lastRetentionAttemptTimestamp != 0L) {
+            val tier = runCatching { BackupTier.valueOf(prefs.lastRetentionAttemptTier.orEmpty()) }
+                .getOrNull()
+            if (tier != null) {
+                _lastRetentionOutcome.value = RetentionAttemptOutcome(
+                    timestamp = prefs.lastRetentionAttemptTimestamp,
+                    tier = tier,
+                    attempted = prefs.lastRetentionAttemptAttempted,
+                    succeeded = prefs.lastRetentionAttemptSucceeded,
+                    orphanedDatabaseNames = prefs.lastRetentionAttemptOrphanedNames.toNameList(),
+                    failedDatabaseNames = prefs.lastRetentionAttemptFailedNames.toNameList(),
+                )
+            }
+        }
     }
+
+    private fun String?.toNameList(): List<String> =
+        this?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
 
     internal fun recordBackupOutcome(
         context: Context,
@@ -175,11 +214,50 @@ object BackupOutcomeStore {
         _lastVerificationOutcome.value = outcome
     }
 
+    /**
+     * R8-A12/P7-T6: records retention's own outcome, deliberately separate from
+     * [recordBackupOutcome] — see [RetentionAttemptOutcome]'s doc. Logs at warn level whenever a
+     * pair failed to fully delete, since this is the one place that can see both inner-swallowed
+     * deletion failures [BackupRetention.prune]'s caller previously had no way to surface.
+     */
+    internal fun recordRetentionOutcome(
+        context: Context,
+        tier: BackupTier,
+        prune: RetentionPruneOutcome,
+    ) {
+        val appContext = context.applicationContext
+        val outcome = RetentionAttemptOutcome(
+            timestamp = System.currentTimeMillis(),
+            tier = tier,
+            attempted = prune.attempted,
+            succeeded = prune.succeeded,
+            orphanedDatabaseNames = prune.orphanedDatabaseNames,
+            failedDatabaseNames = prune.failedDatabaseNames,
+        )
+        PreferencesManager(appContext).apply {
+            lastRetentionAttemptTimestamp = outcome.timestamp
+            lastRetentionAttemptTier = outcome.tier.name
+            lastRetentionAttemptAttempted = outcome.attempted
+            lastRetentionAttemptSucceeded = outcome.succeeded
+            lastRetentionAttemptOrphanedNames = outcome.orphanedDatabaseNames.joinToString(",")
+            lastRetentionAttemptFailedNames = outcome.failedDatabaseNames.joinToString(",")
+        }
+        _lastRetentionOutcome.value = outcome
+        if (outcome.hadFailures) {
+            Log.w(
+                "BackupOutcomeStore",
+                "Retention had failures for $tier: " +
+                    "orphaned=${outcome.orphanedDatabaseNames}, failed=${outcome.failedDatabaseNames}",
+            )
+        }
+    }
+
     /** Test-only: lets instrumentation reset process-scoped state between cases. */
     internal fun resetForTest() {
         initialized = false
         _lastBackupOutcome.value = null
         _lastExportOutcome.value = null
         _lastVerificationOutcome.value = null
+        _lastRetentionOutcome.value = null
     }
 }

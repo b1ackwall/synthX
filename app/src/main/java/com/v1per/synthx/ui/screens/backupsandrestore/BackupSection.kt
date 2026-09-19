@@ -22,6 +22,7 @@ internal fun BackupSection(
     backupFolderPath: String?,
     backupFolderError: String?,
     backupStatus: String?,
+    isBackingUp: Boolean,
     backupHealth: BackupHealthState,
     exportHealth: ExportHealthState,
     verificationFailure: VerificationFailure?,
@@ -46,9 +47,13 @@ internal fun BackupSection(
         StatusLine(text = error, isError = true)
     }
 
+    // R8-B07: disabled while a backup is in flight, matching RescanRow's `enabled = !isScanning`
+    // pattern — the status line reports progress instead, and repeated taps can't queue up
+    // multiple sequential snapshots of the same library state.
     ManagementRow(
         title = stringResource(R.string.settings_backup_now),
         subtitle = backupStatus,
+        enabled = !isBackingUp,
         onClick = onBackupNow,
     )
     BackupHealthLine(backupHealth)

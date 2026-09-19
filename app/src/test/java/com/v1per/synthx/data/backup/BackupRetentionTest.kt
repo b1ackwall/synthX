@@ -41,7 +41,7 @@ class BackupRetentionTest {
         val completed = enumerate(valid.flatMap { it.artifacts } + db("00000004"), metadataOf(valid))
         val deleted = mutableListOf<String>()
 
-        BackupRetention.prune(completed, 3, name("00000003")) { deleted += it.databaseName }
+        BackupRetention.prune(completed, 3, name("00000003")) { deleted += it.databaseName; complete() }
 
         assertTrue(deleted.isEmpty())
     }
@@ -54,7 +54,7 @@ class BackupRetentionTest {
         val completed = enumerate(all.flatMap { it.artifacts }, metadataOf(all))
         val deleted = mutableListOf<String>()
 
-        BackupRetention.prune(completed, 3, current.database.name) { deleted += it.databaseName }
+        BackupRetention.prune(completed, 3, current.database.name) { deleted += it.databaseName; complete() }
 
         assertEquals(listOf(future[0].database.name), deleted)
         assertFalse(current.database.name in deleted)
@@ -80,20 +80,83 @@ class BackupRetentionTest {
     }
 
     @Test
-    fun `partial pair deletion leaves an orphan that does not count next pass`() {
+    fun `a victim whose both halves fail to delete is reported as failed, not silently absorbed`() {
+        val old = pair("00000001", 1)
+        val current = pair("00000002", 2)
+        val completed = enumerate((old.artifacts + current.artifacts), metadataOf(listOf(old, current)))
+
+        val outcome = BackupRetention.prune(completed, 1, current.database.name) {
+            PairDeletionResult(databaseDeleted = false, metadataDeleted = false)
+        }
+
+        assertEquals(1, outcome.attempted)
+        assertEquals(0, outcome.succeeded)
+        assertEquals(listOf(old.database.name), outcome.failedDatabaseNames)
+        assertTrue(outcome.orphanedDatabaseNames.isEmpty())
+        assertTrue(outcome.hadFailures)
+    }
+
+    @Test
+    fun `a victim where a provider throws is reported as failed the same as a refused delete`() {
+        val old = pair("00000001", 1)
+        val current = pair("00000002", 2)
+        val completed = enumerate((old.artifacts + current.artifacts), metadataOf(listOf(old, current)))
+
+        val outcome = BackupRetention.prune(completed, 1, current.database.name) {
+            error("provider refused deletion")
+        }
+
+        assertEquals(1, outcome.attempted)
+        assertEquals(0, outcome.succeeded)
+        assertEquals(listOf(old.database.name), outcome.failedDatabaseNames)
+    }
+
+    @Test
+    fun `partial pair deletion is reported as orphaned and does not count next pass`() {
         val first = pair("00000001", 1)
         val second = pair("00000002", 2)
         val artifacts = (first.artifacts + second.artifacts).toMutableList()
         val metadata = metadataOf(listOf(first, second))
         val completed = enumerate(artifacts, metadata)
 
-        BackupRetention.prune(completed, 1, second.database.name) { victim ->
+        val outcome = BackupRetention.prune(completed, 1, second.database.name) { victim ->
             artifacts.removeAll { it.document == victim.database.document }
-            // Simulate metadata deletion failure.
+            // Simulate metadata deletion failure: database half removed, metadata half survives.
+            PairDeletionResult(databaseDeleted = true, metadataDeleted = false)
         }
 
+        assertEquals(listOf(first.database.name), outcome.orphanedDatabaseNames)
+        assertTrue(outcome.failedDatabaseNames.isEmpty())
         val next = enumerate(artifacts, metadata)
         assertEquals(listOf(second.database.name), next.map { it.databaseName })
+    }
+
+    @Test
+    fun `a clean prune with no failures reports succeeded count and no orphans or failures`() {
+        val victims = listOf(pair("00000001", 1), pair("00000002", 2))
+        val current = pair("00000003", 3)
+        val all = victims + current
+        val completed = enumerate(all.flatMap { it.artifacts }, metadataOf(all))
+
+        val outcome = BackupRetention.prune(completed, 1, current.database.name) { complete() }
+
+        assertEquals(2, outcome.attempted)
+        assertEquals(2, outcome.succeeded)
+        assertTrue(outcome.orphanedDatabaseNames.isEmpty())
+        assertTrue(outcome.failedDatabaseNames.isEmpty())
+        assertFalse(outcome.hadFailures)
+    }
+
+    @Test
+    fun `nothing to prune reports zero attempted, not a failure`() {
+        val valid = listOf(pair("00000001", 1))
+        val completed = enumerate(valid.flatMap { it.artifacts }, metadataOf(valid))
+
+        val outcome = BackupRetention.prune(completed, 5, valid[0].database.name) { complete() }
+
+        assertEquals(0, outcome.attempted)
+        assertEquals(0, outcome.succeeded)
+        assertFalse(outcome.hadFailures)
     }
 
     @Test
@@ -113,7 +176,10 @@ class BackupRetentionTest {
         val completed = enumerate(pairs.flatMap { it.artifacts }, metadataOf(pairs))
         val victims = mutableListOf<String>()
 
-        BackupRetention.prune(completed.shuffled(), 2, pairs[0].database.name) { victims += it.databaseName }
+        BackupRetention.prune(completed.shuffled(), 2, pairs[0].database.name) {
+            victims += it.databaseName
+            complete()
+        }
 
         assertEquals(listOf(name("0000000a")), victims)
     }
@@ -128,6 +194,8 @@ class BackupRetentionTest {
 
         assertTrue(enumerate(listOf(orphan, malformedDb, malformedJson, partial), metadata).isEmpty())
     }
+
+    private fun complete() = PairDeletionResult(databaseDeleted = true, metadataDeleted = true)
 
     private data class PairFixture(
         val database: BackupArtifact<String>,

@@ -135,7 +135,7 @@ open class BackupManager(private val context: Context) {
      * @return on success, the database filename (e.g. "synthx_backup_...db") of the backup just
      *   created — [BackupFileIdentity] itself stays internal, so only the filename crosses out.
      */
-    suspend fun createBackup(
+    open suspend fun createBackup(
         tier: BackupTier,
         reason: String? = null,
         cancelActiveScan: Boolean = true,
@@ -225,22 +225,116 @@ open class BackupManager(private val context: Context) {
                 sha256 = digest.sha256,
             )
 
-            val published = SafBackupPublisher(context).publish(
-                tierDirectory = tierDirectory,
-                identity = identity,
-                snapshot = snapshot,
-                digest = digest,
-                metadataBytes = BackupMetadataCodec.encode(metadata),
-            )
-
-            // Publication is complete at this point. Preserve retention's current best-effort
-            // policy so cleanup cannot turn a valid, published backup into a reported failure.
-            runCatching { enforceRetention(tierDirectory, tier, published.identity) }
-                .onFailure { Log.w(TAG, "Backup retention skipped", it) }
-            identity.databaseFileName
+            publishAndRetain(tierDirectory, tier, identity, snapshot, digest, metadata)
         } finally {
             stage.close()
         }
+    }
+
+    /**
+     * Shared tail of [createBackupLocked] and [publishExistingSnapshot]: publish, then run
+     * retention against the tier directory. Publication is complete once [SafBackupPublisher]
+     * returns — retention failures never turn a valid, published backup into a reported failure
+     * (see [enforceRetention]'s own comment), so they are caught and logged here, not propagated.
+     */
+    private fun publishAndRetain(
+        tierDirectory: DocumentFile,
+        tier: BackupTier,
+        identity: BackupFileIdentity,
+        snapshot: File,
+        digest: ByteDigest,
+        metadata: BackupMetadata,
+    ): String {
+        SafBackupPublisher(context).publish(
+            tierDirectory = tierDirectory,
+            identity = identity,
+            snapshot = snapshot,
+            digest = digest,
+            metadataBytes = BackupMetadataCodec.encode(metadata),
+        )
+        runCatching { enforceRetention(tierDirectory, tier, identity) }
+            .onFailure { Log.w(TAG, "Backup retention skipped", it) }
+        return identity.databaseFileName
+    }
+
+    /**
+     * R8-A13/P7-T6: publishes an ALREADY-MATERIALIZED snapshot file (no fresh [BackupSnapshotter]
+     * capture) through the same identity → [SafBackupPublisher] → [enforceRetention] →
+     * [BackupOutcomeStore] pipeline [createBackup] uses for a freshly-captured one. Exists for
+     * [SafetySnapshotPromoter], which has a historical, already-hashed/validated file on disk and
+     * needs it published as an ordinary tier backup, not re-snapshotted.
+     *
+     * Deliberately does NOT go through [RestoreCoordinator.withDbOperation]/
+     * [BackupCreationCoordinator] the way [createBackup] does: those gates quiesce ORDINARY app DB
+     * traffic during a restore, but this function IS restore's own internal machinery (see the
+     * CLAUDE.md architecture note on legitimate bypasses), called synchronously from inside
+     * [RestoreTransaction]'s cold-start recovery — gating on itself here would either deadlock or
+     * wait on state this very call is responsible for finishing. It is also, correspondingly, not
+     * a suspend function, matching the synchronous call site.
+     *
+     * Idempotent by content, not by filename: before publishing, this checks whether a completed
+     * backup with the same [tier]/[reason]/SHA-256 already exists and, if so, returns its name
+     * without republishing. A promotion retried after a crash between a successful publish and the
+     * caller's own local cleanup re-hashes the same staged bytes, finds its own prior publish, and
+     * skips straight to the (idempotent, harmless-to-repeat) local cleanup instead of generating a
+     * fresh [BackupFileNames.create] identity and publishing a second copy under a new name.
+     */
+    internal fun publishExistingSnapshot(
+        tier: BackupTier,
+        reason: String,
+        snapshot: File,
+        dbVersion: Int,
+    ): Result<String> = runCatching {
+        val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) }
+            ?: throw BackupNotConfiguredException()
+        val tierDirectory = resolveTierDir(treeUri, tier)
+            ?: error("Backup folder is unreachable — re-select it in Backups and Restore")
+        publishExistingSnapshotTo(tierDirectory, tier, reason, snapshot, dbVersion)
+    }.also { result ->
+        BackupOutcomeStore.recordBackupOutcome(context, tier, reason, result)
+    }
+
+    /**
+     * Split out from [publishExistingSnapshot] so tests can supply a real, file-backed
+     * [DocumentFile] tier directory (as [classifyBackupList] already does for listing) instead of
+     * needing a genuine SAF tree grant, which [resolveTierDir] requires.
+     */
+    internal fun publishExistingSnapshotTo(
+        tierDirectory: DocumentFile,
+        tier: BackupTier,
+        reason: String,
+        snapshot: File,
+        dbVersion: Int,
+    ): String {
+        val digest = BackupHashing.hash(snapshot)
+        if (digest.sizeBytes <= 0L) throw BackupSnapshotException("Snapshot to publish is empty")
+
+        val children = runCatching { tierDirectory.listFiles().toList() }.getOrDefault(emptyList())
+        val existing = completedPairs(children, tier).firstOrNull {
+            it.metadata.reason == reason && it.metadata.sha256 == digest.sha256
+        }
+        val databaseFileName = if (existing != null) {
+            // Already published by a prior attempt at this same promotion — re-running retention
+            // is cheap and keeps this path's tier-limit behavior identical to a fresh publish's.
+            runCatching {
+                enforceRetention(tierDirectory, tier, BackupFileIdentity(existing.databaseName.removeSuffix(".db")))
+            }.onFailure { Log.w(TAG, "Backup retention skipped", it) }
+            existing.databaseName
+        } else {
+            val timestamp = System.currentTimeMillis()
+            val identity = BackupFileNames.create(Instant.ofEpochMilli(timestamp))
+            val metadata = BackupMetadata(
+                timestamp = timestamp,
+                tier = tier.name,
+                reason = reason,
+                dbVersion = dbVersion,
+                file = identity.databaseFileName,
+                sizeBytes = digest.sizeBytes,
+                sha256 = digest.sha256,
+            )
+            publishAndRetain(tierDirectory, tier, identity, snapshot, digest, metadata)
+        }
+        return databaseFileName
     }
 
     // --------------------------------------------------------------- listing
@@ -509,21 +603,66 @@ open class BackupManager(private val context: Context) {
         return if (create) root.createDirectory(tier.folderName) else null
     }
 
-    private fun enforceRetention(
+    /**
+     * `internal`: a test seam so retention/orphan-sweep behavior can be exercised against a real,
+     * file-backed [DocumentFile] tier directory (see [classifyBackupList]'s doc for why a genuine
+     * SAF tree grant is unavailable in an instrumented test).
+     */
+    internal fun enforceRetention(
         tierDirectory: DocumentFile,
         tier: BackupTier,
         protected: BackupFileIdentity,
     ) {
         val children = runCatching { tierDirectory.listFiles().toList() }.getOrDefault(emptyList())
-        BackupRetention.prune(
+        val outcome = BackupRetention.prune(
             completed = completedPairs(children, tier),
             limit = tier.retention,
             protectedDatabaseName = protected.databaseFileName,
         ) { pair ->
-            // Attempt both sides independently. If one fails, the survivor is an orphan and
-            // cannot re-enter CompletedBackupCatalog on the next pass.
-            runCatching { pair.database.document.delete() }
-            runCatching { pair.metadataDocument.document.delete() }
+            // Attempt both sides independently and report what actually happened — a thrown
+            // exception or a refused (Boolean false) SAF delete are both now visible to the
+            // caller instead of being discarded, per R8-A12.
+            val databaseDeleted = runCatching { pair.database.document.delete() }.getOrDefault(false)
+            val metadataDeleted = runCatching { pair.metadataDocument.document.delete() }.getOrDefault(false)
+            PairDeletionResult(databaseDeleted, metadataDeleted)
+        }
+        BackupOutcomeStore.recordRetentionOutcome(context, tier, outcome)
+
+        // R8-A12: fold orphan cleanup into this same directory listing rather than a separate
+        // scan — reuses the DocumentFile handles already fetched above; deletions above are
+        // reflected live since DocumentFile.exists()/isFile query the provider, not a cache.
+        sweepOrphanHalves(children)
+    }
+
+    /**
+     * R8-A12: removes a stray database or metadata file that has no matching other half — either
+     * left behind by a partial pruning deletion above, or from an earlier run that crashed
+     * mid-publish/mid-prune. A stray database half is unrestorable through the supported UI (no
+     * metadata pointing at it); a stray metadata half references bytes that no longer exist.
+     * Neither can be "repaired" by re-pairing against a DIFFERENT orphan — pairing is purely
+     * name-derived (see [CompletedBackupCatalog]), so if two files' stems matched they would
+     * already form a complete pair and not be orphans in the first place. Safe removal is the
+     * only real option.
+     */
+    private fun sweepOrphanHalves(children: List<DocumentFile>) {
+        val surviving = children.filter { it.isFile && it.exists() }
+        val namesPresent = surviving.mapNotNull { it.name }.toSet()
+        surviving.forEach { document ->
+            val name = document.name ?: return@forEach
+            when {
+                BackupFileNames.isCompletedDatabaseName(name) -> {
+                    val metadataName = name.removeSuffix(".db") + ".json"
+                    if (metadataName !in namesPresent) {
+                        runCatching { document.delete() }
+                    }
+                }
+                name.endsWith(".json") && !name.endsWith(".json.partial") -> {
+                    val databaseName = name.removeSuffix(".json") + ".db"
+                    if (databaseName !in namesPresent || !BackupFileNames.isCompletedDatabaseName(databaseName)) {
+                        runCatching { document.delete() }
+                    }
+                }
+            }
         }
     }
 
