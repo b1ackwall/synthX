@@ -2,23 +2,27 @@ package com.v1per.synthx.ui.screens.restore
 
 import android.text.format.DateUtils
 import android.text.format.Formatter
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,9 +32,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,12 +50,16 @@ import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupListResult
 import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.data.backup.BackupTier
+import com.v1per.synthx.data.backup.RestoreProgressStep
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.LoadingIndicator
+import com.v1per.synthx.ui.components.TypedConfirmationField
+import com.v1per.synthx.ui.components.typedConfirmationMatches
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -74,6 +85,9 @@ fun RestoreScreen(
     val uiState by viewModel.uiState.collectAsState()
     val outcome by viewModel.outcome.collectAsState()
     val preview by viewModel.preview.collectAsState()
+    val previewCountsCache by viewModel.previewCountsCache.collectAsState()
+    val previewProgress by viewModel.previewProgress.collectAsState()
+    val restoreProgress by viewModel.restoreProgress.collectAsState()
 
     LaunchedEffect(outcome) {
         if (outcome is RestoreOutcome.Complete || outcome is RestoreOutcome.Failed) {
@@ -89,28 +103,20 @@ fun RestoreScreen(
         RestoreContent(
             uiState = uiState,
             enabled = !isRestoring && !isPreviewing,
+            previewCountsCache = previewCountsCache,
             onSelect = { viewModel.beginPreview(it) },
             onBack = onBack,
         )
     }
 
     when (val current = preview) {
-        is RestorePreview.Loading -> Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Background.copy(alpha = 0.85f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = TextSecondary, strokeWidth = 2.dp)
-                Spacer(modifier = Modifier.height(Spacing.md))
-                Text(
-                    text = stringResource(R.string.restore_preview_loading),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = TextPrimary,
-                )
-            }
-        }
+        is RestorePreview.Loading -> RestoreProgressOverlay(
+            step = previewProgress,
+            fallbackText = stringResource(R.string.restore_preview_loading),
+            // Preview staging is plain coroutine work, cancellable for its whole duration —
+            // unlike an actual restore there is no uninterruptible install phase to guard.
+            onCancel = viewModel::cancelPreview,
+        )
         is RestorePreview.Ready -> ConfirmRestoreDialog(
             backup = current.backup,
             counts = current.counts,
@@ -140,22 +146,18 @@ fun RestoreScreen(
     }
 
     when (val current = outcome) {
-        is RestoreOutcome.InProgress -> Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Background.copy(alpha = 0.85f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = TextSecondary, strokeWidth = 2.dp)
-                Spacer(modifier = Modifier.height(Spacing.md))
-                Text(
-                    text = stringResource(R.string.restore_in_progress),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = TextPrimary,
-                )
-            }
-        }
+        is RestoreOutcome.InProgress -> RestoreProgressOverlay(
+            step = restoreProgress,
+            fallbackText = stringResource(R.string.restore_in_progress),
+            // Cancel is only offered while still in the cancellable copy/validate window —
+            // once the live-swap begins (INSTALLING/FINISHING) it can no longer be
+            // interrupted, see RestoreTransaction.execute's NonCancellable section.
+            onCancel = if (
+                restoreProgress == null ||
+                restoreProgress == RestoreProgressStep.COPYING ||
+                restoreProgress == RestoreProgressStep.VALIDATING
+            ) viewModel::cancelRestore else null,
+        )
         is RestoreOutcome.Complete -> AlertDialog(
             // Not dismissible: the DB handle is closed and every live ViewModel is stale.
             // The only correct next step is a cold start.
@@ -194,12 +196,77 @@ fun RestoreScreen(
     }
 }
 
+/**
+ * R7-F17: the shared full-screen overlay for both the preview-staging and restore-in-progress
+ * waits — determinate once a [RestoreProgressStep] is known, indeterminate
+ * otherwise, crossfading between the two exactly like [com.v1per.synthx.ui.screens.librarymanagement.ScanSection]'s
+ * `ScanProgressBar`. [onCancel] is null to hide the cancel row entirely — used once a restore
+ * has passed into its uninterruptible install phase.
+ */
+@Composable
+private fun RestoreProgressOverlay(
+    step: RestoreProgressStep?,
+    fallbackText: String,
+    onCancel: (() -> Unit)?,
+) {
+    val steps = RestoreProgressStep.entries
+    val stepIndex = step?.let(steps::indexOf)
+    val label = step?.let { stringResource(restoreProgressLabelRes(it)) } ?: fallbackText
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background.copy(alpha = 0.85f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Crossfade(
+                targetState = stepIndex,
+                animationSpec = tween(Motion.DurationFast, easing = Motion.EasingStandard),
+                label = "restoreProgressMode",
+            ) { index ->
+                val modifier = Modifier.fillMaxWidth(0.6f).clip(MaterialTheme.shapes.small)
+                if (index != null) {
+                    LinearProgressIndicator(
+                        progress = { (index + 1).toFloat() / steps.size },
+                        modifier = modifier,
+                        color = TextSecondary,
+                        trackColor = Hairline,
+                        drawStopIndicator = {},
+                    )
+                } else {
+                    LinearProgressIndicator(modifier = modifier, color = TextSecondary, trackColor = Hairline)
+                }
+            }
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Text(text = label, style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
+            if (onCancel != null) {
+                Spacer(modifier = Modifier.height(Spacing.md))
+                TextButton(
+                    onClick = onCancel,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Error),
+                ) {
+                    Text(text = stringResource(R.string.action_cancel))
+                }
+            }
+        }
+    }
+}
+
+private fun restoreProgressLabelRes(step: RestoreProgressStep): Int = when (step) {
+    RestoreProgressStep.COPYING -> R.string.restore_notification_checking
+    RestoreProgressStep.VALIDATING -> R.string.restore_notification_validating
+    RestoreProgressStep.INSTALLING -> R.string.restore_notification_safety_backup
+    RestoreProgressStep.FINISHING -> R.string.restore_notification_restoring
+}
+
 /** Internal (not private) so instrumented tests can drive it directly with a constructed
  *  [BackupListResult], the same technique this file's own `@Preview`s already use. */
 @Composable
 internal fun RestoreContent(
     uiState: UiState<BackupListResult>,
     enabled: Boolean = true,
+    previewCountsCache: Map<Uri, BackupPreviewCounts> = emptyMap(),
     onSelect: (BackupInfo) -> Unit,
     onBack: () -> Unit = {},
 ) {
@@ -244,6 +311,10 @@ internal fun RestoreContent(
                                 BackupRow(
                                     backup = backup,
                                     enabled = enabled && backup.restoreEligible,
+                                    // R7-F15: newest-first sort (see BackupManager.classifyBackupList)
+                                    // makes the first item trivially "most recent" — no new data.
+                                    isMostRecent = backup === result.backups.first(),
+                                    counts = previewCountsCache[backup.databaseUri],
                                     onClick = { onSelect(backup) },
                                 )
                             }
@@ -305,6 +376,8 @@ private fun ineligibilityMessage(reason: BackupIneligibilityReason?): Int = when
 private fun BackupRow(
     backup: BackupInfo,
     enabled: Boolean = true,
+    isMostRecent: Boolean = false,
+    counts: BackupPreviewCounts? = null,
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -322,18 +395,31 @@ private fun BackupRow(
                 )
                 .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
         ) {
-            Text(
-                text = DateUtils.getRelativeTimeSpanString(
-                    backup.timestamp,
-                    System.currentTimeMillis(),
-                    DateUtils.MINUTE_IN_MILLIS,
-                    DateUtils.FORMAT_ABBREV_RELATIVE,
-                ).toString(),
-                style = MaterialTheme.typography.bodyLarge,
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = DateUtils.getRelativeTimeSpanString(
+                        backup.timestamp,
+                        System.currentTimeMillis(),
+                        DateUtils.MINUTE_IN_MILLIS,
+                        DateUtils.FORMAT_ABBREV_RELATIVE,
+                    ).toString(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // R7-F15: trivial identity signal — no new data, just the position this row
+                // already has in the newest-first sorted list.
+                if (isMostRecent) {
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Text(
+                        text = stringResource(R.string.restore_row_most_recent),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Accent,
+                        maxLines = 1,
+                    )
+                }
+            }
             if (!backup.restoreEligible) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -360,18 +446,39 @@ private fun BackupRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            // R7-F15: shown once known (cached from a prior preview tap-through) rather than
+            // eagerly staged+counted for every row — see BackupManager.previewBackup's doc.
+            if (counts != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = stringResource(R.string.restore_row_counts, counts.songCount, counts.playlistCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         HorizontalDivider(thickness = 1.dp, color = Hairline)
     }
 }
 
+/** Internal (not private) so instrumented tests can drive it directly, the same seam
+ *  [RestoreContent] already uses. */
 @Composable
-private fun ConfirmRestoreDialog(
+internal fun ConfirmRestoreDialog(
     backup: BackupInfo,
     counts: BackupPreviewCounts,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // R7-F17: restore replaces the entire library irreversibly — a bigger-stakes action than
+    // single-song delete, which already gates behind this same typed-confirmation mechanism
+    // (see DeleteSongDialog). requiredWord is sourced from the confirm button's own label,
+    // exactly like DeleteSongDialog, so the two can never drift apart.
+    val requiredWord = stringResource(R.string.restore_confirm_action)
+    var typedConfirmation by remember { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.restore_confirm_title)) },
@@ -387,14 +494,21 @@ private fun ConfirmRestoreDialog(
                         counts.playlistEntryCount,
                     ),
                 )
+                Spacer(modifier = Modifier.height(Spacing.md))
+                TypedConfirmationField(
+                    requiredWord = requiredWord,
+                    value = typedConfirmation,
+                    onValueChange = { typedConfirmation = it },
+                )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
+                enabled = typedConfirmationMatches(typedConfirmation, requiredWord),
                 colors = ButtonDefaults.textButtonColors(contentColor = Error),
             ) {
-                Text(text = stringResource(R.string.restore_confirm_action))
+                Text(text = requiredWord)
             }
         },
         dismissButton = {

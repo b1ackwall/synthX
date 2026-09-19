@@ -266,8 +266,11 @@
     <string name="restore_channel_description">Shows progress while a backup is being restored</string>
     <string name="restore_notification_title">Restoring backup</string>
     <string name="restore_notification_checking">Checking backup…</string>
+    <string name="restore_notification_validating">Validating backup…</string>
     <string name="restore_notification_safety_backup">Backing up current library…</string>
     <string name="restore_notification_restoring">Restoring…</string>
+    <string name="restore_row_most_recent">Most recent</string>
+    <string name="restore_row_counts">%1$d songs · %2$d playlists</string>
     <string name="restore_error_version_unknown">Could not verify this backup\'s compatibility — its metadata is missing or unreadable, so the restore was not attempted.</string>
     <string name="restore_error_version_mismatch">This backup is from a different app version (schema %1$d, this app expects %2$d) and can\'t be restored.</string>
     <string name="restore_error_integrity">This backup file appears to be corrupted and failed its integrity check.</string>

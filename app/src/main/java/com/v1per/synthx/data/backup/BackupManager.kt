@@ -14,6 +14,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
@@ -504,12 +506,38 @@ open class BackupManager(private val context: Context) {
      * [RestoreTransaction]/[RestoreCoordinator]: no live-DB quiescing or admission gating, since
      * nothing here touches the live database or commits to a restore.
      */
-    suspend fun previewBackup(backup: BackupInfo): Result<BackupPreviewCounts> = withContext(Dispatchers.IO) {
+    suspend fun previewBackup(
+        backup: BackupInfo,
+        onProgress: (RestoreProgressStep) -> Unit = {},
+    ): Result<BackupPreviewCounts> = withContext(Dispatchers.IO) {
         runCatching {
             val stage = BackupStagingCoordinator.acquire(context, "preview")
             val copy = stage.file
             try {
-                RestoreTransaction.copySafOnce(context, backup.databaseUri.toString(), copy)
+                // R7-F15: preview never touches the live database, so liveSize=0 here rather
+                // than the live database's real size — RestoreStorage.requiredBytes' formula
+                // still reserves 2x candidateSize (a bit more than the single copy preview
+                // actually writes), a deliberately conservative reuse of the same shared
+                // free-space policy execute() uses, rather than a second bespoke formula.
+                // R7-F15: preview never touches the live database, so liveSize=0 here rather
+                // than the live database's real size — RestoreStorage.requiredBytes' formula
+                // still reserves 2x candidateSize (a bit more than the single copy preview
+                // actually writes), a deliberately conservative reuse of the same shared
+                // free-space policy execute() uses, rather than a second bespoke formula.
+                RestoreTransaction.ensureSpace(
+                    dir = copy.parentFile ?: error("Preview staging directory is unavailable"),
+                    liveSize = 0L,
+                    candidateSize = backup.sizeBytes,
+                )
+                onProgress(RestoreProgressStep.COPYING)
+                val copyJob = currentCoroutineContext()[Job]
+                RestoreTransaction.copySafOnce(
+                    context,
+                    backup.databaseUri.toString(),
+                    copy,
+                    isCancelled = { copyJob?.isActive == false },
+                )
+                onProgress(RestoreProgressStep.VALIDATING)
                 // migrationSnapshot=true: a preview must work on a candidate at any restorable
                 // schema version, not only one already at the current version.
                 BackupSnapshotValidator.validate(copy, migrationSnapshot = true)
@@ -537,7 +565,11 @@ open class BackupManager(private val context: Context) {
      * Overwrites the live database with [backup]. The caller must terminate the process
      * immediately afterwards — see [SynthXDatabase.closeInstance].
      */
-    suspend fun restore(backup: BackupInfo, requestId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun restore(
+        backup: BackupInfo,
+        requestId: String,
+        onProgress: suspend (RestoreProgressStep) -> Unit = {},
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         RestoreStartup.await()
         // A pending restore may itself be the first Worker in a new app process. Its safety
         // snapshot opens live Room, so it must cross C1 just like every other live Room owner.
@@ -546,7 +578,7 @@ open class BackupManager(private val context: Context) {
             ?: return@withContext Result.failure(
                 IllegalArgumentException(context.getString(R.string.restore_ineligible_missing_metadata)),
             )
-        RestoreTransaction.execute(context, backup, metadata, requestId)
+        RestoreTransaction.execute(context, backup, metadata, requestId, onProgress = onProgress)
     }
 
     /** Terminal-only SAF recovery. Deliberately bypasses normal startup/Room gates. */

@@ -12,7 +12,9 @@ import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -140,6 +142,55 @@ class RestoreWorkerInstrumentedTest {
         val detail = finished.outputData.getString(RestoreWorker.KEY_ERROR).orEmpty()
         assertTrue(detail.contains("restore failed:"))
         assertTrue(detail.contains("caused by") || detail.lines().size > 1)
+    }
+
+    /**
+     * P7-T7/R7-F17: the notification used to be permanently `setProgress(0, 0, true)` — this
+     * proves the worker now publishes at least one real, named [RestoreProgressStep] via
+     * [RestoreWorker.KEY_PROGRESS_STEP] over the course of a successful run.
+     */
+    @Test fun successfulWorkerReportsDistinctProgressStepsNotPermanentlyIndeterminate() = runBlocking {
+        createDatabaseFile(context.getDatabasePath(SynthXDatabase.DB_NAME), "state-a")
+        val source = File(databaseDir, validBackupName())
+        createDatabaseFile(source, "state-b")
+        val metadataFile = File(databaseDir, source.name.removeSuffix(".db") + ".json")
+        metadataFile.writeBytes(BackupMetadataCodec.encode(metadata(source)))
+        val request = RestoreWorker.request(backupInfo(source, metadataFile))
+
+        val observedSteps = mutableListOf<String>()
+        val collector = launch {
+            workManager.getWorkInfoByIdFlow(request.id).collect { info ->
+                info?.progress?.getString(RestoreWorker.KEY_PROGRESS_STEP)?.let { step ->
+                    if (observedSteps.lastOrNull() != step) observedSteps += step
+                }
+            }
+        }
+        try {
+            workManager.enqueueUniqueWork(RestoreWorker.UNIQUE_WORK_NAME, androidx.work.ExistingWorkPolicy.KEEP, request).result.get()
+            WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
+            assertEquals(WorkInfo.State.SUCCEEDED, awaitFinished(request.id).state)
+        } finally {
+            collector.cancel()
+        }
+
+        assertTrue(
+            "Expected at least one distinct RestoreProgressStep, got $observedSteps",
+            observedSteps.isNotEmpty(),
+        )
+    }
+
+    /**
+     * P7-T7/R7-F17: the UI cancel affordance calls [RestoreWorker.cancel], which must genuinely
+     * stop the tracked WorkManager request — not just hide the overlay locally.
+     */
+    @Test fun cancelStopsAnEnqueuedRestoreRequest() = runBlocking {
+        val backup = backupInfo(File(databaseDir, validBackupName()))
+        val owner = RestoreWorker.enqueue(context, backup)
+        assertEquals(WorkInfo.State.ENQUEUED, workManager.getWorkInfoById(owner).get()!!.state)
+
+        RestoreWorker.cancel(context)
+
+        assertEquals(WorkInfo.State.CANCELLED, awaitFinished(owner).state)
     }
 
     private suspend fun awaitFinished(id: UUID): WorkInfo =

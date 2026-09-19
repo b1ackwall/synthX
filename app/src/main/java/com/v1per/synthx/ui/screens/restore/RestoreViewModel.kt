@@ -12,6 +12,7 @@ import com.v1per.synthx.data.backup.BackupListResult
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.backup.RestoreProgressStep
 import com.v1per.synthx.data.backup.RestoreWorker
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.common.UiState
@@ -27,8 +28,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import android.net.Uri
 import java.util.UUID
 
 /** Terminal step of a restore — the process must be killed once this is reached. */
@@ -120,8 +123,32 @@ class RestoreViewModel(
     private val _preview = MutableStateFlow<RestorePreview>(RestorePreview.Idle)
     val preview: StateFlow<RestorePreview> = _preview.asStateFlow()
 
+    // P7-T7/R7-F15: counts computed once (during a preview tap-through) are cached and shown
+    // on the row from then on, rather than eagerly staging+counting every listed backup up
+    // front — see BackupManager.previewBackup's doc for why per-row eager counting isn't cheap.
+    private val _previewCountsCache = MutableStateFlow<Map<Uri, BackupPreviewCounts>>(emptyMap())
+    val previewCountsCache: StateFlow<Map<Uri, BackupPreviewCounts>> = _previewCountsCache.asStateFlow()
+
+    // P7-T7/R7-F17: mirrors LibraryManagementViewModel.scanProgress's exact shape — a small
+    // determinate step derived from the same WorkManager WorkInfo already driving [outcome],
+    // rather than a second observation channel.
+    val restoreProgress: StateFlow<RestoreProgressStep?> = workInfo
+        .map { info ->
+            if (info == null || info.state != WorkInfo.State.RUNNING) return@map null
+            info.progress.getString(RestoreWorker.KEY_PROGRESS_STEP)?.let { name ->
+                runCatching { RestoreProgressStep.valueOf(name) }.getOrNull()
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    // Preview staging is a direct suspend call, not WorkManager work, so its progress/cancel
+    // are plain ViewModel-owned state/coroutine cancellation rather than WorkInfo-derived.
+    private val _previewProgress = MutableStateFlow<RestoreProgressStep?>(null)
+    val previewProgress: StateFlow<RestoreProgressStep?> = _previewProgress.asStateFlow()
+
     private var refreshJob: Job? = null
     private var submissionJob: Job? = null
+    private var previewJob: Job? = null
 
     init {
         refresh()
@@ -147,21 +174,44 @@ class RestoreViewModel(
     /** Stages [backup] locally and counts its contents — see [BackupManager.previewBackup]. */
     fun beginPreview(backup: BackupInfo) {
         _preview.value = RestorePreview.Loading(backup)
-        viewModelScope.launch {
-            backupManager.previewBackup(backup).fold(
-                onSuccess = { counts -> _preview.value = RestorePreview.Ready(backup, counts) },
+        _previewProgress.value = null
+        previewJob = viewModelScope.launch {
+            backupManager.previewBackup(backup) { step -> _previewProgress.value = step }.fold(
+                onSuccess = { counts ->
+                    _previewCountsCache.value = _previewCountsCache.value + (backup.databaseUri to counts)
+                    _preview.value = RestorePreview.Ready(backup, counts)
+                },
                 onFailure = { error ->
+                    if (error is CancellationException) throw error
                     _preview.value = RestorePreview.Failed(
                         backup,
                         error.message ?: context.getString(R.string.restore_preview_error_unknown),
                     )
                 },
             )
+            _previewProgress.value = null
         }
     }
 
     fun dismissPreview() {
         _preview.value = RestorePreview.Idle
+        _previewProgress.value = null
+    }
+
+    /** Cancels an in-flight preview's staging copy — see [BackupManager.previewBackup]'s
+     *  cooperative `isCancelled` check, the same mechanism [RestoreTransaction.copySafOnce]
+     *  uses for an in-flight restore's copy phase. */
+    fun cancelPreview() {
+        previewJob?.cancel()
+        _preview.value = RestorePreview.Idle
+        _previewProgress.value = null
+    }
+
+    /** Mirrors [com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementViewModel.cancelScan] —
+     *  a no-op once the restore has passed into its uninterruptible install phase; see
+     *  [RestoreProgressStep] and [RestoreWorker]'s foreground notification doc. */
+    fun cancelRestore() {
+        RestoreWorker.cancel(context)
     }
 
     /** [onInitiated] runs only once this exact request has closed normal DB admission. */

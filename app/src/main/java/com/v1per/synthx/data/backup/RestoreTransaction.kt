@@ -20,7 +20,12 @@ import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.security.MessageDigest
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -45,6 +50,21 @@ import kotlinx.serialization.json.Json
 // call-site-specific directory-sync failures and proves that later destructive
 // phases do not run across a failed durability boundary. Treat this as a
 // deliberate, re-examined exception, not an oversight.
+/**
+ * P7-T7: coarse, UI-facing progress reported through [RestoreTransaction.execute]'s
+ * `onProgress` callback. Deliberately public and top-level, rather than nested inside
+ * [RestoreTransaction] (which is `internal`) — [BackupManager.previewBackup]/`restore` and
+ * [com.v1per.synthx.ui.screens.restore.RestoreViewModel] surface it on their own public API,
+ * and a type nested in an internal container can't appear there. Also a deliberately separate,
+ * small enum rather than exposing [RestoreTransaction.Phase] itself — [RestoreTransaction.Phase]
+ * is durable, versioned journal state; this is ephemeral and carries no persistence contract, so
+ * it can be freely reshaped without touching the crash-recovery format. Only reported for the
+ * interactive [RestoreTransaction.execute] path, not [RestoreTransaction.executeEmergencyReplacement]
+ * or the startup recovery functions, since only `execute` is ever driven by a live worker with a
+ * UI observer.
+ */
+enum class RestoreProgressStep { COPYING, VALIDATING, INSTALLING, FINISHING }
+
 /** The durable, on-disk boundary of a restore. All database artifacts are same-directory. */
 internal object RestoreTransaction {
     private const val TAG = "RestoreTransaction"
@@ -118,6 +138,7 @@ internal object RestoreTransaction {
         requestId: String,
         faults: RestoreFaultInjector = RestoreFaultInjector.NONE,
         sourceOpener: RestoreSourceOpener = RestoreSourceOpener.CONTENT_RESOLVER,
+        onProgress: suspend (RestoreProgressStep) -> Unit = {},
     ): Result<Unit> = RestoreExecutionCoordinator.serialize { runCatching {
         when (RestoreEligibility.assess(metadata, backup.fileName)) {
             RestoreEligibility.TRUSTED_CURRENT,
@@ -156,6 +177,11 @@ internal object RestoreTransaction {
         try {
             val expectedSourceSize = requireNotNull(metadata.sizeBytes)
             ensureSpace(dir, live.length(), expectedSourceSize, faults)
+            onProgress(RestoreProgressStep.COPYING)
+            // Cancellable only up to here: the copy touches nothing but the candidate file, so
+            // a cancel request can stop it cleanly. The Job is read once, outside the plain
+            // (non-suspend) isCancelled lambda copySafOnce polls internally.
+            val copyJob = currentCoroutineContext()[Job]
             val sourceDigest = copySafOnce(
                 context,
                 backup.databaseUri.toString(),
@@ -163,6 +189,7 @@ internal object RestoreTransaction {
                 faults,
                 sourceOpener,
                 expectedSourceSize,
+                isCancelled = { copyJob?.isActive == false },
             )
             faults.hit(RestoreFaultPoint.SOURCE_SHA_VERIFY)
             require(
@@ -170,6 +197,7 @@ internal object RestoreTransaction {
                     sourceDigest.sha256 == metadata.sha256
             ) { "Backup bytes do not match its verified size and SHA-256 metadata" }
 
+            onProgress(RestoreProgressStep.VALIDATING)
             val sourceValidated = BackupSnapshotValidator.validate(candidate, migrationSnapshot = true)
             require(sourceValidated.schema.userVersion == metadata.dbVersion) {
                 "Backup metadata version does not match the database"
@@ -184,7 +212,12 @@ internal object RestoreTransaction {
             force(candidate)
             ensureSpace(dir, live.length(), candidateDigest.sizeBytes, faults)
 
-            RestoreCoordinator.exclusive {
+            // NonCancellable from here on: once admission is closed and the safety snapshot
+            // starts, a cancel request (e.g. from a UI cancel button on the enclosing Worker)
+            // must not interrupt the live-swap sequence — see RestoreProgressStep's doc.
+            // Cancellation is only ever honored earlier, during the plain copy above.
+            withContext(NonCancellable) { RestoreCoordinator.exclusive {
+                onProgress(RestoreProgressStep.INSTALLING)
                 awaitScanIdle(context)
                 ensureSpace(dir, live.length(), candidateDigest.sizeBytes, faults)
 
@@ -257,6 +290,7 @@ internal object RestoreTransaction {
                     validateInstalled(live, state)
                     state = state.copy(phase = Phase.POST_VALIDATED, updatedAt = System.currentTimeMillis())
                     writeState(dir, state, faults)
+                    onProgress(RestoreProgressStep.FINISHING)
                     RestoreCoordinator.markRestartRequired(rolledBack = false)
                 } catch (failure: Exception) {
                     if (RestoreCoordinator.currentMode() == RestoreCoordinator.Mode.RESTORE_PREPARING) {
@@ -284,7 +318,7 @@ internal object RestoreTransaction {
                     }
                     throw PostCloseFailure("Restore was rolled back; close and reopen synthX", failure)
                 }
-            }
+            } }
         } catch (failure: PostCloseFailure) {
             throw failure
         } catch (failure: Exception) {
@@ -921,6 +955,11 @@ internal object RestoreTransaction {
         faults: RestoreFaultInjector = RestoreFaultInjector.NONE,
         sourceOpener: RestoreSourceOpener = RestoreSourceOpener.CONTENT_RESOLVER,
         expectedSizeBytes: Long? = null,
+        // P7-T7: a plain (non-suspend) poll rather than making this function itself suspend —
+        // it is called from several non-coroutine test call sites (see
+        // PhaseBRestoreAdmissionInstrumentedTest) that would otherwise need reworking. Callers
+        // in a coroutine pass `{ job?.isActive == false }` for real, cooperative cancellation.
+        isCancelled: () -> Boolean = { false },
     ): ByteDigest {
         faults.hit(RestoreFaultPoint.SOURCE_STREAM_READ)
         val digest = MessageDigest.getInstance("SHA-256")
@@ -929,6 +968,7 @@ internal object RestoreTransaction {
             FileOutputStream(destination).use { output ->
                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                 while (true) {
+                    if (isCancelled()) throw CancellationException("Backup copy cancelled")
                     val read = input.read(buffer)
                     if (read < 0) break
                     if (read == 0) continue

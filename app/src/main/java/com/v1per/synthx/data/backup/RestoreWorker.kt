@@ -42,9 +42,13 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
         val backup = inputData.toBackupInfo()
             ?: return Result.failure(workDataOf(KEY_ERROR to "Missing or invalid backup reference"))
         createNotificationChannel()
-        setForeground(buildForegroundInfo(R.string.restore_notification_checking))
-        setForeground(buildForegroundInfo(R.string.restore_notification_restoring))
-        return BackupManager.create(applicationContext).restore(backup, id.toString()).fold(
+        setForeground(buildForegroundInfo(RestoreProgressStep.COPYING))
+        return BackupManager.create(applicationContext).restore(backup, id.toString()) { step ->
+            // P7-T7: coarse phase progress — see RestoreProgressStep's doc
+            // for why this is a small separate enum rather than the durable journal Phase.
+            setProgress(workDataOf(KEY_PROGRESS_STEP to step.name))
+            setForeground(buildForegroundInfo(step))
+        }.fold(
             onSuccess = { Result.success() },
             onFailure = { error ->
                 Result.failure(
@@ -67,18 +71,44 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
                 .setShowBadge(false).build(),
         )
     }
-    private fun buildForegroundInfo(status: Int): ForegroundInfo = ForegroundInfo(
-        NOTIFICATION_ID,
-        NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-            .setContentTitle(applicationContext.getString(R.string.restore_notification_title))
-            .setContentText(applicationContext.getString(status))
-            .setSmallIcon(android.R.drawable.stat_notify_sync).setOngoing(true).setSilent(true)
-            .setProgress(0, 0, true).build(),
-        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-    )
+
+    /**
+     * P7-T7: determinate over 4 fixed steps (see [RestoreProgressStep])
+     * rather than indeterminate — mirrors LibraryScanWorker's own foreground notification,
+     * including its cancel action via [WorkManager.createCancelPendingIntent]. Cancelling only
+     * takes effect while the worker is still in the cancellable COPYING/VALIDATING window (see
+     * RestoreTransaction.execute's NonCancellable section) — a tap during INSTALLING/FINISHING
+     * is a no-op until the (uninterruptible) live-swap finishes on its own.
+     */
+    private fun buildForegroundInfo(step: RestoreProgressStep): ForegroundInfo {
+        val stepIndex = RestoreProgressStep.entries.indexOf(step) + 1
+        val totalSteps = RestoreProgressStep.entries.size
+        val status = when (step) {
+            RestoreProgressStep.COPYING -> R.string.restore_notification_checking
+            RestoreProgressStep.VALIDATING -> R.string.restore_notification_validating
+            RestoreProgressStep.INSTALLING -> R.string.restore_notification_safety_backup
+            RestoreProgressStep.FINISHING -> R.string.restore_notification_restoring
+        }
+        return ForegroundInfo(
+            NOTIFICATION_ID,
+            NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+                .setContentTitle(applicationContext.getString(R.string.restore_notification_title))
+                .setContentText(applicationContext.getString(status))
+                .setSmallIcon(android.R.drawable.stat_notify_sync).setOngoing(true).setSilent(true)
+                .setProgress(totalSteps, stepIndex, false)
+                .addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    applicationContext.getString(R.string.action_cancel),
+                    WorkManager.getInstance(applicationContext).createCancelPendingIntent(id),
+                )
+                .build(),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+        )
+    }
     companion object {
         const val UNIQUE_WORK_NAME = "db_restore"
         const val KEY_ERROR = "error"
+        const val KEY_PROGRESS_STEP = "progressStep"
         private const val KEY_DATABASE_URI = "databaseUri"
         private const val KEY_METADATA_URI = "metadataUri"
         private const val KEY_FILE_NAME = "fileName"
@@ -118,6 +148,10 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
             RestoreRequestTracking.changed()
             return owner.id
         }
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME)
+        }
+
         internal fun request(backup: BackupInfo) =
             OneTimeWorkRequestBuilder<RestoreWorker>().setInputData(backup.toInputData())
                 .setConstraints(Constraints.Builder().setRequiresStorageNotLow(true).build()).build()

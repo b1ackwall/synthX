@@ -128,6 +128,56 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
         assertTrue(destination.length() <= 10)
     }
 
+    /**
+     * P7-T7/R7-F17: the cooperative `isCancelled` poll copySafOnce added so an in-flight
+     * preview/restore copy can actually be interrupted, not just have its overlay hidden.
+     * Polls true only after several iterations to prove the loop genuinely stops mid-stream
+     * — not merely refusing to start.
+     */
+    @Test fun copySafOnceStopsPartwayThroughWhenCancelled() {
+        val destination = ownedFile("phaseb-cancelled-copy.db")
+        var bytesRead = 0
+        val totalSize = 1_000_000
+        val source = object : InputStream() {
+            private val bytes = ByteArray(totalSize) { 1 }
+            private var position = 0
+            override fun read(): Int = if (position == bytes.size) -1 else bytes[position++].toInt().also { bytesRead++ }
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (position == bytes.size) return -1
+                val count = minOf(length, bytes.size - position)
+                bytes.copyInto(buffer, offset, position, position + count)
+                position += count
+                bytesRead += count
+                return count
+            }
+        }
+        var polls = 0
+        expectFailure {
+            RestoreTransaction.copySafOnce(
+                context,
+                "content://cancel-me",
+                destination,
+                sourceOpener = RestoreSourceOpener { _, _ -> source },
+                isCancelled = { polls++; polls > 3 },
+            )
+        }
+        assertTrue(
+            "Expected the copy to stop well before the full $totalSize-byte source " +
+                "was consumed, but read $bytesRead bytes",
+            bytesRead < totalSize,
+        )
+    }
+
+    @Test fun copySafOnceIgnoresCancellationByDefault() {
+        // The default isCancelled always returns false — every existing non-coroutine call
+        // site above (and PhaseBRestoreTransactionInstrumentedTest's) must keep working
+        // unchanged, so this is a regression guard on the new parameter's default.
+        val source = newTrustedSource("unaffected-by-default")
+        val destination = ownedFile("phaseb-default-not-cancelled.db")
+        val digest = RestoreTransaction.copySafOnce(context, Uri.fromFile(source).toString(), destination)
+        assertEquals(BackupHashing.hash(source), digest)
+    }
+
     @Test fun legacyBackupRejected() {
         assertEquals(RestoreEligibility.LEGACY_OR_MALFORMED, RestoreEligibility.assess(null, validBackupName()))
     }

@@ -195,6 +195,37 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
         assertTrue(observed)
     }
 
+    /**
+     * P7-T7/R7-F17: [RestoreTransaction.execute]'s `onProgress` callback is what
+     * [RestoreWorker] threads into its (previously permanently-indeterminate,
+     * `setProgress(0, 0, true)`) foreground notification. Asserts the exact, ordered
+     * sequence a successful restore reports.
+     */
+    @Test fun executeReportsDistinctProgressStepsInOrder() = runBlocking {
+        createLive("state-a")
+        val source = newTrustedSource("state-b")
+        val steps = mutableListOf<RestoreProgressStep>()
+
+        val result = RestoreTransaction.execute(
+            context,
+            backupInfo(source),
+            metadata(source),
+            UUID.randomUUID().toString(),
+            onProgress = { steps += it },
+        )
+
+        assertTrue(result.isSuccess)
+        assertEquals(
+            listOf(
+                RestoreProgressStep.COPYING,
+                RestoreProgressStep.VALIDATING,
+                RestoreProgressStep.INSTALLING,
+                RestoreProgressStep.FINISHING,
+            ),
+            steps,
+        )
+    }
+
     @Test fun injectedStatePersistenceFailureLeavesLiveNormal() = runBlocking {
         createLive("state-a")
         val source = newTrustedSource("state-b")
