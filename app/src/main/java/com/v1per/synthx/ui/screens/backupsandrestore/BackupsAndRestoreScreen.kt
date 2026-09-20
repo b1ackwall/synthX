@@ -1,6 +1,5 @@
 package com.v1per.synthx.ui.screens.backupsandrestore
 
-import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -20,6 +19,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.SettingsDetailScaffold
 import com.v1per.synthx.ui.screens.librarymanagement.FolderPathFormatter
+import com.v1per.synthx.ui.screens.librarymanagement.handleFolderPick
+import com.v1per.synthx.ui.screens.librarymanagement.takeFolderGrant
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -42,23 +43,17 @@ fun BackupsAndRestoreScreen(
     val exportHealth by viewModel.exportHealth.collectAsState()
     val verificationFailure by viewModel.verificationFailure.collectAsState()
     val destructiveActionCount by viewModel.destructiveActionCount.collectAsState()
-    val permissionDeniedMessage = stringResource(R.string.error_folder_permission_denied)
+    val grantRefusedMessage = stringResource(R.string.error_folder_grant_refused)
 
     val backupFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
-        uri?.let { newUri ->
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                )
-                viewModel.saveBackupFolder(newUri)
-            } catch (e: SecurityException) {
-                viewModel.setBackupFolderError(permissionDeniedMessage)
-            }
-        }
+        handleFolderPick(
+            picked = uri,
+            takePermission = context::takeFolderGrant,
+            onPicked = { viewModel.saveBackupFolder(it) },
+            onGrantRefused = { viewModel.setBackupFolderError(grantRefusedMessage) },
+        )
     }
 
     var showMusicFolderRequiredDialog by remember { mutableStateOf(false) }

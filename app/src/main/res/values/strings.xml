@@ -15,6 +15,7 @@
     <string name="onboarding_recover_backup">Recover from backup</string>
     <string name="onboarding_folder_setup_title">Set up your library</string>
     <string name="onboarding_folder_setup_subtitle">Choose your root music folder to get started. New Arrivals and a backup folder are optional and can be set up later.</string>
+    <string name="onboarding_music_folder_required_hint">Pick a music folder to continue</string>
     <string name="onboarding_scanning_title">Setting up your library…</string>
     <string name="onboarding_scan_failed_title">We couldn\'t finish setting up your library</string>
     <string name="onboarding_scan_cancelled_title">Setup was interrupted</string>
@@ -352,7 +353,7 @@
     <string name="playback_channel_name">Playback</string>
 
     <!-- Errors -->
-    <string name="error_folder_permission_denied">Failed to get permission for the selected folder. Please try again.</string>
+    <string name="error_folder_grant_refused">This location can\'t be remembered. Pick a folder in internal storage or on an SD card.</string>
     <string name="error_folders_nested">The music folder and the new arrivals folder can\'t be the same folder, or one inside the other. Pick a separate folder.</string>
     <string name="error_folders_nesting_undetermined">Couldn\'t confirm this folder isn\'t nested inside another configured folder. Pick a different location.</string>
     <string name="error_folder_save_failed">Couldn\'t save this folder. Try again.</string>

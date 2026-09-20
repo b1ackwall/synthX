@@ -118,6 +118,9 @@ internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController)
  */
 internal fun ExoPlayerEngine.refreshNavigationState() {
     _hasNext.value = nextLiveIndex() != null
+    // System transport availability is derived from the same answers (P9-T3): the service's
+    // player wrapper re-publishes its commands only if they actually changed.
+    SystemNavigationBridge.notifyChanged()
 }
 
 /**

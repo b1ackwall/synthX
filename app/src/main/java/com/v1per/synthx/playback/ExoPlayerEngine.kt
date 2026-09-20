@@ -168,6 +168,26 @@ class ExoPlayerEngine(
 
     private val listener = createPlayerListener()
 
+    /**
+     * How system transport (notification, headset, lock screen) reaches the same navigation rules
+     * as the in-app buttons — see [SystemNavigationPlayer]. The service's session wraps its raw
+     * player, which only knows the loaded window; this is what answers for the full order.
+     */
+    private val systemNavigation = object : SystemNavigationHandler {
+        override val isReady: Boolean
+            get() = controller != null && !orderStore.isEmpty &&
+                orderStore.indexOfSlot(_currentSlotId.value) >= 0
+
+        override fun hasNext(): Boolean = nextLiveIndex() != null
+
+        // Whenever a current item exists, previous() always does something (restart or jump).
+        override fun hasPrevious(): Boolean = true
+
+        override fun seekToNext() = next()
+
+        override fun seekToPrevious() = previous()
+    }
+
     private val sessionToken =
         SessionToken(context, ComponentName(context, SynthXPlaybackService::class.java))
 
@@ -328,6 +348,7 @@ class ExoPlayerEngine(
     }
 
     init {
+        SystemNavigationBridge.attach(systemNavigation)
         connectToSession()
     }
 
@@ -457,31 +478,31 @@ class ExoPlayerEngine(
      *
      * At the window's rear edge this restarts the current item instead of walking further back
      * — the accepted, deliberate limit of keeping only [WINDOW_BACK] songs of history loaded.
+     * The decision itself is [previousAction], shared with system transport via
+     * [systemNavigation].
      */
     override fun previous() {
         val ctrl = controller ?: return
-        if (ctrl.currentPosition > ctrl.maxSeekToPreviousPosition) {
-            // Same idle/ended recovery seekToLiveIndex applies — this branch seeks the
-            // controller directly rather than going through it, so it needs its own call.
-            applyIdleRecovery(ctrl)
-            ctrl.seekTo(/* positionMs = */ 0)
-            return
-        }
-        val loadedIndex = ctrl.currentMediaItemIndex
-        if (loadedIndex != C.INDEX_UNSET && loadedIndex > 0) {
-            applyIdleRecovery(ctrl)
-            ctrl.seekTo(loadedIndex - 1, C.TIME_UNSET)
-            return
-        }
-        // Rear edge of the window. Wrapping to the end of the queue is only correct when this
-        // genuinely is the queue's first slot, which for a queue small enough to fit entirely
-        // in one window is exactly the behaviour it had before windowing.
-        val current = orderStore.indexOfSlot(_currentSlotId.value)
-        if (_repeatMode.value == RepeatMode.All && current == 0 && orderStore.size > 1) {
-            seekToLiveIndex(orderStore.size - 1, play = false)
-        } else {
-            applyIdleRecovery(ctrl)
-            ctrl.seekTo(/* positionMs = */ 0)
+        val action = previousAction(
+            positionMs = ctrl.currentPosition,
+            restartThresholdMs = ctrl.maxSeekToPreviousPosition,
+            loadedIndex = ctrl.currentMediaItemIndex,
+            repeatMode = _repeatMode.value,
+            currentOrderIndex = orderStore.indexOfSlot(_currentSlotId.value),
+            orderSize = orderStore.size,
+        )
+        when (action) {
+            // Same idle/ended recovery seekToLiveIndex applies — the two direct-seek branches
+            // seek the controller without going through it, so they need their own call.
+            PreviousAction.RestartCurrent -> {
+                applyIdleRecovery(ctrl)
+                ctrl.seekTo(/* positionMs = */ 0)
+            }
+            is PreviousAction.SeekLoaded -> {
+                applyIdleRecovery(ctrl)
+                ctrl.seekTo(action.loadedIndex, C.TIME_UNSET)
+            }
+            is PreviousAction.SeekOrder -> seekToLiveIndex(action.orderIndex, play = false)
         }
     }
 
@@ -548,6 +569,7 @@ class ExoPlayerEngine(
     // permanently closed via QueuePersistence.quiesceAllForRestore(), called from restore's
     // own machinery ahead of the restart-required terminal state.
     private fun releaseInternal() {
+        SystemNavigationBridge.detach(systemNavigation)
         artworkJob?.cancel()
         reconnectJob?.cancel()
         engineScope.cancel()

@@ -9,6 +9,7 @@ import androidx.compose.ui.res.stringResource
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.TextSecondary
 
 @Composable
 internal fun MusicFolderSection(
@@ -32,4 +33,21 @@ internal fun MusicFolderSection(
             ),
         )
     }
+}
+
+/**
+ * Why Done is disabled on the wizard's mandatory music-folder step (P9-T4). Neutral, not an error:
+ * nothing has gone wrong, a required choice just has not been made yet.
+ */
+@Composable
+internal fun MusicFolderRequiredHint() {
+    Text(
+        text = stringResource(R.string.onboarding_music_folder_required_hint),
+        style = MaterialTheme.typography.bodySmall,
+        color = TextSecondary,
+        modifier = Modifier.padding(
+            horizontal = Spacing.HorizontalPadding,
+            vertical = Spacing.xs,
+        ),
+    )
 }

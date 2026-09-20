@@ -19,6 +19,11 @@ private const val TAG = "SynthXPlaybackService"
 class SynthXPlaybackService : MediaLibraryService() {
 
     private lateinit var player: ExoPlayer
+
+    // What the session actually drives: [player] wrapped so notification / headset / lock-screen
+    // Next and Previous follow the app's full-queue rules instead of media3's window-only ones
+    // (P9-T3). Everything in this service that inspects or stops playback still uses [player].
+    private lateinit var sessionPlayer: SystemNavigationPlayer
     private lateinit var mediaLibrarySession: MediaLibrarySession
 
     // ExoPlayer.release() has no internal double-release guard (unlike MediaSession, which
@@ -55,9 +60,11 @@ class SynthXPlaybackService : MediaLibraryService() {
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
 
+        sessionPlayer = SystemNavigationPlayer(player)
+
         mediaLibrarySession = MediaLibrarySession.Builder(
             this,
-            player,
+            sessionPlayer,
             object : MediaLibrarySession.Callback {
                 override fun onPostConnect(
                     session: MediaSession,
@@ -164,6 +171,7 @@ class SynthXPlaybackService : MediaLibraryService() {
     private fun releasePlayback() {
         if (released) return
         released = true
+        sessionPlayer.detach()
         player.stop()
         player.release()
         mediaLibrarySession.release()

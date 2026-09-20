@@ -10,6 +10,7 @@ import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 
 internal object TestWorkManager {
@@ -34,6 +35,9 @@ internal object TestWorkManager {
 internal sealed interface ScanStub {
     /** Stays RUNNING until cancelled — for tests that need an in-flight scan. */
     data object Hang : ScanStub
+
+    /** Stays RUNNING until [gate] completes, then succeeds — an in-flight scan a test can finish. */
+    data class Gated(val gate: CompletableDeferred<Unit>) : ScanStub
     data class Succeed(val output: androidx.work.Data = androidx.work.Data.EMPTY) : ScanStub
     data class Fail(val error: String) : ScanStub
 }
@@ -68,6 +72,10 @@ private class StubScanWorker(
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = when (stub) {
         ScanStub.Hang -> awaitCancellation()
+        is ScanStub.Gated -> {
+            stub.gate.await()
+            Result.success()
+        }
         is ScanStub.Succeed -> Result.success(stub.output)
         is ScanStub.Fail -> Result.failure(
             androidx.work.workDataOf(LibraryScanWorker.KEY_ERROR to stub.error),

@@ -1,6 +1,5 @@
 package com.v1per.synthx.ui.screens.librarymanagement
 
-import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -31,34 +30,29 @@ fun LibraryManagementScreen(
     val newArrivalsFolderUri by viewModel.newArrivalsFolderUri.collectAsState()
     val folderError by viewModel.folderError.collectAsState()
     val newArrivalsFolderError by viewModel.newArrivalsFolderError.collectAsState()
+    val newArrivalsFolderNotice by viewModel.newArrivalsFolderNotice.collectAsState()
     val missingSongCount by viewModel.missingSongCount.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
 
     // Resolved here, not in the callback below: the launcher result lambda is not a
     // composable scope, so stringResource cannot be called from inside it.
-    val permissionDeniedMessage = stringResource(R.string.error_folder_permission_denied)
+    val grantRefusedMessage = stringResource(R.string.error_folder_grant_refused)
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
-        uri?.let { newUri ->
-            // Take the new grant first. Releasing the old one is the ViewModel's job now,
-            // and happens only once the pick survives nesting validation — released here it
-            // would be unrecoverable on rejection, since a persistable grant can only be
-            // taken from a fresh activity result.
-            try {
-                // Write as well as read: graduation ("Remove from Starred") moves a file into
-                // this tree. Every other use of it is read-only — see PreferencesManager.
-                context.contentResolver.takePersistableUriPermission(
-                    newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                )
-                viewModel.saveMusicFolder(newUri)
-            } catch (e: SecurityException) {
-                viewModel.setFolderError(permissionDeniedMessage)
-            }
-        }
+        // Take the new grant first. Releasing the old one is the ViewModel's job now,
+        // and happens only once the pick survives nesting validation — released here it
+        // would be unrecoverable on rejection, since a persistable grant can only be
+        // taken from a fresh activity result.
+        // Write as well as read: graduation ("Remove from Starred") moves a file into
+        // this tree. Every other use of it is read-only — see PreferencesManager.
+        handleFolderPick(
+            picked = uri,
+            takePermission = context::takeFolderGrant,
+            onPicked = { viewModel.saveMusicFolder(it) },
+            onGrantRefused = { viewModel.setFolderError(grantRefusedMessage) },
+        )
     }
 
     // Second audio tree — same read+write grant as the music folder picker above. Write is
@@ -67,18 +61,12 @@ fun LibraryManagementScreen(
     val newArrivalsFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
-        uri?.let { newUri ->
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                )
-                viewModel.saveNewArrivalsFolder(newUri)
-            } catch (e: SecurityException) {
-                viewModel.setNewArrivalsFolderError(permissionDeniedMessage)
-            }
-        }
+        handleFolderPick(
+            picked = uri,
+            takePermission = context::takeFolderGrant,
+            onPicked = { viewModel.saveNewArrivalsFolder(it) },
+            onGrantRefused = { viewModel.setNewArrivalsFolderError(grantRefusedMessage) },
+        )
     }
 
     SettingsDetailScaffold(topBar = topBar) {
@@ -89,6 +77,7 @@ fun LibraryManagementScreen(
                 FolderPathFormatter.format(context, it)
             },
             newArrivalsFolderError = newArrivalsFolderError,
+            newArrivalsFolderNotice = newArrivalsFolderNotice,
             rescanStatus = rescanStatus,
             scanStatusNeedsAttention = scanStatusNeedsAttention,
             isScanning = isScanning,
@@ -112,6 +101,7 @@ internal fun LibraryManagementScreenContent(
     folderError: String?,
     newArrivalsFolderPath: String?,
     newArrivalsFolderError: String?,
+    newArrivalsFolderNotice: String?,
     rescanStatus: String?,
     scanStatusNeedsAttention: Boolean,
     isScanning: Boolean,
@@ -136,6 +126,7 @@ internal fun LibraryManagementScreenContent(
         NewArrivalsFolderSection(
             folderPath = newArrivalsFolderPath,
             folderError = newArrivalsFolderError,
+            folderNotice = newArrivalsFolderNotice,
             onClick = onPickNewArrivalsFolder,
         )
         ScanSection(

@@ -99,6 +99,15 @@ internal fun firstScanStateFor(info: WorkInfo, strings: ScanStatusStrings): Firs
             FirstScanState.Failed(scanStatusFor(info, strings).orEmpty(), cancelled = true)
     }
 
+/**
+ * Whether a New Arrivals scan that was queued behind another scan is still waiting to start
+ * (P9-T4 / F18). Once it is running or finished, "will be scanned once it finishes" is stale:
+ * running means it is no longer deferred, and finished (or failed, or cancelled) means the
+ * promise has been kept or definitively broken.
+ */
+internal fun isDeferredScanPending(state: WorkInfo.State): Boolean =
+    state == WorkInfo.State.ENQUEUED || state == WorkInfo.State.BLOCKED
+
 class LibraryManagementViewModel(
     private val context: Context,
     private val preferencesManager: PreferencesManager,
@@ -141,6 +150,42 @@ class LibraryManagementViewModel(
      *  user actually tapped rather than under the music folder row above it. */
     private val _newArrivalsFolderError = MutableStateFlow<String?>(null)
     val newArrivalsFolderError: StateFlow<String?> = _newArrivalsFolderError.asStateFlow()
+
+    // The one New Arrivals scan whose start was deferred behind a scan already running (P9-T4 /
+    // F18), tracked by request id — the same pattern as the first scan — rather than by the shared
+    // unique name, which any of the three scan workers can also occupy.
+    private val _deferredNewArrivalsScanId = MutableStateFlow<UUID?>(null)
+
+    /**
+     * Informational, not an error: "a scan is already running, this folder will follow". Its own
+     * channel so it renders neutrally instead of as a red error, and so it is cleared by what it
+     * describes — its scan leaving the waiting states — rather than by a timer or by the next
+     * unrelated pick. Null whenever nothing is deferred.
+     *
+     * A null WorkInfo is normally the short enqueue-to-publication gap, so it still shows the
+     * notice, but only for [MissingFirstScanGraceMs]: a record that never appears must not leave a
+     * stale promise up forever.
+     */
+    val newArrivalsFolderNotice: StateFlow<String?> = _deferredNewArrivalsScanId
+        .flatMapLatest { id ->
+            if (id == null) {
+                flowOf<String?>(null)
+            } else {
+                workManager.getWorkInfoByIdFlow(id).transformLatest<WorkInfo?, String?> { info ->
+                    val notice = context.getString(R.string.status_new_arrivals_scan_deferred)
+                    when {
+                        info == null -> {
+                            emit(notice)
+                            delay(MissingFirstScanGraceMs)
+                            emit(null)
+                        }
+                        isDeferredScanPending(info.state) -> emit(notice)
+                        else -> emit(null)
+                    }
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Thin passthrough to the shared in-memory gate — see [DeleteSongsGate]. */
     val deleteSongsEnabled: StateFlow<Boolean> = DeleteSongsGate.deleteSongsEnabled
@@ -482,7 +527,8 @@ class LibraryManagementViewModel(
      * so the freshly-picked folder still gets scanned promptly even if something else is
      * currently running under the shared unique name, rather than the request being silently
      * discarded — general 6.4 in the final-sweep audit. When that's the case, the user is told
-     * their scan is queued rather than left to wonder why nothing happened.
+     * their scan is queued rather than left to wonder why nothing happened — via
+     * [newArrivalsFolderNotice], not the error channel.
      */
     fun saveNewArrivalsFolder(uri: Uri) {
         launchCatching(onError = {
@@ -507,12 +553,10 @@ class LibraryManagementViewModel(
                 .getWorkInfosForUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME)
                 .await()
                 .any { !it.state.isFinished }
-            _newArrivalsFolderError.value = if (anotherScanRunning) {
-                context.getString(R.string.status_new_arrivals_scan_deferred)
-            } else {
-                null
-            }
-            NewArrivalsScanWorker.enqueue(context, ExistingWorkPolicy.APPEND_OR_REPLACE)
+            _newArrivalsFolderError.value = null
+            val enqueued = NewArrivalsScanWorker.enqueue(context, ExistingWorkPolicy.APPEND_OR_REPLACE)
+            // Informational, on its own channel (F18): cleared when this request stops waiting.
+            _deferredNewArrivalsScanId.value = if (anotherScanRunning) enqueued.id else null
         }
     }
 

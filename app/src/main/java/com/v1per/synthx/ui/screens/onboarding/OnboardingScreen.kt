@@ -1,6 +1,5 @@
 package com.v1per.synthx.ui.screens.onboarding
 
-import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -44,7 +43,11 @@ import com.v1per.synthx.ui.screens.librarymanagement.FolderPathFormatter
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementViewModel
 import com.v1per.synthx.ui.screens.librarymanagement.ManagementRow
 import com.v1per.synthx.ui.screens.librarymanagement.MusicFolderSection
+import com.v1per.synthx.ui.screens.librarymanagement.MusicFolderRequiredHint
 import com.v1per.synthx.ui.screens.librarymanagement.NewArrivalsFolderSection
+import com.v1per.synthx.ui.screens.librarymanagement.handleFolderPick
+import com.v1per.synthx.ui.screens.librarymanagement.musicFolderStepGate
+import com.v1per.synthx.ui.screens.librarymanagement.takeFolderGrant
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
@@ -236,11 +239,12 @@ private fun FolderSetupStep(
     val folderError by libraryManagementViewModel.folderError.collectAsState()
     val newArrivalsFolderUri by libraryManagementViewModel.newArrivalsFolderUri.collectAsState()
     val newArrivalsFolderError by libraryManagementViewModel.newArrivalsFolderError.collectAsState()
+    val newArrivalsFolderNotice by libraryManagementViewModel.newArrivalsFolderNotice.collectAsState()
     val backupFolderUri by backupsAndRestoreViewModel.backupFolderUri.collectAsState()
     val backupFolderError by backupsAndRestoreViewModel.backupFolderError.collectAsState()
 
     // Resolved here, not inside the picker callbacks below — those aren't composable scopes.
-    val permissionDeniedMessage = stringResource(R.string.error_folder_permission_denied)
+    val grantRefusedMessage = stringResource(R.string.error_folder_grant_refused)
 
     // Same OpenDocumentTree + takePersistableUriPermission wiring as
     // LibraryManagementScreen/BackupsAndRestoreScreen — this glue is Activity-result plumbing,
@@ -249,56 +253,38 @@ private fun FolderSetupStep(
     val musicFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
-        uri?.let { newUri ->
-            try {
-                // Read + write — graduation moves files into this tree. See
-                // LibraryManagementScreen's music folder picker.
-                context.contentResolver.takePersistableUriPermission(
-                    newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                )
-                libraryManagementViewModel.saveOnboardingMusicFolder(newUri)
-            } catch (e: SecurityException) {
-                libraryManagementViewModel.setFolderError(permissionDeniedMessage)
-            }
-        }
+        // Read + write — graduation moves files into this tree. See
+        // LibraryManagementScreen's music folder picker.
+        handleFolderPick(
+            picked = uri,
+            takePermission = context::takeFolderGrant,
+            onPicked = { libraryManagementViewModel.saveOnboardingMusicFolder(it) },
+            onGrantRefused = { libraryManagementViewModel.setFolderError(grantRefusedMessage) },
+        )
     }
 
     val newArrivalsFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
-        uri?.let { newUri ->
-            try {
-                // Read + write — graduation deletes the original from this tree. See
-                // LibraryManagementScreen's New Arrivals picker.
-                context.contentResolver.takePersistableUriPermission(
-                    newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                )
-                libraryManagementViewModel.saveNewArrivalsFolder(newUri)
-            } catch (e: SecurityException) {
-                libraryManagementViewModel.setNewArrivalsFolderError(permissionDeniedMessage)
-            }
-        }
+        // Read + write — graduation deletes the original from this tree. See
+        // LibraryManagementScreen's New Arrivals picker.
+        handleFolderPick(
+            picked = uri,
+            takePermission = context::takeFolderGrant,
+            onPicked = { libraryManagementViewModel.saveNewArrivalsFolder(it) },
+            onGrantRefused = { libraryManagementViewModel.setNewArrivalsFolderError(grantRefusedMessage) },
+        )
     }
 
     val backupFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
-        uri?.let { newUri ->
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    newUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                )
-                backupsAndRestoreViewModel.saveBackupFolder(newUri)
-            } catch (e: SecurityException) {
-                backupsAndRestoreViewModel.setBackupFolderError(permissionDeniedMessage)
-            }
-        }
+        handleFolderPick(
+            picked = uri,
+            takePermission = context::takeFolderGrant,
+            onPicked = { backupsAndRestoreViewModel.saveBackupFolder(it) },
+            onGrantRefused = { backupsAndRestoreViewModel.setBackupFolderError(grantRefusedMessage) },
+        )
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
@@ -331,6 +317,7 @@ private fun FolderSetupStep(
             NewArrivalsFolderSection(
                 folderPath = newArrivalsFolderUri?.let { FolderPathFormatter.format(context, it) },
                 folderError = newArrivalsFolderError,
+                folderNotice = newArrivalsFolderNotice,
                 onClick = { newArrivalsFolderPicker.launch(null) },
             )
             // Optional, skippable. Reuses the same row shape BackupSection uses for this row.
@@ -353,9 +340,17 @@ private fun FolderSetupStep(
             }
         }
 
+        // Done is disabled until a music folder is set; say so instead of leaving a dead button.
+        // A cancelled picker stays silent on every row — this is the one place a cancel leaves the
+        // user stuck, and the hint is what explains why (P9-T4).
+        val folderStepGate = musicFolderStepGate(musicFolderSelected = musicFolderUri != null)
+        if (folderStepGate.showRequiredHint) {
+            MusicFolderRequiredHint()
+        }
+
         Button(
             onClick = onDone,
-            enabled = musicFolderUri != null,
+            enabled = folderStepGate.doneEnabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.HorizontalPadding)

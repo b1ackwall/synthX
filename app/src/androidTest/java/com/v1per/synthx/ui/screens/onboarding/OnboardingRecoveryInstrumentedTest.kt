@@ -28,6 +28,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -59,11 +60,14 @@ import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementViewModel
 import com.v1per.synthx.ui.screens.restore.RestoreOutcome
 import com.v1per.synthx.ui.screens.restore.RestorePreview
 import com.v1per.synthx.ui.screens.restore.RestoreViewModel
+import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.SynthXTheme
+import com.v1per.synthx.ui.theme.TextSecondary
 import java.lang.reflect.Proxy
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
@@ -898,6 +902,191 @@ class OnboardingRecoveryInstrumentedTest {
         composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
         saveOnboardingMusic()
         composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled().performClick()
+    }
+
+    // --- P9-T4 / F18: the deferred-scan message is informational and clears with its scan ------
+
+    /** Keeps [newArrivalsFolderNotice]'s WhileSubscribed upstream alive for the whole test. */
+    private fun keepNoticeHot(): kotlinx.coroutines.Job =
+        CoroutineScope(Dispatchers.Default).launch { library.newArrivalsFolderNotice.collect { } }
+
+    private fun awaitState(id: UUID, state: WorkInfo.State) = runBlocking {
+        withTimeout(10_000) {
+            workManager.getWorkInfoByIdFlow(id).first { it?.state == state }
+        }
+    }
+
+    /** A real scan (hanging stub) already running under the shared unique name. */
+    private fun startBlockingScan(behavior: ScanStub = ScanStub.Hang): UUID {
+        ScanStubWorkerFactory.behavior = behavior
+        val blocker = LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE).id
+        awaitState(blocker, WorkInfo.State.RUNNING)
+        return blocker
+    }
+
+    @Test fun deferredScanMessageIsInformationalNotAnErrorAndClearsWhenItsScanStopsWaiting() {
+        saveMusic()
+        val hot = keepNoticeHot()
+        try {
+            val gate = CompletableDeferred<Unit>()
+            startBlockingScan(ScanStub.Gated(gate))
+            // Workers created from here on finish immediately; only the blocker is gated.
+            ScanStubWorkerFactory.behavior = ScanStub.Succeed()
+
+            composeRule.runOnUiThread { library.saveNewArrivalsFolder(arrivals) }
+            val notice = await(library.newArrivalsFolderNotice) { it != null }
+
+            // Informational channel only: nothing may land in the red error slot.
+            assertEquals(context.getString(R.string.status_new_arrivals_scan_deferred), notice)
+            assertNull(library.newArrivalsFolderError.value)
+            val tracked = workManager.getWorkInfosForUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME).get()
+                .single { it.state == WorkInfo.State.BLOCKED }
+            // Still waiting: the message must still be up, not on a timer.
+            Thread.sleep(500)
+            assertEquals(notice, library.newArrivalsFolderNotice.value)
+
+            // The blocking scan finishes; the deferred one is released and runs. The message
+            // describes a wait that is over, so it must go — not on a timer, not on the next pick.
+            gate.complete(Unit)
+            awaitState(tracked.id, WorkInfo.State.SUCCEEDED)
+            await(library.newArrivalsFolderNotice) { it == null }
+            assertNull(library.newArrivalsFolderError.value)
+        } finally {
+            hot.cancel()
+        }
+    }
+
+    @Test fun deferredScanMessageAlsoClearsWhenItsScanIsCancelledOrFails() {
+        saveMusic()
+        val hot = keepNoticeHot()
+        try {
+            startBlockingScan()
+            composeRule.runOnUiThread { library.saveNewArrivalsFolder(arrivals) }
+            await(library.newArrivalsFolderNotice) { it != null }
+            val tracked = workManager.getWorkInfosForUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME).get()
+                .single { it.state == WorkInfo.State.BLOCKED }
+
+            // Everything under the shared name goes, including the deferred request itself.
+            workManager.cancelUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME).result.get()
+
+            awaitState(tracked.id, WorkInfo.State.CANCELLED)
+            await(library.newArrivalsFolderNotice) { it == null }
+        } finally {
+            hot.cancel()
+        }
+    }
+
+    @Test fun noDeferredMessageWhenNothingWasRunning() {
+        saveMusic()
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
+        val hot = keepNoticeHot()
+        try {
+            composeRule.runOnUiThread { library.saveNewArrivalsFolder(arrivals) }
+            await(library.newArrivalsFolderUri) { it == arrivals }
+            assertNull(library.newArrivalsFolderNotice.value)
+            assertNull(library.newArrivalsFolderError.value)
+        } finally {
+            hot.cancel()
+        }
+    }
+
+    /** A real error still uses the red channel, untouched by the informational one. */
+    @Test fun nestedPickStillReportsThroughTheErrorChannelOnly() {
+        saveMusic()
+        val hot = keepNoticeHot()
+        try {
+            composeRule.runOnUiThread { library.saveNewArrivalsFolder(music) }
+            await(library.newArrivalsFolderError) { it != null }
+            assertNull(library.newArrivalsFolderNotice.value)
+        } finally {
+            hot.cancel()
+        }
+    }
+
+    // --- P9-T4: what the real wizard screens show -----------------------------------------------
+
+    private fun textColorOf(text: String): androidx.compose.ui.graphics.Color {
+        val node = composeRule.onNodeWithText(text).fetchSemanticsNode()
+        val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        node.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        return layouts.first().layoutInput.style.color
+    }
+
+    /** A cancelled picker is silent everywhere; this is the one screen where it strands the user. */
+    @Test fun freshInstallFolderStepExplainsWhyDoneIsDisabledUntilAMusicFolderIsPicked() {
+        val hint = context.getString(R.string.onboarding_music_folder_required_hint)
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_folder_setup_title)).assertExists()
+
+        composeRule.onNodeWithText(hint).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsNotEnabled()
+
+        composeRule.runOnUiThread { library.saveOnboardingMusicFolder(music) }
+        await(library.musicFolderUri) { it == music }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(hint).assertDoesNotExist()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled()
+    }
+
+    @Test fun recoveryFolderStepExplainsWhyDoneIsDisabledUntilAMusicFolderIsPicked() {
+        val hint = context.getString(R.string.onboarding_music_folder_required_hint)
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_recover_backup)).performClick()
+
+        composeRule.onNodeWithText(hint).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsNotEnabled()
+
+        saveMusic()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(hint).assertDoesNotExist()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled()
+    }
+
+    /** End to end through the real folder step: neutral colour, and gone once its scan is released. */
+    @Test fun deferredScanMessageRendersNeutralOnTheFolderStepAndDisappearsWithItsScan() {
+        val deferred = context.getString(R.string.status_new_arrivals_scan_deferred)
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
+        composeRule.runOnUiThread { library.saveOnboardingMusicFolder(music) }
+        await(library.musicFolderUri) { it == music }
+
+        val gate = CompletableDeferred<Unit>()
+        startBlockingScan(ScanStub.Gated(gate))
+        ScanStubWorkerFactory.behavior = ScanStub.Succeed()
+        composeRule.runOnUiThread { library.saveNewArrivalsFolder(arrivals) }
+
+        awaitText(deferred)
+        assertEquals(TextSecondary, textColorOf(deferred))
+        assertNotEquals(Error, textColorOf(deferred))
+
+        gate.complete(Unit)
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithText(deferred).fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    /** The red channel is unchanged: a real rejection is still Error-coloured. */
+    @Test fun nestedNewArrivalsPickStillRendersInErrorColour() {
+        val nested = context.getString(R.string.error_folders_nested)
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
+        composeRule.runOnUiThread { library.saveOnboardingMusicFolder(music) }
+        await(library.musicFolderUri) { it == music }
+
+        composeRule.runOnUiThread { library.saveNewArrivalsFolder(music) }
+
+        awaitText(nested)
+        assertEquals(Error, textColorOf(nested))
+    }
+
+    @Test fun refusedGrantMessageGivesActionableAdviceInsteadOfRetryAdvice() {
+        val message = context.getString(R.string.error_folder_grant_refused)
+        assertTrue(message, message.contains("can't be remembered"))
+        assertTrue(message, message.contains("internal storage"))
+        assertFalse(message, message.contains("try again", ignoreCase = true))
     }
 
     /** For state that arrives from WorkManager's own threads, which waitForIdle does not cover. */
