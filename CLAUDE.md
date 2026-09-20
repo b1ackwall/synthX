@@ -57,10 +57,12 @@ Top-level packages under app/src/main/java/com/v1per/synthx/:
 
 - MainActivity.kt, SynthXApplication.kt
 - data/backup/ - BackupManager, RestoreCoordinator, RestoreTransaction, DatabaseStartupGate, RepositoryDbFlow/RepositoryDbOperation (see Architecture section - do not bypass these)
-- data/db/ - Room entities, DAOs, SynthXDatabase (v11, see Architecture)
+- data/db/ - Room entities, DAOs, SynthXDatabase (v16, see Architecture)
+- data/playlistart/ - generated playlist cover art support: PlaylistArtHue (perceptually spaced hue selection), PlaylistArtColor (OkLab palette helpers), PlaylistArtBackfill (fills art for playlists that predate the art columns). The drawing itself lives in ui/components/PlaylistArt*.kt
 - data/playlistseed/ - PlaylistSeedBootstrapper (default playlist seeding from assets/playlist_seed_manifest_v1.json)
 - data/repository/ - domain models + SongRepository/SongRepositoryImpl
 - data/scanner/ - FolderScanner, HashUtils (SHA-256 fingerprinting)
+- glitch/ - GlitchPattern.kt
 - navigation/ - Screen.kt (nav routes)
 - playback/ - PlaybackEngine -> ExoPlayerEngine -> PlaybackController -> PlaybackViewModel, SynthXPlaybackService, QueuePersistence, GlitchBitmapGenerator
 - preferences/ - PreferencesManager
@@ -68,7 +70,7 @@ Top-level packages under app/src/main/java/com/v1per/synthx/:
 - ui/common/ - UiState.kt
 - ui/components/ - shared composables (PlayerSheet, SongRow, TopBars, Wordmark, etc.)
 - ui/player/ - PlayerSheetSkeleton + 7 sibling files: the live player UI, float-lerp based (hand-lerp pattern per namida/Tear Music reference), independent of the ReadinessCoverOverlay standard below - known, deliberate gap, not yet reconciled
-- ui/screens/ - one dir per screen, each with <Name>Screen.kt + <Name>ViewModel.kt: albumdetail, albumlist, artistdetail, artistlist, backupsandrestore, createplaylist, groupdetail, home, issues, librarymanagement, library, playlistdetail, playlistlist, restore, search, settings, songs, starred
+- ui/screens/ - one dir per screen, each with <Name>Screen.kt + <Name>ViewModel.kt: albumdetail, albumlist, artistdetail, artistlist, backupsandrestore, createplaylist, developersettings, groupdetail, home, issues, librarymanagement, library, onboarding, playlistdetail, playlistlist, replacesong, restore, search, settings, songs, starred
 - ui/theme/ - Color, Motion, Shape, Spacing, Theme, Type (design tokens)
 
 res/: drawable/, font/, mipmap-anydpi-v26/, values/, xml/ - fully Compose, no layout/ XML.
@@ -84,8 +86,9 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
   dependency graph, typically via SongRepositoryImpl.create(context) →
   SynthXDatabase.getInstance(context).
   There is intentionally no di/ package — do not add one unless explicitly instructed.
-- Room DB, version 11. Entities: songs (incl. album_art_full_uri, in_inbox), artists, albums,
-  song_artists, playlist_groups, playlists, playlist_songs, queue_items, queue_baseline_items,
+- Room DB, version 16. Entities: songs (incl. album_art_full_uri, in_inbox), artists, albums,
+  song_artists, playlist_groups, playlists (incl. art_hue, art_structure_seed), playlist_songs,
+  queue_items, queue_baseline_items, pending_cleanups,
   playback_cursor (single-row resume cursor + shuffle/repeat mode, see PlaybackCursorEntity).
   (listen_history was dropped in an earlier version, replaced by queue_items/queue_baseline_items.)
 - ALL_MIGRATIONS in SynthXDatabase.kt is the single canonical migration chain — both the

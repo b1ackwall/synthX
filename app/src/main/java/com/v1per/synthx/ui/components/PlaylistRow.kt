@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,8 +61,11 @@ internal fun PlaylistRow(
     availableGroups: List<PlaylistGroup> = emptyList(),
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    var isRenaming by remember { mutableStateOf(false) }
-    var renameValue by remember { mutableStateOf(playlist.name) }
+    // rememberSaveable: this row is a lazy-list item at all three call sites, so plain remember
+    // dropped a half-typed rename whenever the row scrolled off screen, and on recreation.
+    // Lazy items save through the list's keyed state holder, so the row keys must stay stable.
+    var isRenaming by rememberSaveable { mutableStateOf(false) }
+    var renameValue by rememberSaveable { mutableStateOf(playlist.name) }
 
     Column {
         Row(

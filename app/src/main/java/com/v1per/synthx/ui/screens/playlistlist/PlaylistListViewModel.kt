@@ -48,6 +48,10 @@ class PlaylistListViewModel(
     private val _showCreateGroup = MutableStateFlow(false)
     val showCreateGroup: StateFlow<Boolean> = _showCreateGroup.asStateFlow()
 
+    // True while a group write is in flight — see createGroup.
+    private val _isCreatingGroup = MutableStateFlow(false)
+    val isCreatingGroup: StateFlow<Boolean> = _isCreatingGroup.asStateFlow()
+
     // A failed action is a transient event, not a change to what's on screen — see
     // GroupDetailViewModel._actionErrors for the same reasoning.
     private val _actionErrors = MutableSharedFlow<ActionError>(
@@ -85,17 +89,30 @@ class PlaylistListViewModel(
         _showCreateGroup.value = false
     }
 
+    /**
+     * The card stays open while the write is in flight, closes on success, and stays open with
+     * the typed name intact on failure (the snackbar reports it; the user can just tap Create
+     * again). Two guards make a repeat submit a no-op, both checked before anything launches so
+     * neither depends on how long the card's exit animation runs:
+     *  - [_isCreatingGroup] is claimed with compareAndSet *before* the coroutine starts, unlike
+     *    CreatePlaylistViewModel's `_isCreating`, which is only set inside `launch` and so relies
+     *    on viewModelScope being Main.immediate. This catches a second tap or IME Done while the
+     *    write is running.
+     *  - A closed card refuses submission. After success the card is still composed (and
+     *    tappable, its button enabled again) for its exit animation; without this a tap in that
+     *    window would create a second group with the same name.
+     * The button's own disabled state cannot stand in for either: the IME Done action bypasses it.
+     */
     fun createGroup(name: String) {
-        if (name.isBlank()) return
-        // Dismissed before the write completes, not after: the card and its confirm button
-        // otherwise stay open and tappable for the full round trip, which read as unresponsive
-        // and let a slow write or a double-tap re-fire this. The card reappearing on a genuine
-        // failure would be surprising, but createGroup has no realistic failure mode a user
-        // could act on differently than "try again" — same tradeoff Apple Music's own inline
-        // creation flows make.
-        _showCreateGroup.value = false
+        if (name.isBlank() || !_showCreateGroup.value) return
+        if (!_isCreatingGroup.compareAndSet(expect = false, update = true)) return
         launchCatching(onError = { _actionErrors.tryEmit(ActionError.CreateGroupFailed) }) {
-            repository.createGroup(name.trim())
+            try {
+                repository.createGroup(name.trim())
+                _showCreateGroup.value = false
+            } finally {
+                _isCreatingGroup.value = false
+            }
         }
     }
 

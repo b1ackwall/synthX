@@ -1,7 +1,9 @@
 package com.v1per.synthx.ui.components
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
@@ -13,6 +15,9 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -51,6 +56,54 @@ class PlaylistArtInstrumentedTest {
         // Recovers to generated art once back in range - proves the guard isn't sticky/latched.
         composeRule.runOnIdle { hue.value = 120 }
         assertGeneratedArt()
+    }
+
+    // P8-T6: the 40dp list row and the 160dp detail cover now draw the same playlist. The process-wide
+    // model cache is keyed on size, so neither may hand the other's model back or disturb it.
+
+    @Test fun rowAndDetailSizesGetSeparateCachedModels() {
+        val density = 2.75f
+        val rowPx = 40 * density
+        val detailPx = 160 * density
+
+        val row = cachedPlaylistArtRenderModel(120, 42L, rowPx)
+        val detail = cachedPlaylistArtRenderModel(120, 42L, detailPx)
+
+        assertNotSame("a second size must not be served the first size's model", row, detail)
+        assertSame("the row's entry must survive the detail cover being built", row, cachedPlaylistArtRenderModel(120, 42L, rowPx))
+        assertSame(detail, cachedPlaylistArtRenderModel(120, 42L, detailPx))
+        // Geometry is scaled per size from the same reference space, so a 4x edge is a 4x stroke.
+        assertEquals(4f, detail.strokeWidth / row.strokeWidth, 0.05f)
+        assertEquals(row.lit.size, detail.lit.size)
+        assertEquals(4f, detail.lit.first().end.x / row.lit.first().end.x, 0.05f)
+    }
+
+    @Test fun drawingTheDetailCoverBesideTheRowCoverLeavesTheRowPixelsUnchanged() {
+        val showDetail = mutableStateOf(false)
+        composeRule.setContent {
+            Row {
+                Box(Modifier.testTag("row")) { PlaylistArt(hue = 200, structureSeed = 77L, size = 40.dp) }
+                if (showDetail.value) {
+                    Box(Modifier.testTag("detail")) { PlaylistArt(hue = 200, structureSeed = 77L, size = 160.dp) }
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        val before = composeRule.onNodeWithTag("row").captureToImage().toPixelMap()
+
+        composeRule.runOnIdle { showDetail.value = true }
+        composeRule.onNodeWithTag("detail").assertIsDisplayed()
+        val after = composeRule.onNodeWithTag("row").captureToImage().toPixelMap()
+        val detail = composeRule.onNodeWithTag("detail").captureToImage().toPixelMap()
+
+        for (x in 0 until before.width) for (y in 0 until before.height) {
+            assertEquals("row pixel ($x,$y) changed", before[x, y].toArgb(), after[x, y].toArgb())
+        }
+        var generated = 0
+        for (x in 0 until detail.width step 3) for (y in 0 until detail.height step 3) {
+            if (detail[x, y].toArgb() != SurfaceVariant.toArgb()) generated++
+        }
+        assertTrue("the 160dp cover should be generated art", generated > 100)
     }
 
     private fun assertGeneratedArt() {

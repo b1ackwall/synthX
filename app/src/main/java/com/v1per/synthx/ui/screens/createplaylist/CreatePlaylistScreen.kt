@@ -1,15 +1,14 @@
 package com.v1per.synthx.ui.screens.createplaylist
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,7 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +44,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.LoadingIndicator
-import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.components.SettingsDetailScaffold
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
@@ -67,19 +66,49 @@ fun CreatePlaylistScreen(
     val error by viewModel.error.collectAsState()
     val isCreating by viewModel.isCreating.collectAsState()
 
-    var name by remember { mutableStateOf("") }
-    var selectedGroupId by remember { mutableStateOf<String?>(null) }
+    // rememberSaveable, not remember: the ViewModel outlives a configuration change but these
+    // two fields did not, so a font-size/locale/dark-mode change (or process death) wiped a
+    // half-filled form.
+    var name by rememberSaveable { mutableStateOf("") }
+    var selectedGroupId by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(created) {
         if (created) onCreated()
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Background)) {
-        topBar()
-
+    SettingsDetailScaffold(
+        topBar = topBar,
+        // Lifts the pinned Create button above the keyboard instead of leaving it covered.
+        modifier = Modifier.imePadding(),
+        bottomBar = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.HorizontalPadding),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                error?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Error,
+                    )
+                }
+                CreateButton(
+                    // Disabled on a blank name rather than silently no-oping on tap (the old
+                    // behavior read as a broken button) — and disabled again mid-write so a
+                    // slow create or a double-tap can't fire it twice.
+                    enabled = name.isNotBlank() && !isCreating,
+                    isCreating = isCreating,
+                    onClick = { viewModel.createPlaylist(name, selectedGroupId) },
+                )
+                Spacer(modifier = Modifier.height(Spacing.lg))
+            }
+        },
+    ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .padding(horizontal = Spacing.HorizontalPadding),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
@@ -162,48 +191,41 @@ fun CreatePlaylistScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(Spacing.md))
+        }
+    }
+}
 
-            error?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Error,
-                    modifier = Modifier.padding(vertical = Spacing.sm),
-                )
-            }
-
-            Button(
-                onClick = { viewModel.createPlaylist(name, selectedGroupId) },
-                // Disabled on a blank name rather than silently no-oping on tap (the old
-                // behavior read as a broken button) — and disabled again mid-write so a slow
-                // create or a double-tap can't fire it twice.
-                enabled = name.isNotBlank() && !isCreating,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(Spacing.xxl),
-                shape = MaterialTheme.shapes.small,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SurfaceVariant,
-                    contentColor = TextPrimary,
-                ),
-            ) {
-                if (isCreating) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = TextPrimary,
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Text(
-                        text = stringResource(R.string.action_create_playlist),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = TextPrimary,
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.lg))
+@Composable
+private fun CreateButton(
+    enabled: Boolean,
+    isCreating: Boolean,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(Spacing.xxl),
+        shape = MaterialTheme.shapes.small,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = SurfaceVariant,
+            contentColor = TextPrimary,
+        ),
+    ) {
+        if (isCreating) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = TextPrimary,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.action_create_playlist),
+                style = MaterialTheme.typography.labelLarge,
+                color = TextPrimary,
+            )
         }
     }
 }

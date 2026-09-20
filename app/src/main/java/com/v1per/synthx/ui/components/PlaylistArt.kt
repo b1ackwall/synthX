@@ -230,9 +230,12 @@ private object PlaylistArtModelCache {
  * Generic in the value so eviction and key equality can be unit-tested on the plain JVM without
  * constructing a Compose `Brush` or `Path`.
  *
- * Sized by entry count. Each playlist has exactly one (hue, seed) and the only call site draws
- * at a single size, so the number of live keys is the number of playlists — about 68 in the
- * default library — and 128 leaves headroom before a scrolled-back row ever has to rebuild.
+ * Sized by entry count. Each playlist has exactly one (hue, seed), and there are two call sites:
+ * the 40dp list row and the 160dp detail-screen cover. The size is part of the key, so the two
+ * never share or displace each other's entries. The row is the only one drawn for every
+ * playlist, so the number of live row keys is the number of playlists — about 68 in the default
+ * library — and the detail screen adds at most one more key per playlist actually opened.
+ * 128 leaves headroom before a scrolled-back row ever has to rebuild.
  *
  * [androidx.collection.LruCache] is plain Kotlin (no Android framework types) and synchronised,
  * which matters because lazy-list prefetch and ordinary composition can both ask. [get] builds

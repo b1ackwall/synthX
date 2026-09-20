@@ -34,6 +34,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -54,6 +55,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,6 +102,7 @@ fun PlaylistListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val showCreateGroup by viewModel.showCreateGroup.collectAsState()
+    val isCreatingGroup by viewModel.isCreatingGroup.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -174,6 +177,7 @@ fun PlaylistListScreen(
             ) + fadeOut(animationSpec = tween(Motion.DurationFast, easing = Motion.EasingAccelerate)),
         ) {
             CreateGroupCard(
+                isCreating = isCreatingGroup,
                 onConfirm = { name -> viewModel.createGroup(name) },
                 onDismiss = viewModel::onDismissCreateGroup,
             )
@@ -259,10 +263,13 @@ fun PlaylistListScreen(
 
 @Composable
 private fun CreateGroupCard(
+    isCreating: Boolean,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var name by remember { mutableStateOf("") }
+    // rememberSaveable: the card's open flag lives in the ViewModel and survives recreation and
+    // navigating away and back, so the text has to as well or the card reopens empty.
+    var name by rememberSaveable { mutableStateOf("") }
 
     Card(
         modifier = Modifier
@@ -300,6 +307,8 @@ private fun CreateGroupCard(
             ) {
                 TextButton(
                     onClick = onDismiss,
+                    // Dismissing mid-write would close the card on a group that then appears anyway.
+                    enabled = !isCreating,
                     colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
                 ) {
                     Text(text = stringResource(R.string.action_cancel), color = TextSecondary)
@@ -307,13 +316,24 @@ private fun CreateGroupCard(
                 Spacer(modifier = Modifier.width(Spacing.sm))
                 Button(
                     onClick = { onConfirm(name) },
+                    // Same shape as Create Playlist's button: disabled for a blank name and while
+                    // the write is in flight.
+                    enabled = name.isNotBlank() && !isCreating,
                     shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = SurfaceVariant,
                         contentColor = TextPrimary,
                     ),
                 ) {
-                    Text(text = stringResource(R.string.action_create), color = TextPrimary)
+                    if (isCreating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = TextPrimary,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text(text = stringResource(R.string.action_create), color = TextPrimary)
+                    }
                 }
             }
         }
@@ -328,8 +348,9 @@ private fun GroupRow(
     onDelete: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    var isRenaming by remember { mutableStateOf(false) }
-    var renameValue by remember { mutableStateOf(group.name) }
+    // rememberSaveable for the same reason as PlaylistRow's rename draft: a lazy-list item.
+    var isRenaming by rememberSaveable { mutableStateOf(false) }
+    var renameValue by rememberSaveable { mutableStateOf(group.name) }
 
     Column {
         Row(
