@@ -33,20 +33,29 @@ class OnboardingViewModel(
     private val preferences: PreferencesManager,
 ) : ViewModel() {
 
-    private val resumedStep = preferences.onboardingStepName
-        ?.let { name -> runCatching { OnboardingStep.valueOf(name) }.getOrNull() }
+    // A pending first scan (P9-T1) always resumes at Scanning, whatever step key survived: Done
+    // clears the step key when it completes onboarding and only re-writes it a moment later in
+    // goToScanning, and a process death in that gap must still land on the scan, not on Choice.
+    private val resumedStep = if (preferences.firstScanRequestId != null) {
+        OnboardingStep.Scanning
+    } else {
+        preferences.onboardingStepName
+            ?.let { name -> runCatching { OnboardingStep.valueOf(name) }.getOrNull() }
+    }
 
     private val _step = MutableStateFlow(resumedStep ?: OnboardingStep.Choice)
     val step: StateFlow<OnboardingStep> = _step.asStateFlow()
 
     /**
-     * True only when this instance actually resumed a persisted, non-[OnboardingStep.Choice]
-     * position — i.e. process death or a swipe-away genuinely interrupted a wizard already in
-     * progress. Drives [OnboardingScreen]'s lightweight "Resuming recovery" notice; resuming at
-     * Choice itself is indistinguishable from a fresh start, so that case is excluded.
+     * True only when this instance actually resumed a persisted *recovery* position — i.e.
+     * process death or a swipe-away genuinely interrupted a recovery already in progress. Drives
+     * [OnboardingScreen]'s lightweight "Resuming recovery" notice, whose wording is only true for
+     * the two recovery steps: resuming at Choice is indistinguishable from a fresh start, and
+     * FolderSetup/Scanning are fresh-install steps the notice would mislabel.
      */
     val resumedFromPersistedStep: Boolean =
-        resumedStep != null && resumedStep != OnboardingStep.Choice
+        resumedStep == OnboardingStep.RecoveryFolderSetup ||
+            resumedStep == OnboardingStep.RecoveryBackupSelect
 
     var returningFromRecovery: Boolean = preferences.onboardingReturningFromRecovery
         private set

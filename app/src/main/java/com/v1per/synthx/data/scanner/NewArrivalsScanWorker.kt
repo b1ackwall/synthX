@@ -108,12 +108,14 @@ class NewArrivalsScanWorker(
          * append to already finished in a FAILED or CANCELLED state — APPEND_OR_REPLACE starts
          * fresh in that case instead of inheriting a stale failure.
          */
-        fun enqueue(context: Context, policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP) {
-            WorkManager.getInstance(context).enqueueUniqueWork(
-                LibraryScanWorker.UNIQUE_WORK_NAME,
-                policy,
-                request(),
-            )
+        fun enqueue(
+            context: Context,
+            policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
+        ): ScanEnqueueResult {
+            val request = request()
+            val operation = WorkManager.getInstance(context)
+                .enqueueUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME, policy, request)
+            return ScanEnqueueResult(request.id, operation)
         }
     }
 }

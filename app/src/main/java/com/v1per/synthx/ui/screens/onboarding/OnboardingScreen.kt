@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.screens.onboarding
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -38,6 +39,7 @@ import java.util.UUID
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.screens.backupsandrestore.BackupsAndRestoreViewModel
+import com.v1per.synthx.ui.screens.librarymanagement.FirstScanState
 import com.v1per.synthx.ui.screens.librarymanagement.FolderPathFormatter
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementViewModel
 import com.v1per.synthx.ui.screens.librarymanagement.ManagementRow
@@ -58,10 +60,12 @@ import kotlinx.coroutines.delay
  *
  * Deliberately reuses [LibraryManagementViewModel] and [BackupsAndRestoreViewModel] wholesale
  * (constructed here, scoped to this route like any other screen's ViewModel) rather than
- * reimplementing folder validation/persistence/scan-triggering — saveMusicFolder's existing
- * safety-backup + [com.v1per.synthx.data.scanner.LibraryScanWorker] REPLACE-enqueue side effect
- * is exactly the first-scan trigger fresh install needs. Recovery calls separate persistence
- * methods on the same ViewModel, so changing branches also retains the current folder state.
+ * reimplementing folder validation/persistence/scan-triggering. Picking a folder only persists it
+ * ([LibraryManagementViewModel.saveOnboardingMusicFolder]); tapping Done fires the one
+ * [LibraryManagementViewModel.startFirstScan] call (completion flag + REPLACE-enqueued
+ * [com.v1per.synthx.data.scanner.LibraryScanWorker] + tracked request id), which ScanningStep then
+ * observes by that id. Recovery calls its own persistence methods on the same ViewModel, so
+ * changing branches also retains the current folder state.
  */
 @Composable
 fun OnboardingScreen(
@@ -95,31 +99,32 @@ fun OnboardingScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         when (step) {
             OnboardingStep.Choice -> ChoiceStep(
-                onFreshInstall = {
-                    // Recovery may have persisted a root without ever scanning it. Switching to
-                    // fresh install must start its usual scan before Done can enter ScanningStep.
-                    // P7-T3 / R7-F03: deliberately NOT saveMusicFolder — the folder is already
-                    // correctly persisted via saveRecoveryMusicFolder earlier in the recovery
-                    // branch, so re-saving it would only re-trigger an unsafe, unnecessary
-                    // backup snapshot. See finishFreshInstallFromAbandonedRecovery's kdoc.
-                    if (viewModel.returningFromRecovery &&
-                        libraryManagementViewModel.musicFolderUri.value != null
-                    ) {
-                        libraryManagementViewModel.finishFreshInstallFromAbandonedRecovery()
-                    }
-                    viewModel.goToFolderSetup()
-                },
+                // Nothing to start here even after an abandoned recovery: the folder it already
+                // persisted shows up in FolderSetup, and Done there starts the first scan like any
+                // other fresh install (P9-T1 folded finishFreshInstallFromAbandonedRecovery into it).
+                onFreshInstall = viewModel::goToFolderSetup,
                 onRecoverFromBackup = viewModel::goToRecoveryFolderSetup,
             )
             OnboardingStep.FolderSetup -> FolderSetupStep(
                 libraryManagementViewModel = libraryManagementViewModel,
                 backupsAndRestoreViewModel = backupsAndRestoreViewModel,
                 onBack = viewModel::goToChoice,
-                onDone = viewModel::goToScanning,
+                // Advance only if the scan really started — a null return leaves the wizard here
+                // with the error already shown under the folder row.
+                onDone = {
+                    if (libraryManagementViewModel.startFirstScan() != null) viewModel.goToScanning()
+                },
             )
             OnboardingStep.Scanning -> ScanningStep(
                 libraryManagementViewModel = libraryManagementViewModel,
-                onComplete = onOnboardingComplete,
+                onChangeFolder = {
+                    libraryManagementViewModel.abandonFirstScan()
+                    viewModel.goToFolderSetup()
+                },
+                onComplete = {
+                    libraryManagementViewModel.completeFirstScan()
+                    onOnboardingComplete()
+                },
             )
             OnboardingStep.RecoveryFolderSetup -> RecoveryFolderSetupStep(
                 libraryManagementViewModel = libraryManagementViewModel,
@@ -253,7 +258,7 @@ private fun FolderSetupStep(
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
-                libraryManagementViewModel.saveMusicFolder(newUri)
+                libraryManagementViewModel.saveOnboardingMusicFolder(newUri)
             } catch (e: SecurityException) {
                 libraryManagementViewModel.setFolderError(permissionDeniedMessage)
             }
@@ -370,26 +375,51 @@ private fun FolderSetupStep(
     }
 }
 
+/**
+ * Observes the first scan by its own request id (see [LibraryManagementViewModel.firstScanState])
+ * and branches on the real terminal state: SUCCEEDED hands over to Home, FAILED/CANCELLED stop
+ * here with Retry / Change folder instead of dropping the user into an empty Home (P9-T1 / F10).
+ *
+ * Back is swallowed while the scan runs — there is nowhere honest to go, and the scan would keep
+ * running behind whatever screen we popped to — and routes to Change folder once it has failed.
+ */
 @Composable
 private fun ScanningStep(
     libraryManagementViewModel: LibraryManagementViewModel,
+    onChangeFolder: () -> Unit,
     onComplete: () -> Unit,
 ) {
-    val isScanning by libraryManagementViewModel.isScanning.collectAsState()
-    val rescanStatus by libraryManagementViewModel.rescanStatus.collectAsState()
+    val state by libraryManagementViewModel.firstScanState.collectAsState()
 
-    // rescanStatus is only null before the just-enqueued work's WorkInfo has been observed at
-    // all (or if a prior run was already acknowledged — moot here, this ViewModel is freshly
-    // constructed for the wizard). Waiting on "not scanning AND a status exists" — rather than
-    // catching the false->true->false transition — also correctly handles a scan that finishes
-    // before this step even starts collecting (a near-empty folder can do this in well under a
-    // frame), which a transition-based check would miss entirely.
-    LaunchedEffect(isScanning, rescanStatus) {
-        if (!isScanning && rescanStatus != null) {
-            onComplete()
+    // Two fixed call sites, toggled by `enabled`, rather than one per branch: exactly one is
+    // active at any time, and neither is disposed/re-registered as the state moves along.
+    BackHandler(enabled = state !is FirstScanState.Failed) { /* swallowed while scanning */ }
+    BackHandler(enabled = state is FirstScanState.Failed, onBack = onChangeFolder)
+
+    when (val current = state) {
+        is FirstScanState.Running -> ScanningProgress(status = current.status)
+        FirstScanState.Succeeded -> {
+            LaunchedEffect(Unit) { onComplete() }
+            ScanningProgress(status = null)
+        }
+        is FirstScanState.Failed -> {
+            // A revoked grant clears the stored folder — retrying the same (now absent) folder
+            // cannot work, so only Change folder is offered. Read from the ViewModel's mirrored
+            // state, the same one FolderSetup's Done gate uses.
+            val folder by libraryManagementViewModel.musicFolderUri.collectAsState()
+            ScanFailed(
+                cancelled = current.cancelled,
+                message = current.message,
+                canRetry = folder != null,
+                onRetry = { libraryManagementViewModel.retryFirstScan() },
+                onChangeFolder = onChangeFolder,
+            )
         }
     }
+}
 
+@Composable
+private fun ScanningProgress(status: String?) {
     Box(
         modifier = Modifier.fillMaxSize().background(Background),
         contentAlignment = Alignment.Center,
@@ -403,16 +433,80 @@ private fun ScanningStep(
                 color = TextPrimary,
                 textAlign = TextAlign.Center,
             )
-            rescanStatus?.let { status ->
+            status?.let {
                 Spacer(modifier = Modifier.height(Spacing.sm))
                 Text(
-                    text = status,
+                    text = it,
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ScanFailed(
+    cancelled: Boolean,
+    message: String,
+    canRetry: Boolean,
+    onRetry: () -> Unit,
+    onChangeFolder: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+            .padding(Spacing.HorizontalPadding),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = stringResource(
+                if (cancelled) R.string.onboarding_scan_cancelled_title
+                else R.string.onboarding_scan_failed_title,
+            ),
+            style = MaterialTheme.typography.headlineSmall,
+            color = TextPrimary,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Error,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xxl))
+
+        if (canRetry) {
+            Button(
+                onClick = onRetry,
+                modifier = Modifier.fillMaxWidth().height(Spacing.xxl),
+                shape = MaterialTheme.shapes.small,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SurfaceVariant,
+                    contentColor = TextPrimary,
+                ),
+            ) {
+                Text(
+                    text = stringResource(R.string.action_retry),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = TextPrimary,
+                )
+            }
+            Spacer(modifier = Modifier.height(Spacing.md))
+        }
+        OutlinedButton(
+            onClick = onChangeFolder,
+            modifier = Modifier.fillMaxWidth().height(Spacing.xxl),
+            shape = MaterialTheme.shapes.small,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+            border = ButtonDefaults.outlinedButtonBorder(enabled = true),
+        ) {
+            Text(
+                text = stringResource(R.string.onboarding_scan_change_folder),
+                style = MaterialTheme.typography.labelLarge,
+            )
         }
     }
 }

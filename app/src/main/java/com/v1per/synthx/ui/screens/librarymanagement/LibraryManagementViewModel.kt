@@ -18,16 +18,17 @@ import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
-import com.v1per.synthx.data.scanner.KnownAudioRoot
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.data.scanner.RootNesting
-import com.v1per.synthx.data.scanner.ScanDegradation
-import com.v1per.synthx.data.scanner.ScanDegradationReason
-import com.v1per.synthx.data.scanner.VerifyLibraryWorker
 import com.v1per.synthx.data.scanner.scanDegradations
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.ui.common.LIBRARY_SCAN_TAG
+import com.v1per.synthx.ui.common.NEW_ARRIVALS_TAG
+import com.v1per.synthx.ui.common.ScanStatusStrings
+import com.v1per.synthx.ui.common.VERIFY_TAG
 import com.v1per.synthx.ui.common.launchCatching
+import com.v1per.synthx.ui.common.scanStatusFor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,7 +36,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -63,16 +67,37 @@ private object ScanStatusAcknowledgement {
  *  visible before auto-clearing, matching typical snackbar/status-message durations. */
 private const val StatusMessageDisplayMs = 4_000L
 
-/** WorkManager tags every request with its worker's fully-qualified class name. */
-private val NEW_ARRIVALS_TAG: String = NewArrivalsScanWorker::class.java.name
-private val LIBRARY_SCAN_TAG: String = LibraryScanWorker::class.java.name
-private val VERIFY_TAG: String = VerifyLibraryWorker::class.java.name
-
 /** Determinate when [total] is positive; otherwise the scan is in an uncounted phase. */
 data class ScanProgress(val current: Int, val total: Int) {
     val isDeterminate: Boolean get() = total > 0
     val fraction: Float get() = if (isDeterminate) current.toFloat() / total else 0f
 }
+
+/** How long an unresolvable first-scan id shows as Running before it is treated as lost. */
+private const val MissingFirstScanGraceMs = 10_000L
+
+/** ScanningStep's view of the first scan — see [LibraryManagementViewModel.firstScanState]. */
+sealed interface FirstScanState {
+    /** [status] is the live progress line, or null before the first WorkInfo is observed. */
+    data class Running(val status: String?) : FirstScanState
+
+    data object Succeeded : FirstScanState
+
+    /** [cancelled] distinguishes a cancelled scan from a failed one (same recovery, own wording). */
+    data class Failed(val message: String, val cancelled: Boolean) : FirstScanState
+}
+
+/** Branches on the actual terminal [WorkInfo.State] — never on a status string existing. */
+internal fun firstScanStateFor(info: WorkInfo, strings: ScanStatusStrings): FirstScanState =
+    when (info.state) {
+        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED, WorkInfo.State.RUNNING ->
+            FirstScanState.Running(scanStatusFor(info, strings))
+        WorkInfo.State.SUCCEEDED -> FirstScanState.Succeeded
+        WorkInfo.State.FAILED ->
+            FirstScanState.Failed(scanStatusFor(info, strings).orEmpty(), cancelled = false)
+        WorkInfo.State.CANCELLED ->
+            FirstScanState.Failed(scanStatusFor(info, strings).orEmpty(), cancelled = true)
+    }
 
 class LibraryManagementViewModel(
     private val context: Context,
@@ -91,6 +116,8 @@ class LibraryManagementViewModel(
     private enum class ConfiguredFolderRole { MUSIC, NEW_ARRIVALS, BACKUP }
 
     private val workManager = WorkManager.getInstance(context)
+
+    private val strings = ScanStatusStrings { id, args -> context.getString(id, *args) }
 
     /** Drives the Issues row badge. Counted in SQL rather than by collecting the list. */
     val missingSongCount: StateFlow<Int> = repository.getMissingSongCount()
@@ -216,119 +243,7 @@ class LibraryManagementViewModel(
         return tagged.lastOrNull { it.state.isFinished }
     }
 
-    /** Preparing/running label for whichever worker [info] belongs to — used both while
-     *  ENQUEUED/BLOCKED and during LibraryScanWorker's indeterminate (not-yet-counted) phase. */
-    private fun preparingLabelFor(info: WorkInfo): String = when {
-        LIBRARY_SCAN_TAG in info.tags -> context.getString(R.string.scan_progress_library)
-        NEW_ARRIVALS_TAG in info.tags -> context.getString(R.string.scan_progress_new_arrivals)
-        VERIFY_TAG in info.tags -> context.getString(R.string.scan_progress_verify)
-        else -> context.getString(R.string.scan_progress_preparing)
-    }
-
-    private fun statusFor(info: WorkInfo?): String? = when (info?.state) {
-        null -> null
-        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> preparingLabelFor(info)
-        WorkInfo.State.RUNNING -> when {
-            LIBRARY_SCAN_TAG in info.tags -> {
-                val current = info.progress.getInt(LibraryScanWorker.KEY_CURRENT, -1)
-                val total = info.progress.getInt(LibraryScanWorker.KEY_TOTAL, -1)
-                if (total > 0) {
-                    context.getString(R.string.scan_progress_counted, current, total)
-                } else {
-                    preparingLabelFor(info)
-                }
-            }
-            else -> preparingLabelFor(info)
-        }
-        WorkInfo.State.SUCCEEDED -> when {
-            LIBRARY_SCAN_TAG in info.tags -> {
-                val data = info.outputData
-                degradationMessage(data.scanDegradations())?.let { warning ->
-                    return context.getString(
-                        R.string.scan_status_degraded_counts,
-                        data.getInt(LibraryScanWorker.KEY_ADDED, 0),
-                        data.getInt(LibraryScanWorker.KEY_UPDATED, 0),
-                        warning,
-                    )
-                }
-                val doneMessage = context.getString(
-                    R.string.scan_status_done,
-                    data.getInt(LibraryScanWorker.KEY_ADDED, 0),
-                    data.getInt(LibraryScanWorker.KEY_UPDATED, 0),
-                    data.getInt(LibraryScanWorker.KEY_MISSING, 0),
-                )
-                if (data.getBoolean(LibraryScanWorker.KEY_HIGH_IMPACT, false)) {
-                    val highImpactMessage = context.getString(
-                        R.string.scan_status_high_impact,
-                        data.getInt(LibraryScanWorker.KEY_IMPACT_COUNT, 0),
-                        data.getString(LibraryScanWorker.KEY_BACKUP_FILENAME)
-                            ?: context.getString(R.string.scan_status_backup_filename_unknown),
-                    )
-                    "$doneMessage $highImpactMessage"
-                } else {
-                    doneMessage
-                }
-            }
-            NEW_ARRIVALS_TAG in info.tags -> {
-                val added = info.outputData.getInt(LibraryScanWorker.KEY_ADDED, 0)
-                degradationMessage(info.outputData.scanDegradations())?.let { warning ->
-                    return context.getString(
-                        R.string.scan_status_new_arrivals_degraded,
-                        added,
-                        warning,
-                    )
-                }
-                if (added > 0) {
-                    context.getString(R.string.scan_status_new_arrivals_found, added)
-                } else {
-                    context.getString(R.string.scan_status_new_arrivals_none)
-                }
-            }
-            VERIFY_TAG in info.tags -> {
-                val newlyMissing = info.outputData.getInt(VerifyLibraryWorker.KEY_NEWLY_MISSING, 0)
-                degradationMessage(info.outputData.scanDegradations())?.let { warning ->
-                    return context.getString(
-                        R.string.scan_status_verify_degraded,
-                        newlyMissing,
-                        warning,
-                    )
-                }
-                if (newlyMissing > 0) {
-                    context.getString(R.string.scan_status_verify_missing, newlyMissing)
-                } else {
-                    context.getString(R.string.scan_status_verify_none)
-                }
-            }
-            else -> null
-        }
-        WorkInfo.State.FAILED -> context.getString(
-            R.string.scan_status_failed,
-            info.outputData.getString(LibraryScanWorker.KEY_ERROR)
-                ?: context.getString(R.string.scan_status_unknown_error),
-        )
-        WorkInfo.State.CANCELLED -> context.getString(R.string.scan_cancelled)
-    }
-
-    private fun degradationMessage(degradations: Set<ScanDegradation>): String? {
-        if (degradations.isEmpty()) return null
-        return degradations.joinToString(" ") { degradation ->
-            val rootName = context.getString(
-                when (degradation.root) {
-                    KnownAudioRoot.Music -> R.string.scan_root_music
-                    KnownAudioRoot.NewArrivals -> R.string.scan_root_new_arrivals
-                }
-            )
-            context.getString(
-                when (degradation.reason) {
-                    ScanDegradationReason.RootUnreachable -> R.string.scan_degraded_root_unreachable
-                    ScanDegradationReason.WalkIncomplete -> R.string.scan_degraded_walk_incomplete
-                    ScanDegradationReason.VerificationIncomplete ->
-                        R.string.scan_degraded_verification_incomplete
-                },
-                rootName,
-            )
-        }
-    }
+    private fun statusFor(info: WorkInfo?): String? = scanStatusFor(info, strings)
 
     /** Sets a terminal (non-"in progress") status message, then clears it after
      *  [StatusMessageDisplayMs] — guarded so a newer status set in the meantime isn't
@@ -389,7 +304,6 @@ class LibraryManagementViewModel(
             _musicFolderUri.value = uri
             clearFolderError()
             _localStatus.value = null
-            markOnboardingCompleteIfNeeded()
             // REPLACE, not KEEP: any scan still running is walking the folder the user just
             // replaced, so its results are already stale.
             LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE)
@@ -397,11 +311,9 @@ class LibraryManagementViewModel(
     }
 
     /**
-     * Fresh-install onboarding's own folder-pick is genuinely "done" the moment it lands
-     * (P7-T2) — unlike [saveRecoveryMusicFolder], which must NOT set this. Idempotent no-op
-     * once onboarding is already complete, whether that's a later re-pick from Library
-     * Management or a second call within the same wizard session (see
-     * [finishFreshInstallFromAbandonedRecovery]).
+     * Idempotent no-op once onboarding is already complete. Only [startFirstScan] calls this now:
+     * completion moved from the folder pick to Done (P9-T1) so that a first scan the user has not
+     * yet confirmed can never be the thing that flips the flag.
      */
     private fun markOnboardingCompleteIfNeeded() {
         if (!preferencesManager.onboardingComplete) {
@@ -412,27 +324,107 @@ class LibraryManagementViewModel(
     }
 
     /**
-     * P7-T3 / R7-F03 (no-interruption variant): the Choice step's Fresh Install button, when
-     * switching away from an abandoned recovery attempt, used to re-call [saveMusicFolder] on
-     * the folder [saveRecoveryMusicFolder] had already persisted — retaking a
-     * [BackupReason.FOLDER_CHANGE] snapshot of a folder whose contents haven't changed since
-     * being picked, into a backup tier that may not even be configured yet, and which could
-     * evict a genuine Daily backup on the very next retention pass. Recovery's own folder-save
-     * never took that snapshot precisely because nothing library-relevant existed at that point
-     * to protect — that reasoning still holds here.
-     *
-     * The only two things this transition genuinely still needs, that [saveRecoveryMusicFolder]
-     * deliberately skipped: marking onboarding complete (fresh install owns that, recovery
-     * doesn't) and enqueuing the first scan (recovery leaves the folder unscanned on purpose).
-     * Both run here, without the unsafe backup.
+     * Fresh-install onboarding's folder pick. Persist only — the same shape as
+     * [saveRecoveryMusicFolder], and for the same reason: nothing has been confirmed yet, so there
+     * is nothing to back up, no scan to start and no completion to record. Everything that used to
+     * happen here moved to [startFirstScan], fired from Done (P9-T1 / F12). Library Management's
+     * re-pick still goes through [saveMusicFolder], whose backup-first + REPLACE behaviour is
+     * unchanged.
      */
-    fun finishFreshInstallFromAbandonedRecovery() {
-        launchCatching(onError = {
-            _folderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
-        }) {
-            markOnboardingCompleteIfNeeded()
-            LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE)
+    fun saveOnboardingMusicFolder(uri: Uri) = saveRecoveryMusicFolder(uri)
+
+    // The one scan the wizard's ScanningStep is watching, tracked by request id rather than by the
+    // shared unique name (which any of the three scan workers can also occupy). Seeded from
+    // preferences so a process-death resume re-attaches to the very same scan.
+    private val _firstScanRequestId = MutableStateFlow(
+        preferencesManager.firstScanRequestId?.let { value ->
+            runCatching { UUID.fromString(value) }.getOrNull()
+        },
+    )
+
+    /**
+     * What ScanningStep should be showing, derived from the tracked request's own WorkInfo:
+     * [FirstScanState.Running] until it is terminal, then [FirstScanState.Succeeded] or
+     * [FirstScanState.Failed]. FAILED and CANCELLED are *not* success — that conflation was F10.
+     *
+     * A null WorkInfo is ambiguous: normally the short enqueue-to-publication gap, but it is also
+     * what an id whose record no longer exists looks like. It is shown as Running for
+     * [MissingFirstScanGraceMs], then as Failed, so the wizard can never spin forever on a scan
+     * that WorkManager has no record of.
+     */
+    val firstScanState: StateFlow<FirstScanState> = _firstScanRequestId
+        .flatMapLatest { id ->
+            if (id == null) {
+                flowOf<FirstScanState>(FirstScanState.Failed(lostFirstScanMessage(), cancelled = false))
+            } else {
+                workManager.getWorkInfoByIdFlow(id).transformLatest<WorkInfo?, FirstScanState> { info ->
+                    if (info == null) {
+                        emit(FirstScanState.Running(null))
+                        delay(MissingFirstScanGraceMs)
+                        emit(FirstScanState.Failed(lostFirstScanMessage(), cancelled = false))
+                    } else {
+                        emit(firstScanStateFor(info, strings))
+                    }
+                }
+            }
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FirstScanState.Running(null))
+
+    private fun lostFirstScanMessage(): String = strings.get(
+        R.string.scan_status_failed,
+        strings.get(R.string.onboarding_scan_status_unavailable),
+    )
+
+    /**
+     * The single "start first scan" call, fired from Done (P9-T1 / F12) and by Retry. Marks
+     * onboarding complete, enqueues with REPLACE (any earlier scan is walking a folder that may
+     * since have been changed) and durably records the request id — in that order, so a persisted
+     * id always names a request that was actually enqueued. Returns the id, or null when there is
+     * no persisted folder or the completion/id commit failed (an error is then shown under the
+     * folder row).
+     *
+     * Deliberately synchronous: the caller advances the wizard on the return value, and
+     * WorkManager assigns the request id client-side, so nothing here needs to suspend.
+     */
+    fun startFirstScan(): UUID? {
+        if (preferencesManager.musicFolderUri == null) {
+            _folderError.showTemporarily(context.getString(R.string.settings_no_folder_selected))
+            return null
+        }
+        return try {
+            markOnboardingCompleteIfNeeded()
+            val id = LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE).id
+            check(preferencesManager.trackFirstScanRequestDurably(id.toString())) {
+                "Could not persist first-scan request id"
+            }
+            _localStatus.value = null
+            _firstScanRequestId.value = id
+            id
+        } catch (e: Exception) {
+            _folderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
+            null
+        }
+    }
+
+    /** Retry after a failed/cancelled first scan — same folder, REPLACE, fresh tracked id. */
+    fun retryFirstScan(): UUID? = startFirstScan()
+
+    /** The scan succeeded and the wizard is handing over to Home. */
+    fun completeFirstScan() {
+        check(preferencesManager.completeFirstScanDurably()) {
+            "Could not persist first-scan completion"
+        }
+    }
+
+    /**
+     * "Change folder" after a failed/cancelled first scan. Drops the tracked id and un-completes
+     * onboarding, so the wizard is once again the honest cold-start destination.
+     */
+    fun abandonFirstScan() {
+        check(preferencesManager.abandonFirstScanDurably()) {
+            "Could not persist first-scan abandonment"
+        }
+        _firstScanRequestId.value = null
     }
 
     /** Recovery setup only: validate and persist without backing up or scanning the empty library. */

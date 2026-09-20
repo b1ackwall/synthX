@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -41,14 +42,19 @@ import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.RestoreWorker
+import com.v1per.synthx.data.backup.ScanStub
+import com.v1per.synthx.data.backup.ScanStubWorkerFactory
 import com.v1per.synthx.data.backup.TestWorkManager
+import com.v1per.synthx.data.backup.pruneFinishedWorkIfRestoreAcknowledged
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.shouldShowOnboarding
 import com.v1per.synthx.ui.onboardingRoutes
 import com.v1per.synthx.ui.screens.backupsandrestore.BackupsAndRestoreViewModel
+import com.v1per.synthx.ui.screens.librarymanagement.FirstScanState
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementViewModel
 import com.v1per.synthx.ui.screens.restore.RestoreOutcome
 import com.v1per.synthx.ui.screens.restore.RestorePreview
@@ -58,15 +64,19 @@ import java.lang.reflect.Proxy
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -103,6 +113,7 @@ class OnboardingRecoveryInstrumentedTest {
 
     @Before fun setUp() {
         TestWorkManager.ensureInitialized(context)
+        ScanStubWorkerFactory.behavior = null
         workManager.cancelUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).result.get()
         workManager.pruneWork().result.get()
         if (RestoreCoordinator.activeOperationCountForTest() == 0) RestoreCoordinator.resetForTest()
@@ -137,6 +148,9 @@ class OnboardingRecoveryInstrumentedTest {
 
     @After fun tearDown() {
         composeRule.runOnUiThread { store.clear() }
+        // Hang stubs must not outlive their test: cancel first, then drop the override.
+        workManager.cancelUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME).result.get()
+        ScanStubWorkerFactory.behavior = null
         workManager.cancelUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).result.get()
         workManager.pruneWork().result.get()
         if (RestoreCoordinator.currentMode() == RestoreCoordinator.Mode.RESTORE_PREPARING) {
@@ -435,18 +449,34 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
-     * Regression protection: fresh installs never had a scan/restore step, only a folder pick.
-     * Also covers P7-T3 / R7-F08's regression requirement — no backup folder is configured at
-     * this point in a fresh install, so the completion side effect must survive the new
-     * skip-the-backup-attempt pre-check unchanged.
+     * P9-T1 relocation of the P7-T3 completion regression guard: fresh install used to complete
+     * onboarding (and enqueue the first scan) at the folder *pick*, before the user had confirmed
+     * anything. Picking now only persists the folder; completion, the scan and the tracked request
+     * id all happen together at Done ([LibraryManagementViewModel.startFirstScan]). Also keeps
+     * P7-T3 / R7-F08's guard that a fresh install never attempts a backup that cannot exist yet.
      */
-    @Test fun freshInstallSetsOnboardingCompleteAtFolderPickTime() {
+    @Test fun freshInstallSetsOnboardingCompleteAtDoneNotAtFolderPick() {
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
+        val before = scanIds()
         assertFalse(preferences.onboardingComplete)
-        composeRule.runOnUiThread { library.saveMusicFolder(music) }
+
+        composeRule.runOnUiThread { library.saveOnboardingMusicFolder(music) }
         await(library.musicFolderUri) { it == music }
         composeRule.runOnIdle { }
+        // Pick time: folder persisted, and nothing else.
+        assertEquals(music.toString(), preferences.musicFolderUri)
+        assertFalse(preferences.onboardingComplete)
+        assertNull(preferences.firstScanRequestId)
+        assertEquals(before, scanIds())
+        assertEquals(123L, preferences.lastBackupAttemptTimestamp)
+
+        var started: UUID? = null
+        composeRule.runOnUiThread { started = library.startFirstScan() }
+        // Done time: completion + scan + tracked id land together, id matches the real request.
         assertTrue(preferences.onboardingComplete)
         assertNull(preferences.onboardingStepName)
+        assertEquals(started.toString(), preferences.firstScanRequestId)
+        assertTrue(started in scanIds())
         assertEquals(123L, preferences.lastBackupAttemptTimestamp)
     }
 
@@ -468,6 +498,29 @@ class OnboardingRecoveryInstrumentedTest {
         // merely that a thrown exception didn't propagate.
         assertEquals(123L, preferences.lastBackupAttemptTimestamp)
         assertSame(outcomeBefore, BackupOutcomeStore.lastBackupOutcome.value)
+        // P9-T1: the Library Management re-pick path no longer owns onboarding completion — that
+        // is startFirstScan's job, at Done.
+        assertFalse(preferences.onboardingComplete)
+    }
+
+    /**
+     * The onboarding path itself (pick, then Done) can never attempt or record a backup: with the
+     * backup folder already configured, [saveOnboardingMusicFolder] is persist-only and
+     * [startFirstScan] never snapshots. A fresh-install database is empty, so there is nothing to
+     * protect, and a snapshot of it is exactly what R7-F03's eviction concern was about.
+     */
+    @Test fun onboardingPickAndDoneNeverAttemptBackupEvenWithBackupFolderConfigured() {
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
+        preferences.backupFolderUri = arrivals.toString()
+        val outcomeBefore = BackupOutcomeStore.lastBackupOutcome.value
+
+        composeRule.runOnUiThread { library.saveOnboardingMusicFolder(music) }
+        await(library.musicFolderUri) { it == music }
+        composeRule.runOnUiThread { library.startFirstScan() }
+        composeRule.runOnIdle { }
+
+        assertEquals(123L, preferences.lastBackupAttemptTimestamp)
+        assertSame(outcomeBefore, BackupOutcomeStore.lastBackupOutcome.value)
         assertTrue(preferences.onboardingComplete)
     }
 
@@ -476,6 +529,8 @@ class OnboardingRecoveryInstrumentedTest {
      * mandatory) music folder within the same onboarding step — nothing enforces picker order.
      * When that happens, saveMusicFolder's Auto backup must still fire as before; the R7-F08
      * pre-check must only suppress the attempt when nothing is configured, not narrow it further.
+     * (P9-T1: this is now the Library Management re-pick path's guard — onboarding's own pick is
+     * persist-only, see [onboardingPickAndDoneNeverAttemptBackupEvenWithBackupFolderConfigured].)
      */
     @Test fun saveMusicFolderStillAttemptsBackupWhenBackupFolderAlreadyConfigured() {
         preferences.backupFolderUri = arrivals.toString()
@@ -487,7 +542,7 @@ class OnboardingRecoveryInstrumentedTest {
         // The attempt fails (arrivals isn't a real backup tree) but must still be RECORDED —
         // proving createBackup was actually invoked, unlike the no-folder-configured case above.
         assertNotEquals(123L, preferences.lastBackupAttemptTimestamp)
-        assertTrue(preferences.onboardingComplete)
+        assertFalse(preferences.onboardingComplete)
     }
 
     /**
@@ -497,7 +552,8 @@ class OnboardingRecoveryInstrumentedTest {
      * of a folder whose contents haven't changed since being picked — but still must complete
      * onboarding and trigger the first scan, exactly as a genuine fresh install would.
      */
-    @Test fun freshInstallFromAbandonedRecoveryDoesNotReattemptBackupButStillScansAndCompletes() {
+    @Test fun freshInstallFromAbandonedRecoveryDoesNotReattemptBackupButStillScansAndCompletesAtDone() {
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
         startWizard()
         composeRule.onNodeWithText(context.getString(R.string.onboarding_recover_backup)).performClick()
         saveMusic()
@@ -511,20 +567,23 @@ class OnboardingRecoveryInstrumentedTest {
         assertEquals(123L, preferences.lastBackupAttemptTimestamp)
         assertTrue(scanIds().isEmpty())
 
+        // Switching to fresh install no longer starts anything by itself (P9-T1 folded
+        // finishFreshInstallFromAbandonedRecovery into Done): the recovered folder just shows up.
         composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
-        composeRule.runOnIdle { }
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_folder_setup_title)).assertExists()
+        assertFalse(preferences.onboardingComplete)
+        assertTrue(scanIds().isEmpty())
+        assertNull(preferences.firstScanRequestId)
 
-        // R7-F03: no re-attempted backup on the already-persisted recovery folder.
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled().performClick()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_scanning_title)).assertExists()
+
+        // R7-F03: still no re-attempted backup on the already-persisted recovery folder.
         assertEquals(123L, preferences.lastBackupAttemptTimestamp)
-        // The two genuine fresh-install side effects still need to land.
+        // The two genuine fresh-install side effects still land — now at Done, tracked by id.
         assertTrue(preferences.onboardingComplete)
-        val scanWork = runBlocking {
-            withTimeout(10_000) {
-                workManager.getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
-                    .first { infos -> infos.isNotEmpty() }
-            }
-        }
-        assertTrue(scanWork.isNotEmpty())
+        val scanId = UUID.fromString(preferences.firstScanRequestId)
+        assertEquals(listOf(scanId), scanIds())
     }
 
     /**
@@ -564,6 +623,25 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
+     * Done-time counterpart of [completingOnboardingClearsPersistedStep] (P9-T1): the fresh-install
+     * wizard's own completion point is now the moment the scan is accepted. Until then the step
+     * (Scanning) and request id stay persisted; accepting the scan clears both together.
+     */
+    @Test fun acceptingTheFirstScanClearsPersistedStepAndTrackedId() {
+        ScanStubWorkerFactory.behavior = ScanStub.Succeed()
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
+        saveOnboardingMusic()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).performClick()
+
+        composeRule.onNodeWithText("Home after onboarding").assertExists()
+        assertTrue(preferences.onboardingComplete)
+        assertNull(preferences.onboardingStepName)
+        assertNull(preferences.firstScanRequestId)
+        assertFalse(shouldShowOnboarding(preferences))
+    }
+
+    /**
      * P7-T7/R7-F17: the dialog's confirm button stays disabled until the required word is typed
      * exactly, so a bare click on it (what these tests did before P7-T7) is a silent no-op that
      * never enqueues the restore. Once typed, the field's own text also reads the required word
@@ -577,6 +655,265 @@ class OnboardingRecoveryInstrumentedTest {
             .assertIsEnabled()
             .performClick()
     }
+
+    // ------------------------------------------------------------------ P9-T1: first scan
+
+    @Test fun startFirstScanWithoutAFolderReturnsNullAndDoesNotCompleteOrScan() {
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
+        var started: UUID? = UUID.randomUUID()
+        composeRule.runOnUiThread { started = library.startFirstScan() }
+        assertNull(started)
+        assertFalse(preferences.onboardingComplete)
+        assertNull(preferences.firstScanRequestId)
+        assertTrue(scanIds().isEmpty())
+    }
+
+    @Test fun scanningStepDoesNotAdvanceOnFailedScanAndShowsFailureUi() {
+        ScanStubWorkerFactory.behavior = ScanStub.Fail("disk on fire")
+        startWizardAtDone()
+
+        awaitText(context.getString(R.string.onboarding_scan_failed_title))
+        composeRule.onNodeWithText(context.getString(R.string.scan_status_failed, "disk on fire")).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.action_retry)).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_scan_change_folder)).assertExists()
+        // The F10 regression: a failed scan used to complete onboarding.
+        composeRule.onNodeWithText("Home after onboarding").assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertEquals(Screen.Onboarding.route, navController.currentDestination?.route)
+        }
+        // Still pending: neither accepted nor abandoned, so a relaunch would land back here.
+        assertNotNull(preferences.firstScanRequestId)
+        assertTrue(shouldShowOnboarding(preferences))
+    }
+
+    @Test fun scanningStepDoesNotAdvanceOnCancelledScanAndShowsCancelledUi() {
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
+        startWizardAtDone()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_scanning_title)).assertExists()
+
+        workManager.cancelWorkById(UUID.fromString(preferences.firstScanRequestId)).result.get()
+
+        awaitText(context.getString(R.string.onboarding_scan_cancelled_title))
+        composeRule.onNodeWithText(context.getString(R.string.scan_cancelled)).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.action_retry)).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_scan_change_folder)).assertExists()
+        composeRule.onNodeWithText("Home after onboarding").assertDoesNotExist()
+    }
+
+    @Test fun backIsBlockedWhileScanningAndLeadsToFolderSetupOnceFailed() {
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
+        startWizardAtDone()
+        composeRule.waitForIdle()
+
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_scanning_title)).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_folder_setup_title)).assertDoesNotExist()
+        assertNotNull(preferences.firstScanRequestId)
+
+        workManager.cancelWorkById(UUID.fromString(preferences.firstScanRequestId)).result.get()
+        awaitText(context.getString(R.string.onboarding_scan_cancelled_title))
+
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_folder_setup_title)).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_scan_cancelled_title)).assertDoesNotExist()
+    }
+
+    @Test fun retryReEnqueuesTheSameFolderUnderANewTrackedIdAndCanSucceed() {
+        ScanStubWorkerFactory.behavior = ScanStub.Fail("first attempt")
+        startWizardAtDone()
+        awaitText(context.getString(R.string.onboarding_scan_failed_title))
+        val firstId = UUID.fromString(preferences.firstScanRequestId)
+
+        ScanStubWorkerFactory.behavior = ScanStub.Succeed()
+        composeRule.onNodeWithText(context.getString(R.string.action_retry)).performClick()
+
+        awaitText("Home after onboarding")
+        // Same folder, REPLACE: exactly one scan remains under the name, and it is a new request.
+        assertEquals(music.toString(), preferences.musicFolderUri)
+        val ids = scanIds()
+        assertEquals(1, ids.size)
+        assertNotEquals(firstId, ids.single())
+        // Accepted → tracking cleared, wizard no longer the cold-start destination.
+        assertNull(preferences.firstScanRequestId)
+        assertNull(preferences.onboardingStepName)
+        assertFalse(shouldShowOnboarding(preferences))
+    }
+
+    @Test fun retryTracksTheNewIdWhileItIsStillRunning() {
+        ScanStubWorkerFactory.behavior = ScanStub.Fail("first attempt")
+        startWizardAtDone()
+        awaitText(context.getString(R.string.onboarding_scan_failed_title))
+        val firstId = preferences.firstScanRequestId
+
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
+        composeRule.onNodeWithText(context.getString(R.string.action_retry)).performClick()
+
+        awaitText(context.getString(R.string.onboarding_scanning_title))
+        val retryId = preferences.firstScanRequestId
+        assertNotEquals(firstId, retryId)
+        assertEquals(listOf(UUID.fromString(retryId)), scanIds())
+        assertTrue(preferences.onboardingComplete)
+    }
+
+    @Test fun changeFolderReturnsToFolderSetupAndUncompletesOnboarding() {
+        ScanStubWorkerFactory.behavior = ScanStub.Fail("nope")
+        startWizardAtDone()
+        awaitText(context.getString(R.string.onboarding_scan_failed_title))
+
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_scan_change_folder)).performClick()
+
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_folder_setup_title)).assertExists()
+        assertNull(preferences.firstScanRequestId)
+        assertFalse(preferences.onboardingComplete)
+        assertEquals(OnboardingStep.FolderSetup.name, preferences.onboardingStepName)
+        assertTrue(shouldShowOnboarding(preferences))
+        // The folder they are being asked to change is still shown and Done is still usable.
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled()
+
+        // A process death here must resume at FolderSetup, not land on an empty Home.
+        relaunchWizardAfterSimulatedProcessDeath()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_folder_setup_title)).assertExists()
+        composeRule.onNodeWithText("Home after onboarding").assertDoesNotExist()
+    }
+
+    /**
+     * Kill after Done, before the scan completes: the wizard must resume at ScanningStep still
+     * tracking the *same* request id — not Home (onboardingComplete is already true by then) and
+     * not a fresh scan.
+     */
+    @Test fun processDeathAfterDoneBeforeScanCompletesResumesAtScanningWithPersistedId() {
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
+        startWizardAtDone()
+        val idBeforeDeath = preferences.firstScanRequestId
+        assertNotNull(idBeforeDeath)
+        assertTrue(preferences.onboardingComplete)
+        assertEquals(OnboardingStep.Scanning.name, preferences.onboardingStepName)
+
+        relaunchWizardAfterSimulatedProcessDeath()
+
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_scanning_title)).assertExists()
+        composeRule.onNodeWithText("Home after onboarding").assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertEquals(Screen.Onboarding.route, navController.currentDestination?.route)
+        }
+        // Same scan, not a replacement: the id is untouched and its work is still the only one.
+        assertEquals(idBeforeDeath, preferences.firstScanRequestId)
+        assertEquals(listOf(UUID.fromString(idBeforeDeath)), scanIds())
+        // And the resumed ViewModel really observes that id: cancelling it flips the resumed UI.
+        workManager.cancelWorkById(UUID.fromString(idBeforeDeath)).result.get()
+        awaitText(context.getString(R.string.onboarding_scan_cancelled_title))
+    }
+
+    @Test fun processDeathBetweenClearingAndRewritingTheStepStillResumesAtScanning() {
+        // Done clears the persisted step (completion) and only re-writes it in goToScanning.
+        // Simulate death in that gap: id tracked, complete=true, no step key at all.
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
+        saveOnboardingMusic()
+        composeRule.runOnUiThread { library.startFirstScan() }
+        assertNull(preferences.onboardingStepName)
+
+        relaunchWizardAfterSimulatedProcessDeath()
+
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_scanning_title)).assertExists()
+    }
+
+    @Test fun processDeathAfterScanFinishedResumesThenHandsOverToHome() {
+        ScanStubWorkerFactory.behavior = ScanStub.Succeed()
+        saveOnboardingMusic()
+        composeRule.runOnUiThread { library.startFirstScan() }
+        val id = preferences.firstScanRequestId
+        assertNotNull(id)
+
+        relaunchWizardAfterSimulatedProcessDeath()
+
+        awaitText("Home after onboarding")
+        assertNull(preferences.firstScanRequestId)
+        assertNull(preferences.onboardingStepName)
+        assertFalse(shouldShowOnboarding(preferences))
+    }
+
+    /**
+     * Mutation guard for the two tests above: the pre-P9-T1 gate (completion alone) shows Home in
+     * the middle of the first scan, because Done now flips onboardingComplete when it starts it.
+     */
+    @Test fun mutationTestCompletionAloneWouldShowHomeMidFirstScan() {
+        ScanStubWorkerFactory.behavior = ScanStub.Hang
+        startWizardAtDone()
+
+        relaunchWizardAfterSimulatedProcessDeath(gating = ::completionOnlyStartDestination)
+
+        composeRule.onNodeWithText("Home after onboarding").assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_scanning_title)).assertDoesNotExist()
+    }
+
+    @Test fun firstScanWithNoWorkRecordIsEventuallyReportedAsFailedNotSpinnerForever() {
+        // An id that resolves to nothing (record pruned / never inserted).
+        val orphan = UUID.randomUUID()
+        assertTrue(preferences.trackFirstScanRequestDurably(orphan.toString()))
+        var orphanLibrary: LibraryManagementViewModel? = null
+        composeRule.runOnUiThread {
+            orphanLibrary = LibraryManagementViewModel(
+                context,
+                preferences,
+                emptyRepository(),
+                BackupManager(context),
+            )
+        }
+        val states = orphanLibrary!!.firstScanState
+        val collector = CoroutineScope(Dispatchers.Default).launch { states.collect { } }
+        try {
+            // Running during the grace window (so a normal enqueue-to-publication gap is not a failure)…
+            assertTrue(states.value is FirstScanState.Running)
+            // …then Failed rather than an endless spinner.
+            runBlocking { withTimeout(20_000) { states.first { it is FirstScanState.Failed } } }
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test fun pendingFirstScanHoldsBackLaunchMaintenanceAndFinishedWorkPruning() {
+        ScanStubWorkerFactory.behavior = ScanStub.Succeed()
+        saveOnboardingMusic()
+        composeRule.runOnUiThread { library.startFirstScan() }
+        // Complete flag is on, but the wizard has not handed over yet.
+        assertTrue(preferences.onboardingComplete)
+        assertFalse(com.v1per.synthx.shouldRunLaunchMaintenance(preferences))
+        assertNull(runBlocking { pruneFinishedWorkIfRestoreAcknowledged(workManager, preferences) })
+        // The finished record the resumed ScanningStep needs is therefore still there.
+        assertEquals(WorkInfo.State.SUCCEEDED, workManager.getWorkInfoById(scanIds().single()).get()?.state)
+
+        composeRule.runOnUiThread { library.completeFirstScan() }
+        assertTrue(com.v1per.synthx.shouldRunLaunchMaintenance(preferences))
+        assertNotNull(runBlocking { pruneFinishedWorkIfRestoreAcknowledged(workManager, preferences) })
+    }
+
+    private fun saveOnboardingMusic() {
+        composeRule.runOnUiThread { library.saveOnboardingMusicFolder(music) }
+        await(library.musicFolderUri) { it == music }
+    }
+
+    /** Fresh install → pick the music folder → tap Done, leaving the wizard in/after ScanningStep. */
+    private fun startWizardAtDone() {
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
+        saveOnboardingMusic()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled().performClick()
+    }
+
+    /** For state that arrives from WorkManager's own threads, which waitForIdle does not cover. */
+    private fun awaitText(text: String) {
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun emptyRepository(): SongRepository = Proxy.newProxyInstance(
+        SongRepository::class.java.classLoader,
+        arrayOf(SongRepository::class.java),
+    ) { _, method, _ ->
+        check(method.name == "getMissingSongCount") { "Unexpected repository access: ${method.name}" }
+        flowOf(0)
+    } as SongRepository
 
     private fun saveMusic() {
         composeRule.runOnUiThread { library.saveRecoveryMusicFolder(music) }
@@ -690,8 +1027,15 @@ class OnboardingRecoveryInstrumentedTest {
         } as T
     }
 
-    /** Mirrors MainActivity's cold-start gating condition post P7-T2 — see MainActivity.kt:107. */
+    /** MainActivity's real cold-start decision (post P7-T2 and P9-T1), not a local copy of it. */
     private fun gatingStartDestination(): String =
+        if (shouldShowOnboarding(preferences)) Screen.Onboarding.route else Screen.Home.route
+
+    /**
+     * Mirrors the gate as it stood after P7-T2 but before P9-T1 — completion alone. Used only by
+     * [mutationTestCompletionAloneWouldShowHomeMidFirstScan].
+     */
+    private fun completionOnlyStartDestination(): String =
         if (preferences.onboardingComplete) Screen.Home.route else Screen.Onboarding.route
 
     /**

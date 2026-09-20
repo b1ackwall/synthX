@@ -6,12 +6,19 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
+import androidx.work.await
+import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
+import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.ui.common.LIBRARY_SCAN_TAG
 import com.v1per.synthx.ui.common.LoadError
+import com.v1per.synthx.ui.common.NEW_ARRIVALS_TAG
+import com.v1per.synthx.ui.common.ScanStatusStrings
+import com.v1per.synthx.ui.common.scanStatusFor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -21,7 +28,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -31,12 +41,6 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 
 private const val RecentSongsLimit = 20
-
-/** WorkManager tags every request with its worker's fully-qualified class name.
- *  Declared independently here rather than reused from LibraryManagementViewModel's
- *  own copy (which is file-private) — this ViewModel deliberately has zero
- *  cross-ViewModel coupling to that screen's richer scan-status machinery. */
-private val NEW_ARRIVALS_TAG: String = NewArrivalsScanWorker::class.java.name
 
 sealed class NavigationEvent {
     object GoToSongs : NavigationEvent()
@@ -49,7 +53,21 @@ sealed class NavigationEvent {
 class LibraryViewModel(
     private val repository: SongRepository,
     private val appContext: Context,
+    private val preferences: PreferencesManager = PreferencesManager(appContext),
+    private val workManager: WorkManager = WorkManager.getInstance(appContext),
 ) : ViewModel() {
+
+    // Status text comes from the shared pure helper in ui/common — this ViewModel still has zero
+    // coupling to LibraryManagementViewModel's richer scan-status machinery.
+    private val strings = ScanStatusStrings { id, args -> appContext.getString(id, *args) }
+
+    // One-shot results of a pull-to-refresh, shown as a snackbar. Buffered so a result that lands
+    // while the screen is between compositions is delivered on resubscribe.
+    private val _refreshMessages = MutableSharedFlow<String>(
+        extraBufferCapacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val refreshMessages: SharedFlow<String> = _refreshMessages.asSharedFlow()
 
     // Buffered so a click emitted while the screen is between compositions
     // is delivered on resubscribe instead of being dropped.
@@ -79,14 +97,18 @@ class LibraryViewModel(
         .catch { emit(0) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    // Drives the pull-to-refresh spinner only — quiet by design, no result surfaced here.
-    // Independent of LibraryManagementViewModel's richer ScanStatus: reads WorkManager
-    // directly so a scan started from any of the three trigger points (this pull, the
-    // launch-time Verify->NewArrivals chain, or the folder-picker save) is reflected the
-    // same way, without this screen knowing which one is actually running.
-    val isRefreshing: StateFlow<Boolean> = WorkManager.getInstance(appContext)
+    // Drives the pull-to-refresh spinner: true while any arrivals or main-root scan is unfinished
+    // under the shared unique name — whichever of them the pull started, or another trigger point
+    // (Settings rescan, folder-picker save, launch chain) did. A request KEEP discarded owns no work
+    // of its own, so it never holds this true; if another scan is what's running, that scan is what
+    // the spinner honestly shows, and [refreshMessages] says the pull itself was not started.
+    val isRefreshing: StateFlow<Boolean> = workManager
         .getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
-        .map { infos -> infos.any { NEW_ARRIVALS_TAG in it.tags && !it.state.isFinished } }
+        .map { infos ->
+            infos.any {
+                (NEW_ARRIVALS_TAG in it.tags || LIBRARY_SCAN_TAG in it.tags) && !it.state.isFinished
+            }
+        }
         .catch { emit(false) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
@@ -138,14 +160,45 @@ class LibraryViewModel(
     }
 
     /**
-     * Triggers a New Arrivals scan from a user pull-to-refresh gesture. KEEP per
-     * [NewArrivalsScanWorker.enqueue]'s own kdoc default: this is never important enough
-     * to interrupt a scan already running under the shared unique-work name (whether
-     * that's the launch-time Verify->NewArrivals chain or a folder-picker save) — the
-     * spinner just observes whatever is already in flight via [isRefreshing] instead.
+     * Pull-to-refresh: scans New Arrivals when that folder is configured, otherwise the main music
+     * root — an arrivals scan with no arrivals folder is guaranteed to fail, so it would only ever
+     * look like a silent no-op. Not "always scan both": each gesture starts exactly one scan.
+     *
+     * KEEP either way: never important enough to interrupt a scan already running under the
+     * shared unique name. Whether KEEP honoured the request is decided exactly, not guessed from
+     * "is something else running": await the enqueue operation, then ask for *this request's*
+     * id — a discarded request was never inserted, so it resolves to no WorkInfo. That is
+     * reported distinctly ("already scanning") from a scan that ran and failed. The outcome of a
+     * scan that did start is then surfaced through [refreshMessages] using the shared status text.
      */
     fun onPullToRefresh() {
-        NewArrivalsScanWorker.enqueue(appContext, ExistingWorkPolicy.KEEP)
+        viewModelScope.launch {
+            try {
+                val enqueued = if (preferences.newArrivalsFolderUri != null) {
+                    NewArrivalsScanWorker.enqueue(appContext, ExistingWorkPolicy.KEEP)
+                } else {
+                    LibraryScanWorker.enqueue(appContext, ExistingWorkPolicy.KEEP)
+                }
+                enqueued.operation.await()
+                if (workManager.getWorkInfoById(enqueued.id).await() == null) {
+                    _refreshMessages.emit(appContext.getString(R.string.library_refresh_already_scanning))
+                    return@launch
+                }
+                val finished = workManager.getWorkInfoByIdFlow(enqueued.id)
+                    .filterNotNull()
+                    .first { it.state.isFinished }
+                scanStatusFor(finished, strings)?.let { _refreshMessages.emit(it) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _refreshMessages.emit(
+                    appContext.getString(
+                        R.string.scan_status_failed,
+                        e.message ?: appContext.getString(R.string.scan_status_unknown_error),
+                    ),
+                )
+            }
+        }
     }
 
     companion object {

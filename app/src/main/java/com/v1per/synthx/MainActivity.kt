@@ -71,7 +71,22 @@ import java.util.UUID
  * for why it exists (P7-T3 / R7-F03).
  */
 internal fun shouldRunLaunchMaintenance(preferences: PreferencesManager): Boolean =
-    preferences.onboardingComplete
+    // P9-T1: also held off while the wizard's first scan is still pending. onboardingComplete flips
+    // true when that scan starts, so without this a process-death resume into ScanningStep would
+    // run the daily backup and the launch scan chain against a library mid-first-scan — the same
+    // class of race the gate exists to prevent for recovery.
+    preferences.onboardingComplete && preferences.firstScanRequestId == null
+
+/**
+ * Cold-start destination decision, factored to file scope for the same reason as
+ * [shouldRunLaunchMaintenance]. The wizard is shown until onboarding is complete *and* no
+ * first-scan request is still pending (P9-T1): Done marks onboarding complete at the moment it
+ * starts the scan, so completion alone would send a process-death resume mid-scan to an empty
+ * Home instead of back to ScanningStep. The id is cleared only when the scan is accepted
+ * (success) or abandoned (Change folder).
+ */
+internal fun shouldShowOnboarding(preferences: PreferencesManager): Boolean =
+    !preferences.onboardingComplete || preferences.firstScanRequestId != null
 
 class MainActivity : ComponentActivity() {
 
@@ -117,10 +132,10 @@ class MainActivity : ComponentActivity() {
             // musicFolderUri == null — recovery's first step sets that folder long before its
             // restore actually succeeds (R7-F02), and a stale-but-incomplete recovery must still
             // resume the wizard rather than bounce straight to an empty Home.
-            val startDestination = if (PreferencesManager(applicationContext).onboardingComplete) {
-                Screen.Home.route
-            } else {
+            val startDestination = if (shouldShowOnboarding(PreferencesManager(applicationContext))) {
                 Screen.Onboarding.route
+            } else {
+                Screen.Home.route
             }
             enableEdgeToEdge()
             setContent {
@@ -250,7 +265,7 @@ class MainActivity : ComponentActivity() {
             runArtSweepIfPending(preferences)
             backfillPlaylistArt()
             // Nothing to scan yet if onboarding hasn't configured a root folder — running this
-            // chain here would be pointless, and pending Onboarding's own saveMusicFolder call
+            // chain here would be pointless, and pending Onboarding's own startFirstScan call
             // to enqueue LibraryScanWorker directly instead, this way it can't race it either.
             if (preferences.musicFolderUri != null) {
                 runLaunchScans()

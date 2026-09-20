@@ -12,6 +12,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
+import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -223,24 +224,30 @@ class LibraryScanWorker(
         private const val NOTIFICATION_ID = 1001
         private const val PROGRESS_INDETERMINATE = FolderScanner.PROGRESS_INDETERMINATE
 
+        fun request(): OneTimeWorkRequest =
+            // No Constraints: pure local SAF file I/O, no network dependency — nothing
+            // here to gate on connectivity, battery, or storage state.
+            OneTimeWorkRequestBuilder<LibraryScanWorker>()
+                .setConstraints(Constraints.NONE)
+                .build()
+
         /**
          * [ExistingWorkPolicy.KEEP] is the right default: a second enqueue while a scan is
          * already running is a no-op. Pass [ExistingWorkPolicy.REPLACE] only when the
          * folder itself changed, since an in-flight scan is then scanning the wrong tree.
+         *
+         * Returns the request's client-side id plus the enqueue [androidx.work.Operation] so a
+         * caller that must track *this* request (first-scan onboarding) or tell whether KEEP
+         * discarded it (pull-to-refresh) can — see [ScanEnqueueResult].
          */
         fun enqueue(
             context: Context,
             policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
-        ) {
-            WorkManager.getInstance(context).enqueueUniqueWork(
-                UNIQUE_WORK_NAME,
-                policy,
-                // No Constraints: pure local SAF file I/O, no network dependency — nothing
-                // here to gate on connectivity, battery, or storage state.
-                OneTimeWorkRequestBuilder<LibraryScanWorker>()
-                    .setConstraints(Constraints.NONE)
-                    .build(),
-            )
+        ): ScanEnqueueResult {
+            val request = request()
+            val operation = WorkManager.getInstance(context)
+                .enqueueUniqueWork(UNIQUE_WORK_NAME, policy, request)
+            return ScanEnqueueResult(request.id, operation)
         }
 
         fun cancel(context: Context) {

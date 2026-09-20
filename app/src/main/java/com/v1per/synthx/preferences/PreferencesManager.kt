@@ -273,8 +273,9 @@ class PreferencesManager(context: Context) {
     // --------------------------------------------------------- onboarding/recovery completion (P7-T2)
 
     /**
-     * True only once onboarding has genuinely finished — a fresh-install music-folder pick, or
-     * (R7-F02) a recovery restore reaching genuine terminal success. Deliberately NOT derived
+     * True only once onboarding has genuinely finished — a fresh-install Done (which starts the
+     * first scan; see [firstScanRequestId] for why the wizard still owns the cold start until that
+     * scan is accepted), or (R7-F02) a recovery restore reaching genuine terminal success. Deliberately NOT derived
      * from [musicFolderUri] != null: recovery's first step sets that long before its restore
      * actually succeeds, which is exactly the bug this flag exists to fix. Read-only here by
      * design, same reasoning as [migrationInvariantFailurePending]: the sole writer is
@@ -311,6 +312,47 @@ class PreferencesManager(context: Context) {
     /** Companion to [onboardingStepName] — see OnboardingViewModel.returningFromRecovery. */
     val onboardingReturningFromRecovery: Boolean
         get() = prefs.getBoolean(KEY_ONBOARDING_RETURNING_FROM_RECOVERY, false)
+
+    // ------------------------------------------------- first-scan tracking (P9-T1)
+
+    /**
+     * WorkManager UUID of the fresh-install first scan the wizard's ScanningStep is observing.
+     * Non-null means "Done was tapped and that scan has not yet been accepted or abandoned" —
+     * which is also what keeps the wizard (rather than Home) as the cold-start destination even
+     * though [onboardingComplete] flips true at the same moment (see
+     * [com.v1per.synthx.shouldShowOnboarding]). Same private-setter/durable-writer shape as
+     * [restoreRequestId], and for the same reason: an in-memory id would be gone exactly when a
+     * process-death resume needs it.
+     */
+    var firstScanRequestId: String?
+        get() = prefs.getString(KEY_FIRST_SCAN_REQUEST_ID, null)
+        private set(value) = prefs.edit().putString(KEY_FIRST_SCAN_REQUEST_ID, value).apply()
+
+    /** Blocking commit, so the id is on disk before the caller lets the wizard advance. */
+    fun trackFirstScanRequestDurably(requestId: String): Boolean =
+        prefs.edit().putString(KEY_FIRST_SCAN_REQUEST_ID, requestId).commit()
+
+    /**
+     * The first scan succeeded and the wizard is handing over to Home: drops the id and the now
+     * stale "Scanning" position in one commit, so neither can resurrect the wizard on next launch.
+     */
+    fun completeFirstScanDurably(): Boolean =
+        prefs.edit()
+            .remove(KEY_FIRST_SCAN_REQUEST_ID)
+            .remove(KEY_ONBOARDING_STEP)
+            .remove(KEY_ONBOARDING_RETURNING_FROM_RECOVERY)
+            .commit()
+
+    /**
+     * The user chose "Change folder" after a failed/cancelled first scan. Un-completes onboarding
+     * along with dropping the id: once they are back in FolderSetup, a process death must resume
+     * the wizard there rather than land on an empty Home with no scan pending.
+     */
+    fun abandonFirstScanDurably(): Boolean =
+        prefs.edit()
+            .remove(KEY_FIRST_SCAN_REQUEST_ID)
+            .putBoolean(KEY_ONBOARDING_COMPLETE, false)
+            .commit()
 
     /** Commits both fields together so a reader never observes one updated without the other. */
     fun setOnboardingProgressDurably(stepName: String, returningFromRecovery: Boolean): Boolean =
@@ -389,6 +431,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_RESTORE_REQUEST_SUBMITTED_AT = "restore_request_submitted_at"
         private const val KEY_RESTORE_OUTCOME_ACKNOWLEDGED = "restore_outcome_acknowledged"
         private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
+        private const val KEY_FIRST_SCAN_REQUEST_ID = "first_scan_request_id"
         private const val KEY_ONBOARDING_STEP = "onboarding_step"
         private const val KEY_ONBOARDING_RETURNING_FROM_RECOVERY = "onboarding_returning_from_recovery"
         private const val KEY_LAST_ISSUES_SCAN_TIMESTAMP = "last_issues_scan_timestamp"
