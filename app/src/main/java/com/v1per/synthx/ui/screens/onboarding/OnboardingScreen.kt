@@ -52,6 +52,7 @@ import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
+import com.v1per.synthx.ui.components.rememberNotificationPermissionGate
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
@@ -87,6 +88,7 @@ fun OnboardingScreen(
     val backupsAndRestoreViewModel: BackupsAndRestoreViewModel = viewModel(
         factory = BackupsAndRestoreViewModel.Factory(context),
     )
+    val notificationGate = rememberNotificationPermissionGate()
 
     // Only true when this instance actually resumed a persisted mid-wizard position (process
     // death/swipe-away) — see OnboardingViewModel.resumedFromPersistedStep. Auto-dismisses;
@@ -114,8 +116,14 @@ fun OnboardingScreen(
                 onBack = viewModel::goToChoice,
                 // Advance only if the scan really started — a null return leaves the wizard here
                 // with the error already shown under the folder row.
+                // P9-T5 / F19: the first scan is the earliest thing on a fresh install that posts a
+                // notification, so this is where the permission is first explained and asked for —
+                // never over the Welcome screen. The scan starts as soon as the user continues,
+                // without waiting on the system prompt's answer.
                 onDone = {
-                    if (libraryManagementViewModel.startFirstScan() != null) viewModel.goToScanning()
+                    notificationGate.runAfterRationale {
+                        if (libraryManagementViewModel.startFirstScan() != null) viewModel.goToScanning()
+                    }
                 },
             )
             OnboardingStep.Scanning -> ScanningStep(

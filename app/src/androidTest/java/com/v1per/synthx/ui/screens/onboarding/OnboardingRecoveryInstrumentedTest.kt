@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -60,6 +61,9 @@ import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementViewModel
 import com.v1per.synthx.ui.screens.restore.RestoreOutcome
 import com.v1per.synthx.ui.screens.restore.RestorePreview
 import com.v1per.synthx.ui.screens.restore.RestoreViewModel
+import com.v1per.synthx.ui.components.LocalNotificationPermissionBackend
+import com.v1per.synthx.ui.components.NotificationPermissionBackend
+import com.v1per.synthx.ui.testing.ensureNotificationPermissionDenied
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -87,12 +91,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestName
 import org.junit.runner.RunWith
 
 /** Uses isolated preferences and a repository stub; never restores over the app database. */
 @RunWith(AndroidJUnit4::class)
 class OnboardingRecoveryInstrumentedTest {
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
+    @get:Rule val testName = TestName()
 
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val testId = "onboarding-test-${UUID.randomUUID()}"
@@ -103,6 +109,12 @@ class OnboardingRecoveryInstrumentedTest {
     }
     private val preferences = PreferencesManager(context)
     private val store = ViewModelStore()
+    private var systemPromptLaunches = 0
+    private val notificationBackend = NotificationPermissionBackend(
+        preferences = preferences,
+        isGranted = { false },
+        launchRequest = { systemPromptLaunches++ },
+    )
     private lateinit var library: LibraryManagementViewModel
     private lateinit var backups: BackupsAndRestoreViewModel
     private lateinit var restore: RestoreViewModel
@@ -117,6 +129,13 @@ class OnboardingRecoveryInstrumentedTest {
 
     @Before fun setUp() {
         TestWorkManager.ensureInitialized(context)
+        // P9-T5: Done and restore-confirm now put the notification rationale in front of the user
+        // once. Every test below that isn't about that rationale drives the wizard as if it had
+        // already been answered; the notificationRationale* tests at the end opt out by name and
+        // cover the rationale itself.
+        if (!testName.methodName.startsWith("notificationRationale")) {
+            check(preferences.markNotificationPermissionAskedDurably())
+        }
         ScanStubWorkerFactory.behavior = null
         workManager.cancelUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).result.get()
         workManager.pruneWork().result.get()
@@ -875,6 +894,110 @@ class OnboardingRecoveryInstrumentedTest {
         }
     }
 
+    /**
+     * P9-T5 / F19: the fresh-install first scan starts and is tracked identically with
+     * POST_NOTIFICATIONS denied — the notification gate sits in front of Done in the UI, never
+     * inside startFirstScan or the worker, so the view-model path has no notion of the permission.
+     */
+    @Test fun firstScanStartsAndIsTrackedWhileNotificationPermissionIsDenied() {
+        ensureNotificationPermissionDenied(appContext)
+        ScanStubWorkerFactory.behavior = ScanStub.Succeed()
+        saveOnboardingMusic()
+        var started: UUID? = null
+        composeRule.runOnUiThread { started = library.startFirstScan() }
+
+        assertNotNull("scan must start regardless of the notification permission", started)
+        assertTrue(preferences.onboardingComplete)
+        assertEquals(started.toString(), preferences.firstScanRequestId)
+        assertEquals(WorkInfo.State.SUCCEEDED, workManager.getWorkInfoById(scanIds().single()).get()?.state)
+    }
+
+    // ------------------------------------------------------------------ P9-T5: notification rationale
+
+    private fun rationaleTitle() = context.getString(R.string.notification_permission_title)
+
+    /** F19: nothing is asked over the Welcome screen — the ask arrives only with Done. */
+    @Test fun notificationRationaleAppearsAtDoneNotOverWelcomeAndHoldsTheScanUntilContinue() {
+        ensureNotificationPermissionDenied(appContext)
+        ScanStubWorkerFactory.behavior = ScanStub.Succeed()
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_welcome_title)).assertExists()
+        composeRule.onNodeWithText(rationaleTitle()).assertDoesNotExist()
+        assertFalse(preferences.notificationPermissionAsked)
+
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
+        saveOnboardingMusic()
+        composeRule.onNodeWithText(rationaleTitle()).assertDoesNotExist()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).performClick()
+
+        composeRule.onNodeWithText(rationaleTitle()).assertExists()
+        assertTrue("no scan may start before the user continues", scanIds().isEmpty())
+        assertFalse(preferences.onboardingComplete)
+        assertFalse(preferences.notificationPermissionAsked)
+        assertEquals("the system prompt is never launched over Welcome or before Continue", 0, systemPromptLaunches)
+    }
+
+    @Test fun notificationRationaleContinueStartsTheFirstScanAndRecordsTheAsk() {
+        ensureNotificationPermissionDenied(appContext)
+        ScanStubWorkerFactory.behavior = ScanStub.Succeed()
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
+        saveOnboardingMusic()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).performClick()
+        assertEquals(0, systemPromptLaunches)
+        composeRule.onNodeWithText(context.getString(R.string.action_continue)).performClick()
+        // The scan proceeds (and the wizard hands over) although the fake prompt never answers.
+        composeRule.waitUntil(10_000) { scanIds().isNotEmpty() }
+        composeRule.onNodeWithText("Home after onboarding").assertExists()
+        assertEquals(1, systemPromptLaunches)
+        assertTrue(preferences.notificationPermissionAsked)
+        composeRule.onNodeWithText(rationaleTitle()).assertDoesNotExist()
+    }
+
+    /** A second Done (e.g. after Change folder) must not re-ask. */
+    @Test fun notificationRationaleDoesNotReappearOnceAsked() {
+        ensureNotificationPermissionDenied(appContext)
+        ScanStubWorkerFactory.behavior = ScanStub.Succeed()
+        check(preferences.markNotificationPermissionAskedDurably())
+        startWizard()
+        composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
+        saveOnboardingMusic()
+        composeRule.onNodeWithText(context.getString(R.string.action_done)).performClick()
+
+        composeRule.onNodeWithText(rationaleTitle()).assertDoesNotExist()
+        composeRule.waitUntil(10_000) { scanIds().isNotEmpty() }
+        composeRule.onNodeWithText("Home after onboarding").assertExists()
+        assertEquals("already asked: no second system prompt", 0, systemPromptLaunches)
+    }
+
+    /** F19: the recovery restore is the other early trigger — the ask comes before the enqueue. */
+    @Test fun notificationRationaleAppearsAtRecoveryRestoreConfirmBeforeTheRestoreIsEnqueued() {
+        ensureNotificationPermissionDenied(appContext)
+        val (candidate) = validCandidateWithMetadata()
+        saveMusic()
+        startWizard()
+        composeRule.runOnUiThread { onboarding.goToRecoveryBackupSelect() }
+        composeRule.runOnUiThread { restore.beginPreview(candidate) }
+        await(restore.preview) { it is RestorePreview.Ready }
+        composeRule.onNodeWithText(rationaleTitle()).assertDoesNotExist()
+        confirmRestoreWithTypedWord()
+
+        composeRule.onNodeWithText(rationaleTitle()).assertExists()
+        assertTrue(
+            "the restore must not be enqueued before the user continues",
+            workManager.getWorkInfosForUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).get().isEmpty(),
+        )
+        assertFalse(preferences.notificationPermissionAsked)
+
+        assertEquals(0, systemPromptLaunches)
+
+        composeRule.onNodeWithText(context.getString(R.string.action_continue)).performClick()
+        awaitRequest()
+        assertEquals(1, systemPromptLaunches)
+        assertTrue(preferences.notificationPermissionAsked)
+        composeRule.onNodeWithText(rationaleTitle()).assertDoesNotExist()
+    }
+
     @Test fun pendingFirstScanHoldsBackLaunchMaintenanceAndFinishedWorkPruning() {
         ScanStubWorkerFactory.behavior = ScanStub.Succeed()
         saveOnboardingMusic()
@@ -1181,6 +1304,10 @@ class OnboardingRecoveryInstrumentedTest {
 
     @Composable
     private fun WizardContent(factory: ViewModelProvider.Factory, startDestination: String) {
+        // P9-T5: the notification gate reads this wizard's isolated preferences (so the "asked"
+        // flag the tests set/inspect is the one it sees) and counts what would have been the
+        // system prompt instead of showing it.
+        CompositionLocalProvider(LocalNotificationPermissionBackend provides notificationBackend) {
         SynthXTheme {
             navController = rememberNavController().also { controller ->
                 controller.addOnDestinationChangedListener { nav, destination, _ ->
@@ -1197,6 +1324,7 @@ class OnboardingRecoveryInstrumentedTest {
                 onboardingRoutes(navController)
                 composable(Screen.Home.route) { Text("Home after onboarding") }
             }
+        }
         }
     }
 

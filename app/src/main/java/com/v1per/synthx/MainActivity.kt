@@ -1,6 +1,5 @@
 package com.v1per.synthx
 
-import android.Manifest
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -8,7 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,20 +24,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
 import com.v1per.synthx.data.backup.BackupFolderLaunchCheck
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.DatabaseStartupGate
 import com.v1per.synthx.data.backup.MigrationInvariantFailedException
 import com.v1per.synthx.data.backup.MigrationRecoveryAction
+import com.v1per.synthx.data.backup.MigrationSnapshotStore
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.RestoreFailureFormatter
 import com.v1per.synthx.data.backup.RestoreIncidentReports
@@ -61,6 +58,7 @@ import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.system.exitProcess
 import java.util.UUID
 
@@ -87,6 +85,14 @@ internal fun shouldRunLaunchMaintenance(preferences: PreferencesManager): Boolea
  */
 internal fun shouldShowOnboarding(preferences: PreferencesManager): Boolean =
     !preferences.onboardingComplete || preferences.firstScanRequestId != null
+
+/**
+ * P9-T5: the one question [MigrationRecoveryContent] hinges on — is there an internal pre-migration
+ * snapshot for this build that "Restore and restart" could actually restore? Factored to file
+ * scope, like [shouldShowOnboarding], so a test can exercise the real decision.
+ */
+internal fun isMigrationSnapshotAvailable(context: android.content.Context): Boolean =
+    MigrationSnapshotStore.snapshotForCurrentVersion(context) != null
 
 class MainActivity : ComponentActivity() {
 
@@ -125,6 +131,11 @@ class MainActivity : ComponentActivity() {
         databaseStartupAttemptRunning = true
         lifecycleScope.launch {
             val startupFailure = runCatching { DatabaseStartupGate.awaitReady() }.exceptionOrNull()
+            // P9-T5: whether "Restore and restart" can actually do anything is decided here, once
+            // per attempt, on IO (a prefs read plus a file check) rather than during composition.
+            // Retry re-enters this function, so a changed answer is picked up on the next attempt.
+            val migrationSnapshotAvailable = startupFailure is MigrationInvariantFailedException &&
+                withContext(Dispatchers.IO) { isMigrationSnapshotAvailable(applicationContext) }
             // Synchronous SharedPreferences read, not a Room/DAO read — safe ahead of the
             // database gate resolving. Onboarding shows for a genuine fresh install, a
             // post-uninstall reinstall, or cleared app data alike: all three collapse to this
@@ -144,18 +155,18 @@ class MainActivity : ComponentActivity() {
                         RestoreCoordinator.current() != RestoreCoordinator.Terminal.NORMAL ->
                             RestoreTerminalContent(RestoreCoordinator.current())
                         startupFailure is MigrationInvariantFailedException ->
-                            MigrationRecoveryContent(applicationContext = applicationContext)
+                            MigrationRecoveryContent(
+                                applicationContext = applicationContext,
+                                snapshotAvailable = migrationSnapshotAvailable,
+                            )
                         startupFailure != null -> DatabaseStartupFailureContent(
                             error = startupFailure,
                             onRetry = ::resolveDatabaseStartup,
                         )
-                        else -> {
-                            NotificationPermissionEffect()
-                            MainScaffold(
-                                startDestination = startDestination,
-                                restoreStatusViewModel = restoreStatusViewModel,
-                            )
-                        }
+                        else -> MainScaffold(
+                            startDestination = startDestination,
+                            restoreStatusViewModel = restoreStatusViewModel,
+                        )
                     }
                 }
             }
@@ -386,28 +397,35 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Shown when the database gate fails for any reason other than a failed post-migration check.
+ * P9-T5: the generic branch can genuinely fire on a first run (Room creating a brand-new
+ * database, the pending-cleanup reconcile, disk full), so its copy must not mention
+ * restoring, upgrading or migrating — none of which has happened. The newer-database branch
+ * cannot occur on a first run (there is no existing database to be newer) and is unchanged.
+ */
 @Composable
-private fun DatabaseStartupFailureContent(
+internal fun DatabaseStartupFailureContent(
     error: Throwable,
     onRetry: () -> Unit,
 ) {
     val message = if (error is UnsupportedLiveDatabaseVersionException) {
-        "This database was created by a newer synthX version. Downgrade is disabled, and the " +
-            "database remains unopened. Install a compatible synthX version to continue."
+        stringResource(R.string.startup_failure_message_newer_database)
     } else {
-        "synthX could not complete the required database safety maintenance. The database " +
-            "remains unopened.\n\n${error.message.orEmpty()}"
+        // The exception detail is diagnostic, dynamic and deliberately not a resource.
+        stringResource(R.string.startup_failure_message_generic) +
+            (error.message?.takeIf(String::isNotBlank)?.let { "\n\n$it" } ?: "")
     }
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("Database startup paused") },
+            title = { Text(stringResource(R.string.startup_failure_title)) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(
                     onClick = onRetry,
                     colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) { Text("Retry") }
+                ) { Text(stringResource(R.string.action_retry)) }
             },
         )
     }
@@ -422,21 +440,45 @@ private fun DatabaseStartupFailureContent(
  * migration ran, then restarting so the whole attempt can be retried from a clean process.
  */
 @Composable
-private fun MigrationRecoveryContent(applicationContext: android.content.Context) {
+internal fun MigrationRecoveryContent(
+    applicationContext: android.content.Context,
+    /**
+     * P9-T5: false when [MigrationSnapshotStore.snapshotForCurrentVersion] found nothing to
+     * restore. Offering "Restore and restart" then could only fail with "No internal
+     * pre-migration snapshot is available to restore", so that state shows an honest
+     * unavailable message with no restore action instead.
+     */
+    snapshotAvailable: Boolean,
+) {
+    if (!snapshotAvailable) {
+        Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text(stringResource(R.string.migration_recovery_unavailable_title)) },
+                text = { Text(stringResource(R.string.migration_recovery_unavailable_message)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = { exitProcess(0) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                    ) { Text(stringResource(R.string.action_close)) }
+                },
+            )
+        }
+        return
+    }
+
     val scope = rememberCoroutineScope()
     var isRestoring by remember { mutableStateOf(false) }
     var restoreError by remember { mutableStateOf<String?>(null) }
 
-    val message = "synthX updated its database, but a post-migration safety check failed. " +
-        "Normal use is disabled to protect your library.\n\n" +
-        "Your library can be restored to its state from just before this update attempt. " +
-        "After restoring, close and reopen synthX to try again." +
-        (restoreError?.let { "\n\nLast attempt failed: $it" } ?: "")
+    val message = stringResource(R.string.migration_recovery_message) +
+        (restoreError?.let { "\n\n" + stringResource(R.string.migration_recovery_last_attempt_failed, it) }
+            ?: "")
 
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("Database update needs recovery") },
+            title = { Text(stringResource(R.string.migration_recovery_title)) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(
@@ -459,7 +501,14 @@ private fun MigrationRecoveryContent(applicationContext: android.content.Context
                                 }
                         }
                     },
-                ) { Text(if (isRestoring) "Restoring…" else "Restore and restart") }
+                ) {
+                    Text(
+                        stringResource(
+                            if (isRestoring) R.string.migration_recovery_restoring
+                            else R.string.migration_recovery_restore_action,
+                        ),
+                    )
+                }
             },
         )
     }
@@ -570,16 +619,5 @@ internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
                 ) { Text("Cancel") }
             },
         )
-    }
-}
-
-@OptIn(ExperimentalPermissionsApi::class)
-@Composable
-private fun NotificationPermissionEffect() {
-    val permissionState = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
-    LaunchedEffect(Unit) {
-        if (!permissionState.status.isGranted) {
-            permissionState.launchPermissionRequest()
-        }
     }
 }

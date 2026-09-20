@@ -54,6 +54,7 @@ import com.v1per.synthx.data.backup.RestoreProgressStep
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.TypedConfirmationField
+import com.v1per.synthx.ui.components.rememberNotificationPermissionGate
 import com.v1per.synthx.ui.components.typedConfirmationMatches
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
@@ -88,6 +89,7 @@ fun RestoreScreen(
     val previewCountsCache by viewModel.previewCountsCache.collectAsState()
     val previewProgress by viewModel.previewProgress.collectAsState()
     val restoreProgress by viewModel.restoreProgress.collectAsState()
+    val notificationGate = rememberNotificationPermissionGate()
 
     LaunchedEffect(outcome) {
         if (outcome is RestoreOutcome.Complete || outcome is RestoreOutcome.Failed) {
@@ -120,9 +122,14 @@ fun RestoreScreen(
         is RestorePreview.Ready -> ConfirmRestoreDialog(
             backup = current.backup,
             counts = current.counts,
+            // P9-T5 / F19: a restore is the other early notification (its foreground progress),
+            // and the only one a recovering user reaches before any first scan. Shared by the
+            // wizard's recovery step and Settings; the "asked" flag keeps it to one prompt ever.
             onConfirm = {
-                viewModel.restore(current.backup, onInitiated = onRestoreInitiated)
-                viewModel.dismissPreview()
+                notificationGate.runAfterRationale {
+                    viewModel.restore(current.backup, onInitiated = onRestoreInitiated)
+                    viewModel.dismissPreview()
+                }
             },
             onDismiss = { viewModel.dismissPreview() },
         )

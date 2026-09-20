@@ -26,6 +26,7 @@ import com.v1per.synthx.data.backup.pruneFinishedWorkIfRestoreAcknowledged
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.screens.restore.RestoreAppStatus
 import com.v1per.synthx.ui.screens.restore.RestoreStatusViewModel
+import com.v1per.synthx.ui.testing.ensureNotificationPermissionDenied
 import com.v1per.synthx.ui.theme.SynthXTheme
 import java.util.UUID
 import kotlinx.coroutines.flow.first
@@ -94,6 +95,34 @@ class RestoreStatusObserverInstrumentedTest {
         assertTrue(viewModel.status.value is RestoreAppStatus.Failed)
         // The raw exception message (see BackupManager.restore) is wrapped by
         // RestoreFailureFormatter.describe with a "restore failed: <ExceptionType>: " prefix.
+        assertTrue(
+            (viewModel.status.value as RestoreAppStatus.Failed).message
+                .contains(base.getString(R.string.restore_ineligible_missing_metadata)),
+        )
+    }
+
+    /**
+     * P9-T5 / F19 + P7-T1: the in-app status flow stays the source of truth for restore progress
+     * and outcome whatever the notification permission is. With it denied (no drawer notification
+     * possible), a finished restore is still reported by [RestoreStatusViewModel], still shown on
+     * screen, and still acknowledged.
+     */
+    @Test fun restoreOutcomeIsStillReportedInAppWhileNotificationPermissionIsDenied() {
+        ensureNotificationPermissionDenied(base)
+        val requestId = enqueueInvalidRestore()
+        val viewModel = observedViewModel()
+        composeRule.setContent {
+            SynthXTheme {
+                val status by viewModel.status.collectAsState()
+                RestoreObservedStatusHost(status, routeOwnsRestoreOutcome = false, viewModel)
+            }
+        }
+        WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(requestId)
+        awaitFinished(requestId)
+
+        composeRule.onNodeWithText(base.getString(R.string.restore_failed_title)).assertExists()
+        composeRule.waitUntil(10_000) { preferences.restoreOutcomeAcknowledged }
+        assertTrue(viewModel.status.value is RestoreAppStatus.Failed)
         assertTrue(
             (viewModel.status.value as RestoreAppStatus.Failed).message
                 .contains(base.getString(R.string.restore_ineligible_missing_metadata)),

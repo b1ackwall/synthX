@@ -36,6 +36,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -47,6 +50,7 @@ import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackError
 import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.ui.components.rememberNotificationPermissionGate
 import com.v1per.synthx.playback.QueuePromptEvent
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
@@ -206,6 +210,28 @@ private fun BackupFolderNotice(onClick: () -> Unit) {
     }
 }
 
+/**
+ * P9-T5 / F19 second chance: the first time playback actually runs, offer the notification
+ * permission if neither the wizard's Done nor a restore has already done so (the shared "asked"
+ * flag decides). Lives in the UI layer, observing [PlaybackViewModel.isPlaying], because a
+ * permission prompt needs an Activity and [com.v1per.synthx.playback.SynthXPlaybackService]
+ * has none. Collected in its own composable so a play/pause toggle doesn't recompose the shell.
+ * Waits for RESUMED: playback can start from a headset button or the media notification while
+ * the app is in the background, where a prompt would have nowhere to appear.
+ */
+@Composable
+private fun NotificationSecondChanceEffect(playbackViewModel: PlaybackViewModel) {
+    val gate = rememberNotificationPermissionGate()
+    val isPlaying by playbackViewModel.isPlaying.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(isPlaying, gate) {
+        if (!isPlaying) return@LaunchedEffect
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            gate.runAfterRationale {}
+        }
+    }
+}
+
 @Composable
 private fun NormalShell(
     navController: NavHostController,
@@ -234,6 +260,7 @@ private fun NormalShell(
     val playbackViewModel = viewModel<PlaybackViewModel>(
         factory = PlaybackViewModel.Factory(context.applicationContext)
     )
+    NotificationSecondChanceEffect(playbackViewModel)
     val snackbarHostState = remember { SnackbarHostState() }
     val searchReselectEvents = remember {
         MutableSharedFlow<Unit>(

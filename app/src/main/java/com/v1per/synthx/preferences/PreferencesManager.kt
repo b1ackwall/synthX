@@ -313,6 +313,23 @@ class PreferencesManager(context: Context) {
     val onboardingReturningFromRecovery: Boolean
         get() = prefs.getBoolean(KEY_ONBOARDING_RETURNING_FROM_RECOVERY, false)
 
+    // ------------------------------------------------- notification permission (P9-T5)
+
+    /**
+     * True once synthX has put its notification rationale (and the system permission prompt behind
+     * it) in front of the user, from any trigger — the wizard's Done, a restore's confirm, or the
+     * first-playback second chance. Read-only here, same reasoning as [onboardingComplete]: the
+     * sole writer is [markNotificationPermissionAskedDurably], which blocks on `commit()` so a
+     * process death right after the prompt can't lose the write and re-ask on the next launch.
+     * Deliberately independent of whether the permission was granted — a denial is the user's
+     * answer, not a reason to ask again.
+     */
+    val notificationPermissionAsked: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, false)
+
+    fun markNotificationPermissionAskedDurably(): Boolean =
+        prefs.edit().putBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, true).commit()
+
     // ------------------------------------------------- first-scan tracking (P9-T1)
 
     /**
@@ -397,6 +414,7 @@ class PreferencesManager(context: Context) {
 
     companion object {
         private const val PREFS_NAME = "synthx_prefs"
+        private const val KEY_NOTIFICATION_PERMISSION_ASKED = "notification_permission_asked"
         const val KEY_MUSIC_FOLDER_URI = "music_folder_uri"
         private const val KEY_BACKUP_FOLDER_URI = "backup_folder_uri"
         private const val KEY_NEW_ARRIVALS_FOLDER_URI = "new_arrivals_folder_uri"

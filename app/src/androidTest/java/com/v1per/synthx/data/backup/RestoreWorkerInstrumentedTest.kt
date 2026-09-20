@@ -10,6 +10,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.ui.testing.ensureNotificationPermissionDenied
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.flow.collect
@@ -108,6 +109,25 @@ class RestoreWorkerInstrumentedTest {
         )
         assertEquals(request.id.toString().replace("-", ""), state?.operationId)
         assertEquals(request.id.toString().replace("-", ""), state?.requestId)
+    }
+
+    /**
+     * P9-T5 / F19: the restore worker neither waits on nor is gated by POST_NOTIFICATIONS. Same
+     * run as [successfulWorkerPersistsGlobalRestartRequired], with the permission denied and no
+     * prompt ever answered — it must finish identically.
+     */
+    @Test fun restoreSucceedsIdenticallyWhileNotificationPermissionIsDenied() = runBlocking {
+        ensureNotificationPermissionDenied(context)
+        createDatabaseFile(context.getDatabasePath(SynthXDatabase.DB_NAME), "state-a")
+        val source = File(databaseDir, validBackupName())
+        createDatabaseFile(source, "state-b")
+        val metadataFile = File(databaseDir, source.name.removeSuffix(".db") + ".json")
+        metadataFile.writeBytes(BackupMetadataCodec.encode(metadata(source)))
+        val request = RestoreWorker.request(backupInfo(source, metadataFile))
+        workManager.enqueueUniqueWork(RestoreWorker.UNIQUE_WORK_NAME, androidx.work.ExistingWorkPolicy.KEEP, request).result.get()
+        WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
+        assertEquals(WorkInfo.State.SUCCEEDED, awaitFinished(request.id).state)
+        assertEquals(RestoreCoordinator.Terminal.RESTART_REQUIRED, RestoreCoordinator.current())
     }
 
     @Test fun workerRerunDoesNotBlindlyRepairPostCloseState() = runBlocking {

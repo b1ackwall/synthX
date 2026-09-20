@@ -403,4 +403,22 @@
     <string name="action_move_up">Move up</string>
     <string name="action_move_down">Move down</string>
     <string name="action_remove_from_queue">Remove from queue</string>
+
+    <!-- Database startup failure surfaces (MainActivity) -->
+    <string name="action_close">Close</string>
+    <string name="action_continue">Continue</string>
+    <string name="startup_failure_title">Database startup paused</string>
+    <string name="startup_failure_message_generic">synthX couldn\'t finish setting up its database. Nothing has been lost. Retry, or close and reopen the app.</string>
+    <string name="startup_failure_message_newer_database">This database was created by a newer synthX version. Downgrade is disabled, and the database remains unopened. Install a compatible synthX version to continue.</string>
+    <string name="migration_recovery_title">Database update needs recovery</string>
+    <string name="migration_recovery_message">synthX updated its database, but a post-migration safety check failed. Normal use is disabled to protect your library.\n\nYour library can be restored to its state from just before this update attempt. After restoring, close and reopen synthX to try again.</string>
+    <string name="migration_recovery_last_attempt_failed">Last attempt failed: %1$s</string>
+    <string name="migration_recovery_restore_action">Restore and restart</string>
+    <string name="migration_recovery_restoring">Restoring…</string>
+    <string name="migration_recovery_unavailable_title">Database recovery unavailable</string>
+    <string name="migration_recovery_unavailable_message">synthX updated its database, but a post-migration safety check failed. Normal use is disabled to protect your library.\n\nAutomatic recovery isn\'t available because no pre-update snapshot was found on this device. Your backups in your backup folder are not affected, and restoring one is the way to recover your library.</string>
+
+    <!-- Notification permission rationale (shown once, before the system prompt) -->
+    <string name="notification_permission_title">Allow notifications?</string>
+    <string name="notification_permission_message">synthX uses notifications for playback controls and to show progress while it scans your library or restores a backup. You can change this any time in system settings.</string>
 </resources>
