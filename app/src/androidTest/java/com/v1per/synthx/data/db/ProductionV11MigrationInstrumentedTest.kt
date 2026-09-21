@@ -25,6 +25,12 @@ import org.junit.runner.RunWith
  * Supply the external fixture with `-PproductionDbPath=<absolute-host-path>`. Gradle copies it
  * into generated androidTest assets; this test then copies that read-only asset into the test
  * app's database directory. Neither SQLite nor Room ever receives the golden source path.
+ *
+ * PERMANENT SKIP, BY DECISION: no v11 production fixture exists or is expected to exist. This is
+ * single-user software with no historical population of v11 installs to source one from, so the
+ * [assumeTrue] guard below will always skip this test. That is intentional, not an open gap
+ * awaiting a fixture. The test is kept only as a ready harness should a real v11 database ever
+ * be supplied.
  */
 @RunWith(AndroidJUnit4::class)
 class ProductionV11MigrationInstrumentedTest {
@@ -63,7 +69,7 @@ class ProductionV11MigrationInstrumentedTest {
         )
 
         // This is the production registration path: createStandalone and getOrCreate both use
-        // SynthXDatabase.ALL_MIGRATIONS. Opening writableDatabase forces the whole 11->14 chain.
+        // SynthXDatabase.ALL_MIGRATIONS. Opening writableDatabase forces the whole 11->current chain.
         val migratingRoom = SynthXDatabase.createStandalone(context, databaseName)
         try {
             migratingRoom.openHelper.writableDatabase
@@ -77,8 +83,9 @@ class ProductionV11MigrationInstrumentedTest {
             SQLiteDatabase.OPEN_READONLY,
         ).use { database -> captureAndVerifyAfterMigration(database, before) }
 
-        // A second Room open at v14 proves the already-migrated file is accepted as the current
-        // schema, independently of the migration transaction's own open-time validation.
+        // A second Room open at the current version proves the already-migrated file is accepted
+        // as the current schema, independently of the migration transaction's own open-time
+        // validation.
         val validatingRoom = SynthXDatabase.createStandalone(context, databaseName)
         try {
             validatingRoom.openHelper.writableDatabase
