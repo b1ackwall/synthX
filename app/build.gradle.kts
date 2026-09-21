@@ -49,8 +49,8 @@ android {
         applicationId = "com.v1per.synthx"
         minSdk = 32
         targetSdk = 36
-        versionCode = 9
-        versionName = "2.4.1"
+        versionCode = 10
+        versionName = "2.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
