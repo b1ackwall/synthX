@@ -2,6 +2,9 @@ package com.v1per.synthx.playback
 
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -66,7 +69,8 @@ class PlaybackViewModelResumeReconciliationTest {
         override fun resume() {}
         override fun stop() {}
         override fun seekTo(positionMs: Long) {}
-        override fun release() {}
+        var releaseCount = 0
+        override fun release() { releaseCount++ }
         override suspend fun reconcileWithDatabase() {}
     }
 
@@ -152,6 +156,37 @@ class PlaybackViewModelResumeReconciliationTest {
             assertTrue(viewModel.isPlaying.value, "second resume's own confirmation must stick")
             advanceTimeBy(2_000)
             assertTrue(viewModel.isPlaying.value, "the superseded first timeout must not fire late")
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    /**
+     * The Activity-finish half of P4-T3 / R3-F08: when the Activity finishes for good its
+     * [ViewModelStore] is cleared, which must release the engine (and with it the owner controller
+     * whose disconnect makes the service stop — OwnerControllerStopInstrumentedTest covers that
+     * half against the real service). Driven through a real [ViewModelStore] so the protected
+     * `onCleared` is reached the same way the framework reaches it.
+     */
+    @Test fun clearingTheViewModelStoreReleasesTheEngineExactlyOnce() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val engine = FakeEngine()
+            val store = ViewModelStore()
+            val factory = object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    PlaybackViewModel(PlaybackController(engine)) as T
+            }
+            ViewModelProvider(store, factory)[PlaybackViewModel::class.java]
+            advanceUntilIdle()
+            assertEquals(0, engine.releaseCount, "must not release while the Activity is alive")
+
+            store.clear()
+
+            assertEquals(1, engine.releaseCount, "Activity finish must release the engine")
+            store.clear()
+            assertEquals(1, engine.releaseCount, "a second clear must not release again")
         } finally {
             Dispatchers.resetMain()
         }

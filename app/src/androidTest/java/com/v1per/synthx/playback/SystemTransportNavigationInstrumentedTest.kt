@@ -1,30 +1,15 @@
 package com.v1per.synthx.playback
 
-import android.content.ComponentName
-import android.content.Context
 import android.media.AudioManager
-import android.net.Uri
 import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import com.v1per.synthx.data.backup.DatabaseStartupGate
-import com.v1per.synthx.data.repository.Song
-import com.v1per.synthx.ui.testing.stubSongRepository
-import java.io.File
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
-import kotlinx.coroutines.runBlocking
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -35,47 +20,13 @@ import org.junit.runner.RunWith
  * controller, and its Next/Previous buttons call `seekToNextMediaItem` / `seekToPreviousMediaItem`
  * on it. Queue slots point at one short silent WAV, so nothing here depends on the media library.
  *
- * Runs in the debug app's process against the `.debug` package only. Persistence goes to a stub
- * repository (writes are rejected and logged), so no app queue data is touched.
+ * Bootstrap (service, engine, the extra controller, teardown) lives in [PlaybackServiceTestBase];
+ * the extra controller here is deliberately unflagged, like a real system controller.
  */
 @RunWith(AndroidJUnit4::class)
-class SystemTransportNavigationInstrumentedTest {
+class SystemTransportNavigationInstrumentedTest : PlaybackServiceTestBase() {
 
-    private val context: Context = ApplicationProvider.getApplicationContext()
-    private val instrumentation = InstrumentationRegistry.getInstrumentation()
-
-    private lateinit var wav: File
-    private lateinit var persistence: QueuePersistence
-    private lateinit var engine: ExoPlayerEngine
-    private lateinit var system: MediaController
-    private var engineReleased = false
-
-    @Before fun setUp() {
-        // The engine observes the current song's palette through the live repository, which the
-        // startup gate refuses until MainActivity has run its startup. Model a ready gate, as the
-        // restore instrumentation does, and hand the process its lazy production gate back after.
-        DatabaseStartupGate.markReadyForTest()
-        wav = File(context.cacheDir, "p9t3-silence.wav").also { writeSilentWav(it, seconds = 60) }
-        persistence = QueuePersistence(stubSongRepository())
-        onMain { engine = ExoPlayerEngine(context, persistence) }
-        val future = onMain {
-            MediaController.Builder(
-                context,
-                SessionToken(context, ComponentName(context, SynthXPlaybackService::class.java)),
-            ).buildAsync()
-        }
-        system = future.get(15, TimeUnit.SECONDS)
-    }
-
-    @After fun tearDown() {
-        onMain {
-            system.release()
-            if (!engineReleased) engine.release()
-        }
-        persistence.release()
-        wav.delete()
-        DatabaseStartupGate.resetForTest(context)
-    }
+    private val system: MediaController get() = extraController
 
     // --- rear-edge Previous under Repeat All ---------------------------------------------------
 
@@ -186,8 +137,7 @@ class SystemTransportNavigationInstrumentedTest {
     @Test fun systemTransportFallsBackToNativeWhenNoEngineIsAttached() {
         startQueue(count = 10, startIndex = 5, repeat = RepeatMode.Off)
         val current = onMain { system.currentMediaItem?.mediaId }
-        onMain { engine.release() }
-        engineReleased = true
+        releaseEngine()
 
         onMain { system.seekToNextMediaItem() }
 
@@ -223,68 +173,6 @@ class SystemTransportNavigationInstrumentedTest {
 
     // --- helpers -------------------------------------------------------------------------------
 
-    private fun startQueue(count: Int, startIndex: Int, repeat: RepeatMode) {
-        val songs = (0 until count).map { index ->
-            Song(
-                id = "p9t3-song-$index",
-                title = "Song $index",
-                artist = "Artist",
-                album = "Album",
-                duration = 60_000L,
-                filePath = Uri.fromFile(wav).toString(),
-            )
-        }
-        runBlocking { engine.playQueue(songs, startIndex) }
-        await("queue playing at $startIndex") {
-            onMain {
-                val slot = engine._currentSlotId.value
-                slot != null && system.currentMediaItem?.mediaId == slot &&
-                    engine.orderStore.indexOfSlot(slot) == startIndex
-            }
-        }
-        onMain { engine.setRepeatMode(repeat) }
-        await("repeat mode $repeat applied") { onMain { engine._repeatMode.value == repeat } }
-        // Paused so the position stays put and only the commands under test move it.
-        onMain { engine.pause() }
-        await("paused") { onMain { !system.isPlaying } }
-        // The forced window rebuild a repeat change triggers has landed once the loaded window
-        // stops changing shape.
-        settle()
-    }
-
-    /** Runs [block] on the main thread and returns its result. */
-    private fun <T> onMain(block: () -> T): T {
-        val result = AtomicReference<Result<T>>()
-        instrumentation.runOnMainSync { result.set(runCatching(block)) }
-        return result.get().getOrThrow()
-    }
-
-    private fun await(what: String, timeoutMs: Long = 15_000L, condition: () -> Boolean) {
-        val deadline = SystemClock.uptimeMillis() + timeoutMs
-        while (SystemClock.uptimeMillis() < deadline) {
-            if (condition()) return
-            Thread.sleep(50)
-        }
-        throw AssertionError("Timed out waiting for: $what")
-    }
-
-    /**
-     * Positions the (paused) player and waits until BOTH the system controller and the engine's own
-     * controller report it. The engine decides restart-versus-previous from its own controller's
-     * mirrored position, which lags the session by an asynchronous update — asserting before that
-     * lands would test the harness's timing, not the rule.
-     */
-    private fun seekSystemTo(positionMs: Long) {
-        onMain { system.seekTo(positionMs) }
-        await("system and engine controllers both at ~${positionMs}ms") {
-            onMain {
-                val engineController = engine.controller ?: return@onMain false
-                kotlin.math.abs(system.currentPosition - positionMs) < 300 &&
-                    kotlin.math.abs(engineController.currentPosition - positionMs) < 300
-            }
-        }
-    }
-
     /**
      * `MediaController.seekToPreviousMediaItem()` masks its local state optimistically — for a
      * moment it reports the previous item at position ~0 before the session's real answer lands.
@@ -300,25 +188,5 @@ class SystemTransportNavigationInstrumentedTest {
             "restarted near the start, was ${onMain { system.currentPosition }}",
             onMain { system.currentPosition } < 1_500L,
         )
-    }
-
-    /** Lets already-issued asynchronous session/controller messages land before asserting a negative. */
-    private fun settle() = Thread.sleep(1_500)
-
-    /** 8 kHz mono 16-bit PCM silence. */
-    private fun writeSilentWav(file: File, seconds: Int) {
-        val sampleRate = 8_000
-        val dataBytes = sampleRate * 2 * seconds
-        fun le32(v: Int) = byteArrayOf(v.toByte(), (v shr 8).toByte(), (v shr 16).toByte(), (v shr 24).toByte())
-        fun le16(v: Int) = byteArrayOf(v.toByte(), (v shr 8).toByte())
-        file.outputStream().use { out ->
-            out.write("RIFF".toByteArray()); out.write(le32(36 + dataBytes))
-            out.write("WAVE".toByteArray()); out.write("fmt ".toByteArray())
-            out.write(le32(16)); out.write(le16(1)); out.write(le16(1))
-            out.write(le32(sampleRate)); out.write(le32(sampleRate * 2))
-            out.write(le16(2)); out.write(le16(16))
-            out.write("data".toByteArray()); out.write(le32(dataBytes))
-            out.write(ByteArray(dataBytes))
-        }
     }
 }

@@ -57,6 +57,15 @@ import java.util.concurrent.ConcurrentHashMap
 class ExoPlayerEngine(
     context: Context,
     internal val persistence: QueuePersistence,
+    /**
+     * Test seam only — production never passes it, and `null` keeps the real
+     * `MediaController.Builder` path byte-for-byte. Called once per (re)connection attempt in place
+     * of building the controller future, and handed the [MediaController.Listener] the engine
+     * wants installed so a fake can still delegate to a real connection. It lets a test fail the
+     * first connection attempt (retry), or hold the connection open (deterministically suspending
+     * a queue load at `awaitController`).
+     */
+    internal val controllerFutureFactory: ((MediaController.Listener) -> ListenableFuture<MediaController>)? = null,
 ) : PlaybackEngine {
 
     // Needed to resolve album-art content:// URIs through the ContentResolver
@@ -214,18 +223,21 @@ class ExoPlayerEngine(
     private var reconnectAttempts = 0
     private var reconnectJob: Job? = null
 
-    private fun buildControllerFuture(): ListenableFuture<MediaController> =
-        MediaController.Builder(appContext, sessionToken)
-            .setListener(object : MediaController.Listener {
-                // Session-level disconnection (the session/service itself went away or revoked
-                // this controller) — distinct from a Player.Listener callback, and previously
-                // nothing installed a MediaController.Listener at all (P4-T3 / R3-F09).
-                override fun onDisconnected(controller: MediaController) {
-                    Log.w(TAG, "MediaController disconnected mid-session")
-                    scheduleReconnect()
-                }
-            })
-            .buildAsync()
+    private fun buildControllerFuture(): ListenableFuture<MediaController> {
+        val sessionListener = object : MediaController.Listener {
+            // Session-level disconnection (the session/service itself went away or revoked
+            // this controller) — distinct from a Player.Listener callback, and previously
+            // nothing installed a MediaController.Listener at all (P4-T3 / R3-F09).
+            override fun onDisconnected(controller: MediaController) {
+                Log.w(TAG, "MediaController disconnected mid-session")
+                scheduleReconnect()
+            }
+        }
+        return controllerFutureFactory?.invoke(sessionListener)
+            ?: MediaController.Builder(appContext, sessionToken)
+                .setListener(sessionListener)
+                .buildAsync()
+    }
 
     private fun scheduleReconnect() {
         if (reconnectJob?.isActive == true) return
