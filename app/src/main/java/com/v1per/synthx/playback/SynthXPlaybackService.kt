@@ -31,17 +31,33 @@ class SynthXPlaybackService : MediaLibraryService() {
     // release the player, so this flag makes that idempotent regardless of which runs first.
     private var released = false
 
-    // Tracks how many of THIS APP's own controllers are currently bound — never system UI /
-    // notification / Bluetooth-AVRCP controllers, which connect under a different package name
-    // and legitimately want the session to keep running (showing transport controls) even while
-    // no ExoPlayerEngine owns it. The one ExoPlayerEngine per app process is the only real
-    // "owner" this needs to track (P4-T3 / R3-F08): when it drops to zero after having been
-    // positive at least once, the only component that maintained the queue/window/event
-    // subscriptions is gone, and playback should stop rather than run unmaintained — matching
-    // the existing onTaskRemoved precedent below of stopping rather than continuing ownerless
-    // playback. The counting itself lives in OwnerControllerTracker so it's unit-testable
-    // without a real MediaSession.ControllerInfo.
+    // Tracks how many of THIS APP's own *owning* controllers are currently bound. Two kinds of
+    // controller are deliberately not owners (see isOwnerController): controllers from other
+    // packages (system UI, Bluetooth-AVRCP, Android Auto), which legitimately want the session
+    // to keep running (showing transport controls) even while no ExoPlayerEngine owns it, and
+    // media3's own media-notification controller. The notification controller is NOT
+    // distinguishable by package: MediaNotificationManager builds it inside this service, so it
+    // connects under this app's own package name and is told apart only by
+    // MediaSession.isMediaNotificationController. Counting it as an owner (as the original
+    // package-only filter did) kept the count above zero forever, so the stop below never fired.
+    // The one ExoPlayerEngine per app process is the only real "owner" this needs to track
+    // (P4-T3 / R3-F08): when it drops to zero after having been positive at least once, the only
+    // component that maintained the queue/window/event subscriptions is gone, and playback
+    // should stop rather than run unmaintained — matching the existing onTaskRemoved precedent
+    // below of stopping rather than continuing ownerless playback. The counting itself lives in
+    // OwnerControllerTracker so it's unit-testable without a real MediaSession.ControllerInfo.
     private val ownerControllers = OwnerControllerTracker()
+
+    // Must be applied identically in onPostConnect AND onDisconnected: media3 still delivers
+    // onDisconnected for the notification controller, so filtering only the connect side would
+    // let its disconnect decrement the engine's count and stop playback while the engine is
+    // still bound.
+    private fun isOwner(session: MediaSession, controller: MediaSession.ControllerInfo): Boolean =
+        isOwnerController(
+            packageName = controller.packageName,
+            ownPackage = packageName,
+            isNotificationController = session.isMediaNotificationController(controller),
+        )
 
     override fun onCreate() {
         super.onCreate()
@@ -70,7 +86,7 @@ class SynthXPlaybackService : MediaLibraryService() {
                     session: MediaSession,
                     controller: MediaSession.ControllerInfo,
                 ) {
-                    if (controller.packageName == packageName) {
+                    if (isOwner(session, controller)) {
                         ownerControllers.connected()
                     }
                 }
@@ -79,7 +95,7 @@ class SynthXPlaybackService : MediaLibraryService() {
                     session: MediaSession,
                     controller: MediaSession.ControllerInfo,
                 ) {
-                    if (controller.packageName != packageName) return
+                    if (!isOwner(session, controller)) return
                     if (ownerControllers.disconnected()) {
                         // No ExoPlayerEngine remains bound to this session — the only owner of
                         // queue maintenance and the remap/deletion event subscriptions is gone
@@ -178,6 +194,22 @@ class SynthXPlaybackService : MediaLibraryService() {
     }
 
 }
+
+/**
+ * Whether a connecting/disconnecting controller is one of this app's *owners* for
+ * [OwnerControllerTracker]'s purposes, split out so the decision is unit-testable without a real
+ * `MediaSession`/`ControllerInfo` — same precedent as [shouldCheckpointOnDestroy] below.
+ *
+ * An owner is a controller in this app's own package that is not media3's media-notification
+ * controller. Package alone is not enough: the notification controller is created inside this
+ * service and shares the app's package, so [isNotificationController]
+ * (`MediaSession.isMediaNotificationController`) is what excludes it.
+ */
+internal fun isOwnerController(
+    packageName: String,
+    ownPackage: String,
+    isNotificationController: Boolean,
+): Boolean = packageName == ownPackage && !isNotificationController
 
 /**
  * The pure decision behind [SynthXPlaybackService.onDestroy]'s checkpoint (P4-T7 / R3-F13),
