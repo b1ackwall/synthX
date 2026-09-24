@@ -1,8 +1,12 @@
 # synthX — Claude Code Instructions
 
-## Git — DO NOT TOUCH
-Claude Code must never run any git command (add, commit, push, checkout, branch, etc.).
- handles all git operations manually. Report changes made; do not stage or commit them.
+## Git
+- On the `claude-branch` branch: Claude Code may use any git command (add, commit, push,
+  fetch, pull, merge, etc.) as needed for the task. Check the current branch first
+  (`git branch --show-current`); this permission applies only while on `claude-branch`.
+- On any other branch: DO NOT TOUCH. Claude Code must never run any git command (add, commit,
+  push, checkout, branch, etc.).  handles all git operations manually. Report changes
+  made; do not stage or commit them.
 
 ## Connected Device — VERIFY BEFORE TOUCHING
 Run `adb devices -l` to see what's actually connected before running any adb command that
