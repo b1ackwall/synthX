@@ -55,8 +55,14 @@ internal class SafBackupPublisher(private val context: Context) {
                     "SAF provider cannot publish metadata by renaming a temporary document"
                 )
             }
-            val finalMetadata = tierDirectory.findFile(identity.metadataFileName)
-                ?: throw BackupPublicationException("Published metadata document is not visible")
+            // #170: a successful renameTo mutates the DocumentFile's own Uri to the provider's
+            // post-rename Uri (TreeDocumentFile and RawDocumentFile alike), so the renamed object
+            // IS the published document. A tierDirectory.findFile(name) lookup here could resolve
+            // a different document (a stale listing, or another document sharing the name) and
+            // verify the wrong bytes — same fix shape as graduation's R2-F13
+            // (verifyAndPublishGraduationTemp).
+            val finalMetadata = temporaryMetadata
+            requireDocumentName(finalMetadata, identity.metadataFileName)
             // R8-A10: metadata was, until now, never reread after its rename — a provider that
             // truncates or alters it post-rename without throwing could publish a "successful"
             // backup whose metadata the restore catalog later rejects. Same reread posture as
@@ -69,8 +75,9 @@ internal class SafBackupPublisher(private val context: Context) {
                     "SAF provider cannot publish database by renaming a temporary document"
                 )
             }
-            val finalDatabase = tierDirectory.findFile(identity.databaseFileName)
-                ?: throw BackupPublicationException("Published database document is not visible")
+            // #170: same rename continuity as the metadata above — no findFile lookup.
+            val finalDatabase = temporaryDatabase
+            requireDocumentName(finalDatabase, identity.databaseFileName)
             // DocumentFile documents that a provider may implement rename by creating a new
             // document. Re-read the final URI as well so Success describes the published bytes,
             // not merely the pre-rename temporary document.
@@ -130,7 +137,8 @@ internal class SafBackupPublisher(private val context: Context) {
     private fun requireDocumentName(document: DocumentFile, expected: String) {
         if (document.name != expected) {
             throw BackupPublicationException(
-                "SAF provider changed temporary document name; safe publication is unsupported"
+                "SAF provider reported document name \"${document.name}\" instead of " +
+                    "\"$expected\"; safe publication is unsupported"
             )
         }
     }

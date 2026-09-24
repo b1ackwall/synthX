@@ -3,6 +3,7 @@ package com.v1per.synthx.data.backup
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.CorruptingRenameDocumentFile
+import androidx.documentfile.provider.DecoyLookupDocumentFile
 import androidx.documentfile.provider.DocumentFile
 import androidx.documentfile.provider.FailOnSecondCreateDocumentFile
 import androidx.test.core.app.ApplicationProvider
@@ -151,6 +152,62 @@ class SafBackupPublisherInstrumentedTest {
         // The database's recognizable name must never be published when metadata failed its
         // post-rename reread — publication is all-or-nothing.
         assertFalse(File(root, identity.databaseFileName).exists())
+    }
+
+    @Test
+    fun metadataIsVerifiedThroughTheRenamedDocumentNotAFreshNameLookup() {
+        assertPublicationIgnoresDecoyLookupFor { identity -> identity.metadataFileName }
+    }
+
+    @Test
+    fun databaseIsVerifiedThroughTheRenamedDocumentNotAFreshNameLookup() {
+        assertPublicationIgnoresDecoyLookupFor { identity -> identity.databaseFileName }
+    }
+
+    /**
+     * #170: after a successful rename, [DecoyLookupDocumentFile] answers `findFile(finalName)` with
+     * a different document holding different bytes. Publication must still succeed, verify and
+     * return the renamed documents, and leave the decoy untouched — i.e. never re-resolve the
+     * published document by name. The previous `findFile`-based code verified the decoy's bytes
+     * instead and failed with a SHA-256/byte-count mismatch (then deleted the decoy in cleanup).
+     */
+    private fun assertPublicationIgnoresDecoyLookupFor(decoyNameOf: (BackupFileIdentity) -> String) {
+        val root = newRoot()
+        val identity = BackupFileNames.create(randomId = UUID.randomUUID().toString().take(8))
+        val decoyBytes = "decoy — not the published document".encodeToByteArray()
+        val decoy = File(root.parentFile, "decoy-${UUID.randomUUID()}")
+            .apply { writeBytes(decoyBytes) }
+        roots += decoy
+        val directory = DecoyLookupDocumentFile(root, decoyNameOf(identity), decoy)
+        val snapshotBytes = ByteArray(8192) { index -> (index * 13).toByte() }
+        val snapshot = File(root.parentFile, "snapshot-${UUID.randomUUID()}.db")
+            .apply { writeBytes(snapshotBytes) }
+        roots += snapshot
+        val digest = BackupHashing.hash(snapshot)
+        val metadataBytes = BackupMetadataCodec.encode(
+            BackupMetadata(
+                timestamp = System.currentTimeMillis(),
+                tier = BackupTier.Manual.name,
+                dbVersion = 8,
+                file = identity.databaseFileName,
+                sizeBytes = digest.sizeBytes,
+                sha256 = digest.sha256,
+            )
+        )
+
+        val published = SafBackupPublisher(context).publish(
+            directory,
+            identity,
+            snapshot,
+            digest,
+            metadataBytes,
+        )
+
+        assertEquals(Uri.fromFile(File(root, identity.databaseFileName)), published.database.uri)
+        assertEquals(Uri.fromFile(File(root, identity.metadataFileName)), published.metadata.uri)
+        assertArrayEquals(snapshotBytes, File(root, identity.databaseFileName).readBytes())
+        assertArrayEquals(metadataBytes, File(root, identity.metadataFileName).readBytes())
+        assertArrayEquals(decoyBytes, decoy.readBytes())
     }
 
     private fun newRoot(): File {
