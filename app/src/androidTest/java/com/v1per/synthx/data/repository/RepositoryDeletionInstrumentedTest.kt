@@ -59,8 +59,8 @@ class RepositoryDeletionInstrumentedTest {
         RestoreCoordinator.resetForTest()
         FileOperationCoordinator.resetForTest()
         BackupOutcomeStore.resetForTest()
-        DestructiveActionTracker.resetForTest()
         context = DeletionTestContext(ApplicationProvider.getApplicationContext())
+        DestructiveActionTracker.resetForTest(context)
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
         exports = PlaylistExportManager(
             context, database, database.playlistDao(), database.songDao(), database.artistDao(), database.albumDao(),
@@ -93,10 +93,11 @@ class RepositoryDeletionInstrumentedTest {
     @After fun tearDown() {
         context.afterBackup = null
         database.close()
+        // Before cleanUp(): resetting afterwards would recreate the isolated preference file.
+        DestructiveActionTracker.resetForTest(context)
         context.cleanUp()
         RestoreCoordinator.resetForTest()
         BackupOutcomeStore.resetForTest()
-        DestructiveActionTracker.resetForTest()
     }
 
     @Test fun playlistDeletionCompletesThroughRealBackupDrain() = runBlocking {

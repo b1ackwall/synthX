@@ -41,8 +41,14 @@ object DestructiveActionTracker {
         _count.value = 0
     }
 
-    /** Test-only: lets instrumentation reset the once-per-process guard between cases. */
-    internal fun resetForTest() {
+    /**
+     * Test-only: lets instrumentation reset the once-per-process guard between cases. Zeroes the
+     * persisted count in [context]'s preferences as well as the in-memory StateFlow —
+     * [recordDestructiveAction] increments the *persisted* value, so clearing only the StateFlow
+     * would let a previous case's (or a previous run's) count leak into the next assertion.
+     */
+    internal fun resetForTest(context: Context) {
+        PreferencesManager(context.applicationContext).destructiveActionsSinceBackup = 0
         initialized = false
         _count.value = 0
     }

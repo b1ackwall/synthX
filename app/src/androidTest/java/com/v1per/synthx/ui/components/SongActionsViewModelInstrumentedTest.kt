@@ -48,7 +48,7 @@ class SongActionsViewModelInstrumentedTest {
     @Before
     fun setUp() {
         RestoreCoordinator.resetForTest()
-        resetDestructiveActionTracker()
+        DestructiveActionTracker.resetForTest(context)
     }
 
     @After
@@ -56,16 +56,7 @@ class SongActionsViewModelInstrumentedTest {
         viewModel?.viewModelScope?.cancel()
         viewModel = null
         RestoreCoordinator.resetForTest()
-        resetDestructiveActionTracker()
-    }
-
-    // DestructiveActionTracker.resetForTest() only clears its in-memory StateFlow, not the
-    // PreferencesManager-backed count it reads on the next recordDestructiveAction — which
-    // persists across test runs on a real device/emulator, unlike an in-memory Room DB. Without
-    // this, a count asserted here could include a carry-over from another test's device state.
-    private fun resetDestructiveActionTracker() {
-        DestructiveActionTracker.resetForTest()
-        PreferencesManager(context).destructiveActionsSinceBackup = 0
+        DestructiveActionTracker.resetForTest(context)
     }
 
     @Test

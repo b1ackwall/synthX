@@ -40,7 +40,7 @@ class IssuesViewModelInstrumentedTest {
     fun setUp() {
         TestWorkManager.ensureInitialized(context)
         RestoreCoordinator.resetForTest()
-        resetDestructiveActionTracker()
+        DestructiveActionTracker.resetForTest(context)
     }
 
     @After
@@ -48,19 +48,10 @@ class IssuesViewModelInstrumentedTest {
         viewModel?.viewModelScope?.cancel()
         viewModel = null
         RestoreCoordinator.resetForTest()
-        resetDestructiveActionTracker()
+        DestructiveActionTracker.resetForTest(context)
         val workManager = androidx.work.WorkManager.getInstance(context)
         workManager.cancelUniqueWork(IssuesScanWorker.UNIQUE_WORK_NAME).result.get()
         workManager.pruneWork().result.get()
-    }
-
-    // DestructiveActionTracker.resetForTest() only clears its in-memory StateFlow, not the
-    // PreferencesManager-backed count it reads on the next recordDestructiveAction — which
-    // persists across test runs on a real device/emulator, unlike an in-memory Room DB. Without
-    // this, a count asserted here could include a carry-over from another test's device state.
-    private fun resetDestructiveActionTracker() {
-        DestructiveActionTracker.resetForTest()
-        PreferencesManager(context).destructiveActionsSinceBackup = 0
     }
 
     @Test

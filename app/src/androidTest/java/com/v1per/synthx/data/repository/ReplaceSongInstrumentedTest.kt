@@ -61,8 +61,8 @@ class ReplaceSongInstrumentedTest {
         RestoreStartup.await()
         RestoreCoordinator.resetForTest()
         BackupOutcomeStore.resetForTest()
-        DestructiveActionTracker.resetForTest()
         context = ReplaceTestContext(ApplicationProvider.getApplicationContext())
+        DestructiveActionTracker.resetForTest(context)
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
         exports = PlaylistExportManager(
             context, database, database.playlistDao(), database.songDao(), database.artistDao(), database.albumDao(),
@@ -107,10 +107,11 @@ class ReplaceSongInstrumentedTest {
 
     @After fun tearDown() {
         database.close()
+        // Before cleanUp(): resetting afterwards would recreate the isolated preference file.
+        DestructiveActionTracker.resetForTest(context)
         (context as ReplaceTestContext).cleanUp()
         RestoreCoordinator.resetForTest()
         BackupOutcomeStore.resetForTest()
-        DestructiveActionTracker.resetForTest()
     }
 
     private suspend fun membership(playlistId: String, songId: String) =
@@ -383,10 +384,10 @@ class ReplaceSongInstrumentedTest {
 
     /**
      * Keeps art *and preference* writes out of the installed app's library, as
-     * RepositoryDeletionInstrumentedTest's own context does. The preference isolation is
-     * load-bearing, not tidiness: DestructiveActionTracker persists its count, and
-     * `resetForTest()` only clears the in-memory StateFlow — so a shared preference file would
-     * carry each case's increment into the next one's assertions.
+     * RepositoryDeletionInstrumentedTest's own context does. DestructiveActionTracker's
+     * `resetForTest(context)` zeroes its persisted count too (#169), but the preference
+     * isolation still keeps BackupOutcomeStore's persisted outcomes and every other preference
+     * the repository writes off the installed debug app's real preference file.
      */
     private class ReplaceTestContext(base: Context) : ContextWrapper(base) {
         private val prefix = "replace-test-${UUID.randomUUID()}"
