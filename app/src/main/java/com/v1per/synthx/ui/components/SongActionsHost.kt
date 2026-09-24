@@ -321,6 +321,8 @@ fun SongActionsHost(
                     when (onPlayNext(song, false)) {
                         QueueAddResult.Added -> showQueueSnackbar(R.string.actions_playing_next)
                         QueueAddResult.NeedsConfirmation -> playNextConfirmTarget = song
+                        // The engine already surfaced the scaffold's error snackbar.
+                        QueueAddResult.Unavailable -> Unit
                     }
                 }
             },
@@ -330,6 +332,7 @@ fun SongActionsHost(
                     when (onAddToQueue(song, false)) {
                         QueueAddResult.Added -> showQueueSnackbar(R.string.actions_added_to_queue)
                         QueueAddResult.NeedsConfirmation -> addToQueueConfirmTarget = song
+                        QueueAddResult.Unavailable -> Unit
                     }
                 }
             },

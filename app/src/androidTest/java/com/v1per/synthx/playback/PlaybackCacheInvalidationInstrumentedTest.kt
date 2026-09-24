@@ -37,9 +37,10 @@ import org.junit.runner.RunWith
  *    the file delete stalls for the full DELETION_HANDOFF_TIMEOUT_MS (1.5s) and the map entry
  *    leaks. Costs delay, not correctness.
  *  - Disconnect/retry interplay: the service stops playback when its last owning controller
- *    disconnects, so a reconnect after a mid-session disconnect finds a stopped player. Also a
- *    `playQueue` issued between a failed connection attempt and its retry landing is dropped
- *    (`awaitController()` returns null once readiness resolved false). Neither is exercised.
+ *    disconnects, so a reconnect after a mid-session disconnect finds a stopped player. Not
+ *    exercised. (The related drop of a `playQueue` issued between a failed connection attempt
+ *    and its retry landing was issue #175, since fixed — covered by
+ *    ControllerReconnectInstrumentedTest.)
  */
 @RunWith(AndroidJUnit4::class)
 class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {

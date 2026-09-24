@@ -43,6 +43,9 @@ sealed class QueueAddResult {
      *  slot) that would make this call a likely-accidental duplicate — the caller should
      *  ask the user to confirm, then retry with `force = true`. */
     data object NeedsConfirmation : QueueAddResult()
+    /** The engine refused the insert because it is not connected to the playback session; it
+     *  has already reported that on [PlaybackViewModel.errors], so callers show nothing more. */
+    data object Unavailable : QueueAddResult()
 }
 
 /**
@@ -196,15 +199,18 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
      * song or already sits in [upcomingQueue]. Dedup only applies once there's an existing
      * queue to be a duplicate of, matching the [hasActivePlayback] gating on the other two
      * methods.
+     *
+     * Returns `null` when the engine refused the insert for lack of a session connection
+     * (issue #175) — it has already reported that on [errors], so the caller shows nothing.
      */
-    fun keepQueueAndPlayNext(song: Song): Boolean {
+    fun keepQueueAndPlayNext(song: Song): Boolean? {
         // The queue can have ended between the prompt being raised and answered.
         if (!hasActivePlayback()) {
             playQueue(listOf(song), 0)
             return true
         }
         if (isAlreadyQueued(song.id)) return false
-        controller.playNext(song)
+        if (!controller.playNext(song)) return null
         controller.next()
         return true
     }
@@ -261,8 +267,7 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
             return QueueAddResult.Added
         }
         if (!force && isNextInQueue(song.id)) return QueueAddResult.NeedsConfirmation
-        controller.playNext(song)
-        return QueueAddResult.Added
+        return if (controller.playNext(song)) QueueAddResult.Added else QueueAddResult.Unavailable
     }
 
     /**
@@ -279,8 +284,7 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
         if (upcomingQueue.value.isNotEmpty() && !force && isLastInQueue(song.id)) {
             return QueueAddResult.NeedsConfirmation
         }
-        controller.addToQueue(song)
-        return QueueAddResult.Added
+        return if (controller.addToQueue(song)) QueueAddResult.Added else QueueAddResult.Unavailable
     }
 
     /** True when [songId] is the current song or already sits in [upcomingQueue]. */

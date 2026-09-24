@@ -7,6 +7,13 @@ import kotlinx.coroutines.flow.Flow
 /** One-off playback failures, surfaced to the UI as transient messages. */
 sealed class PlaybackError {
     data class PlaybackFailed(val songTitle: String) : PlaybackError()
+
+    /**
+     * A request that needs the playback session could not reach it: the engine is between
+     * connection attempts to [SynthXPlaybackService] and a queue insert can't wait, or a queue
+     * load waited out a whole round of attempts without one succeeding (issue #175).
+     */
+    data object ServiceUnavailable : PlaybackError()
 }
 
 /** Queue repeat behaviour, mapped 1:1 onto media3's Player.REPEAT_MODE_* constants. */
@@ -116,10 +123,14 @@ interface PlaybackEngine {
     suspend fun setShuffleEnabled(enabled: Boolean)
     fun setRepeatMode(mode: RepeatMode)
 
-    /** Inserts [song] directly after the current item. Always returns `true`. */
+    /**
+     * Inserts [song] directly after the current item. Returns `false`, leaving the queue
+     * untouched, when the engine is not connected to its playback session — the failure is
+     * also reported on [errors] as [PlaybackError.ServiceUnavailable].
+     */
     fun playNext(song: Song): Boolean
 
-    /** Appends [song] to the end of the queue. Always returns `true`. */
+    /** Appends [song] to the end of the queue. Same `false` contract as [playNext]. */
     fun addToQueue(song: Song): Boolean
 
     /**

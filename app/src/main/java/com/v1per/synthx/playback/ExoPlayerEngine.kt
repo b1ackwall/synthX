@@ -18,7 +18,6 @@ import com.v1per.synthx.data.SongRemapEvents
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepositoryImpl
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -208,19 +207,14 @@ class ExoPlayerEngine(
      */
     private var controllerFuture: ListenableFuture<MediaController> = buildControllerFuture()
 
-    // Completed (true or false) exactly once, when the FIRST session connection attempt
-    // resolves. Only the restore path waits on it: it runs at launch, i.e. the one moment the
-    // controller is reliably not connected yet. Later reconnect attempts (retry after initial
-    // failure, or recovery after a mid-session disconnect) do not create a second one of these —
-    // restore only ever needs to know "is *a* controller usable yet", answered once.
-    private val controllerReady = CompletableDeferred<Boolean>()
-
-    // Bounded retry for BOTH the initial connection and a later mid-session disconnection —
-    // see MediaController.Listener.onDisconnected below. Capped rather than infinite so a
-    // permanently-gone session (service process actually killed, not just this one controller
-    // dropped) doesn't retry forever; a user action that needs playback will simply find it
-    // still unavailable and can retry explicitly by leaving/reopening the screen.
-    private var reconnectAttempts = 0
+    // Where the session connection stands, across the initial connection, its retries and any
+    // later mid-session reconnect — what awaitController waits on (issue #175; see
+    // ControllerConnection's kdoc for the one-shot deferred this replaced). Bounded retry for
+    // BOTH the initial connection and a mid-session disconnection, capped rather than infinite
+    // so a permanently-gone session doesn't retry forever; a later playback request re-arms one
+    // fresh round (see awaitController) instead of the engine staying dead until the Activity is
+    // relaunched.
+    internal val connection = ControllerConnection()
     private var reconnectJob: Job? = null
 
     private fun buildControllerFuture(): ListenableFuture<MediaController> {
@@ -240,21 +234,29 @@ class ExoPlayerEngine(
     }
 
     private fun scheduleReconnect() {
+        // media3 also reports onDisconnected for our own release() — nothing to reconnect then.
+        if (connection.isReleased) return
         if (reconnectJob?.isActive == true) return
-        val backoffMs = ReconnectPolicy.nextDelayMsOrNull(reconnectAttempts)
+        // Also flips the phase back to Connecting, which is what makes a request issued during a
+        // mid-session reconnect wait for the new controller rather than install itself into the
+        // dropped one (which media3 silently ignores every command on).
+        val backoffMs = connection.onConnectionLost()
         if (backoffMs == null) {
-            Log.w(TAG, "Giving up on reconnecting after $reconnectAttempts attempts")
+            Log.w(TAG, "Giving up on reconnecting after ${ReconnectPolicy.MAX_ATTEMPTS} retries")
             return
         }
-        reconnectAttempts++
         reconnectJob = engineScope.launch {
             delay(backoffMs)
-            // A fresh future every attempt — re-adding a listener to the same already-resolved
-            // (failed, or now-stale) future would either fail again for the same reason or,
-            // for a mid-session disconnect, do nothing at all (its listener already fired once).
-            controllerFuture = buildControllerFuture()
-            connectToSession()
+            startConnectionAttempt()
         }
+    }
+
+    private fun startConnectionAttempt() {
+        // A fresh future every attempt — re-adding a listener to the same already-resolved
+        // (failed, or now-stale) future would either fail again for the same reason or,
+        // for a mid-session disconnect, do nothing at all (its listener already fired once).
+        controllerFuture = buildControllerFuture()
+        connectToSession()
     }
 
     init {
@@ -386,14 +388,16 @@ class ExoPlayerEngine(
                 // A suspend hop is needed here (see adoptRunningTimeline) when reconnecting
                 // to a still-running service, so this is a coroutine launch rather than the
                 // plain synchronous body it used to be — engineScope's Main.immediate
-                // dispatcher keeps `controller` assignment and controllerReady.complete on
+                // dispatcher keeps `controller` assignment and the connection-phase update on
                 // the main thread either way.
                 engineScope.launch {
                     try {
                         val ctrl = controllerFuture.get()
+                        // A mid-session reconnect replaces a controller this listener is still
+                        // attached to; detach it so only the live controller drives the engine.
+                        controller?.takeIf { it !== ctrl }?.removeListener(listener)
                         controller = ctrl
                         ctrl.addListener(listener)
-                        reconnectAttempts = 0
                         reconnectJob = null
                         // Adopt whatever repeat state the session already holds (a service
                         // that outlived the previous MediaController keeps its timeline).
@@ -441,15 +445,17 @@ class ExoPlayerEngine(
                             "Session connected: $connectionPath; song=${_currentSong.value?.id}, " +
                                 "slot=${_currentSlotId.value}, queue=${orderStore.size}",
                         )
-                        controllerReady.complete(true)
+                        // Last, after the adopt/refresh above: a request waiting in
+                        // awaitController must not interleave with the adoption. Skipped when the
+                        // session already dropped this controller during adoptRunningTimeline's
+                        // suspension — onDisconnected has scheduled the next attempt, and
+                        // reporting Connected now would release waiters into a dead controller.
+                        if (ctrl.isConnected) connection.onConnected()
                         reconcileIfRevisionChanged(revisionBeforeAdopt)
-                    } catch (_: Exception) {
-                        Log.d(TAG, "Session connection failed")
-                        // Only the FIRST attempt reports failure through controllerReady — later
-                        // retries must not re-complete an already-completed CompletableDeferred
-                        // (a no-op call, but reporting "false" a second time would be misleading
-                        // to restoreSavedQueueInternal's one-time wait anyway).
-                        controllerReady.complete(false)
+                    } catch (e: Exception) {
+                        Log.d(TAG, "Session connection failed", e)
+                        // Keeps waiting requests waiting through the backoff, or fails them once
+                        // the round is used up (see ControllerConnection.onConnectionLost).
                         scheduleReconnect()
                     }
                 }
@@ -524,12 +530,17 @@ class ExoPlayerEngine(
         controller?.repeatMode = mode.toPlayerRepeatMode()
     }
 
+    // Checked against the connection phase, not `controller != null`: during a mid-session
+    // reconnect `controller` still holds the dropped instance, and an insert into it would
+    // update the order store while media3 ignores the timeline edit (issue #175).
     override fun playNext(song: Song): Boolean {
+        if (!connection.isConnected) return reportUnavailable("playNext")
         playNextInternal(song)
         return true
     }
 
     override fun addToQueue(song: Song): Boolean {
+        if (!connection.isConnected) return reportUnavailable("addToQueue")
         addToQueueInternal(song)
         return true
     }
@@ -585,8 +596,9 @@ class ExoPlayerEngine(
         artworkJob?.cancel()
         reconnectJob?.cancel()
         engineScope.cancel()
-        // Unblocks a restore still waiting on a connection that will now never land.
-        controllerReady.complete(false)
+        // Unblocks any request still waiting on a connection that will now never land. Before
+        // releaseFuture below, whose onDisconnected callback must find the engine released.
+        connection.release()
         controller?.removeListener(listener)
         MediaController.releaseFuture(controllerFuture)
         // Cleared so the `controller?.` guards in the playback methods actually
@@ -597,9 +609,32 @@ class ExoPlayerEngine(
         SongDeletionAcknowledgment.engineDetached()
     }
 
-    internal suspend fun awaitController(): MediaController? {
-        controllerReady.await()
-        return controller
+    /**
+     * The controller a queue load should use, waiting out a connection that is still being made
+     * or retried (issue #175) — previously this answered "no controller" as soon as the first
+     * attempt failed, silently dropping the request while a retry was seconds away. Returns null
+     * only when the whole round of attempts fails (or the engine is released).
+     *
+     * A request that finds the engine already given up re-arms one fresh round rather than
+     * failing instantly: the service may well be reachable again by now, and a user tap is the
+     * natural moment to find out.
+     */
+    internal suspend fun awaitController(): MediaController? = withContext(Dispatchers.Main.immediate) {
+        if (connection.rearmIfGaveUp()) {
+            Log.i(TAG, "Playback requested after giving up; starting a fresh round of connection attempts")
+            reconnectJob?.cancel()
+            startConnectionAttempt()
+        }
+        if (connection.awaitSettled() == ConnectionPhase.Connected) controller else null
+    }
+
+    /** Surfaces a request refused for lack of a session connection; returns false for the caller. */
+    internal fun reportUnavailable(request: String): Boolean {
+        Log.w(TAG, "$request refused: not connected to the playback session (${connection.phase.value})")
+        // Not after release (e.g. restore's releaseAllForRestore cutting a waiting load short):
+        // the session isn't unreachable then, this engine is simply being torn down on purpose.
+        if (!connection.isReleased) _errors.tryEmit(PlaybackError.ServiceUnavailable)
+        return false
     }
 
     /**

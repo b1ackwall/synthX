@@ -277,6 +277,8 @@ private fun NormalShell(
             val message = when (error) {
                 is PlaybackError.PlaybackFailed ->
                     context.getString(R.string.playback_error_failed, error.songTitle)
+                PlaybackError.ServiceUnavailable ->
+                    context.getString(R.string.playback_error_service_unavailable)
             }
             snackbarHostState.showSnackbar(message)
         }
@@ -474,13 +476,14 @@ private fun NormalShell(
                     // Same confirmation strings SongActionsHost already shows for the
                     // ordinary Play Next action — reused rather than duplicated so the
                     // duplicate-queue message reads identically everywhere it appears.
-                    val added = playbackViewModel.keepQueueAndPlayNext(prompt.tappedSong)
-                    val message = if (added) {
-                        context.getString(R.string.actions_playing_next)
-                    } else {
-                        context.getString(R.string.actions_already_playing_next)
+                    // null: the engine refused for lack of a session connection and has
+                    // already shown its own error snackbar, so there is nothing to confirm.
+                    val message = when (playbackViewModel.keepQueueAndPlayNext(prompt.tappedSong)) {
+                        true -> context.getString(R.string.actions_playing_next)
+                        false -> context.getString(R.string.actions_already_playing_next)
+                        null -> null
                     }
-                    scope.launch { snackbarHostState.showSnackbar(message) }
+                    if (message != null) scope.launch { snackbarHostState.showSnackbar(message) }
                     queuePrompt = null
                 },
                 onClear = {

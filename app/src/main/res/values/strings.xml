@@ -350,6 +350,7 @@
 
     <!-- Playback -->
     <string name="playback_error_failed">Couldn\'t play %1$s</string>
+    <string name="playback_error_service_unavailable">Couldn\'t connect to playback. Try again.</string>
     <string name="playback_channel_name">Playback</string>
 
     <!-- Errors -->

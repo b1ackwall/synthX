@@ -49,7 +49,12 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
 
     // MediaController is main-thread-only and buildArtworkData above may have moved us off it.
     withContext(Dispatchers.Main.immediate) {
-        val ctrl = awaitController() ?: return@withContext
+        // Waits out a connection still being made or retried (issue #175) rather than dropping
+        // the tap; null only once the whole round of attempts has failed.
+        val ctrl = awaitController() ?: run {
+            reportUnavailable("playQueue")
+            return@withContext
+        }
         songsBySlotId.clear()
         slots.forEach { songsBySlotId[it.slotId] = it.song }
         artworkLoadedSlotIds.clear()
@@ -123,7 +128,13 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     var installed = false
 
     withContext(Dispatchers.Main.immediate) {
-        val ctrl = awaitController() ?: return@withContext
+        // Same wait as playQueueInternal — a launch-time restore used to be lost for good when
+        // the first connection attempt failed, even though the retry then connected (issue
+        // #175). Logged rather than surfaced on errors: nobody tapped anything to restore.
+        val ctrl = awaitController() ?: run {
+            Log.w(TAG, "Queue restore skipped: could not connect to the playback session")
+            return@withContext
+        }
         // Not restored over an in-progress session: the user has already started something, and
         // replacing it with last session's queue would be a surprise.
         if (ctrl.mediaItemCount > 0) {
