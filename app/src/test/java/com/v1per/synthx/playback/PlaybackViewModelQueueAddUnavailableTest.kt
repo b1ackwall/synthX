@@ -31,8 +31,15 @@ class PlaybackViewModelQueueAddUnavailableTest {
     private val tapped = song("tapped")
 
     /** Active playback (so inserts reach the engine) and a configurable insert answer. */
-    private class FakeEngine(current: Song, var acceptsInserts: Boolean) : PlaybackEngine {
+    private class FakeEngine(
+        current: Song,
+        var acceptsInserts: Boolean,
+        queueEnded: Boolean = false,
+    ) : PlaybackEngine {
         var playNextCalls = 0
+        var addToQueueCalls = 0
+        var playQueueCalls = 0
+        override val isQueueEnded: Flow<Boolean> = MutableStateFlow(queueEnded)
         var nextCalls = 0
         override val isPlaying: Flow<Boolean> = MutableStateFlow(true)
         override val isBuffering: Flow<Boolean> = emptyFlow()
@@ -49,7 +56,7 @@ class PlaybackViewModelQueueAddUnavailableTest {
         override val hasNext: Flow<Boolean> = emptyFlow()
         override val hasPrevious: Flow<Boolean> = emptyFlow()
         override val isQueueCustomized: Flow<Boolean> = emptyFlow()
-        override suspend fun playQueue(songs: List<Song>, startIndex: Int) {}
+        override suspend fun playQueue(songs: List<Song>, startIndex: Int) { playQueueCalls++ }
         override suspend fun restoreSavedQueue() {}
         override fun persistPlaybackState() {}
         override fun next() { nextCalls++ }
@@ -57,7 +64,7 @@ class PlaybackViewModelQueueAddUnavailableTest {
         override suspend fun setShuffleEnabled(enabled: Boolean) {}
         override fun setRepeatMode(mode: RepeatMode) {}
         override fun playNext(song: Song): Boolean { playNextCalls++; return acceptsInserts }
-        override fun addToQueue(song: Song) = acceptsInserts
+        override fun addToQueue(song: Song): Boolean { addToQueueCalls++; return acceptsInserts }
         override fun moveQueueItem(slotId: String, toIndex: Int) {}
         override fun removeQueueItem(slotId: String) {}
         override fun seekToQueueItem(slotId: String) {}
@@ -71,12 +78,16 @@ class PlaybackViewModelQueueAddUnavailableTest {
 
     // Main is replaced around the whole runTest, not inside it: the backgroundScope collectors
     // below are only torn down after the test body returns, and still need Main to do so.
-    private fun withViewModel(acceptsInserts: Boolean, block: TestScope.(PlaybackViewModel, FakeEngine) -> Unit) {
+    private fun withViewModel(
+        acceptsInserts: Boolean,
+        queueEnded: Boolean = false,
+        block: TestScope.(PlaybackViewModel, FakeEngine) -> Unit,
+    ) {
         val dispatcher = StandardTestDispatcher()
         Dispatchers.setMain(dispatcher)
         try {
             runTest(dispatcher) {
-                val engine = FakeEngine(current, acceptsInserts)
+                val engine = FakeEngine(current, acceptsInserts, queueEnded)
                 val viewModel = PlaybackViewModel(PlaybackController(engine))
                 // currentSongId/upcomingQueue are WhileSubscribed; hold them the way the UI does,
                 // or hasActivePlayback()/the dedup checks would read their stale initial values.
@@ -112,6 +123,34 @@ class PlaybackViewModelQueueAddUnavailableTest {
         assertEquals(true, vm.keepQueueAndPlayNext(song("other")))
         assertEquals(1, engine.nextCalls)
     }
+
+    // A natural end leaves the last song published (the player stays up, paused), so a current
+    // song alone no longer means "active" — an ended queue must still take the fresh-play route
+    // it took back when the end cleared the current song.
+    @Test fun playNextAfterTheQueueEndedStartsFreshPlaybackInsteadOfInsertingIntoIt() =
+        withViewModel(acceptsInserts = true, queueEnded = true) { vm, engine ->
+            assertEquals(QueueAddResult.Added, vm.playNext(tapped))
+            advanceUntilIdle()
+            assertEquals(0, engine.playNextCalls, "inserting after an ended queue would not start playback")
+            assertEquals(1, engine.playQueueCalls)
+        }
+
+    @Test fun addToQueueAfterTheQueueEndedStartsFreshPlaybackInsteadOfAppending() =
+        withViewModel(acceptsInserts = true, queueEnded = true) { vm, engine ->
+            assertEquals(QueueAddResult.Added, vm.addToQueue(tapped))
+            advanceUntilIdle()
+            assertEquals(0, engine.addToQueueCalls)
+            assertEquals(1, engine.playQueueCalls)
+        }
+
+    @Test fun keepQueueAndPlayNextAfterTheQueueEndedStartsFreshPlayback() =
+        withViewModel(acceptsInserts = true, queueEnded = true) { vm, engine ->
+            // The current (ended) song would otherwise trip the already-queued dedup and no-op.
+            assertEquals(true, vm.keepQueueAndPlayNext(current))
+            advanceUntilIdle()
+            assertEquals(0, engine.playNextCalls)
+            assertEquals(1, engine.playQueueCalls)
+        }
 
     private fun song(id: String) = Song(
         id = id,

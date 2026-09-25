@@ -118,7 +118,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
      * the queue finishing: the timeline only holds a window, so running off its end can happen
      * with hundreds of songs still queued. [advancePastWindowEnd] consults the order store and
      * keeps playing from the true next slot; only a genuinely exhausted queue returns false and
-     * falls through to stop().
+     * falls through to [onQueueEnded] — deliberately not stop(), see its kdoc.
      *
      * Hysteresis in [maintainWindow] should keep this from firing mid-queue at all, but a
      * silent stop partway through a 2000-song queue is not a failure worth leaving to "should".
@@ -129,9 +129,13 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
      */
     override fun onPlaybackStateChanged(playbackState: Int) {
         _isBuffering.value = playbackState == Player.STATE_BUFFERING
-        if (playbackState != Player.STATE_ENDED) return
+        if (playbackState != Player.STATE_ENDED) {
+            // Playback moved again (restart from ended, a seek, a new load) or was torn down.
+            _isQueueEnded.value = false
+            return
+        }
         if (advancePastWindowEnd()) return
-        stop()
+        onQueueEnded()
     }
 
     /**
@@ -202,8 +206,44 @@ internal fun handleSameItemSeekForCheckpoint(
 internal fun ExoPlayerEngine.checkpointCursor() {
     val ctrl = controller ?: return
     if (ctrl.currentMediaItemIndex == C.INDEX_UNSET) return
-    persistence.updateCursor(ctrl.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }, ctrl.currentPosition)
+    persistence.updateCursor(
+        ctrl.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() },
+        resumePositionMs(ctrl.playbackState, ctrl.currentPosition),
+    )
 }
+
+/**
+ * The queue ran out naturally (Repeat Off, no next slot). Deliberately does *not* call [stop]:
+ * stop() publishes a null current song, which removes the whole player sheet from composition in
+ * the same frame (`currentSong?.let` in BottomChromeOverlay) — no exit transition can run, and the
+ * player just vanishes. Same reasoning, and same shape, as [onPlayerError]: the last song stays
+ * published and `isPlaying` already flips to false on its own, so the player renders as an
+ * ordinary paused one. The order store and loaded timeline are untouched.
+ *
+ * The resume cursor is reset to the start of the same track ([resumePositionMs]) so a process
+ * death here resumes onto a replayable track rather than a dead end-of-track position. Written
+ * explicitly, and not left to the `onIsPlayingChanged(false)` checkpoint, because that fires
+ * around this callback in an order this code does not control; every cursor writer applies
+ * [resumePositionMs], so whichever lands last writes the same value.
+ */
+internal fun ExoPlayerEngine.onQueueEnded() {
+    _isQueueEnded.value = true
+    val ctrl = controller ?: return
+    persistence.updateCursor(
+        ctrl.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() } ?: _currentSlotId.value,
+        resumePositionMs(Player.STATE_ENDED, ctrl.currentPosition),
+    )
+}
+
+/**
+ * The position worth persisting as the resume point. A player parked in `STATE_ENDED` reports a
+ * position at the very end of the track, which is a dead resume state (nothing left to play);
+ * media3's own play()-from-ended restarts the item, so 0 is what resuming would do anyway. Pure so
+ * every writer — engine checkpoints, full queue writes, and the service's own task-removed /
+ * destroy checkpoints — shares one rule and is unit-testable without a `MediaController`.
+ */
+internal fun resumePositionMs(playbackState: Int, positionMs: Long): Long =
+    if (playbackState == Player.STATE_ENDED) 0L else positionMs
 
 /**
  * P4-T7 / R3-F13: the periodic-checkpoint half of the fix — long, uninterrupted playback of a

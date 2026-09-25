@@ -152,7 +152,7 @@ class SynthXPlaybackService : MediaLibraryService() {
             // this fresher save and silently overwrite it (see general 6.7).
             QueuePersistence.create(this).updateCursor(
                 currentSlotId = player.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() },
-                positionMs = player.currentPosition,
+                positionMs = resumePositionMs(player.playbackState, player.currentPosition),
             )
         }
         releasePlayback()
@@ -177,7 +177,7 @@ class SynthXPlaybackService : MediaLibraryService() {
         if (shouldCheckpointOnDestroy(released, player.currentMediaItemIndex, player.mediaItemCount)) {
             QueuePersistence.create(this).updateCursor(
                 currentSlotId = player.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() },
-                positionMs = player.currentPosition,
+                positionMs = resumePositionMs(player.playbackState, player.currentPosition),
             )
         }
         releasePlayback()

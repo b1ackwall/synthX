@@ -64,7 +64,7 @@ abstract class PlaybackServiceTestBase {
         // restore instrumentation does, and hand the process its lazy production gate back after.
         DatabaseStartupGate.markReadyForTest()
         wav = File(context.cacheDir, "playback-test-silence.wav").also { writeSilentWav(it, seconds = 60) }
-        persistence = QueuePersistence(stubSongRepository())
+        persistence = createPersistence()
         if (connectExtraControllerInSetUp) {
             extraController = connectExtraController(extraControllerHints)
             resetSharedSession()
@@ -82,6 +82,9 @@ abstract class PlaybackServiceTestBase {
         wav.delete()
         DatabaseStartupGate.resetForTest(context)
     }
+
+    /** The persistence every engine from [newEngine] writes through; default rejects every write. */
+    protected open fun createPersistence(): QueuePersistence = QueuePersistence(stubSongRepository())
 
     // --- bootstrapping -------------------------------------------------------------------------
 

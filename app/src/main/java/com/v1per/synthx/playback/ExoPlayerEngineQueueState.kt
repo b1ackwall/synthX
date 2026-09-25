@@ -50,7 +50,7 @@ internal fun ExoPlayerEngine.onQueueReordered() {
  * store no longer contains has to become a null cursor rather than a failed write.
  */
 internal fun ExoPlayerEngine.persistQueue() {
-    val positionMs = controller?.currentPosition ?: 0L
+    val positionMs = controller?.let { resumePositionMs(it.playbackState, it.currentPosition) } ?: 0L
     val currentSlotId = _currentSlotId.value?.takeIf { orderStore.indexOfSlot(it) >= 0 }
     persistence.saveQueueRecords(orderStore.live, currentSlotId, positionMs)
 }
@@ -63,7 +63,7 @@ internal fun ExoPlayerEngine.persistQueue() {
  * remain correct for call sites that only ever touch one piece.
  */
 internal fun ExoPlayerEngine.persistUnifiedQueueState() {
-    val positionMs = controller?.currentPosition ?: 0L
+    val positionMs = controller?.let { resumePositionMs(it.playbackState, it.currentPosition) } ?: 0L
     val currentSlotId = _currentSlotId.value?.takeIf { orderStore.indexOfSlot(it) >= 0 }
     persistence.saveUnifiedQueueState(
         activeSlots = orderStore.live,

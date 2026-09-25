@@ -45,6 +45,18 @@ class CursorCheckpointTest {
         assertFalse(checkpointed)
     }
 
+    // --- resume position at natural end-of-queue ------------------------------------------
+
+    @Test fun anEndedPlayerResumesFromTheStartOfTheTrackNotItsEnd() {
+        assertEquals(0L, resumePositionMs(Player.STATE_ENDED, positionMs = 59_800L))
+    }
+
+    @Test fun everyOtherStateKeepsTheRealPosition() {
+        listOf(Player.STATE_IDLE, Player.STATE_BUFFERING, Player.STATE_READY).forEach { state ->
+            assertEquals(12_345L, resumePositionMs(state, positionMs = 12_345L), "state $state")
+        }
+    }
+
     // --- onPositionDiscontinuity (same-item seek) checkpoint -----------------------------
 
     @Test fun sameItemSeekTriggersACheckpoint() {

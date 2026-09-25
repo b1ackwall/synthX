@@ -3,6 +3,7 @@ package com.v1per.synthx.playback
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.QueueSlot
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /** One-off playback failures, surfaced to the UI as transient messages. */
 sealed class PlaybackError {
@@ -32,6 +33,15 @@ interface PlaybackEngine {
      * play/pause icon rather than leaving the two states visually identical.
      */
     val isBuffering: Flow<Boolean>
+
+    /**
+     * True from the moment the queue runs out naturally (last song finished, nothing next) until
+     * playback moves again. The current song stays published in that state — the player sits
+     * paused on the last track — so "there is a current song" no longer implies "there is a
+     * queue still worth prompting about or inserting into". Defaults to never-ended for
+     * engines that have no such state.
+     */
+    val isQueueEnded: Flow<Boolean> get() = flowOf(false)
     /** Content identity ([Song.id]) of the current slot, used for library-row highlighting. */
     val currentSongId: Flow<String?>
     /** Fully resolved current song, published by the engine from its slot-to-song lookup. */

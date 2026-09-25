@@ -76,6 +76,9 @@ class ExoPlayerEngine(
     internal val _isBuffering = MutableStateFlow(false)
     override val isBuffering: Flow<Boolean> = _isBuffering.asStateFlow()
 
+    internal val _isQueueEnded = MutableStateFlow(false)
+    override val isQueueEnded: Flow<Boolean> = _isQueueEnded.asStateFlow()
+
     internal val _currentSongId = MutableStateFlow<String?>(null)
     override val currentSongId: Flow<String?> = _currentSongId.asStateFlow()
 

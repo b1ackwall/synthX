@@ -69,6 +69,10 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     val isBuffering: StateFlow<Boolean> = controller.isBuffering
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    // Eager because hasActivePlayback reads it synchronously, like queue below.
+    private val isQueueEnded: StateFlow<Boolean> = controller.isQueueEnded
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     // Public content identity for library-row highlighting; never a QueueSlot.slotId.
     val currentSongId: StateFlow<String?> = controller.currentSongId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -326,11 +330,13 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
     fun playQueueItem(slotId: String) = controller.seekToQueueItem(slotId)
 
     /**
-     * False both when nothing was ever queued and when a queue ran to its end — stop()
-     * leaves the timeline populated but idle, so the item count alone would be misleading.
+     * False both when nothing was ever queued and when a queue ran to its end. A natural end no
+     * longer clears the current song (the player stays up, paused on the last track), so
+     * [isQueueEnded] is what distinguishes "ended" from "paused mid-queue" — the song id and
+     * item count alone would now read as active.
      */
     private fun hasActivePlayback(): Boolean =
-        currentSongId.value != null && queue.value.isNotEmpty()
+        currentSongId.value != null && queue.value.isNotEmpty() && !isQueueEnded.value
 
     // The bounded reconciliation check started by resume() — see its kdoc. Cancelled by any
     // later resume()/pause() so only the most recent tap's timeout can ever force-correct state.
