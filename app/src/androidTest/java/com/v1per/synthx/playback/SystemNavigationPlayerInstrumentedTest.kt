@@ -2,6 +2,7 @@ package com.v1per.synthx.playback
 
 import androidx.media3.common.Player
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import java.lang.reflect.Proxy
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -67,8 +68,16 @@ class SystemNavigationPlayerInstrumentedTest {
     private val attached = mutableListOf<SystemNavigationHandler>()
     private fun attach(handler: Handler): Handler = handler.also {
         attached += it
-        SystemNavigationBridge.attach(it)
+        onMain { SystemNavigationBridge.attach(it) }
     }
+
+    // SystemNavigationBridge is "main-thread only" (see its KDoc): notifyChanged() broadcasts
+    // synchronously to every registered listener, including the real service's SystemNavigationPlayer
+    // wrapping a live ExoPlayer whenever another instrumented test in this process has started it.
+    // That real listener asserts it's called on the main thread, so every direct bridge call from
+    // this test must go through here rather than run on the JUnit test thread.
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private fun onMain(block: () -> Unit) = instrumentation.runOnMainSync(block)
 
     private fun commandsOf(vararg ids: Int) =
         Player.Commands.Builder().apply { ids.forEach { add(it) } }.build()
@@ -79,7 +88,7 @@ class SystemNavigationPlayerInstrumentedTest {
 
     @After fun tearDown() {
         wrapper.detach()
-        attached.forEach(SystemNavigationBridge::detach)
+        onMain { attached.forEach(SystemNavigationBridge::detach) }
     }
 
     /** Repeat One on the final item: native availability has no next; the app wraps, so offer it. */
@@ -135,20 +144,20 @@ class SystemNavigationPlayerInstrumentedTest {
         wrapper.addListener(sessionListener)
 
         // Nothing moved since attach published this state: no event.
-        SystemNavigationBridge.notifyChanged()
-        SystemNavigationBridge.notifyChanged()
+        onMain { SystemNavigationBridge.notifyChanged() }
+        onMain { SystemNavigationBridge.notifyChanged() }
         assertTrue(sessionListener.published.isEmpty())
 
         handler.next = true
-        SystemNavigationBridge.notifyChanged()
+        onMain { SystemNavigationBridge.notifyChanged() }
         assertEquals(1, sessionListener.published.size)
         assertTrue(sessionListener.published.single().contains(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
 
-        SystemNavigationBridge.notifyChanged()
+        onMain { SystemNavigationBridge.notifyChanged() }
         assertEquals(1, sessionListener.published.size)
 
         handler.next = false
-        SystemNavigationBridge.notifyChanged()
+        onMain { SystemNavigationBridge.notifyChanged() }
         assertEquals(2, sessionListener.published.size)
         assertFalse(sessionListener.published.last().contains(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
     }
@@ -160,7 +169,7 @@ class SystemNavigationPlayerInstrumentedTest {
         wrapper.removeListener(sessionListener)
         sessionListener.published.clear()
 
-        SystemNavigationBridge.notifyChanged()
+        onMain { SystemNavigationBridge.notifyChanged() }
 
         assertTrue(sessionListener.published.isEmpty())
         assertTrue(registered.isEmpty())
