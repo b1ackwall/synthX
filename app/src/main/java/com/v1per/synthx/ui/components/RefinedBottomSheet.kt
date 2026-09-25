@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -184,6 +186,18 @@ fun RefinedBottomSheet(
     val dismissLabel = stringResource(R.string.cd_close)
 
     BackHandler(onBack = onDismissRequest)
+
+    // This sheet lives in the Activity window and applies no IME insets, so a text field that
+    // held focus when it opened (Search's field, a playlist's inline rename field) would keep
+    // the keyboard up over the sheet content. Clearing focus, not just hiding the IME, also
+    // stops the field re-showing the keyboard when the sheet closes. Both calls are no-ops when
+    // nothing is focused / the keyboard is already hidden.
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+    }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val heightPx = with(density) { maxHeight.toPx() }
