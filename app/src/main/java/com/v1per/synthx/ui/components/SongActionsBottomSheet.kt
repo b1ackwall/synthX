@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +53,7 @@ import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextTertiary
 import kotlinx.collections.immutable.ImmutableList
@@ -296,7 +299,7 @@ private fun ActionsPage(
 }
 
 /** One row in a [SubPage] list: an id/name pair, plus (Playlists page only) whether the
- *  song is already a member — drives the trailing checkmark and disabled state below. */
+ *  song is already a member — drives the trailing checkmark and SurfaceVariant highlight below. */
 private data class PickableItem(
     val id: String,
     val name: String,
@@ -340,10 +343,14 @@ private fun SubPage(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(Spacing.xxl)
-                            .alpha(if (item.alreadyMember) Alpha.Disabled else 1f)
                             .then(
-                                if (item.alreadyMember) Modifier
-                                else Modifier.clickable { onSelect(item.id) }
+                                if (item.alreadyMember) {
+                                    Modifier
+                                        .clip(MaterialTheme.shapes.small)
+                                        .background(SurfaceVariant)
+                                } else {
+                                    Modifier.clickable { onSelect(item.id) }
+                                }
                             )
                             .padding(horizontal = Spacing.HorizontalPadding),
                         verticalAlignment = Alignment.CenterVertically,

@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,15 +21,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistGroup
-import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextTertiary
 // Aliased: the Material3 `Surface` composable owns the simple name in Compose files.
@@ -119,8 +120,9 @@ internal fun GroupPickerBottomSheet(
 
 /**
  * The group the playlist is already in gets no `clickable` at all — not a disabled one — so it
- * takes no ripple and no tap, and dims to [Alpha.Disabled] like every other inert row in the app
- * (SongActionsBottomSheet's ActionRow, SongRow, PlayerTransportControls). Picking it would be a
+ * takes no ripple and no tap. It renders at full opacity on a [SurfaceVariant] background (same
+ * treatment as SongActionsBottomSheet's already-a-member playlist row) so it stands out as the
+ * current answer rather than receding like a disabled row. Picking it would be a
  * no-op write, so it is shown as the answer to "where is this playlist now" rather than as a
  * choice that silently does nothing.
  */
@@ -134,8 +136,15 @@ private fun GroupPickerRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(Spacing.xxl)
-            .alpha(if (isCurrent) Alpha.Disabled else 1f)
-            .then(if (isCurrent) Modifier else Modifier.clickable(onClick = onClick))
+            .then(
+                if (isCurrent) {
+                    Modifier
+                        .clip(MaterialTheme.shapes.small)
+                        .background(SurfaceVariant)
+                } else {
+                    Modifier.clickable(onClick = onClick)
+                }
+            )
             .padding(horizontal = Spacing.HorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
