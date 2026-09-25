@@ -310,7 +310,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Gives any playlist still missing its generated cover art (rows that predate the v13->v14
-     * schema, plus anything PlaylistSeedBootstrapper inserted) a hue and structure seed. Placed
+     * schema, or restored from a backup that predates them) a hue and structure seed. Placed
      * after the queue restore for the same reason the art sweep is: the mini player coming back
      * matters more than a cover that is currently drawing the flat placeholder, and the playlist
      * lists redraw on their own the moment the rows land, since they observe Room.

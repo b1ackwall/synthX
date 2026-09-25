@@ -74,7 +74,7 @@ class PlaylistArtDaoInstrumentedTest {
 
     @Test fun getPlaylistIdsMissingArtBreaksIdenticalTimestampTiesById() = runBlocking {
         val dao = database.playlistDao()
-        // PlaylistSeedBootstrapper stamps every row it inserts with the SAME created_at — this
+        // A batch of rows can share the SAME created_at — this
         // reproduces that exact shape, inserted in an order that does NOT already match id sort,
         // so a test that passed by coincidence (insertion order == id order) can't hide here.
         listOf("c-playlist", "a-playlist", "b-playlist").forEach { id ->

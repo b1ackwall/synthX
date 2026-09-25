@@ -20,8 +20,7 @@ interface PlaylistDao {
 
     // Deliberately NOT OnConflictStrategy.REPLACE: the only production caller
     // (SongRepositoryImpl.createGroup) always inserts a freshly generated UUID, so a conflict here
-    // can only mean an id collision bug. (PlaylistSeedBootstrapper never inserts groups — its
-    // seeded playlists are all ungrouped.) REPLACE would silently delete the existing
+    // can only mean an id collision bug. REPLACE would silently delete the existing
     // row first — orphaning every playlist under it (group_id is ON DELETE SET NULL) — which is
     // far worse than the default ABORT throwing loudly (R1-F02).
     @Insert
@@ -48,9 +47,7 @@ interface PlaylistDao {
     fun getPlaylistsForGroup(groupId: String): Flow<List<PlaylistEntity>>
 
     // Deliberately NOT OnConflictStrategy.REPLACE: SongRepositoryImpl.createPlaylist always
-    // inserts a freshly generated UUID, and PlaylistSeedBootstrapper inserts the manifest's fixed
-    // ids only after confirming the playlists table is empty inside the same transaction, so a
-    // conflict here can only mean an id collision bug. REPLACE would silently delete the existing
+    // inserts a freshly generated UUID, so a conflict here can only mean an id collision bug. REPLACE would silently delete the existing
     // row first — cascading away every membership under it (playlist_id is ON DELETE CASCADE on
     // playlist_songs) — which is far worse than the default ABORT throwing loudly (R1-F02).
     @Insert
@@ -81,9 +78,9 @@ interface PlaylistDao {
      * needed to render, and they are only ever written together. Ordered by creation so the
      * backfill assigns hues to a library's oldest playlists first, giving the same result
      * whatever order the rows happen to sit in. `id` is a tie-breaker (P8-T1/R6-C2):
-     * PlaylistSeedBootstrapper stamps every row it inserts with the SAME `created_at`, so a
-     * seeded batch would otherwise tie on the primary sort and come back in whatever order
-     * SQLite happens to return them — not reproducible across devices/runs.
+     * Rows sharing the SAME `created_at` (any batch inserted with one timestamp) would otherwise
+     * tie on the primary sort and come back in whatever order SQLite happens to return them —
+     * not reproducible across devices/runs.
      */
     @Query(
         "SELECT id FROM playlists WHERE art_hue IS NULL OR art_structure_seed IS NULL " +

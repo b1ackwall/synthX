@@ -16,8 +16,8 @@ import kotlinx.serialization.Serializable
 data class PlaylistExport(
     val exportedAt: Long,
     /**
-     * Matches [com.v1per.synthx.data.playlistseed.PlaylistSeedManifestV1.HASH_STRATEGY] as of
-     * this export. A future change to the fingerprinting algorithm changes this value, so a
+     * Names the song fingerprinting algorithm ([ExportedSong] hashes are the sampled SHA-256 from
+     * HashUtils: first 64KB + last 64KB + file size) as of this export. A future change to the fingerprinting algorithm changes this value, so a
      * disaster-recovery script can detect a mismatch instead of silently matching wrong songs.
      */
     val hashStrategy: String,

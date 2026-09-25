@@ -294,7 +294,7 @@ class PlaylistExportManager(
         /** How many prior generations survive alongside the current export, see [rotateGenerations]. */
         private const val GENERATIONS_KEPT = 5
 
-        /** Matches PlaylistSeedManifestV1.HASH_STRATEGY — see [PlaylistExport.hashStrategy]. */
+        /** Sampled SHA-256 song fingerprint (HashUtils) — see [PlaylistExport.hashStrategy]. */
         private const val HASH_STRATEGY = "synthx_sampled_sha256_v1"
 
         private const val DEBOUNCE_MS = 800L
@@ -307,9 +307,8 @@ class PlaylistExportManager(
         @Volatile private var INSTANCE: PlaylistExportManager? = null
 
         // A true singleton (matching SongRepositoryImpl.create()'s and SynthXDatabase's own
-        // pattern), not just a caller-discipline convention: PlaylistSeedBootstrapper.create()
-        // now also calls this, and a second independent instance would run its own competing
-        // debounced-write collector against the same SAF files.
+        // pattern), not just a caller-discipline convention: a second independent instance
+        // would run its own competing debounced-write collector against the same SAF files.
         fun create(context: Context): PlaylistExportManager {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {

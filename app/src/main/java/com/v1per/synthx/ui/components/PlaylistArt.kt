@@ -31,7 +31,7 @@ import com.v1per.synthx.data.playlistart.PlaylistArtRole
  * each time a row scrolls off and back — see [PlaylistArtModelCache].
  *
  * A playlist with no art yet — a row that predates the v13->v14 schema and has not met
- * PlaylistArtBackfill, or one seeded by PlaylistSeedBootstrapper — falls back to the same flat
+ * PlaylistArtBackfill — falls back to the same flat
  * [ArtPlaceholder] every other artless surface uses, rather than inventing a look of its own.
  */
 @Composable

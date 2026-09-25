@@ -5,10 +5,6 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.v1per.synthx.data.playlistseed.PlaylistSeedBootstrapResult
-import com.v1per.synthx.data.playlistseed.PlaylistSeedBootstrapper
-import com.v1per.synthx.data.playlistseed.PlaylistSeedManifestGenerator
-import com.v1per.synthx.data.playlistseed.PlaylistSeedManifestRegenerationResult
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
@@ -20,25 +16,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class DeveloperSettingsViewModel internal constructor(
-    private val playlistSeedBootstrapper: PlaylistSeedBootstrapper,
-    private val playlistSeedManifestGenerator: PlaylistSeedManifestGenerator,
     private val repository: SongRepository,
     private val preferencesManager: PreferencesManager,
 ) : ViewModel() {
-
-    private val _isSeeding = MutableStateFlow(false)
-    val isSeeding: StateFlow<Boolean> = _isSeeding.asStateFlow()
-
-    private val _seedResult = MutableStateFlow<PlaylistSeedBootstrapResult?>(null)
-    val seedResult: StateFlow<PlaylistSeedBootstrapResult?> = _seedResult.asStateFlow()
-
-    private val _isRegeneratingSeedManifest = MutableStateFlow(false)
-    val isRegeneratingSeedManifest: StateFlow<Boolean> = _isRegeneratingSeedManifest.asStateFlow()
-
-    private val _regenerateSeedManifestResult =
-        MutableStateFlow<PlaylistSeedManifestRegenerationResult?>(null)
-    val regenerateSeedManifestResult: StateFlow<PlaylistSeedManifestRegenerationResult?> =
-        _regenerateSeedManifestResult.asStateFlow()
 
     private val _rootOrganizationCheckStatus = MutableStateFlow<String?>(null)
     val rootOrganizationCheckStatus: StateFlow<String?> =
@@ -51,40 +31,6 @@ class DeveloperSettingsViewModel internal constructor(
     private val _rootOrganizationCheckResult = MutableStateFlow<RootOrganizationCheckResult?>(null)
     val rootOrganizationCheckResult: StateFlow<RootOrganizationCheckResult?> =
         _rootOrganizationCheckResult.asStateFlow()
-
-    fun seedPlaylistsFromManifest() {
-        if (_isSeeding.value) return
-
-        viewModelScope.launch {
-            _isSeeding.value = true
-            try {
-                _seedResult.value = playlistSeedBootstrapper.seed()
-            } finally {
-                _isSeeding.value = false
-            }
-        }
-    }
-
-    fun dismissSeedResult() {
-        _seedResult.value = null
-    }
-
-    fun regenerateSeedManifest() {
-        if (_isRegeneratingSeedManifest.value) return
-
-        viewModelScope.launch {
-            _isRegeneratingSeedManifest.value = true
-            try {
-                _regenerateSeedManifestResult.value = playlistSeedManifestGenerator.regenerate()
-            } finally {
-                _isRegeneratingSeedManifest.value = false
-            }
-        }
-    }
-
-    fun dismissRegenerateSeedManifestResult() {
-        _regenerateSeedManifestResult.value = null
-    }
 
     fun checkRootLibraryOrganization() {
         if (_isCheckingRootOrganization.value) return
@@ -129,10 +75,6 @@ class DeveloperSettingsViewModel internal constructor(
             val appContext = context.applicationContext
             @Suppress("UNCHECKED_CAST")
             return DeveloperSettingsViewModel(
-                playlistSeedBootstrapper = PlaylistSeedBootstrapper.create(
-                    appContext,
-                ),
-                playlistSeedManifestGenerator = PlaylistSeedManifestGenerator.create(appContext),
                 repository = SongRepositoryImpl.create(appContext),
                 preferencesManager = PreferencesManager(appContext),
             ) as T

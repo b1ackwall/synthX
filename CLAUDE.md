@@ -63,7 +63,6 @@ Top-level packages under app/src/main/java/com/v1per/synthx/:
 - data/backup/ - BackupManager, RestoreCoordinator, RestoreTransaction, DatabaseStartupGate, RepositoryDbFlow/RepositoryDbOperation (see Architecture section - do not bypass these)
 - data/db/ - Room entities, DAOs, SynthXDatabase (v16, see Architecture)
 - data/playlistart/ - generated playlist cover art support: PlaylistArtHue (perceptually spaced hue selection), PlaylistArtColor (OkLab palette helpers), PlaylistArtBackfill (fills art for playlists that predate the art columns). The drawing itself lives in ui/components/PlaylistArt*.kt
-- data/playlistseed/ - PlaylistSeedBootstrapper (default playlist seeding from assets/playlist_seed_manifest_v1.json)
 - data/repository/ - domain models + SongRepository/SongRepositoryImpl
 - data/scanner/ - FolderScanner, HashUtils (SHA-256 fingerprinting)
 - glitch/ - GlitchPattern.kt
