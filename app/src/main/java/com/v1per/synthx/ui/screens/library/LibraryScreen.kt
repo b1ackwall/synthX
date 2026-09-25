@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -53,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -266,19 +269,12 @@ private fun RecentlyAddedSection(
                 .fillMaxWidth()
                 .padding(horizontal = Spacing.HorizontalPadding)
                 .padding(top = Spacing.lg),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = stringResource(R.string.library_recently_added),
                 style = MaterialTheme.typography.titleMedium,
                 color = TextPrimary,
-            )
-            Text(
-                text = stringResource(R.string.action_see_all),
-                style = MaterialTheme.typography.labelMedium,
-                color = TextSecondary,
-                modifier = Modifier.clickable(onClick = onSeeAllClick),
             )
         }
 
@@ -313,8 +309,23 @@ private fun RecentlyAddedSection(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(Spacing.ItemSpacing))
+
+        // Trailing action at the end of the limited preview. Reuses CategoryRow so it shares the
+        // Accent ripple, padding and hairline; the 48dp floor is for this row only.
+        CategoryRow(
+            icon = Icons.AutoMirrored.Filled.ArrowForward,
+            label = stringResource(R.string.action_see_all),
+            onClick = onSeeAllClick,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .testTag(RecentlyAddedSeeAllTag),
+        )
     }
 }
+
+internal const val RecentlyAddedSeeAllTag = "recently_added_see_all"
 
 // Matches RecentlyAddedSection's header/grid shape while data is still loading. The "See
 // all" action is omitted rather than shown disabled — there's nothing to see all of yet.
@@ -489,6 +500,7 @@ private fun CategoryRow(
     label: String,
     onClick: () -> Unit,
     trailingText: String? = null,
+    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -501,6 +513,7 @@ private fun CategoryRow(
                     indication = ripple(color = Accent),
                     onClick = onClick,
                 )
+                .then(modifier)
                 .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
