@@ -266,7 +266,7 @@ fun SongActionsHost(
     // single sheet instance does, and only when it actually opens on a Starred row.
     LaunchedEffect(target?.song?.id, target?.source) {
         viewModel.resolveRemoveFromStarredGate(
-            songId = target?.song?.id?.takeIf { target?.source == SongActionSource.Starred },
+            songId = target?.song?.id?.takeIf { target.source == SongActionSource.Starred },
         )
     }
 

@@ -29,6 +29,7 @@ import com.v1per.synthx.ui.common.ScanStatusStrings
 import com.v1per.synthx.ui.common.VERIFY_TAG
 import com.v1per.synthx.ui.common.launchCatching
 import com.v1per.synthx.ui.common.scanStatusFor
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -166,6 +167,7 @@ class LibraryManagementViewModel(
      * notice, but only for [MissingFirstScanGraceMs]: a record that never appears must not leave a
      * stale promise up forever.
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     val newArrivalsFolderNotice: StateFlow<String?> = _deferredNewArrivalsScanId
         .flatMapLatest { id ->
             if (id == null) {
@@ -397,6 +399,7 @@ class LibraryManagementViewModel(
      * [MissingFirstScanGraceMs], then as Failed, so the wizard can never spin forever on a scan
      * that WorkManager has no record of.
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     val firstScanState: StateFlow<FirstScanState> = _firstScanRequestId
         .flatMapLatest { id ->
             if (id == null) {

@@ -45,52 +45,52 @@ abstract class SynthXDatabase : RoomDatabase() {
         @Volatile private var INSTANCE: SynthXDatabase? = null
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE songs ADD COLUMN track_number INTEGER")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE songs ADD COLUMN track_number INTEGER")
             }
         }
 
         val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // Wipe all song-derived data — hash strategy changed, full rescan required
-                database.execSQL("DELETE FROM listen_history")
-                database.execSQL("DELETE FROM playlist_songs")
-                database.execSQL("DELETE FROM song_artists")
-                database.execSQL("DELETE FROM songs")
-                database.execSQL("DELETE FROM artists")
-                database.execSQL("DELETE FROM albums")
+                db.execSQL("DELETE FROM listen_history")
+                db.execSQL("DELETE FROM playlist_songs")
+                db.execSQL("DELETE FROM song_artists")
+                db.execSQL("DELETE FROM songs")
+                db.execSQL("DELETE FROM artists")
+                db.execSQL("DELETE FROM albums")
 
                 // Add missing indices
-                database.execSQL(
+                db.execSQL(
                     "CREATE UNIQUE INDEX IF NOT EXISTS index_songs_file_path ON songs(file_path)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_artists_name_normalized " +
                         "ON artists(name_normalized)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_albums_title ON albums(title)"
                 )
             }
         }
 
         val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // Artist splitting delimiter changed — wipe song/artist data for full rescan
-                database.execSQL("DELETE FROM listen_history")
-                database.execSQL("DELETE FROM playlist_songs")
-                database.execSQL("DELETE FROM song_artists")
-                database.execSQL("DELETE FROM songs")
-                database.execSQL("DELETE FROM artists")
-                database.execSQL("DELETE FROM albums")
+                db.execSQL("DELETE FROM listen_history")
+                db.execSQL("DELETE FROM playlist_songs")
+                db.execSQL("DELETE FROM song_artists")
+                db.execSQL("DELETE FROM songs")
+                db.execSQL("DELETE FROM artists")
+                db.execSQL("DELETE FROM albums")
             }
         }
 
         // Purely additive: queue_items is new, so there is nothing to migrate into it and
         // no reason to wipe song data the way 2_3 and 3_4 had to.
         val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS queue_items (
                         position INTEGER NOT NULL,
@@ -101,7 +101,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_queue_items_song_id ON queue_items(song_id)"
                 )
             }
@@ -110,8 +110,8 @@ abstract class SynthXDatabase : RoomDatabase() {
         // Purely additive, same shape as 4_5: queue_baseline_items is new, app-managed
         // ordering state with nothing to migrate into it.
         val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS queue_baseline_items (
                         position INTEGER NOT NULL,
@@ -122,7 +122,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_queue_baseline_items_song_id " +
                         "ON queue_baseline_items(song_id)"
                 )
@@ -134,15 +134,15 @@ abstract class SynthXDatabase : RoomDatabase() {
         // interface, never written to) and songs.verified/verified_at (declared,
         // queried once via the never-called getUnverifiedSongs, never written).
         val MIGRATION_6_7 = object : Migration(6, 7) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("DROP TABLE IF EXISTS listen_history")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS listen_history")
 
                 // SQLite's ALTER TABLE DROP COLUMN needs 3.35+, not guaranteed at this
                 // app's minSdk — rebuild the table via the standard create/copy/drop/rename
                 // pattern instead. Room disables FK enforcement while migrations run, so
                 // the other tables' FOREIGN KEY(song_id) REFERENCES songs(id) don't block
                 // dropping/recreating this one.
-                database.execSQL(
+                db.execSQL(
                     """
                     CREATE TABLE songs_new (
                         id TEXT NOT NULL PRIMARY KEY,
@@ -161,7 +161,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     """
                     INSERT INTO songs_new (
                         id, title, album_id, duration, file_path, album_art_uri, year,
@@ -173,14 +173,14 @@ abstract class SynthXDatabase : RoomDatabase() {
                     FROM songs
                     """.trimIndent()
                 )
-                database.execSQL("DROP TABLE songs")
-                database.execSQL("ALTER TABLE songs_new RENAME TO songs")
+                db.execSQL("DROP TABLE songs")
+                db.execSQL("ALTER TABLE songs_new RENAME TO songs")
 
                 // Dropping the old table drops its indices too — recreate them.
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_songs_album_id ON songs(album_id)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE UNIQUE INDEX IF NOT EXISTS index_songs_file_path ON songs(file_path)"
                 )
             }
@@ -191,11 +191,11 @@ abstract class SynthXDatabase : RoomDatabase() {
         // unlike 6_7, no table rebuild either: it was DROP COLUMN that needed SQLite 3.35+,
         // while ADD COLUMN with a NOT NULL DEFAULT works at this app's minSdk.
         val MIGRATION_7_8 = object : Migration(7, 8) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // Default 1 (starred) is the right answer for a *new* song, and must match
                 // SongEntity's @ColumnInfo(defaultValue = "1") exactly or Room's open-time
                 // schema validation throws.
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN in_inbox INTEGER NOT NULL DEFAULT 1"
                 )
 
@@ -205,7 +205,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                 // UPDATE rather than a per-row loop, and playlist_songs already carries
                 // Index("song_id") (see PlaylistSongEntity), so the correlated EXISTS is
                 // index-backed and costs milliseconds even on a multi-thousand-song library.
-                database.execSQL(
+                db.execSQL(
                     """
                     UPDATE songs SET in_inbox = 0
                     WHERE EXISTS (
@@ -222,10 +222,10 @@ abstract class SynthXDatabase : RoomDatabase() {
         // songs were never retained, so existing rows simply keep this column NULL until a
         // fresh scan re-extracts art for them.
         val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // Default NULL must match SongEntity's @ColumnInfo(defaultValue = "NULL")
                 // exactly or Room's open-time schema validation throws.
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN album_art_full_uri TEXT DEFAULT NULL"
                 )
             }
@@ -236,8 +236,8 @@ abstract class SynthXDatabase : RoomDatabase() {
         // living independently in SharedPreferences. Purely additive, same shape as 4_5/5_6:
         // nothing to migrate into a brand-new table.
         val MIGRATION_9_10 = object : Migration(9, 10) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS playback_cursor (
                         id INTEGER NOT NULL,
@@ -257,11 +257,11 @@ abstract class SynthXDatabase : RoomDatabase() {
         // same shape as 7_8/8_9 — defaults must match PlaybackCursorEntity's
         // @ColumnInfo(defaultValue = ...) exactly or Room's open-time schema validation throws.
         val MIGRATION_10_11 = object : Migration(10, 11) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     "ALTER TABLE playback_cursor ADD COLUMN shuffle_enabled INTEGER NOT NULL DEFAULT 0"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE playback_cursor ADD COLUMN repeat_mode INTEGER NOT NULL DEFAULT 0"
                 )
             }
@@ -273,11 +273,11 @@ abstract class SynthXDatabase : RoomDatabase() {
         // is rebuilt to replace its ambiguous raw queue index with an exact nullable slot id;
         // playback position and the independent shuffle/repeat preferences are retained.
         val MIGRATION_11_12 = object : Migration(11, 12) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("DROP TABLE IF EXISTS queue_items")
-                database.execSQL("DROP TABLE IF EXISTS queue_baseline_items")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS queue_items")
+                db.execSQL("DROP TABLE IF EXISTS queue_baseline_items")
 
-                database.execSQL(
+                db.execSQL(
                     """
                     CREATE TABLE queue_items (
                         slot_id TEXT NOT NULL,
@@ -289,14 +289,14 @@ abstract class SynthXDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX index_queue_items_position ON queue_items(position)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX index_queue_items_song_id ON queue_items(song_id)"
                 )
 
-                database.execSQL(
+                db.execSQL(
                     """
                     CREATE TABLE queue_baseline_items (
                         slot_id TEXT NOT NULL,
@@ -308,16 +308,16 @@ abstract class SynthXDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX index_queue_baseline_items_position " +
                         "ON queue_baseline_items(position)"
                 )
-                database.execSQL(
+                db.execSQL(
                     "CREATE INDEX index_queue_baseline_items_song_id " +
                         "ON queue_baseline_items(song_id)"
                 )
 
-                database.execSQL(
+                db.execSQL(
                     """
                     CREATE TABLE playback_cursor_new (
                         id INTEGER NOT NULL,
@@ -329,7 +329,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     """
                     INSERT INTO playback_cursor_new (
                         id, current_slot_id, position_ms, shuffle_enabled, repeat_mode
@@ -338,39 +338,39 @@ abstract class SynthXDatabase : RoomDatabase() {
                     FROM playback_cursor
                     """.trimIndent()
                 )
-                database.execSQL("DROP TABLE playback_cursor")
-                database.execSQL("ALTER TABLE playback_cursor_new RENAME TO playback_cursor")
+                db.execSQL("DROP TABLE playback_cursor")
+                db.execSQL("ALTER TABLE playback_cursor_new RENAME TO playback_cursor")
             }
         }
 
         // Raw artwork swatches only. Existing rows stay NULL until the Issues palette fix runs.
         val MIGRATION_12_13 = object : Migration(12, 13) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN swatch1_hue REAL DEFAULT NULL"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN swatch1_saturation REAL DEFAULT NULL"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN swatch1_lightness REAL DEFAULT NULL"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN swatch2_hue REAL DEFAULT NULL"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN swatch2_saturation REAL DEFAULT NULL"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN swatch2_lightness REAL DEFAULT NULL"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN swatch3_hue REAL DEFAULT NULL"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN swatch3_saturation REAL DEFAULT NULL"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE songs ADD COLUMN swatch3_lightness REAL DEFAULT NULL"
                 )
             }
@@ -378,11 +378,11 @@ abstract class SynthXDatabase : RoomDatabase() {
 
         // Playlist art hue + structure seed. Existing rows stay NULL until the startup backfill routine runs.
         val MIGRATION_13_14 = object : Migration(13, 14) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     "ALTER TABLE playlists ADD COLUMN art_hue INTEGER DEFAULT NULL"
                 )
-                database.execSQL(
+                db.execSQL(
                     "ALTER TABLE playlists ADD COLUMN art_structure_seed INTEGER DEFAULT NULL"
                 )
             }
@@ -395,8 +395,8 @@ abstract class SynthXDatabase : RoomDatabase() {
         // 4_5/5_6/9_10: a brand-new table with nothing to migrate into it. Deliberately no
         // foreign key to songs — see the entity's kdoc for why.
         val MIGRATION_14_15 = object : Migration(14, 15) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS pending_cleanups (
                         operation_id TEXT NOT NULL PRIMARY KEY,
@@ -418,8 +418,8 @@ abstract class SynthXDatabase : RoomDatabase() {
          * are folded into the lexicographically first id and every song is repointed first.
          */
         val MIGRATION_15_16 = object : Migration(15, 16) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL(
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
                     """
                     CREATE TEMP TABLE album_case_identity AS
                     SELECT albums.id, albums.title,
@@ -436,7 +436,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     FROM albums
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     """
                     CREATE TEMP TABLE album_case_merges AS
                     SELECT identity.id AS duplicate_id, grouped.survivor_id
@@ -452,7 +452,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     WHERE identity.id != grouped.survivor_id
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     """
                     UPDATE songs SET album_id = (
                         SELECT survivor_id FROM album_case_merges
@@ -461,7 +461,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     WHERE album_id IN (SELECT duplicate_id FROM album_case_merges)
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     """
                     UPDATE albums SET
                         year = COALESCE(year, (
@@ -482,13 +482,13 @@ abstract class SynthXDatabase : RoomDatabase() {
                     WHERE id IN (SELECT survivor_id FROM album_case_merges)
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     "DELETE FROM albums WHERE id IN (SELECT duplicate_id FROM album_case_merges)"
                 )
-                database.execSQL("DROP TABLE album_case_merges")
-                database.execSQL("DROP TABLE album_case_identity")
+                db.execSQL("DROP TABLE album_case_merges")
+                db.execSQL("DROP TABLE album_case_identity")
 
-                database.execSQL(
+                db.execSQL(
                     """
                     CREATE TABLE albums_new (
                         id TEXT NOT NULL PRIMARY KEY,
@@ -498,13 +498,13 @@ abstract class SynthXDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
-                database.execSQL(
+                db.execSQL(
                     "INSERT INTO albums_new (id, title, year, album_art_uri) " +
                         "SELECT id, title, year, album_art_uri FROM albums"
                 )
-                database.execSQL("DROP TABLE albums")
-                database.execSQL("ALTER TABLE albums_new RENAME TO albums")
-                database.execSQL(
+                db.execSQL("DROP TABLE albums")
+                db.execSQL("ALTER TABLE albums_new RENAME TO albums")
+                db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_albums_title ON albums(title)"
                 )
             }
