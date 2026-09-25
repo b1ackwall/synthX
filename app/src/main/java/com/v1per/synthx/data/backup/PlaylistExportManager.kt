@@ -103,10 +103,28 @@ class PlaylistExportManager(
         val root = DocumentFile.fromTreeUri(context, treeUri)
             ?: error("Backup folder is unreachable — re-select it in Backups and Restore")
 
-        // Leftover from a previous run that crashed before reaching the rename below.
-        root.findFile(TEMP_FILE_NAME)?.delete()
+        publishExport(root, bytes)
+    }
 
-        val tempDoc = root.createFile(MIME_JSON, TEMP_FILE_NAME)
+    /**
+     * Writes [bytes] as the current export inside the [EXPORT_FOLDER_NAME] subfolder of [root],
+     * migrating any pre-subfolder root-level files first. `internal`: a test seam so the
+     * folder/migration/rotation behavior can run against a file-backed [DocumentFile] root
+     * (see [BackupManager.classifyBackupList] for why a genuine SAF tree is unavailable in tests).
+     */
+    internal fun publishExport(root: DocumentFile, bytes: ByteArray) {
+        val dir = resolveExportDir(root)
+            ?: error("Could not create the $EXPORT_FOLDER_NAME folder in the backup folder")
+
+        if (!legacyMigrationDone) {
+            migrateLegacyRootFiles(root, dir)
+            legacyMigrationDone = true
+        }
+
+        // Leftover from a previous run that crashed before reaching the rename below.
+        dir.findFile(TEMP_FILE_NAME)?.delete()
+
+        val tempDoc = dir.createFile(MIME_JSON, TEMP_FILE_NAME)
             ?: error("Could not create playlist export temp file")
         context.contentResolver.openOutputStream(tempDoc.uri)?.use { out -> out.write(bytes) }
             ?: error("Could not open playlist export temp file for writing")
@@ -119,7 +137,7 @@ class PlaylistExportManager(
         // is of the oldest generation being pruned, whose content is already duplicated by
         // every generation below it plus the (still-untouched) current file, so pruning it can
         // never leave fewer than GENERATIONS_KEPT recoverable copies on disk.
-        rotateGenerations(root)
+        rotateGenerations(dir)
 
         // Promote the fully-written temp file into the now-vacated current slot. SAF's
         // DocumentFile has no atomic "replace" primitive, only per-document renameTo, but the
@@ -130,12 +148,58 @@ class PlaylistExportManager(
         }
     }
 
-    private fun rotateGenerations(root: DocumentFile) {
-        root.findFile(generationFileName(GENERATIONS_KEPT))?.delete()
-        for (generation in GENERATIONS_KEPT - 1 downTo 1) {
-            root.findFile(generationFileName(generation))?.renameTo(generationFileName(generation + 1))
+    /** Same find-or-create shape as BackupManager.resolveTierDir, but not a [BackupTier]. */
+    private fun resolveExportDir(root: DocumentFile): DocumentFile? {
+        val existing = root.findFile(EXPORT_FOLDER_NAME)
+        if (existing != null && existing.isDirectory) return existing
+        return root.createDirectory(EXPORT_FOLDER_NAME)
+    }
+
+    /**
+     * One-time move of `playlists_export.json` and its numbered generations from the backup
+     * root (where they lived before the subfolder existed) into [dir], keeping filenames so the
+     * generation history carries forward. DocumentFile has no cross-directory move, so each is
+     * copied to a `.migrating` temp, renamed into place, then the root original is deleted — a
+     * crash at any point leaves the original intact. A file already present in [dir] is never
+     * overwritten: the root original is only deleted if the copy there is the same size,
+     * otherwise it is left in place (no data loss, retried next process). A root-level
+     * `.tmp` is a crashed partial write and is just deleted.
+     */
+    internal fun migrateLegacyRootFiles(root: DocumentFile, dir: DocumentFile) {
+        root.findFile(TEMP_FILE_NAME)?.delete()
+        val names = listOf(FINAL_FILE_NAME) + (1..GENERATIONS_KEPT).map(::generationFileName)
+        for (name in names) {
+            val legacy = root.findFile(name)?.takeIf { it.isFile } ?: continue
+            val existing = dir.findFile(name)
+            if (existing != null) {
+                if (existing.length() == legacy.length()) legacy.delete()
+                continue
+            }
+            val stagingName = "$name.migrating"
+            dir.findFile(stagingName)?.delete()
+            val staging = dir.createFile(MIME_JSON, stagingName) ?: continue
+            val copied = runCatching {
+                context.contentResolver.openInputStream(legacy.uri)?.use { input ->
+                    context.contentResolver.openOutputStream(staging.uri)?.use { output ->
+                        input.copyTo(output)
+                    } ?: return@runCatching false
+                } ?: return@runCatching false
+                true
+            }.getOrDefault(false)
+            if (copied && staging.length() == legacy.length() && staging.renameTo(name)) {
+                legacy.delete()
+            } else {
+                staging.delete()
+            }
         }
-        root.findFile(FINAL_FILE_NAME)?.renameTo(generationFileName(1))
+    }
+
+    private fun rotateGenerations(dir: DocumentFile) {
+        dir.findFile(generationFileName(GENERATIONS_KEPT))?.delete()
+        for (generation in GENERATIONS_KEPT - 1 downTo 1) {
+            dir.findFile(generationFileName(generation))?.renameTo(generationFileName(generation + 1))
+        }
+        dir.findFile(FINAL_FILE_NAME)?.renameTo(generationFileName(1))
     }
 
     private fun generationFileName(generation: Int) = "playlists_export.$generation.json"
@@ -222,6 +286,8 @@ class PlaylistExportManager(
         private const val TAG = "PlaylistExport"
 
         private const val MIME_JSON = "application/json"
+        /** Sibling of the Daily/Auto/Manual tier folders; deliberately not a [BackupTier]. */
+        internal const val EXPORT_FOLDER_NAME = "PlaylistExports"
         private const val FINAL_FILE_NAME = "playlists_export.json"
         private const val TEMP_FILE_NAME = "playlists_export.json.tmp"
 
@@ -232,6 +298,11 @@ class PlaylistExportManager(
         private const val HASH_STRATEGY = "synthx_sampled_sha256_v1"
 
         private const val DEBOUNCE_MS = 800L
+
+        @Volatile private var legacyMigrationDone = false
+
+        /** Test-only: resets the once-per-process migration guard. */
+        internal fun resetMigrationGuardForTest() { legacyMigrationDone = false }
 
         @Volatile private var INSTANCE: PlaylistExportManager? = null
 
