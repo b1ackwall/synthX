@@ -19,6 +19,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.LinearGradientShader
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativePaint
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Motion
@@ -79,7 +80,7 @@ fun AnimatedGradientBackground(
     // depend on the animated points, so there's nothing here that should rebuild per frame.
     val paint = remember {
         Paint().apply {
-            asFrameworkPaint().apply {
+            nativePaint.apply {
                 isAntiAlias = true
                 maskFilter = BlurMaskFilter(BlurRadiusPx, BlurMaskFilter.Blur.NORMAL)
             }
@@ -100,14 +101,14 @@ fun AnimatedGradientBackground(
                         // LinearGradientShader is immutable once built, so a fresh one is
                         // unavoidable each frame the endpoints move; everything else on
                         // `paint` (blur, anti-aliasing) is reused as-is.
-                        paint.asFrameworkPaint().shader = LinearGradientShader(
+                        paint.nativePaint.shader = LinearGradientShader(
                             from = Offset(startX.value * size.width, startY.value * size.height),
                             to = Offset(endX.value * size.width, endY.value * size.height),
                             colors = GradientColors,
                         )
                         // Fades only this gradient layer; the black base coat and the
                         // content slot stay fully opaque.
-                        paint.asFrameworkPaint().alpha = (gradientAlpha * 255).toInt().coerceIn(0, 255)
+                        paint.nativePaint.alpha = (gradientAlpha * 255).toInt().coerceIn(0, 255)
                         drawIntoCanvas { canvas ->
                             canvas.drawRect(Rect(Offset.Zero, size), paint)
                         }
