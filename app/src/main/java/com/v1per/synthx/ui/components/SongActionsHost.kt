@@ -84,6 +84,7 @@ fun interface SongActionsController {
 sealed class SongActionEvent {
     data class AlreadyInPlaylist(val playlistName: String) : SongActionEvent()
     data class AddedToPlaylist(val playlistName: String) : SongActionEvent()
+    data class RemovedFromPlaylist(val playlistName: String) : SongActionEvent()
     data object RemovedFromStarred : SongActionEvent()
     /** A mutation threw (Room/SAF failure) — see [SongActionsViewModel.launchCatching] use. */
     data object ActionFailed : SongActionEvent()
@@ -180,6 +181,8 @@ fun SongActionsHost(
                     context.getString(R.string.actions_already_in_playlist, event.playlistName)
                 is SongActionEvent.AddedToPlaylist ->
                     context.getString(R.string.actions_added_to_playlist, event.playlistName)
+                is SongActionEvent.RemovedFromPlaylist ->
+                    context.getString(R.string.actions_removed_from_playlist, event.playlistName)
                 SongActionEvent.RemovedFromStarred ->
                     context.getString(R.string.actions_removed_from_starred)
                 SongActionEvent.ActionFailed -> context.getString(R.string.actions_failed)
@@ -260,6 +263,9 @@ fun SongActionsHost(
     // showDeleteConfirm, rather than a SharedFlow: both dialogs are answered from right here.
     var playNextConfirmTarget by remember { mutableStateOf<Song?>(null) }
     var addToQueueConfirmTarget by remember { mutableStateOf<Song?>(null) }
+    // Song + playlist captured together at tap time: the sheet's own target is cleared by
+    // dismiss() before this dialog shows.
+    var removeFromPlaylistTarget by remember { mutableStateOf<RemoveFromPlaylistTarget?>(null) }
 
     // The ≥1-playlist-membership gate is resolved once per sheet opening, keyed on the
     // target — not per row and not per scroll frame. Rows never run this query; only the
@@ -338,8 +344,12 @@ fun SongActionsHost(
             },
             onRemoveFromPlaylist = {
                 val playlistId = current.playlistId
-                val songId = current.song.id
-                dismiss { if (playlistId != null) viewModel.removeFromPlaylist(playlistId, songId) }
+                val song = current.song
+                dismiss {
+                    if (playlistId != null) {
+                        removeFromPlaylistTarget = RemoveFromPlaylistTarget(song, playlistId)
+                    }
+                }
             },
             onRemoveFromStarred = {
                 val songId = current.song.id
@@ -371,6 +381,17 @@ fun SongActionsHost(
             onDismiss = { playNextConfirmTarget = null },
         )
     }
+    removeFromPlaylistTarget?.let { pending ->
+        RemoveFromPlaylistDialog(
+            songTitle = pending.song.title,
+            playlistName = playlists.firstOrNull { it.id == pending.playlistId }?.name.orEmpty(),
+            onConfirm = {
+                viewModel.removeFromPlaylist(pending.playlistId, pending.song.id)
+                removeFromPlaylistTarget = null
+            },
+            onDismiss = { removeFromPlaylistTarget = null },
+        )
+    }
     addToQueueConfirmTarget?.let { song ->
         AddToQueueDuplicateDialog(
             onConfirm = {
@@ -383,6 +404,8 @@ fun SongActionsHost(
         )
     }
 }
+
+private data class RemoveFromPlaylistTarget(val song: Song, val playlistId: String)
 
 private data class SongActionsTarget(
     val song: Song,
@@ -589,6 +612,9 @@ class SongActionsViewModel(
     fun removeFromPlaylist(playlistId: String, songId: String) {
         launchCatching(onError = { _events.tryEmit(SongActionEvent.ActionFailed) }) {
             repository.removeSongFromPlaylist(playlistId, songId)
+            // After the call, not before: a throw lands in onError as ActionFailed instead.
+            val name = playlists.value.firstOrNull { it.id == playlistId }?.name.orEmpty()
+            _events.tryEmit(SongActionEvent.RemovedFromPlaylist(name))
         }
     }
 

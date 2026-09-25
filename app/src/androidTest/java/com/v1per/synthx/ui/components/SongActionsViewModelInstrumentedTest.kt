@@ -18,7 +18,10 @@ import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PreferencesManager
 import java.lang.reflect.Proxy
 import java.util.concurrent.atomic.AtomicInteger
+import com.v1per.synthx.data.repository.Playlist
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -199,8 +202,53 @@ class SongActionsViewModelInstrumentedTest {
         }
     }
 
+    @Test
+    fun removeFromPlaylistCallsRepositoryThenEmitsRemovedEventWithPlaylistName() = runBlocking {
+        val repo = RecordingRemoveRepository(fakeRepository())
+        val subject = subject(repo)
+        // playlists is WhileSubscribed: subscribe so the name lookup has data.
+        withTimeout(2_000) { subject.playlists.first { it.isNotEmpty() } }
+        val event = async(start = CoroutineStart.UNDISPATCHED) {
+            withTimeout(2_000) { subject.events.first() }
+        }
+
+        subject.removeFromPlaylist("pl-1", "song-1")
+
+        assertEquals(SongActionEvent.RemovedFromPlaylist("Road Trip"), event.await())
+        assertEquals(listOf("pl-1" to "song-1"), repo.removals)
+    }
+
+    @Test
+    fun removeFromPlaylistFailureEmitsActionFailedAndNeverRemovedEvent() = runBlocking {
+        val repo = RecordingRemoveRepository(fakeRepository(), failWith = IllegalStateException("boom"))
+        val subject = subject(repo)
+        withTimeout(2_000) { subject.playlists.first { it.isNotEmpty() } }
+        val event = async(start = CoroutineStart.UNDISPATCHED) {
+            withTimeout(2_000) { subject.events.first() }
+        }
+
+        subject.removeFromPlaylist("pl-1", "song-1")
+
+        assertEquals(SongActionEvent.ActionFailed, event.await())
+    }
+
     private fun subject(repository: SongRepository): SongActionsViewModel =
         SongActionsViewModel(repository, PreferencesManager(context)).also { viewModel = it }
+
+    private class RecordingRemoveRepository(
+        backing: SongRepository,
+        private val failWith: Throwable? = null,
+    ) : SongRepository by backing {
+        val removals = mutableListOf<Pair<String, String>>()
+
+        override fun getAllPlaylists(): Flow<List<Playlist>> =
+            flowOf(listOf(Playlist(id = "pl-1", name = "Road Trip", groupId = null, albumArtUri = null)))
+
+        override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) {
+            failWith?.let { throw it }
+            removals += playlistId to songId
+        }
+    }
 
     /** Same shape as [DeferredDeleteRepository], for graduateSong's Flow. */
     private class DeferredGraduateRepository(

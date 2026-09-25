@@ -65,6 +65,10 @@
     <string name="actions_go_to_artist">Go to Artist</string>
     <string name="actions_already_in_playlist">Already in %1$s</string>
     <string name="actions_added_to_playlist">Added to %1$s</string>
+    <string name="actions_removed_from_playlist">Removed from %1$s</string>
+    <string name="remove_from_playlist_dialog_title">Remove from playlist?</string>
+    <string name="remove_from_playlist_dialog_message">Remove \"%1$s\" from \"%2$s\"? The song stays in your library.</string>
+    <string name="remove_from_playlist_dialog_confirm">Remove</string>
     <string name="actions_playing_next">Playing next</string>
     <string name="actions_added_to_queue">Added to queue</string>
     <string name="actions_already_in_queue">Already in queue</string>
