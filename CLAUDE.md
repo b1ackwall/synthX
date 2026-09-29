@@ -11,14 +11,22 @@
 ## Connected Device — VERIFY BEFORE TOUCHING
 Run `adb devices -l` to see what's actually connected before running any adb command that
 touches app data or packages — do not assume which device is plugged in.
-- As of the last environment check on this machine (CachyOS), the only device attached was
-  serial `` (`model:Redmi_Note_7_Pro`, `device:violet`), and `pm list packages` on it
-  showed **only** `com.v1per.synthx.debug` installed — no `com.v1per.synthx` (production)
-  package was present on this device at all.
-  **OPEN QUESTION for  to confirm**: is this Redmi Note 7 Pro actually the daily-use
-  production phone (just currently without the production build installed), or a separate
-  test/debug-only device? Don't assume either answer — confirm before treating any device as
-  "the production phone" the safety rules below are protecting.
+- Known devices (as of the last environment check):
+  - Redmi Note 7 Pro (serial ``, `device:violet`): only `com.v1per.synthx.debug` is
+    installed. Dev-only device, safe to reinstall and test on.
+  - Samsung Galaxy S25 Ultra (`SM_S938U`): has BOTH `com.v1per.synthx.debug` AND the production
+    package `com.v1per.synthx`. The production package must NEVER be touched, uninstalled, or
+    have its data cleared.
+  - Emulator `emulator-5554` (Pixel_9a AVD): the safe default for all instrumented test runs.
+- Rules:
+  1. Run `adb devices -l` and confirm the targeted device(s) before ANY adb or Gradle
+     instrumented command.
+  2. `connectedDebugAndroidTest` does NOT respect `ANDROID_SERIAL` and runs on every attached
+     device. For instrumented Gradle runs, only the emulator may be attached — disconnect the
+     physical devices or turn off USB debugging on them first.
+  3. Plain `adb` commands DO respect `ANDROID_SERIAL`, but always pass `-s <serial>` (or set it
+     explicitly) rather than relying on it.
+  4. Never run any command that targets `com.v1per.synthx` (production).
 - `com.v1per.synthx` (no suffix) = PRODUCTION, wherever it is actually installed. NEVER run
   `adb shell pm clear`, `adb uninstall`, `adb shell pm uninstall`, or any other
   destructive/data-touching adb command against this package, under any circumstances, even to
@@ -34,18 +42,18 @@ touches app data or packages — do not assume which device is plugged in.
 
 ## Environment Setup (machine-aware)
 
-First, check the machine:
-    hostname
+The shell is fish, so set env vars with `set -gx VAR value`, not `export`.
 
-Then set JAVA_HOME for this session accordingly:
-- cachyOS → set -x JAVA_HOME /usr/lib/jvm/java-17-openjdk
+Check that the JDK exists, then set JAVA_HOME for this session:
+    ls -d /usr/lib/jvm/java-17-openjdk
+    set -gx JAVA_HOME /usr/lib/jvm/java-17-openjdk
 
 Verify before building:
     $JAVA_HOME/bin/java -version
-Expect OpenJDK 17.x on cachyOS.
+Expect OpenJDK 17.x.
 
 ## Build Command (verified working on cachyOS)
-    set -x JAVA_HOME /usr/lib/jvm/java-17-openjdk
+    set -gx JAVA_HOME /usr/lib/jvm/java-17-openjdk
     ./gradlew assembleDebug --console=plain
 Expect: BUILD SUCCESSFUL.
 
@@ -148,7 +156,7 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
 
 ## Design System (locked — no scope creep)
 - Dark-only theme.
-- #CAFF00 neon accent used ONLY in these 5 contexts — never elsewhere:
+- #1AE62B neon accent used ONLY in these 5 contexts — never elsewhere:
   1. Wordmark "X"
   2. Selected bottom nav item
   3. Playing indicator bar
