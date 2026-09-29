@@ -1,6 +1,7 @@
 package com.v1per.synthx.data
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
@@ -18,6 +19,7 @@ import kotlin.test.assertTrue
  * Coordinator-level races, same CompletableDeferred shape as FolderScannerAdmissionTest: one
  * side is held open at an exact point while the other side is driven against it.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class FileOperationCoordinatorTest {
     @BeforeTest fun setUp() = FileOperationCoordinator.resetForTest()
     @AfterTest fun tearDown() = FileOperationCoordinator.resetForTest()

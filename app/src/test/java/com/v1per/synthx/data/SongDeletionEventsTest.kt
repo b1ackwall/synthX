@@ -59,7 +59,7 @@ class SongDeletionAcknowledgmentTest {
         val waiter = SongDeletionAcknowledgment.register("song-y")
 
         assertTrue(waiter != null, "a live engine must produce something to await")
-        assertTrue(!waiter!!.isCompleted, "must not be pre-completed before signalCleared")
+        assertTrue(!waiter.isCompleted, "must not be pre-completed before signalCleared")
     }
 
     @Test fun signalClearedCompletesTheRegisteredWaiter() = runTest {
