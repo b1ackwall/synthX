@@ -3,7 +3,7 @@ package com.v1per.synthx
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
