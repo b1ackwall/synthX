@@ -2,11 +2,12 @@ package com.v1per.synthx.ui.player
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.AnchoredDraggableDefaults
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
+import androidx.compose.foundation.gestures.ScrollScope
 import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -90,6 +91,22 @@ private val ControlsOverlayHeight: Dp = 300.dp
 internal val ContentSlideDistance: Dp = 40.dp
 
 /**
+ * 20% of the full collapsed↔expanded travel, not the 0.5f used by QueueRow. Here the travel is
+ * nearly the whole screen, so a larger fraction meant a slow, non-flick drag had to cover
+ * ~294dp before it would snap — far more than a deliberate drag feels like it should need.
+ * Top-level so [AnchoredDraggableDefaults.flingBehavior]'s `remember` key stays stable.
+ *
+ * Trial (#176): Compose Foundation 1.12.0 moved fling configuration into
+ * [AnchoredDraggableDefaults.flingBehavior], which hardcodes a 125.dp/s velocity threshold
+ * (above it, the positional test is skipped) and never decays. The previous deprecated-
+ * constructor setup used `velocityThreshold = 40.dp` and
+ * `decayAnimationSpec = exponentialDecay(frictionMultiplier = 1.8f)` — the higher friction let a
+ * fast release decelerate before the snap spring took over, reading as one continuous motion.
+ * Those cannot simply be restored here; see #176 option (b), a custom fling behavior.
+ */
+private val PlayerSheetPositionalThreshold: (Float) -> Float = { totalDistance -> totalDistance * 0.2f }
+
+/**
  * Empty skeleton stand-in for [com.v1per.synthx.ui.components.PlayerSheet]: same single
  * AnchoredDraggableState morph between mini/full player, wired to real [PlaybackViewModel]
  * state, but rendering blank surfaces only. The old PlayerSheet and its child composables
@@ -134,36 +151,27 @@ internal fun PlayerSheetSkeleton(
 
     val scope = rememberCoroutineScope()
     val collapsedHeightPx = with(density) { CollapsedPlayerHeight.toPx() }
-    // Higher-than-default friction (stock exponentialDecay is 1.0f) lets a fling decelerate
-    // before handing off to the snap spring, so a fast release reads as one continuous motion
-    // rather than a coast that stops dead and is then yanked the rest of the way.
-    val decayAnimationSpec = remember { exponentialDecay<Float>(frictionMultiplier = 1.8f) }
-
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val availableHeightPx = constraints.maxHeight.toFloat()
 
-        val draggableState = remember {
-            AnchoredDraggableState(
-                initialValue = PlayerSheetValue.Collapsed,
-                // 20% of the full collapsed↔expanded travel, not the 0.4f used by
-                // RefinedBottomSheet/QueueRow. That convention is tuned for short sheets and
-                // single-row swipes; here the travel is nearly the whole screen, so 0.4f meant
-                // a slow, non-flick drag had to cover ~294dp before it would snap — far more
-                // than a deliberate drag feels like it should need. Fast flicks are unaffected:
-                // velocityThreshold below short-circuits the positional test entirely.
-                positionalThreshold = { totalDistance -> totalDistance * 0.2f },
-                velocityThreshold = { with(density) { 40.dp.toPx() } },
-                snapAnimationSpec = Motion.SpringStandard,
-                decayAnimationSpec = decayAnimationSpec,
-            )
-        }
+        val draggableState = remember { AnchoredDraggableState(initialValue = PlayerSheetValue.Collapsed) }
+
+        // Settles a released drag (see the pointerInput loop below). rememberUpdatedState
+        // because that loop is keyed on Unit and would otherwise keep the first instance.
+        val flingBehavior by rememberUpdatedState(
+            AnchoredDraggableDefaults.flingBehavior(
+                state = draggableState,
+                positionalThreshold = PlayerSheetPositionalThreshold,
+                animationSpec = Motion.SpringStandard,
+            ),
+        )
 
         // `visible &&` guards against intercepting system back on a route where this sheet is
         // zero-sized/invisible (e.g. Settings) but was left Expanded before navigating away —
         // without it, back would silently collapse the hidden sheet instead of letting normal
         // navigation (e.g. popping out of Settings) happen. See `visible`'s doc comment above.
         BackHandler(enabled = visible && draggableState.currentValue == PlayerSheetValue.Expanded) {
-            scope.launch { draggableState.animateTo(PlayerSheetValue.Collapsed) }
+            scope.launch { draggableState.animateTo(PlayerSheetValue.Collapsed, Motion.SpringStandard) }
         }
 
         // Collapses the sheet on external request (e.g. "Go to Album"/"Go to Artist"
@@ -173,7 +181,7 @@ internal fun PlayerSheetSkeleton(
         // fires a spurious collapse-from-collapsed on first composition.
         LaunchedEffect(collapsePlayerSignal) {
             if (collapsePlayerSignal > 0) {
-                draggableState.animateTo(PlayerSheetValue.Collapsed)
+                draggableState.animateTo(PlayerSheetValue.Collapsed, Motion.SpringStandard)
             }
         }
 
@@ -385,7 +393,9 @@ internal fun PlayerSheetSkeleton(
                                 if (!downConsumedByDescendant &&
                                     draggableState.currentValue == PlayerSheetValue.Collapsed
                                 ) {
-                                    scope.launch { draggableState.animateTo(PlayerSheetValue.Expanded) }
+                                    scope.launch {
+                                        draggableState.animateTo(PlayerSheetValue.Expanded, Motion.SpringStandard)
+                                    }
                                 }
                             } else {
                                 // Slop crossed — this is a drag. Feed the post-slop offset (the
@@ -400,11 +410,29 @@ internal fun PlayerSheetSkeleton(
                                     velocityTracker.addPosition(change.uptimeMillis, change.position)
                                     change.consume()
                                 }
-                                // Up (or cancel) reached — let the state settle to its nearest
-                                // anchor using the same velocity/positional threshold logic
-                                // settle() always used, seeded with the real release velocity.
+                                // Up (or cancel) reached — fling to the target anchor with the
+                                // real release velocity. A hand-rolled loop has no FlingBehavior
+                                // hookup of its own, so bridge it through a ScrollScope inside
+                                // anchoredDrag, as Foundation's anchoredDraggable does internally
+                                // (see AnchoredDraggableSample.kt's performFling sample).
                                 val velocity = velocityTracker.calculateVelocity().y
-                                scope.launch { draggableState.settle(velocity) }
+                                scope.launch {
+                                    draggableState.anchoredDrag {
+                                        val flingScope = object : ScrollScope {
+                                            override fun scrollBy(pixels: Float): Float {
+                                                val anchors = draggableState.anchors
+                                                val old = draggableState.offset
+                                                val new = (old + pixels).coerceIn(
+                                                    anchors.minPosition(),
+                                                    anchors.maxPosition(),
+                                                )
+                                                dragTo(new)
+                                                return new - old
+                                            }
+                                        }
+                                        with(flingBehavior) { flingScope.performFling(velocity) }
+                                    }
+                                }
                             }
                         }
                     },
