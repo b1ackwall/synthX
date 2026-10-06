@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player
 
+import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.exponentialDecay
@@ -43,7 +44,8 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
-import com.v1per.synthx.ui.components.DerivedBlobColors
+// DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.ui.components.DerivedBlobColors
 import com.v1per.synthx.ui.components.PlayerSheetValue
 import com.v1per.synthx.ui.theme.Motion
 import kotlinx.coroutines.launch
@@ -99,7 +101,9 @@ internal val ContentSlideDistance: Dp = 40.dp
 @Composable
 internal fun PlayerSheetSkeleton(
     song: Song,
-    ambientColors: DerivedBlobColors?,
+    // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+    // ambientColors: DerivedBlobColors?,
+    backgroundArt: Bitmap?,
     isPlaying: Boolean,
     isBuffering: Boolean,
     currentPosition: Long,
@@ -130,7 +134,8 @@ internal fun PlayerSheetSkeleton(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    val ambientState = rememberPlayerAmbientBackgroundState(ambientColors)
+    // DEAD CODE: the player draws PlayerAltStageBackground, so the blob state is unused. Delete in a cleanup pass. Ask  before deleting.
+    // val ambientState = rememberPlayerAmbientBackgroundState(ambientColors)
 
     val scope = rememberCoroutineScope()
     val collapsedHeightPx = with(density) { CollapsedPlayerHeight.toPx() }
@@ -409,8 +414,16 @@ internal fun PlayerSheetSkeleton(
                         }
                     },
             ) {
-                PlayerAmbientBackground(
-                    state = ambientState,
+                // DEAD CODE: replaced by PlayerAltStageBackground below. Delete in a cleanup pass. Ask  before deleting.
+                // PlayerAmbientBackground(
+                //     state = ambientState,
+                //     fullHeight = this@BoxWithConstraints.maxHeight,
+                //     progress = progress,
+                // )
+                PlayerAltStageBackground(
+                    art = backgroundArt,
+                    // The sheet is composed only while a song is current.
+                    hasSong = true,
                     fullHeight = this@BoxWithConstraints.maxHeight,
                     progress = progress,
                 )

@@ -1,8 +1,9 @@
 package com.v1per.synthx.ui.components
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import com.v1per.synthx.data.repository.Song
+// DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+// import androidx.compose.runtime.Composable
+// import androidx.compose.runtime.remember
+// import com.v1per.synthx.data.repository.Song
 import kotlin.random.Random
 
 internal const val BaseSurfaceSaturation = 0.25f
@@ -114,21 +115,22 @@ internal fun applyBlobColorArrangement(
     )
 }
 
-/** One derivation for the shell to share with every surface rendering the current song. */
-@Composable
-internal fun rememberSharedSongBlobColors(song: Song?): DerivedBlobColors? {
-    val arrangement = remember(song?.id) {
-        song?.id?.let(::generateBlobColorArrangement)
-    }
-    return remember(arrangement, song?.paletteSwatches) {
-        val stableArrangement = arrangement ?: return@remember null
-        val swatches = song?.paletteSwatches ?: return@remember null
-        applyBlobColorArrangement(
-            stableArrangement,
-            swatches.map { ExtractedSwatchHsl(it.hue, it.saturation, it.lightness) },
-        )
-    }
-}
+// DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+// /** One derivation for the shell to share with every surface rendering the current song. */
+// @Composable
+// internal fun rememberSharedSongBlobColors(song: Song?): DerivedBlobColors? {
+//     val arrangement = remember(song?.id) {
+//         song?.id?.let(::generateBlobColorArrangement)
+//     }
+//     return remember(arrangement, song?.paletteSwatches) {
+//         val stableArrangement = arrangement ?: return@remember null
+//         val swatches = song?.paletteSwatches ?: return@remember null
+//         applyBlobColorArrangement(
+//             stableArrangement,
+//             swatches.map { ExtractedSwatchHsl(it.hue, it.saturation, it.lightness) },
+//         )
+//     }
+// }
 
 internal fun deriveBlobColors(
     swatches: List<ExtractedSwatchHsl>,

@@ -18,7 +18,8 @@ class IssuesScanSnapshotTest {
         exportUnhealthy: Boolean = false,
         verificationFailed: Boolean = false,
         destructiveActionCount: Int = 0,
-        missingPaletteSongIds: List<String> = emptyList(),
+        // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
+        // missingPaletteSongIds: List<String> = emptyList(),
     ) = IssuesScanSnapshot(
         missingArtSongIds = missingArtSongIds,
         missingSongCount = missingSongCount,
@@ -27,7 +28,8 @@ class IssuesScanSnapshotTest {
         exportUnhealthy = exportUnhealthy,
         verificationFailed = verificationFailed,
         destructiveActionCount = destructiveActionCount,
-        missingPaletteSongIds = missingPaletteSongIds,
+        // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
+        // missingPaletteSongIds = missingPaletteSongIds,
     )
 
     @Test fun healthyLibraryCountsZeroIssues() {
@@ -68,22 +70,40 @@ class IssuesScanSnapshotTest {
         )
     }
 
-    @Test fun missingPaletteCountsAsOneIssueRegardlessOfSongCount() {
-        assertEquals(1, snapshot(missingPaletteSongIds = List(2000) { "$it" }).issueCount)
-        assertEquals(0, snapshot(missingPaletteSongIds = emptyList()).issueCount)
-    }
+    // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
+    // @Test fun missingPaletteCountsAsOneIssueRegardlessOfSongCount() {
+    //     assertEquals(1, snapshot(missingPaletteSongIds = List(2000) { "$it" }).issueCount)
+    //     assertEquals(0, snapshot(missingPaletteSongIds = emptyList()).issueCount)
+    // }
+    //
+    // @Test fun artAndPaletteAreSeparateIssuesEvenForTheSameSong() {
+    //     assertEquals(2, snapshot(missingArtSongIds = listOf("a"), missingPaletteSongIds = listOf("a")).issueCount)
+    // }
 
-    @Test fun artAndPaletteAreSeparateIssuesEvenForTheSameSong() {
-        assertEquals(2, snapshot(missingArtSongIds = listOf("a"), missingPaletteSongIds = listOf("a")).issueCount)
-    }
+    // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
+    // @Test fun allEightCategoriesTogether() {
+    //     assertEquals(
+    //         // 5 missing songs + grant-lost + backup + export + verification + destructive + art + palette
+    //         12,
+    //         snapshot(
+    //             missingArtSongIds = listOf("a", "b"),
+    //             missingPaletteSongIds = listOf("c", "d"),
+    //             missingSongCount = 5,
+    //             grantLost = true,
+    //             backupUnhealthy = true,
+    //             exportUnhealthy = true,
+    //             verificationFailed = true,
+    //             destructiveActionCount = 1,
+    //         ).issueCount,
+    //     )
+    // }
 
-    @Test fun allEightCategoriesTogether() {
+    @Test fun allSevenCategoriesTogether() {
         assertEquals(
-            // 5 missing songs + grant-lost + backup + export + verification + destructive + art + palette
-            12,
+            // 5 missing songs + grant-lost + backup + export + verification + destructive + art
+            11,
             snapshot(
                 missingArtSongIds = listOf("a", "b"),
-                missingPaletteSongIds = listOf("c", "d"),
                 missingSongCount = 5,
                 grantLost = true,
                 backupUnhealthy = true,

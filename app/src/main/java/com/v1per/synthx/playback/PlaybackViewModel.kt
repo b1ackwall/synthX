@@ -1,6 +1,7 @@
 package com.v1per.synthx.playback
 
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -56,7 +57,11 @@ sealed class QueueAddResult {
  */
 private const val RESUME_RECONCILE_TIMEOUT_MS = 1_500L
 
-class PlaybackViewModel(private val controller: PlaybackController) : ViewModel() {
+class PlaybackViewModel(
+    private val controller: PlaybackController,
+    // Decodes the player background's art. The default yields no art.
+    loadBackgroundArt: suspend (PlayerBackgroundArtRequest) -> Bitmap? = { null },
+) : ViewModel() {
 
     // Combined optimistic/real play-pause state: a tap flips this synchronously, before the
     // MediaController IPC round-trip confirms anything, so the icon never waits on the
@@ -132,6 +137,13 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     val queuePrompts: SharedFlow<QueuePromptEvent> = _queuePrompts.asSharedFlow()
+
+    // The player background's decoded art, keyed by song id. The UI supplies each request.
+    private val backgroundArt = PlayerBackgroundArtHolder(viewModelScope, loadBackgroundArt)
+    val playerBackgroundArt: StateFlow<PlayerBackgroundArt<Bitmap>?> = backgroundArt.art
+
+    /** Decodes [request]'s art unless it is already the current request. */
+    fun loadPlayerBackgroundArt(request: PlayerBackgroundArtRequest) = backgroundArt.request(request)
 
     init {
         // The engine's own isPlaying always wins once it lands, overwriting whatever
@@ -416,7 +428,8 @@ class PlaybackViewModel(private val controller: PlaybackController) : ViewModel(
                 persistence = QueuePersistence.create(context.applicationContext),
             )
             val controller = PlaybackController(engine)
-            return PlaybackViewModel(controller) as T
+            val backgroundArtLoader = PlayerBackgroundArtLoader(context.applicationContext.contentResolver)
+            return PlaybackViewModel(controller, backgroundArtLoader::load) as T
         }
     }
 }

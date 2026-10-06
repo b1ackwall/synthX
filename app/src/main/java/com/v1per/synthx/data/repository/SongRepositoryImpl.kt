@@ -37,8 +37,9 @@ import com.v1per.synthx.data.scanner.ArtRecovery
 import com.v1per.synthx.data.scanner.ArtRecoveryResult
 import com.v1per.synthx.data.scanner.DestructiveFilePreflight
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
-import com.v1per.synthx.data.scanner.PaletteRecovery
-import com.v1per.synthx.data.scanner.PaletteRecoveryResult
+// DEAD CODE: palette recovery and the Issues MissingPalette item are retired. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.data.scanner.PaletteRecovery
+// import com.v1per.synthx.data.scanner.PaletteRecoveryResult
 import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.GraduationStage
@@ -847,15 +848,16 @@ class SongRepositoryImpl(
         ArtRecovery.recover(context, database, songIds)
     }
 
-    /** Both cache values describe the same database snapshot. Caller owns worker admission. */
-    internal suspend fun getMissingPaletteSnapshotAlreadyAdmitted(): Pair<List<String>, Int> =
-        database.withTransaction {
-            songDao.getSongIdsMissingPalette() to songDao.getMissingPaletteCountOnce()
-        }
-
-    override suspend fun recoverPaletteData(songIds: List<String>): PaletteRecoveryResult = dbOperation {
-        PaletteRecovery.recover(context, database, songIds)
-    }
+    // DEAD CODE: palette recovery and the Issues MissingPalette item are retired. Delete in a cleanup pass. Ask  before deleting.
+    // /** Both cache values describe the same database snapshot. Caller owns worker admission. */
+    // internal suspend fun getMissingPaletteSnapshotAlreadyAdmitted(): Pair<List<String>, Int> =
+    //     database.withTransaction {
+    //         songDao.getSongIdsMissingPalette() to songDao.getMissingPaletteCountOnce()
+    //     }
+    //
+    // override suspend fun recoverPaletteData(songIds: List<String>): PaletteRecoveryResult = dbOperation {
+    //     PaletteRecovery.recover(context, database, songIds)
+    // }
 
     override fun getAllGroups(): Flow<List<PlaylistGroup>> =
         RepositoryDbFlow.observe { playlistDao.getAllGroups() }.map { entities ->

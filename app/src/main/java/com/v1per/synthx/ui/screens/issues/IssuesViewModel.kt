@@ -202,7 +202,8 @@ class IssuesViewModel(
                         partial,
                         grantLost,
                         IssuesScanSnapshot.stableOrder(preferences.missingArtSongIds),
-                        IssuesScanSnapshot.stableOrder(preferences.missingPaletteSongIds),
+                        // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
+                        // IssuesScanSnapshot.stableOrder(preferences.missingPaletteSongIds),
                     )
                 }
             }.catch { e ->
@@ -233,7 +234,8 @@ class IssuesViewModel(
         partial: PartialSources,
         grantLost: Boolean,
         missingArtSongIds: List<String>,
-        missingPaletteSongIds: List<String>,
+        // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
+        // missingPaletteSongIds: List<String>,
     ): List<Issue> {
         val timestampedIssues = listOfNotNull(
             partial.backupOutcome
@@ -270,9 +272,10 @@ class IssuesViewModel(
             if (missingArtSongIds.isNotEmpty()) {
                 add(Issue.MissingArt(missingArtSongIds))
             }
-            if (missingPaletteSongIds.isNotEmpty()) {
-                add(Issue.MissingPalette(missingPaletteSongIds))
-            }
+            // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
+            // if (missingPaletteSongIds.isNotEmpty()) {
+            //     add(Issue.MissingPalette(missingPaletteSongIds))
+            // }
         }
 
         val missingSongIssues = partial.missingSongs
@@ -379,18 +382,19 @@ class IssuesViewModel(
         }
     }
 
-    /** Keep the scan status active throughout the fix and refresh the shared cache afterward. */
-    fun fixMissingPalette(songIds: List<String>) {
-        _pendingScan.value = true
-        viewModelScope.launch {
-            runCatching { repository.recoverPaletteData(songIds) }
-                .onFailure { e ->
-                    Log.w(TAG, "Palette recovery failed for ${songIds.size} song(s)", e)
-                    _events.tryEmit(IssuesActionEvent.ActionFailed)
-                }
-            startScan()
-        }
-    }
+    // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
+    // /** Keep the scan status active throughout the fix and refresh the shared cache afterward. */
+    // fun fixMissingPalette(songIds: List<String>) {
+    //     _pendingScan.value = true
+    //     viewModelScope.launch {
+    //         runCatching { repository.recoverPaletteData(songIds) }
+    //             .onFailure { e ->
+    //                 Log.w(TAG, "Palette recovery failed for ${songIds.size} song(s)", e)
+    //                 _events.tryEmit(IssuesActionEvent.ActionFailed)
+    //             }
+    //         startScan()
+    //     }
+    // }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

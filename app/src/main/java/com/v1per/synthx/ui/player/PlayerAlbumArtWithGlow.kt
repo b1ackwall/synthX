@@ -19,8 +19,19 @@ import com.v1per.synthx.ui.components.PlayerAlbumArt
 import com.v1per.synthx.ui.components.animatedPlayerAlbumArtScale
 import kotlin.math.round
 
-private val MiniPlayerGlowSize = 60.dp
-private const val GlowSizeStepDp = 8f
+/** The mini player's art size. */
+private val MiniPlayerArtSize = 44.dp
+
+/** How far the glow extends past the art on each side. */
+private val GlowSpread = 2.dp
+private val GlowBlurRadius = 20.dp
+private const val GlowAlpha = 0.8f
+
+/** Quantization anchor: the mini art plus the spread on both sides. */
+private val MiniPlayerGlowSize = MiniPlayerArtSize + GlowSpread * 2
+
+/** Glow size quantization step, in dp. */
+private const val GlowSizeStepDp = 4f
 
 internal fun quantizePlayerGlowSize(size: Dp): Dp {
     val stepsFromMini = round((size.value - MiniPlayerGlowSize.value) / GlowSizeStepDp)
@@ -38,10 +49,10 @@ internal fun PlayerAlbumArtWithGlow(
     // glow overflows symmetrically without moving the art or changing its size.
     Box(modifier = modifier.size(size)) {
         val artScale = animatedPlayerAlbumArtScale(isPlaying)
-        val glowColor = Color.Black.copy(alpha = 0.9f)
-        // The 80dp blur hides these small steps, while keeping the RenderEffect layer from
-        // reallocating/rasterizing at every one-pixel size change during a sheet drag.
-        val glowSize = quantizePlayerGlowSize(size + 8f.dp * 2)
+        val glowColor = Color.Black.copy(alpha = GlowAlpha)
+        // Quantized so the RenderEffect layer is not reallocated/rasterized at every
+        // one-pixel size change during a sheet drag.
+        val glowSize = quantizePlayerGlowSize(size + GlowSpread * 2)
         Box(
             modifier = Modifier
                 // requiredSize preserves the spread even under the mini art's
@@ -50,7 +61,7 @@ internal fun PlayerAlbumArtWithGlow(
                 .align(Alignment.Center)
                 .scale(artScale)
                 .blur(
-                    radius = 80f.dp,
+                    radius = GlowBlurRadius,
                     edgeTreatment = BlurredEdgeTreatment.Unbounded,
                 )
                 .background(color = glowColor, shape = MaterialTheme.shapes.small),

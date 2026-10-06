@@ -70,8 +70,9 @@ class QueuePersistenceB1Test {
         override fun getSongsForAlbum(albumId: String): Flow<List<Song>> = emptyFlow()
         override fun getMissingSongs(): Flow<List<MissingSongInfo>> = emptyFlow(); override fun getMissingSongCount(): Flow<Int> = emptyFlow()
         override suspend fun findMissingArtSongIds(): List<String> = emptyList()
-        override suspend fun recoverPaletteData(songIds: List<String>) =
-            com.v1per.synthx.data.scanner.PaletteRecoveryResult(0, 0, 0)
+        // DEAD CODE: SongRepository.recoverPaletteData is retired. Delete in a cleanup pass. Ask  before deleting.
+        // override suspend fun recoverPaletteData(songIds: List<String>) =
+        //     com.v1per.synthx.data.scanner.PaletteRecoveryResult(0, 0, 0)
         override suspend fun recoverMissingArt(songIds: List<String>?) =
             com.v1per.synthx.data.scanner.ArtRecoveryResult(checked = 0, recovered = 0, skipped = 0)
         override suspend fun deleteSong(id: String) = SongDeletionOutcome.Deleted

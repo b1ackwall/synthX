@@ -15,7 +15,8 @@ import androidx.navigation.compose.NavHost
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
-import com.v1per.synthx.ui.components.DerivedBlobColors
+// DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.ui.components.DerivedBlobColors
 import com.v1per.synthx.ui.screens.songs.SortOrder
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -29,7 +30,8 @@ internal fun SynthXNavHost(
     chromeBottomPadding: Dp,
     searchReselectEvents: SharedFlow<Unit>,
     homeAmbientPaused: Boolean = false,
-    ambientColors: DerivedBlobColors? = null,
+    // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+    // ambientColors: DerivedBlobColors? = null,
     // Rendering lives at MainScaffold level (above BottomChromeOverlay) so the sheet draws
     // above the bottom nav/player as a structural sibling, not a descendant of this NavHost.
     onShowSortSheet: (currentOrder: SortOrder, onOrderSelected: (SortOrder) -> Unit) -> Unit,
@@ -77,7 +79,8 @@ internal fun SynthXNavHost(
                 chromeBottomPadding = chromeBottomPadding,
                 searchReselectEvents = searchReselectEvents,
                 homeAmbientPaused = homeAmbientPaused,
-                ambientColors = ambientColors,
+                // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+                // ambientColors = ambientColors,
             )
             libraryManagementRoutes(
                 navController = navController,

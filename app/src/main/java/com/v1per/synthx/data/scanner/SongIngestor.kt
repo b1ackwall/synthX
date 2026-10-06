@@ -16,7 +16,8 @@ import com.v1per.synthx.data.repository.Artist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.toPaletteSwatches
 import com.v1per.synthx.ui.components.ExtractedSwatchHsl
-import com.v1per.synthx.ui.components.extractArtworkSwatches
+// DEAD CODE: scan-time swatch extraction is stopped. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.ui.components.extractArtworkSwatches
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -126,11 +127,12 @@ internal class SongIngestor(
                 val (compressedArtUri, fullArtUri) = AlbumArtExtractor.extract(context, retriever, songId)
                 albumArtUri = compressedArtUri
                 albumArtFullUri = fullArtUri
-                // Reuse the URI-based extractor while still holding this file's scan permit.
-                // Store raw swatches; assigning them to blobs belongs to rendering.
-                swatches = compressedArtUri?.let { uri ->
-                    extractArtworkSwatches(context, uri).takeIf { it.size == 3 }
-                }
+                // DEAD CODE: nothing renders swatches any more, so new songs are stored without them. Delete in a cleanup pass. Ask  before deleting.
+                // // Reuse the URI-based extractor while still holding this file's scan permit.
+                // // Store raw swatches; assigning them to blobs belongs to rendering.
+                // swatches = compressedArtUri?.let { uri ->
+                //     extractArtworkSwatches(context, uri).takeIf { it.size == 3 }
+                // }
             }
         } catch (e: CancellationException) {
             throw e

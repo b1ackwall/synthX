@@ -206,30 +206,31 @@ interface SongDao {
     @Query("SELECT COUNT(*) FROM songs WHERE is_missing = 1")
     suspend fun getMissingSongCountOnce(): Int
 
-    @Query(
-        """
-        SELECT COUNT(*) FROM songs
-        WHERE is_missing = 0
-          AND (album_art_uri IS NOT NULL OR album_art_full_uri IS NOT NULL)
-          AND (swatch1_hue IS NULL OR swatch1_saturation IS NULL OR swatch1_lightness IS NULL
-            OR swatch2_hue IS NULL OR swatch2_saturation IS NULL OR swatch2_lightness IS NULL
-            OR swatch3_hue IS NULL OR swatch3_saturation IS NULL OR swatch3_lightness IS NULL)
-        """
-    )
-    suspend fun getMissingPaletteCountOnce(): Int
-
-    @Query(
-        """
-        SELECT id FROM songs
-        WHERE is_missing = 0
-          AND (album_art_uri IS NOT NULL OR album_art_full_uri IS NOT NULL)
-          AND (swatch1_hue IS NULL OR swatch1_saturation IS NULL OR swatch1_lightness IS NULL
-            OR swatch2_hue IS NULL OR swatch2_saturation IS NULL OR swatch2_lightness IS NULL
-            OR swatch3_hue IS NULL OR swatch3_saturation IS NULL OR swatch3_lightness IS NULL)
-        ORDER BY id
-        """
-    )
-    suspend fun getSongIdsMissingPalette(): List<String>
+    // DEAD CODE: the Issues palette count queries are retired; the swatch columns stay. Delete in a cleanup pass. Ask  before deleting.
+    // @Query(
+    //     """
+    //     SELECT COUNT(*) FROM songs
+    //     WHERE is_missing = 0
+    //       AND (album_art_uri IS NOT NULL OR album_art_full_uri IS NOT NULL)
+    //       AND (swatch1_hue IS NULL OR swatch1_saturation IS NULL OR swatch1_lightness IS NULL
+    //         OR swatch2_hue IS NULL OR swatch2_saturation IS NULL OR swatch2_lightness IS NULL
+    //         OR swatch3_hue IS NULL OR swatch3_saturation IS NULL OR swatch3_lightness IS NULL)
+    //     """
+    // )
+    // suspend fun getMissingPaletteCountOnce(): Int
+    //
+    // @Query(
+    //     """
+    //     SELECT id FROM songs
+    //     WHERE is_missing = 0
+    //       AND (album_art_uri IS NOT NULL OR album_art_full_uri IS NOT NULL)
+    //       AND (swatch1_hue IS NULL OR swatch1_saturation IS NULL OR swatch1_lightness IS NULL
+    //         OR swatch2_hue IS NULL OR swatch2_saturation IS NULL OR swatch2_lightness IS NULL
+    //         OR swatch3_hue IS NULL OR swatch3_saturation IS NULL OR swatch3_lightness IS NULL)
+    //     ORDER BY id
+    //     """
+    // )
+    // suspend fun getSongIdsMissingPalette(): List<String>
 
     // Art URI of any other song still in the album, for re-pointing albums.album_art_uri
     // when the song that supplied it is deleted. Prefers a song that actually has art so

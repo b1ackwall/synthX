@@ -60,26 +60,33 @@ class IssuesScanWorker(
         DestructiveActionTracker.initialize(applicationContext)
 
         return try {
-            val (snapshot, missingPaletteCount) = WorkerDatabaseAccess.run {
+            // DEAD CODE: the Issues MissingPalette item and its palette count are retired. Delete in a cleanup pass. Ask  before deleting.
+            // val (snapshot, missingPaletteCount) = WorkerDatabaseAccess.run {
+            val snapshot = WorkerDatabaseAccess.run {
                 val repository = SongRepositoryImpl.create(applicationContext)
-                val (paletteIds, paletteCount) = repository.getMissingPaletteSnapshotAlreadyAdmitted()
+                // DEAD CODE: the Issues MissingPalette item and its palette count are retired. Delete in a cleanup pass. Ask  before deleting.
+                // val (paletteIds, paletteCount) = repository.getMissingPaletteSnapshotAlreadyAdmitted()
                 IssuesScanSnapshot(
                     missingArtSongIds = repository.findMissingArtSongIdsAlreadyAdmitted(),
                     missingSongCount = repository.getMissingSongCountAlreadyAdmitted(),
-                    missingPaletteSongIds = paletteIds,
+                    // DEAD CODE: the Issues MissingPalette item and its palette count are retired. Delete in a cleanup pass. Ask  before deleting.
+                    // missingPaletteSongIds = paletteIds,
                     grantLost = BackupFolderLaunchCheck.grantLost.value,
                     backupUnhealthy = BackupOutcomeStore.lastBackupOutcome.value?.succeeded == false,
                     exportUnhealthy = BackupOutcomeStore.lastExportOutcome.value?.succeeded == false,
                     verificationFailed = BackupOutcomeStore.lastVerificationOutcome.value?.succeeded == false,
                     destructiveActionCount = DestructiveActionTracker.count.value,
-                ) to paletteCount
+                // DEAD CODE: the Issues MissingPalette item and its palette count are retired. Delete in a cleanup pass. Ask  before deleting.
+                // ) to paletteCount
+                )
             }
             val issueCount = snapshot.issueCount
             val completedAt = System.currentTimeMillis()
             PreferencesManager(applicationContext).apply {
                 missingArtSongIds = snapshot.missingArtSongIds.toSet()
-                missingPaletteSongIds = snapshot.missingPaletteSongIds.toSet()
-                lastIssuesScanMissingPaletteCount = missingPaletteCount
+                // DEAD CODE: the Issues MissingPalette item and its palette count are retired. Delete in a cleanup pass. Ask  before deleting.
+                // missingPaletteSongIds = snapshot.missingPaletteSongIds.toSet()
+                // lastIssuesScanMissingPaletteCount = missingPaletteCount
                 lastIssuesScanIssueCount = issueCount
                 // Written last: it is the timestamp both the daily due-check and the screen's
                 // status line read, so it must never advance past a half-written cache.
@@ -89,13 +96,16 @@ class IssuesScanWorker(
             Log.d(
                 TAG,
                 "Issues scan complete — issues=$issueCount missingSongs=${snapshot.missingSongCount} " +
-                    "missingArt=${snapshot.missingArtSongIds.size} missingPalette=$missingPaletteCount",
+                    // DEAD CODE: the Issues MissingPalette item and its palette count are retired. Delete in a cleanup pass. Ask  before deleting.
+                    // "missingArt=${snapshot.missingArtSongIds.size} missingPalette=$missingPaletteCount",
+                    "missingArt=${snapshot.missingArtSongIds.size}",
             )
             Result.success(
                 workDataOf(
                     KEY_ISSUE_COUNT to issueCount,
                     KEY_MISSING_ART_COUNT to snapshot.missingArtSongIds.size,
-                    KEY_MISSING_PALETTE_COUNT to missingPaletteCount,
+                    // DEAD CODE: the Issues MissingPalette item and its palette count are retired. Delete in a cleanup pass. Ask  before deleting.
+                    // KEY_MISSING_PALETTE_COUNT to missingPaletteCount,
                     KEY_COMPLETED_AT to completedAt,
                 ),
             )
@@ -133,7 +143,8 @@ class IssuesScanWorker(
         /** Total issue rows found. Absent on retry/failure — neither has a count to report. */
         const val KEY_ISSUE_COUNT = "issue_count"
         const val KEY_MISSING_ART_COUNT = "missing_art_count"
-        const val KEY_MISSING_PALETTE_COUNT = "missing_palette_count"
+        // DEAD CODE: the Issues MissingPalette item and its palette count are retired. Delete in a cleanup pass. Ask  before deleting.
+        // const val KEY_MISSING_PALETTE_COUNT = "missing_palette_count"
         const val KEY_COMPLETED_AT = "completed_at"
         const val KEY_ERROR = "error"
 

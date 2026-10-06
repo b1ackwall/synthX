@@ -24,6 +24,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -37,8 +38,10 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.playback.PlayerBackgroundArtRequest
 import com.v1per.synthx.ui.components.BottomNavHeight
-import com.v1per.synthx.ui.components.DerivedBlobColors
+// DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.ui.components.DerivedBlobColors
 import com.v1per.synthx.ui.components.next
 import com.v1per.synthx.ui.player.PlayerSheetSkeleton
 import com.v1per.synthx.ui.theme.Accent
@@ -52,7 +55,8 @@ internal fun BottomChromeOverlay(
     currentRoute: String?,
     showBottomBar: Boolean,
     currentSong: Song?,
-    ambientColors: DerivedBlobColors?,
+    // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+    // ambientColors: DerivedBlobColors?,
     playerProgress: Float,
     onPlayerProgressChanged: (Float) -> Unit,
     collapsePlayerSignal: Int,
@@ -119,12 +123,20 @@ internal fun BottomChromeOverlay(
             val upcomingQueue by playbackViewModel.upcomingQueue.collectAsState()
             val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
             val repeatMode by playbackViewModel.repeatMode.collectAsState()
+            // The song's identity and art URIs are resolved here, before the decode's async boundary.
+            val backgroundArtRequest = PlayerBackgroundArtRequest.from(song)
+            LaunchedEffect(backgroundArtRequest) {
+                playbackViewModel.loadPlayerBackgroundArt(backgroundArtRequest)
+            }
+            val backgroundArt by playbackViewModel.playerBackgroundArt.collectAsState()
             // Skeleton now renders mini content + expanded transport controls + full
             // queue-mode list (reorder, tap-to-play, swipe-to-remove, shuffle/repeat,
             // real MoreOptionsButton).
             PlayerSheetSkeleton(
                 song = song,
-                ambientColors = ambientColors,
+                // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+                // ambientColors = ambientColors,
+                backgroundArt = backgroundArt?.image,
                 isPlaying = isPlaying,
                 isBuffering = isBuffering,
                 currentPosition = currentPosition,

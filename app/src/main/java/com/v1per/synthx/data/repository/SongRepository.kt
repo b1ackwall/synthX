@@ -3,7 +3,8 @@ package com.v1per.synthx.data.repository
 import android.net.Uri
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
 import com.v1per.synthx.data.scanner.ArtRecoveryResult
-import com.v1per.synthx.data.scanner.PaletteRecoveryResult
+// DEAD CODE: palette recovery and the Issues MissingPalette item are retired. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.data.scanner.PaletteRecoveryResult
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
 import kotlinx.coroutines.flow.Flow
@@ -28,8 +29,9 @@ interface SongRepository {
     /** Re-extracts art for [songIds], or the whole library when null. */
     suspend fun recoverMissingArt(songIds: List<String>? = null): ArtRecoveryResult
 
-    /** Extracts missing background swatches from the affected songs' existing artwork. */
-    suspend fun recoverPaletteData(songIds: List<String>): PaletteRecoveryResult
+    // DEAD CODE: palette recovery and the Issues MissingPalette item are retired. Delete in a cleanup pass. Ask  before deleting.
+    // /** Extracts missing background swatches from the affected songs' existing artwork. */
+    // suspend fun recoverPaletteData(songIds: List<String>): PaletteRecoveryResult
 
     /**
      * Permanently deletes a song: its row, its art files, its **audio file on disk**, and (via

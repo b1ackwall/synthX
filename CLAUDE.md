@@ -176,6 +176,9 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
 - If a build fails, attempt to fix it and continue — don't stop and wait for approval mid-task.
 - Mutation-test critical fixes where practical: deliberately break the fix, confirm the
   test catches it, then restore — a passing test that can't fail is not verification.
+- Commented-out blocks marked "DEAD CODE: <why>. Delete in a cleanup pass. Ask  before
+  deleting." must never be deleted without asking  first. Whenever  mentions a cleanup
+  pass, offer to list and remove them.
 - Always end with a report covering:
   - What was done (files touched, changes made)
   - Any deviations from the original prompt

@@ -403,14 +403,15 @@ class PreferencesManager(context: Context) {
         get() = prefs.getStringSet(KEY_MISSING_ART_SONG_IDS, null)?.toSet() ?: emptySet()
         set(value) = prefs.edit().putStringSet(KEY_MISSING_ART_SONG_IDS, value).apply()
 
-    /** Fixable songs with artwork but no stored palette; copy the preference-owned set. */
-    var missingPaletteSongIds: Set<String>
-        get() = prefs.getStringSet(KEY_MISSING_PALETTE_SONG_IDS, null)?.toSet() ?: emptySet()
-        set(value) = prefs.edit().putStringSet(KEY_MISSING_PALETTE_SONG_IDS, value).apply()
-
-    var lastIssuesScanMissingPaletteCount: Int
-        get() = prefs.getInt(KEY_LAST_ISSUES_SCAN_MISSING_PALETTE_COUNT, 0)
-        set(value) = prefs.edit().putInt(KEY_LAST_ISSUES_SCAN_MISSING_PALETTE_COUNT, value).apply()
+    // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
+    // /** Fixable songs with artwork but no stored palette; copy the preference-owned set. */
+    // var missingPaletteSongIds: Set<String>
+    //     get() = prefs.getStringSet(KEY_MISSING_PALETTE_SONG_IDS, null)?.toSet() ?: emptySet()
+    //     set(value) = prefs.edit().putStringSet(KEY_MISSING_PALETTE_SONG_IDS, value).apply()
+    //
+    // var lastIssuesScanMissingPaletteCount: Int
+    //     get() = prefs.getInt(KEY_LAST_ISSUES_SCAN_MISSING_PALETTE_COUNT, 0)
+    //     set(value) = prefs.edit().putInt(KEY_LAST_ISSUES_SCAN_MISSING_PALETTE_COUNT, value).apply()
 
     companion object {
         private const val PREFS_NAME = "synthx_prefs"
@@ -455,8 +456,9 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_ISSUES_SCAN_TIMESTAMP = "last_issues_scan_timestamp"
         private const val KEY_LAST_ISSUES_SCAN_ISSUE_COUNT = "last_issues_scan_issue_count"
         private const val KEY_MISSING_ART_SONG_IDS = "missing_art_song_ids"
-        private const val KEY_MISSING_PALETTE_SONG_IDS = "missing_palette_song_ids"
-        private const val KEY_LAST_ISSUES_SCAN_MISSING_PALETTE_COUNT = "last_issues_scan_missing_palette_count"
+        // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
+        // private const val KEY_MISSING_PALETTE_SONG_IDS = "missing_palette_song_ids"
+        // private const val KEY_LAST_ISSUES_SCAN_MISSING_PALETTE_COUNT = "last_issues_scan_missing_palette_count"
         private const val KEY_LAST_RECONCILED_CLEANUP_COUNT = "last_reconciled_cleanup_count"
         private const val KEY_LAST_RECONCILED_CLEANUP_TIMESTAMP = "last_reconciled_cleanup_timestamp"
     }
