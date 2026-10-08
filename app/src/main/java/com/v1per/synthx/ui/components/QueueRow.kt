@@ -1,9 +1,9 @@
 package com.v1per.synthx.ui.components
 
-import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.AnchoredDraggableDefaults
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
@@ -34,13 +34,11 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.QueueSlot
@@ -58,14 +56,18 @@ import kotlin.math.roundToInt
 private enum class QueueRowSwipe { StartToEnd, Settled, EndToStart }
 
 /**
- * Release velocity above which a swipe dismisses no matter how far it actually travelled —
- * AnchoredDraggableState skips [QueueRowSwipe]'s positional threshold entirely once this is
- * cleared (see `computeTarget`). Material3's own SwipeToDismissBox hardcodes 125.dp/s, barely
- * above Android's 50.dp/s minimum-fling velocity, so nearly any moving release dismisses.
- * 1200.dp/s is roughly "crosses a whole row in a third of a second" — above the few hundred
- * dp/s an unhurried drag-and-lift releases at, well below a genuine flick.
+ * Release past half the row's own width confirms; release before it reverts. Top-level so
+ * [AnchoredDraggableDefaults.flingBehavior]'s `remember` key stays stable across recompositions.
+ *
+ * Trial (#176): the velocity threshold is no longer ours to set. Compose Foundation 1.12.0 moved
+ * fling configuration into [AnchoredDraggableDefaults.flingBehavior], which hardcodes a 125.dp/s
+ * velocity threshold (above it, any release dismisses regardless of distance) and never decays.
+ * The previous deprecated-constructor setup used `velocityThreshold = 1200.dp` ("crosses a whole
+ * row in a third of a second" — above an unhurried drag-and-lift, below a genuine flick) and
+ * `decayAnimationSpec = exponentialDecay()`. If 125.dp/s causes accidental dismissals, these
+ * cannot simply be restored here — see #176 option (b), a custom fling behavior.
  */
-private val SwipeVelocityThreshold = 1200.dp
+private val SwipePositionalThreshold: (Float) -> Float = { totalDistance -> totalDistance * 0.5f }
 
 /**
  * One Up Next row: tap to jump to and play, drag the trailing handle to reorder, swipe either
@@ -111,8 +113,6 @@ fun QueueRow(
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
 ) {
-    val density = LocalDensity.current
-
     // The removal watcher below lives in a no-key LaunchedEffect, so it would otherwise keep
     // calling whichever onRemove existed when this row first entered composition — and
     // QueueList hands every row a freshly-built closure over its current index on each
@@ -123,16 +123,7 @@ fun QueueRow(
     // capturing whatever value was current when the effect block first launched.
     val currentEnabled = rememberUpdatedState(enabled)
 
-    val swipeState = remember {
-        AnchoredDraggableState(
-            initialValue = QueueRowSwipe.Settled,
-            // Release past half the row's own width confirms; release before it reverts.
-            positionalThreshold = { totalDistance -> totalDistance * 0.5f },
-            velocityThreshold = { with(density) { SwipeVelocityThreshold.toPx() } },
-            snapAnimationSpec = Motion.SpringStandard,
-            decayAnimationSpec = exponentialDecay(),
-        )
-    }
+    val swipeState = remember { AnchoredDraggableState(initialValue = QueueRowSwipe.Settled) }
 
     // settledValue — not confirmValueChange — is the "this row really was dismissed" signal.
     // AnchoredDraggableState invokes confirmValueChange from AnchoredDragScope.updateIfNeeded,
@@ -151,7 +142,8 @@ fun QueueRow(
                         // visually parked off-screen with nothing left to reset it — the
                         // queue-keyed self-heal below never re-fires because a blocked
                         // removal never changes [queue]. Snap back here instead.
-                        swipeState.animateTo(QueueRowSwipe.Settled)
+                        // Spring passed explicitly: animateTo otherwise defaults to a tween.
+                        swipeState.animateTo(QueueRowSwipe.Settled, Motion.SpringStandard)
                     }
                 }
             }
@@ -164,7 +156,7 @@ fun QueueRow(
     // land. A successful removal disposes this row before the check can matter.
     LaunchedEffect(queue) {
         if (swipeState.settledValue != QueueRowSwipe.Settled && queue.any { it.slotId == slotId }) {
-            swipeState.animateTo(QueueRowSwipe.Settled)
+            swipeState.animateTo(QueueRowSwipe.Settled, Motion.SpringStandard)
         }
     }
 
@@ -196,7 +188,15 @@ fun QueueRow(
             // drag/settle/reset through its own MutatorMutex, and changing that parameter
             // rebuilds the whole gesture-detection node. Removal is gated at the callback
             // level in QueueList instead, same as onSongClick/onMove.
-            .anchoredDraggable(state = swipeState, orientation = Orientation.Horizontal),
+            .anchoredDraggable(
+                state = swipeState,
+                orientation = Orientation.Horizontal,
+                flingBehavior = AnchoredDraggableDefaults.flingBehavior(
+                    state = swipeState,
+                    positionalThreshold = SwipePositionalThreshold,
+                    animationSpec = Motion.SpringStandard,
+                ),
+            ),
     ) {
         Box(
             modifier = Modifier
