@@ -13,7 +13,7 @@ synthX is not published or intended for distribution. It's built, tested, and us
 
 ## Design principles
 
-- **Dark, restrained, intentional.** Black background, a single neon accent (`#CAFF00`) used in exactly five deliberate places — it's not a decorative color, it's a signal.
+- **Dark, restrained, intentional.** Black background, a single neon accent (`#CAFF00`) used in exactly four deliberate places — it's not a decorative color, it's a signal.
 - **Refined-instant-cut navigation.** Screen transitions hold on solid black until content is ready, then reveal instantly. No loading spinners bleeding into half-rendered screens.
 - **Correctness over cleverness.** Every architectural decision favors not losing the user's library over saving engineering effort — this shows up throughout the codebase (safety snapshots before migrations, dual-version backup schema contracts, verified file moves for graduation).
 

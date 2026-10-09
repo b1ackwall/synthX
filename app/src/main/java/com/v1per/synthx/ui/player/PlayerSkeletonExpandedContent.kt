@@ -20,7 +20,8 @@ import androidx.compose.ui.unit.dp
 // DEAD CODE: the title color no longer branches on the build type. Delete in a cleanup pass. Ask  before deleting.
 // import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.data.repository.Song
-import com.v1per.synthx.playback.BackgroundBrightness
+// DEAD CODE: the title row reads its content color from LocalPlayerContentColors, not a brightness parameter. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.playback.BackgroundBrightness
 import com.v1per.synthx.ui.components.MoreOptionsButton
 import com.v1per.synthx.ui.theme.Spacing
 
@@ -39,22 +40,25 @@ fun PlayerSkeletonExpandedContent(
     queueProgressValue: Float,
     expandedContentEnabled: Boolean,
     modifier: Modifier = Modifier,
-    backgroundBrightness: BackgroundBrightness? = null,
+    // DEAD CODE: the title row reads its content color from LocalPlayerContentColors, not a brightness parameter. Delete in a cleanup pass. Ask  before deleting.
+    // backgroundBrightness: BackgroundBrightness? = null,
 ) {
-    // Same locked values in every build.
-    val darkText = useDarkPlayerTitle(
-        enabled = PlayerAltStageStyle.AdaptiveTextEnabled,
-        brightness = backgroundBrightness,
-        metric = PlayerAltStageStyle.LockedAdaptiveTextMetric,
-        statistic = PlayerAltStageStyle.LockedAdaptiveTextStatistic,
-        threshold = PlayerAltStageStyle.AdaptiveTextThreshold,
-    )
+    // DEAD CODE: the light/dark decision is made once in ProvidePlayerContentColors and read from LocalPlayerContentColors below. Delete in a cleanup pass. Ask  before deleting.
+    // // Same locked values in every build.
+    // val darkText = useDarkPlayerTitle(
+    //     enabled = PlayerAltStageStyle.AdaptiveTextEnabled,
+    //     brightness = backgroundBrightness,
+    //     metric = PlayerAltStageStyle.LockedAdaptiveTextMetric,
+    //     statistic = PlayerAltStageStyle.LockedAdaptiveTextStatistic,
+    //     threshold = PlayerAltStageStyle.AdaptiveTextThreshold,
+    // )
     // DEAD CODE: the adaptive title color no longer reads the debug state. Delete in a cleanup pass. Ask  before deleting.
     // val debugState = PlayerBackgroundDebugStateHolder.state.value
     // enabled = effectivePlayerAdaptiveTextEnabled(BuildConfig.DEBUG, debugState),
     // metric = effectivePlayerAdaptiveTextMetric(BuildConfig.DEBUG, debugState),
     // statistic = effectivePlayerAdaptiveTextStatistic(BuildConfig.DEBUG, debugState),
     // threshold = effectivePlayerAdaptiveTextThreshold(BuildConfig.DEBUG, debugState),
+    val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
     Box(
         modifier = modifier
             .offset(y = titleRowY)
@@ -73,7 +77,9 @@ fun PlayerSkeletonExpandedContent(
                     text = song.title,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = playerTitleColor(darkText),
+                    // DEAD CODE: the title follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
+                    // color = playerTitleColor(darkText),
+                    color = contentColors.content,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.basicMarquee(),
@@ -81,7 +87,9 @@ fun PlayerSkeletonExpandedContent(
                 Text(
                     text = song.artist,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = playerArtistColor(darkText),
+                    // DEAD CODE: the artist follows the player's shared content color (light is TextPrimary now, not TextSecondary). Delete in a cleanup pass. Ask  before deleting.
+                    // color = playerArtistColor(darkText),
+                    color = contentColors.content,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.basicMarquee(),

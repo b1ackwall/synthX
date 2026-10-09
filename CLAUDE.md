@@ -156,12 +156,11 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
 
 ## Design System (locked — no scope creep)
 - Dark-only theme.
-- #1AE62B neon accent used ONLY in these 5 contexts — never elsewhere:
+- #1AE62B neon accent used ONLY in these 4 contexts — never elsewhere:
   1. Wordmark "X"
   2. Selected bottom nav item
   3. Playing indicator bar
-  4. Play/pause icon when playing
-  5. Ripple on clickable rows
+  4. Ripple on clickable rows
 - Outfit font (body/UI), Bitcount Grid Double (wordmark only).
 - 2dp corner radius via MaterialTheme.shapes.small — single source of truth, don't hardcode radii.
 - Apple Music-inspired UX: smooth navigation, instant cut transitions (not slow fades).

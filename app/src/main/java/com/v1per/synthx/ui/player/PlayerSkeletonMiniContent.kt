@@ -29,10 +29,12 @@ import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.components.DragResistantIconButton
-import com.v1per.synthx.ui.theme.Accent
+// DEAD CODE: accent left the player; the mini content follows LocalPlayerContentColors. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
+// DEAD CODE: the mini content follows LocalPlayerContentColors instead of fixed text tokens. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.ui.theme.TextPrimary
+// import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
  * Mini content: title/artist + play/pause, PlayerMiniBar.kt's Row minus the art (art is the
@@ -52,6 +54,7 @@ fun BoxScope.PlayerSkeletonMiniContent(
     height: Dp,
     modifier: Modifier = Modifier,
 ) {
+    val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
     Row(
         modifier = modifier
             .align(Alignment.TopCenter)
@@ -72,7 +75,9 @@ fun BoxScope.PlayerSkeletonMiniContent(
             Text(
                 text = song.title,
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                color = TextPrimary,
+                // DEAD CODE: the mini title follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
+                // color = TextPrimary,
+                color = contentColors.content,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.basicMarquee(),
@@ -80,7 +85,9 @@ fun BoxScope.PlayerSkeletonMiniContent(
             Text(
                 text = song.artist,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                // DEAD CODE: the mini artist follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
+                // color = TextSecondary,
+                color = contentColors.content,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -92,7 +99,9 @@ fun BoxScope.PlayerSkeletonMiniContent(
             if (isBuffering) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = TextSecondary,
+                    // DEAD CODE: the mini spinner follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
+                    // color = TextSecondary,
+                    color = contentColors.content,
                     strokeWidth = 2.dp,
                 )
             } else {
@@ -103,7 +112,9 @@ fun BoxScope.PlayerSkeletonMiniContent(
                     } else {
                         stringResource(R.string.cd_play)
                     },
-                    tint = if (isPlaying) Accent else TextPrimary,
+                    // DEAD CODE: accent left the player; play/pause uses the shared content color in both states. Delete in a cleanup pass. Ask  before deleting.
+                    // tint = if (isPlaying) Accent else TextPrimary,
+                    tint = contentColors.content,
                     modifier = Modifier.size(28.dp),
                 )
             }

@@ -46,6 +46,7 @@ import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.next
 import com.v1per.synthx.ui.player.PlayerBackgroundDebugStateHolder
 import com.v1per.synthx.ui.player.PlayerSheetSkeleton
+import com.v1per.synthx.ui.player.ProvidePlayerContentColors
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Surface
@@ -139,35 +140,40 @@ internal fun BottomChromeOverlay(
             // Skeleton now renders mini content + expanded transport controls + full
             // queue-mode list (reorder, tap-to-play, swipe-to-remove, shuffle/repeat,
             // real MoreOptionsButton).
-            PlayerSheetSkeleton(
-                song = song,
-                // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
-                // ambientColors = ambientColors,
-                backgroundArt = backgroundArt?.image,
-                backgroundBrightness = backgroundArt?.brightness,
-                isPlaying = isPlaying,
-                isBuffering = isBuffering,
-                currentPosition = currentPosition,
-                duration = duration,
-                onPlayPauseClick = playbackViewModel::togglePlayPause,
-                onSeek = playbackViewModel::seekTo,
-                onPreviousClick = playbackViewModel::previous,
-                onNextClick = playbackViewModel::next,
-                hasPrevious = hasPrevious,
-                hasNext = hasNext,
-                upcomingQueue = upcomingQueue,
-                shuffleEnabled = shuffleEnabled,
-                repeatMode = repeatMode,
-                onShuffleClick = { playbackViewModel.setShuffleEnabled(!shuffleEnabled) },
-                onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
-                onQueueSongClick = playbackViewModel::playQueueItem,
-                onQueueMove = playbackViewModel::moveQueueItem,
-                onQueueRemove = playbackViewModel::removeQueueItem,
-                onProgressChanged = onPlayerProgressChanged,
-                collapsePlayerSignal = collapsePlayerSignal,
-                visible = showBottomBar,
-                modifier = hiddenModifier,
-            )
+            // The light/dark content color is decided once here, from the brightness that travels
+            // with the displayed art, and provided to the sheet alone — not to the nav above.
+            ProvidePlayerContentColors(brightness = backgroundArt?.brightness) {
+                PlayerSheetSkeleton(
+                    song = song,
+                    // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
+                    // ambientColors = ambientColors,
+                    backgroundArt = backgroundArt?.image,
+                    // DEAD CODE: the sheet reads its content color from LocalPlayerContentColors, provided just above. Delete in a cleanup pass. Ask  before deleting.
+                    // backgroundBrightness = backgroundArt?.brightness,
+                    isPlaying = isPlaying,
+                    isBuffering = isBuffering,
+                    currentPosition = currentPosition,
+                    duration = duration,
+                    onPlayPauseClick = playbackViewModel::togglePlayPause,
+                    onSeek = playbackViewModel::seekTo,
+                    onPreviousClick = playbackViewModel::previous,
+                    onNextClick = playbackViewModel::next,
+                    hasPrevious = hasPrevious,
+                    hasNext = hasNext,
+                    upcomingQueue = upcomingQueue,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    onShuffleClick = { playbackViewModel.setShuffleEnabled(!shuffleEnabled) },
+                    onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
+                    onQueueSongClick = playbackViewModel::playQueueItem,
+                    onQueueMove = playbackViewModel::moveQueueItem,
+                    onQueueRemove = playbackViewModel::removeQueueItem,
+                    onProgressChanged = onPlayerProgressChanged,
+                    collapsePlayerSignal = collapsePlayerSignal,
+                    visible = showBottomBar,
+                    modifier = hiddenModifier,
+                )
+            }
         }
     }
 }

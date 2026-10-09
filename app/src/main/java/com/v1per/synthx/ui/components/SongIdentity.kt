@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.ui.player.LocalPlayerContentColors
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -34,6 +35,9 @@ fun SongIdentity(
     song: Song,
     modifier: Modifier = Modifier,
 ) {
+    // Non-null only inside the player sheet (the queue rows); everywhere else this stays null
+    // and the text keeps its usual tokens.
+    val playerColors = LocalPlayerContentColors.current
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -60,14 +64,18 @@ fun SongIdentity(
             Text(
                 text = song.title,
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                color = TextPrimary,
+                // DEAD CODE: inside the player the title follows the shared content color; elsewhere it is still TextPrimary. Delete in a cleanup pass. Ask  before deleting.
+                // color = TextPrimary,
+                color = playerColors?.content ?: TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = song.artist,
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary,
+                // DEAD CODE: inside the player the artist follows the shared content color; elsewhere it is still TextSecondary. Delete in a cleanup pass. Ask  before deleting.
+                // color = TextSecondary,
+                color = playerColors?.content ?: TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

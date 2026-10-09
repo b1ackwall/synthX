@@ -16,17 +16,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.playback.RepeatMode
+import com.v1per.synthx.ui.player.LocalPlayerContentColors
+import com.v1per.synthx.ui.player.PlayerContentColors
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
+// DEAD CODE: shuffle/repeat follow LocalPlayerContentColors instead of fixed text tokens. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.ui.theme.TextPrimary
+// import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
- * Shuffle / Repeat row. Both tint [TextPrimary] when active (vs. [TextSecondary] when
- * inactive) — the same "tint marks the active state" convention as the play/pause icon
- * elsewhere in the player, rather than swapping to an "_on" icon glyph that
- * material-icons-extended doesn't ship. Accent was pulled back out of scope here (Phase E);
- * TextPrimary was chosen over TextSecondary for the active state specifically so the on/off
- * states stay visually distinct instead of collapsing to the same gray.
+ * Shuffle / Repeat row. Both tint the player's content color when active (vs. the same color
+ * at Alpha.ToggleOff, [PlayerContentColors.off], when inactive) — the same "tint marks the
+ * active state" convention as the queue button, rather than swapping to an "_on" icon glyph
+ * that material-icons-extended doesn't ship. Accent was pulled back out of scope here (Phase E).
  *
  * There used to be a third "Autoplay" button here. It was removed rather than wired up or
  * disabled-with-a-tooltip: Apple Music's Autoplay pulls replacement tracks from a streaming
@@ -44,6 +45,7 @@ fun QueuePlaybackModeRow(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -54,7 +56,9 @@ fun QueuePlaybackModeRow(
             Icon(
                 imageVector = Icons.Filled.Shuffle,
                 contentDescription = stringResource(R.string.cd_shuffle),
-                tint = if (shuffleEnabled) TextPrimary else TextSecondary,
+                // DEAD CODE: on/off is now the shared content color vs. the same color at Alpha.ToggleOff. Delete in a cleanup pass. Ask  before deleting.
+                // tint = if (shuffleEnabled) TextPrimary else TextSecondary,
+                tint = if (shuffleEnabled) contentColors.content else contentColors.off,
                 modifier = Modifier.size(24.dp),
             )
         }
@@ -66,7 +70,9 @@ fun QueuePlaybackModeRow(
                     Icons.Filled.Repeat
                 },
                 contentDescription = stringResource(R.string.cd_repeat),
-                tint = if (repeatMode != RepeatMode.Off) TextPrimary else TextSecondary,
+                // DEAD CODE: on/off is now the shared content color vs. the same color at Alpha.ToggleOff. Delete in a cleanup pass. Ask  before deleting.
+                // tint = if (repeatMode != RepeatMode.Off) TextPrimary else TextSecondary,
+                tint = if (repeatMode != RepeatMode.Off) contentColors.content else contentColors.off,
                 modifier = Modifier.size(24.dp),
             )
         }

@@ -42,7 +42,8 @@ import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
-import com.v1per.synthx.playback.BackgroundBrightness
+// DEAD CODE: the sheet reads its content color from LocalPlayerContentColors, not a brightness parameter. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.playback.BackgroundBrightness
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
@@ -122,7 +123,8 @@ internal fun PlayerSheetSkeleton(
     // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
     // ambientColors: DerivedBlobColors?,
     backgroundArt: Bitmap?,
-    backgroundBrightness: BackgroundBrightness? = null,
+    // DEAD CODE: the sheet reads its content color from LocalPlayerContentColors, not a brightness parameter. Delete in a cleanup pass. Ask  before deleting.
+    // backgroundBrightness: BackgroundBrightness? = null,
     isPlaying: Boolean,
     isBuffering: Boolean,
     currentPosition: Long,
@@ -481,7 +483,8 @@ internal fun PlayerSheetSkeleton(
                     expandedContentAlpha = expandedContentAlpha,
                     queueProgressValue = queueModeState.queueProgress.value,
                     expandedContentEnabled = expandedContentEnabled,
-                    backgroundBrightness = backgroundBrightness,
+                    // DEAD CODE: the title row reads its content color from LocalPlayerContentColors. Delete in a cleanup pass. Ask  before deleting.
+                    // backgroundBrightness = backgroundBrightness,
                 )
 
                 PlayerSkeletonQueueContent(

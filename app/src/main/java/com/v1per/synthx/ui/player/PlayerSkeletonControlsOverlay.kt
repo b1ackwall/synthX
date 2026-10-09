@@ -25,7 +25,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
+// DEAD CODE: only the retired raw Color.White seek-track colors used it. Delete in a cleanup pass. Ask  before deleting.
+// import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -35,8 +36,9 @@ import com.v1per.synthx.ui.components.DragResistantIconButton
 import com.v1per.synthx.ui.components.PlayerSeekBar
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
+// DEAD CODE: the controls follow LocalPlayerContentColors instead of fixed text tokens. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.ui.theme.TextPrimary
+// import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
  * Controls overlay: seek bar, transport controls, queue placeholder, laid out as a Column.
@@ -117,6 +119,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
     // threshold convention as the shield fix, for the same reason.
     val overlayControlsEnabled = expandedContentEnabled && overlayVisibleAlpha > 0.5f
     val transportGap = 40f.dp
+    val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
 
     // Slide-up: the overlay rises [ContentSlideDistance] into its resting place as it fades
     // in, rather than materialising in position. Compose's +Y is downward, so the positive
@@ -227,8 +230,11 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 currentPosition = currentPosition,
                 duration = duration,
                 onSeek = onSeek,
-                unplayedColor = Color.White.copy(alpha = 0.25f),
-                playedColor = Color.White.copy(alpha = 0.75f),
+                // DEAD CODE: raw white and raw alphas replaced by the shared content color and the seek-track alpha tokens. Delete in a cleanup pass. Ask  before deleting.
+                // unplayedColor = Color.White.copy(alpha = 0.25f),
+                // playedColor = Color.White.copy(alpha = 0.75f),
+                unplayedColor = contentColors.content.copy(alpha = Alpha.SeekTrackUnplayed),
+                playedColor = contentColors.content.copy(alpha = Alpha.SeekTrackPlayed),
                 enabled = overlayControlsEnabled,
             )
             Spacer(modifier = Modifier.height(transportGap))
@@ -247,7 +253,9 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                     Icon(
                         imageVector = Icons.Filled.FastRewind,
                         contentDescription = stringResource(R.string.cd_previous_track),
-                        tint = TextPrimary,
+                        // DEAD CODE: previous follows the player's shared content color; its disabled alpha below is unchanged. Delete in a cleanup pass. Ask  before deleting.
+                        // tint = TextPrimary,
+                        tint = contentColors.content,
                         modifier = Modifier
                             .size(56.dp)
                             .alpha(if (previousEnabled) 1f else Alpha.Disabled),
@@ -262,7 +270,9 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                     if (isBuffering) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(40.dp),
-                            color = TextPrimary,
+                            // DEAD CODE: the spinner follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
+                            // color = TextPrimary,
+                            color = contentColors.content,
                             strokeWidth = 3.dp,
                         )
                     } else {
@@ -273,7 +283,9 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                             } else {
                                 stringResource(R.string.cd_play)
                             },
-                            tint = TextPrimary,
+                            // DEAD CODE: play/pause follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
+                            // tint = TextPrimary,
+                            tint = contentColors.content,
                             modifier = Modifier.size(64.dp),
                         )
                     }
@@ -287,7 +299,9 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                     Icon(
                         imageVector = Icons.Filled.FastForward,
                         contentDescription = stringResource(R.string.cd_next_track),
-                        tint = TextPrimary,
+                        // DEAD CODE: next follows the player's shared content color; its disabled alpha below is unchanged. Delete in a cleanup pass. Ask  before deleting.
+                        // tint = TextPrimary,
+                        tint = contentColors.content,
                         modifier = Modifier
                             .size(56.dp)
                             .alpha(if (nextEnabled) 1f else Alpha.Disabled),
@@ -314,7 +328,9 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                         contentDescription = stringResource(R.string.cd_queue),
-                        tint = if (isQueueMode) TextPrimary else TextSecondary,
+                        // DEAD CODE: on/off is now the shared content color vs. the same color at Alpha.ToggleOff. Delete in a cleanup pass. Ask  before deleting.
+                        // tint = if (isQueueMode) TextPrimary else TextSecondary,
+                        tint = if (isQueueMode) contentColors.content else contentColors.off,
                         modifier = Modifier.size(28.dp),
                     )
                 }

@@ -44,8 +44,9 @@ import com.v1per.synthx.ui.components.MoreOptionsButton
 import com.v1per.synthx.ui.components.QueueList
 import com.v1per.synthx.ui.components.QueuePlaybackModeRow
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
+// DEAD CODE: the queue header and empty-queue text follow LocalPlayerContentColors instead of fixed text tokens. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.ui.theme.TextPrimary
+// import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.collections.immutable.toPersistentList
 
 private val ControlsMaskFadeHeight = 48.dp
@@ -123,6 +124,7 @@ fun PlayerSkeletonQueueContent(
 ) {
     val queueContentAlpha = expandedContentAlpha * queueProgressValue
     val queueContentEnabled = expandedContentEnabled && queueProgressValue > 0.5f
+    val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
 
     // Keyed on upcomingQueue only (not queueProgressValue) so this only re-runs when the
     // queue's actual contents change — this composable itself re-executes every frame of
@@ -178,7 +180,9 @@ fun PlayerSkeletonQueueContent(
                         text = song.title,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
+                        // DEAD CODE: the queue header title follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
+                        // color = TextPrimary,
+                        color = contentColors.content,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.basicMarquee(),
@@ -186,7 +190,9 @@ fun PlayerSkeletonQueueContent(
                     Text(
                         text = song.artist,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
+                        // DEAD CODE: the queue header artist follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
+                        // color = TextSecondary,
+                        color = contentColors.content,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -224,7 +230,9 @@ fun PlayerSkeletonQueueContent(
                 Text(
                     text = stringResource(R.string.empty_queue_no_upcoming),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = TextSecondary,
+                    // DEAD CODE: the empty-queue text follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
+                    // color = TextSecondary,
+                    color = contentColors.content,
                 )
             }
         } else if (queueProgressValue > 0f) {
