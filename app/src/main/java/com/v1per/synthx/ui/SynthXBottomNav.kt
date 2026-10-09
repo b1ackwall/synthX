@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.navigation.Screen
@@ -43,6 +44,7 @@ import com.v1per.synthx.ui.components.BottomNavHeight
 // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
 // import com.v1per.synthx.ui.components.DerivedBlobColors
 import com.v1per.synthx.ui.components.next
+import com.v1per.synthx.ui.player.PlayerBackgroundDebugStateHolder
 import com.v1per.synthx.ui.player.PlayerSheetSkeleton
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
@@ -129,6 +131,11 @@ internal fun BottomChromeOverlay(
                 playbackViewModel.loadPlayerBackgroundArt(backgroundArtRequest)
             }
             val backgroundArt by playbackViewModel.playerBackgroundArt.collectAsState()
+            // DEAD CODE: fed only the hidden debug readout of the measured brightness. Delete in a cleanup pass. Ask  before deleting.
+            // if (BuildConfig.DEBUG) {
+            //     val measured = backgroundArt?.brightness
+            //     LaunchedEffect(measured) { PlayerBackgroundDebugStateHolder.measuredBrightness.value = measured }
+            // }
             // Skeleton now renders mini content + expanded transport controls + full
             // queue-mode list (reorder, tap-to-play, swipe-to-remove, shuffle/repeat,
             // real MoreOptionsButton).
@@ -137,6 +144,7 @@ internal fun BottomChromeOverlay(
                 // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
                 // ambientColors = ambientColors,
                 backgroundArt = backgroundArt?.image,
+                backgroundBrightness = backgroundArt?.brightness,
                 isPlaying = isPlaying,
                 isBuffering = isBuffering,
                 currentPosition = currentPosition,

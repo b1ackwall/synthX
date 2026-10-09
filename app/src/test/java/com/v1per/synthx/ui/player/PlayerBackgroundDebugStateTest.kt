@@ -1,5 +1,7 @@
 package com.v1per.synthx.ui.player
 
+import com.v1per.synthx.playback.BackgroundBrightness
+import com.v1per.synthx.playback.BrightnessStats
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -32,5 +34,82 @@ class PlayerBackgroundDebugStateTest {
         val tuned = PlayerBackgroundDebugState(blurRadiusDp = 10f)
         assertEquals(PlayerAltStageStyle.BlurDp, effectivePlayerBackgroundBlurDp(debug = false, state = tuned))
         assertEquals(10f, effectivePlayerBackgroundBlurDp(debug = true, state = tuned))
+    }
+
+    private val brightness = BackgroundBrightness(
+        wcag = BrightnessStats(mean = 0.1f, median = 0.2f, p90 = 0.3f),
+        oklab = BrightnessStats(mean = 0.4f, median = 0.5f, p90 = 0.6f),
+    )
+
+    // DEAD CODE: the adaptive title color is locked in PlayerAltStageStyle, so these debug values no longer exist. Delete in a cleanup pass. Ask  before deleting.
+    // @Test fun adaptiveTextDefaultsAndResetEqualTheLockedConstants() {
+    //     val d = PlayerBackgroundDebugState()
+    //     assertEquals(PlayerAltStageStyle.AdaptiveTextEnabled, d.adaptiveTextEnabled)
+    //     assertEquals(false, d.adaptiveTextEnabled)
+    //     assertEquals(PlayerAltStageStyle.AdaptiveTextThreshold, d.adaptiveTextThreshold)
+    //     assertEquals(0.25f, d.adaptiveTextThreshold)
+    //     assertEquals(PlayerAltStageStyle.LockedAdaptiveTextMetric, d.adaptiveTextMetric)
+    //     assertEquals(AdaptiveTextMetric.WcagLuminance, d.adaptiveTextMetric)
+    //     assertEquals(PlayerAltStageStyle.LockedAdaptiveTextStatistic, d.adaptiveTextStatistic)
+    //     assertEquals(AdaptiveTextStatistic.P90, d.adaptiveTextStatistic)
+    //     with(PlayerBackgroundDebugStateHolder) {
+    //         setBlurRadiusDp(10f)
+    //         setTwistEnabled(false)
+    //         setBlurEdgeMode(AltStageBlurEdgeMode.Mirror)
+    //         setAdaptiveTextEnabled(true)
+    //         setAdaptiveTextThreshold(0.9f)
+    //         setAdaptiveTextMetric(AdaptiveTextMetric.OklabLightness)
+    //         setAdaptiveTextStatistic(AdaptiveTextStatistic.Mean)
+    //         reset()
+    //     }
+    //     assertEquals(PlayerBackgroundDebugState(), PlayerBackgroundDebugStateHolder.state.value)
+    // }
+
+    // @Test fun adaptiveTextThresholdIsClamped() {
+    //     assertEquals(0f, clampPlayerAdaptiveTextThreshold(-1f))
+    //     assertEquals(1f, clampPlayerAdaptiveTextThreshold(3f))
+    //     assertEquals(0.4f, clampPlayerAdaptiveTextThreshold(0.4f))
+    //     assertEquals(PlayerAltStageStyle.AdaptiveTextThreshold, clampPlayerAdaptiveTextThreshold(Float.NaN))
+    //     PlayerBackgroundDebugStateHolder.setAdaptiveTextThreshold(7f)
+    //     assertEquals(1f, PlayerBackgroundDebugStateHolder.state.value.adaptiveTextThreshold)
+    //     PlayerBackgroundDebugStateHolder.reset()
+    // }
+
+    // @Test fun releaseBuildsIgnoreTheDebugAdaptiveText() {
+    //     val tuned = PlayerBackgroundDebugState(
+    //         adaptiveTextEnabled = true,
+    //         adaptiveTextThreshold = 0.9f,
+    //         adaptiveTextMetric = AdaptiveTextMetric.OklabLightness,
+    //         adaptiveTextStatistic = AdaptiveTextStatistic.Mean,
+    //     )
+    //     assertEquals(false, effectivePlayerAdaptiveTextEnabled(debug = false, state = tuned))
+    //     assertEquals(PlayerAltStageStyle.AdaptiveTextThreshold, effectivePlayerAdaptiveTextThreshold(debug = false, state = tuned))
+    //     assertEquals(PlayerAltStageStyle.LockedAdaptiveTextMetric, effectivePlayerAdaptiveTextMetric(debug = false, state = tuned))
+    //     assertEquals(PlayerAltStageStyle.LockedAdaptiveTextStatistic, effectivePlayerAdaptiveTextStatistic(debug = false, state = tuned))
+    //     assertEquals(true, effectivePlayerAdaptiveTextEnabled(debug = true, state = tuned))
+    //     assertEquals(0.9f, effectivePlayerAdaptiveTextThreshold(debug = true, state = tuned))
+    //     assertEquals(AdaptiveTextMetric.OklabLightness, effectivePlayerAdaptiveTextMetric(debug = true, state = tuned))
+    //     assertEquals(AdaptiveTextStatistic.Mean, effectivePlayerAdaptiveTextStatistic(debug = true, state = tuned))
+    // }
+
+    @Test fun selectionPicksTheChosenMetricAndStatistic() {
+        assertEquals(0.1f, brightness.select(AdaptiveTextMetric.WcagLuminance, AdaptiveTextStatistic.Mean))
+        assertEquals(0.2f, brightness.select(AdaptiveTextMetric.WcagLuminance, AdaptiveTextStatistic.Median))
+        assertEquals(0.3f, brightness.select(AdaptiveTextMetric.WcagLuminance, AdaptiveTextStatistic.P90))
+        assertEquals(0.4f, brightness.select(AdaptiveTextMetric.OklabLightness, AdaptiveTextStatistic.Mean))
+        assertEquals(0.5f, brightness.select(AdaptiveTextMetric.OklabLightness, AdaptiveTextStatistic.Median))
+        assertEquals(0.6f, brightness.select(AdaptiveTextMetric.OklabLightness, AdaptiveTextStatistic.P90))
+    }
+
+    @Test fun darkTitleNeedsEnabledAValueAndSelectedValueAboveThreshold() {
+        val wcag = AdaptiveTextMetric.WcagLuminance
+        val oklab = AdaptiveTextMetric.OklabLightness
+        val p90 = AdaptiveTextStatistic.P90
+        assertEquals(true, useDarkPlayerTitle(true, brightness, wcag, p90, 0.25f))
+        assertEquals(false, useDarkPlayerTitle(true, brightness, wcag, p90, 0.3f))
+        assertEquals(false, useDarkPlayerTitle(true, brightness, wcag, AdaptiveTextStatistic.Mean, 0.25f))
+        assertEquals(true, useDarkPlayerTitle(true, brightness, oklab, AdaptiveTextStatistic.Mean, 0.25f))
+        assertEquals(false, useDarkPlayerTitle(false, brightness, oklab, p90, 0.25f))
+        assertEquals(false, useDarkPlayerTitle(true, null, wcag, p90, 0.25f))
     }
 }

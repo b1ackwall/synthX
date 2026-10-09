@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.QueueSlot
+import com.v1per.synthx.ui.player.PlayerAltStageStyle
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -139,7 +140,11 @@ class PlaybackViewModel(
     val queuePrompts: SharedFlow<QueuePromptEvent> = _queuePrompts.asSharedFlow()
 
     // The player background's decoded art, keyed by song id. The UI supplies each request.
-    private val backgroundArt = PlayerBackgroundArtHolder(viewModelScope, loadBackgroundArt)
+    private val backgroundArt = PlayerBackgroundArtHolder(
+        scope = viewModelScope,
+        measure = { it.backgroundBrightness(PlayerAltStageStyle.Saturation) },
+        load = loadBackgroundArt,
+    )
     val playerBackgroundArt: StateFlow<PlayerBackgroundArt<Bitmap>?> = backgroundArt.art
 
     /** Decodes [request]'s art unless it is already the current request. */

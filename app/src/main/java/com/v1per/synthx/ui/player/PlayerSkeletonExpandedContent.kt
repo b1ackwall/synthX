@@ -17,11 +17,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+// DEAD CODE: the title color no longer branches on the build type. Delete in a cleanup pass. Ask  before deleting.
+// import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.playback.BackgroundBrightness
 import com.v1per.synthx.ui.components.MoreOptionsButton
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
  * Expanded content: title/artist row plus [MoreOptionsButton] (shared player-chrome
@@ -38,7 +39,22 @@ fun PlayerSkeletonExpandedContent(
     queueProgressValue: Float,
     expandedContentEnabled: Boolean,
     modifier: Modifier = Modifier,
+    backgroundBrightness: BackgroundBrightness? = null,
 ) {
+    // Same locked values in every build.
+    val darkText = useDarkPlayerTitle(
+        enabled = PlayerAltStageStyle.AdaptiveTextEnabled,
+        brightness = backgroundBrightness,
+        metric = PlayerAltStageStyle.LockedAdaptiveTextMetric,
+        statistic = PlayerAltStageStyle.LockedAdaptiveTextStatistic,
+        threshold = PlayerAltStageStyle.AdaptiveTextThreshold,
+    )
+    // DEAD CODE: the adaptive title color no longer reads the debug state. Delete in a cleanup pass. Ask  before deleting.
+    // val debugState = PlayerBackgroundDebugStateHolder.state.value
+    // enabled = effectivePlayerAdaptiveTextEnabled(BuildConfig.DEBUG, debugState),
+    // metric = effectivePlayerAdaptiveTextMetric(BuildConfig.DEBUG, debugState),
+    // statistic = effectivePlayerAdaptiveTextStatistic(BuildConfig.DEBUG, debugState),
+    // threshold = effectivePlayerAdaptiveTextThreshold(BuildConfig.DEBUG, debugState),
     Box(
         modifier = modifier
             .offset(y = titleRowY)
@@ -57,7 +73,7 @@ fun PlayerSkeletonExpandedContent(
                     text = song.title,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
+                    color = playerTitleColor(darkText),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.basicMarquee(),
@@ -65,7 +81,7 @@ fun PlayerSkeletonExpandedContent(
                 Text(
                     text = song.artist,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = TextSecondary,
+                    color = playerArtistColor(darkText),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.basicMarquee(),

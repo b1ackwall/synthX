@@ -1,14 +1,16 @@
 package com.v1per.synthx.playback
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-/** Decoded player background art for the song with [songId]. */
-data class PlayerBackgroundArt<T : Any>(val songId: String, val image: T)
+/** Decoded player background art for the song with [songId], and its measured brightness if [PlayerBackgroundArtHolder] was given a measure. */
+data class PlayerBackgroundArt<T : Any>(val songId: String, val image: T, val brightness: BackgroundBrightness? = null)
 
 /**
  * Holds the player background art for the latest request. A new request cancels the in-flight
@@ -17,6 +19,7 @@ data class PlayerBackgroundArt<T : Any>(val songId: String, val image: T)
  */
 internal class PlayerBackgroundArtHolder<T : Any>(
     private val scope: CoroutineScope,
+    private val measure: ((T) -> BackgroundBrightness?)? = null,
     private val load: suspend (PlayerBackgroundArtRequest) -> T?,
 ) {
     private val _art = MutableStateFlow<PlayerBackgroundArt<T>?>(null)
@@ -35,7 +38,13 @@ internal class PlayerBackgroundArtHolder<T : Any>(
         }
         job = scope.launch {
             val image = load(request)
-            _art.value = image?.let { PlayerBackgroundArt(request.songId, it) }
+            // Measured off the main thread, so the image and its brightness swap in together.
+            val brightness = if (image != null && measure != null) {
+                withContext(Dispatchers.Default) { measure.invoke(image) }
+            } else {
+                null
+            }
+            _art.value = image?.let { PlayerBackgroundArt(request.songId, it, brightness) }
         }
     }
 }
