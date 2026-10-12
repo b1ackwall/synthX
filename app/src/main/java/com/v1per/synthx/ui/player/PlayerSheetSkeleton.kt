@@ -79,9 +79,9 @@ private val ControlsOverlayHeight: Dp = 300.dp
 
 /**
  * How far below its resting position an alpha-faded block starts before sliding up into
- * place. Both the controls overlay (PlayerSkeletonControlsOverlay) and queue mode's
- * header/list block (PlayerSkeletonQueueContent) travel this distance as their own alpha
- * term runs 0→1, so the two read as one motion rather than two independently-tuned ones.
+ * place. Queue mode's header/list block (PlayerSkeletonQueueContent) travels this distance
+ * as its slide term runs 0→1; the controls overlay travels with the sheet instead and uses
+ * this only until the sheet's anchors exist (see PlayerSheetMotion.kt's controlsOverlaySlide).
  *
  * Internal rather than private for the same reason [TitleRowReservedHeight] above is —
  * top-level `private` in Kotlin is file-private, and both consumers live in other files.
@@ -251,6 +251,9 @@ internal fun PlayerSheetSkeleton(
         val expandedContentAlpha = ((progress - 0.4f) * (1f / 0.6f)).coerceIn(0f, 1f)
         val miniContentEnabled = miniContentAlpha > 0.5f
         val expandedContentEnabled = expandedContentAlpha > 0.5f
+
+        // Title, overlay and queue fades, and the overlay slide shared with the queue mask.
+        val motion = playerSheetMotion(progress, expandedContentAlpha, draggableState, density)
 
         // Caps ControlsOverlayHeight against maxHeight (the sheet's fixed ceiling, not the
         // live sheetHeight) so the cap only activates for genuinely short screens — on any
@@ -480,9 +483,9 @@ internal fun PlayerSheetSkeleton(
                 PlayerSkeletonExpandedContent(
                     song = song,
                     titleRowY = artPosition.titleRowY,
-                    expandedContentAlpha = expandedContentAlpha,
+                    expandedContentAlpha = motion.titleAlpha,
                     queueProgressValue = queueModeState.queueProgress.value,
-                    expandedContentEnabled = expandedContentEnabled,
+                    expandedContentEnabled = motion.titleEnabled,
                     // DEAD CODE: the title row reads its content color from LocalPlayerContentColors. Delete in a cleanup pass. Ask  before deleting.
                     // backgroundBrightness = backgroundBrightness,
                 )
@@ -507,7 +510,9 @@ internal fun PlayerSheetSkeleton(
                     onQueueMove = onQueueMove,
                     onQueueRemove = onQueueRemove,
                     controlsOverlayHeight = actualOverlayHeight,
-                    controlsOverlayAlpha = expandedContentAlpha * overlayVisibleAlpha,
+                    queueFadeAlpha = motion.queueFadeAlpha,
+                    controlsOverlayAlpha = motion.maskStrength(overlayVisibleAlpha),
+                    controlsOverlaySlide = motion.overlaySlide,
                     bottomInset = bottomInset,
                 )
 
@@ -516,8 +521,9 @@ internal fun PlayerSheetSkeleton(
                     // Passed so the overlay can cancel this padding back out of its own
                     // placement — it is bottom-anchored to the very edge this inset moves.
                     bottomInset = bottomInset,
-                    expandedContentAlpha = expandedContentAlpha,
-                    expandedContentEnabled = expandedContentEnabled,
+                    expandedContentAlpha = motion.overlayAlpha,
+                    expandedContentEnabled = motion.overlayEnabled,
+                    slideOffset = motion.overlaySlide,
                     currentPosition = currentPosition,
                     duration = duration,
                     onSeek = onSeek,

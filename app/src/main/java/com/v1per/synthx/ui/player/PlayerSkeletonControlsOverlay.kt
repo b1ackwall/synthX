@@ -30,7 +30,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp as lerpDp
+// DEAD CODE: only the retired in-file slide computation used it. Delete in a cleanup pass. Ask  before deleting.
+// import androidx.compose.ui.unit.lerp as lerpDp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.DragResistantIconButton
 import com.v1per.synthx.ui.components.PlayerSeekBar
@@ -93,6 +94,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
     bottomInset: Dp,
     expandedContentAlpha: Float,
     expandedContentEnabled: Boolean,
+    slideOffset: Dp,
     currentPosition: Long,
     duration: Long,
     onSeek: (Long) -> Unit,
@@ -121,10 +123,11 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
     val transportGap = 40f.dp
     val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
 
-    // Slide-up: the overlay rises [ContentSlideDistance] into its resting place as it fades
-    // in, rather than materialising in position. Compose's +Y is downward, so the positive
-    // start value genuinely puts it *below* where it comes to rest, and lerping toward 0dp
-    // is genuine upward travel.
+    // Slide-up: [slideOffset] is how far below its resting place the overlay sits, computed by
+    // PlayerSheetSkeleton and shared with the queue mask. It is the sheet's drag offset measured
+    // from the expanded anchor (PlayerSheetMotion.kt's controlsOverlaySlide), so the overlay
+    // travels with the finger rather than materialising in position. Compose's +Y is downward,
+    // so a positive value genuinely puts it *below* where it comes to rest.
     //
     // [bottomInset] is then added on top as an equal-and-opposite correction, NOT as extra
     // travel. This Column is align(BottomCenter)-welded to the sheet's bottom edge, and that
@@ -136,46 +139,31 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
     //     overlayTop = maxHeight − bottomInset − height + slide + bottomInset
     //                = maxHeight − height + slide
     //
-    // — resting position plus slide, with no progress-driven frame term left. Without the
-    // correction the two motions very nearly annihilate: the fade window is the last 60% of
-    // the drag, over which the padding releases 71dp × 0.6 ≈ 42.6dp downward against the
-    // slide's 40dp upward, leaving ~2.6dp of net travel that reads on-device as a pure fade
-    // with no slide at all — the confirmed root cause this correction exists for.
+    // — resting position plus slide, with no progress-driven frame term left, so the overlay
+    // moves by exactly the slide and nothing else.
     //
-    // This is the only child of the sheet that compensates for bottomInset, and deliberately
-    // so: it is the only one whose own intended motion is the same order of magnitude as the
-    // frame's. The player-mode title row travels ~271dp across the drag, which swamps 42.6dp;
-    // queue mode's header/list only reach full opacity at progress ≈ 1, where bottomInset is
-    // already 0dp; and the mini content and album art are top-anchored, so the release carries
-    // them with the sheet rather than against them. Nothing changes at rest either way —
-    // bottomInset is 0dp at progress 1, so the fully-expanded position is bit-identical to
-    // what it was before this term existed.
+    // This is the only child of the sheet that compensates for bottomInset: the mini content
+    // and album art are top-anchored, so the release carries them with the sheet rather than
+    // against them. Nothing changes at rest either way — bottomInset is 0dp at progress 1.
     //
-    // Known and accepted: because the block now sits `slide + bottomInset` lower than the
-    // sheet's bottom edge mid-transition (up to ~82dp, versus ~40dp from the slide alone), the
-    // sheet's own clip crops more of this Column's bottom while it rises — around 41dp at
-    // half opacity, which partially crops the queue button. That is the intended
-    // emerging-from-the-edge read, not a regression: the seek bar and transport controls sit
-    // at the top of the block and are never affected.
+    // The block sits `slide + bottomInset` lower than the sheet's bottom edge mid-transition,
+    // so the sheet's own clip crops this Column from the bottom as it travels: the queue
+    // button first, the seek bar last.
     //
-    // Driven by [expandedContentAlpha] alone — deliberately not the
+    // The slide never includes overlayVisibleAlpha — deliberately not the
     // `expandedContentAlpha * overlayVisibleAlpha` product the Column's own .alpha() uses:
-    // overlayVisibleAlpha is the queue-list scroll-driven hide, and folding it in here would
-    // make the overlay lurch 40dp downward and back every time the queue is scrolled past
-    // (and away from) the collapse threshold. That hide stays a pure fade; this slide belongs
-    // to the collapse/expand axis only.
+    // overlayVisibleAlpha is the queue-list scroll-driven hide, and that hide stays a pure
+    // fade; this slide belongs to the collapse/expand axis only.
     //
-    // Bidirectional with no special-casing, because this is a pure function of a live,
-    // continuously-recomputed value with no animation state of its own: dragging up raises
-    // expandedContentAlpha 0→1 and the offset falls 40dp→0; dragging back down lowers it
-    // 1→0 and the offset climbs 0→40dp, sliding the overlay back down and out. There is no
-    // "opening" or "closing" branch to get wrong — only the sign of the lerp's endpoints.
-    val overlaySlideOffset = lerpDp(ContentSlideDistance, 0.dp, expandedContentAlpha)
+    // Bidirectional with no special-casing, because this is a pure function of the sheet's
+    // live drag offset with no animation state of its own.
+    // DEAD CODE: the slide is computed once in PlayerSheetSkeleton and passed in as slideOffset. Delete in a cleanup pass. Ask  before deleting.
+    // val overlaySlideOffset = lerpDp(ContentSlideDistance, 0.dp, expandedContentAlpha)
 
     Column(
         modifier = modifier
             .align(Alignment.BottomCenter)
-            .offset(y = overlaySlideOffset + bottomInset)
+            .offset(y = slideOffset + bottomInset)
             .fillMaxWidth()
             .height(height)
             .alpha(expandedContentAlpha * overlayVisibleAlpha)

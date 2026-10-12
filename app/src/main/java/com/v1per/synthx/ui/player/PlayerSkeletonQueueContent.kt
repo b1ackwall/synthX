@@ -118,11 +118,17 @@ fun PlayerSkeletonQueueContent(
     onQueueMove: (slotId: String, toIndex: Int) -> Unit,
     onQueueRemove: (songId: String) -> Unit,
     controlsOverlayHeight: Dp,
+    // The collapse/expand term of this content's alpha, in place of expandedContentAlpha.
+    queueFadeAlpha: Float,
     controlsOverlayAlpha: Float,
+    controlsOverlaySlide: Dp,
     bottomInset: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val queueContentAlpha = expandedContentAlpha * queueProgressValue
+    // DEAD CODE: the alpha fades over its own window of the sheet's progress, passed in as queueFadeAlpha. Delete in a cleanup pass. Ask  before deleting.
+    // val queueContentAlpha = expandedContentAlpha * queueProgressValue
+    val queueContentAlpha = queueFadeAlpha * queueProgressValue
+    val queueSlideProgress = expandedContentAlpha * queueProgressValue
     val queueContentEnabled = expandedContentEnabled && queueProgressValue > 0.5f
     val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
 
@@ -134,11 +140,12 @@ fun PlayerSkeletonQueueContent(
     val persistentUpcomingQueue = remember(upcomingQueue) { upcomingQueue.toPersistentList() }
 
     // Slide-up, matching PlayerSkeletonControlsOverlay's: this block rises
-    // [ContentSlideDistance] into place as it fades in. Driven by [queueContentAlpha] — the
-    // same product the .alpha() calls below use — so it responds to both axes that make this
+    // [ContentSlideDistance] into place as it fades in. Driven by queueSlideProgress — the
+    // same two axes as the .alpha() calls below, with expandedContentAlpha as the collapse/
+    // expand term rather than the alpha's own window — so it responds to both axes that make this
     // content visible at all: the sheet's collapse/expand drag (via expandedContentAlpha) and
     // the queue-mode toggle (via queueProgressValue). Being a product, it only reaches 0dp
-    // once both terms are 1, which is the same point the content is fully opaque.
+    // once both terms are 1, which is also where the content is fully opaque.
     //
     // Bidirectional for the same reason the overlay's is — a pure function of live values
     // with no animation state of its own, so every direction reverses on its own: dragging
@@ -146,10 +153,15 @@ fun PlayerSkeletonQueueContent(
     // button in/out animates queueProgressValue, and the offset simply tracks whichever
     // changed. Both children take the identical offset, so the header-to-list gap is constant
     // throughout the slide rather than the two drifting apart.
-    val queueContentSlideOffset = lerpDp(ContentSlideDistance, 0.dp, queueContentAlpha)
-    // Match the controls' placement, which slides on expansion alone and compensates for
-    // the sheet's bottom inset. Queue content has a separate slide during its crossfade.
-    val controlsOverlayOffsetY = lerpDp(ContentSlideDistance, 0.dp, expandedContentAlpha) + bottomInset
+    // DEAD CODE: the slide keeps the expandedContentAlpha product, now named queueSlideProgress. Delete in a cleanup pass. Ask  before deleting.
+    // val queueContentSlideOffset = lerpDp(ContentSlideDistance, 0.dp, queueContentAlpha)
+    val queueContentSlideOffset = lerpDp(ContentSlideDistance, 0.dp, queueSlideProgress)
+    // Match the controls' placement: the same slide PlayerSheetSkeleton hands the overlay,
+    // plus the overlay's compensation for the sheet's bottom inset. Queue content has a
+    // separate slide during its crossfade.
+    // DEAD CODE: the slide is computed once in PlayerSheetSkeleton and shared with the overlay. Delete in a cleanup pass. Ask  before deleting.
+    // val controlsOverlayOffsetY = lerpDp(ContentSlideDistance, 0.dp, expandedContentAlpha) + bottomInset
+    val controlsOverlayOffsetY = controlsOverlaySlide + bottomInset
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         Column(
