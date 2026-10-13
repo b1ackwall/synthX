@@ -68,19 +68,19 @@ Single-module Android project. Root: app/
 Top-level packages under app/src/main/java/com/v1per/synthx/:
 
 - MainActivity.kt, DatabaseStartupContent.kt (startup-failure composables MainActivity shows), SynthXApplication.kt
-- data/backup/ - BackupManager, RestoreCoordinator, RestoreTransaction, DatabaseStartupGate, RepositoryDbFlow/RepositoryDbOperation (see Architecture section - do not bypass these)
+- data/backup/ - BackupManager (model types in BackupInfo.kt/BackupListResult.kt, folder reads and retention in BackupManagerCatalog.kt, verify/preview in BackupManagerVerification.kt), RestoreCoordinator, RestoreTransaction, DatabaseStartupGate, RepositoryDbFlow/RepositoryDbOperation (see Architecture section - do not bypass these)
 - data/db/ - Room entities, DAOs, SynthXDatabase (v16, see Architecture), SynthXLegacyMigrations (frozen MIGRATION_1_2 to MIGRATION_7_8; the chain itself stays in SynthXDatabase.ALL_MIGRATIONS)
 - data/playlistart/ - generated playlist cover art support: PlaylistArtHue (perceptually spaced hue selection), PlaylistArtColor (OkLab palette helpers), PlaylistArtBackfill (fills art for playlists that predate the art columns). The drawing itself lives in ui/components/PlaylistArt*.kt
-- data/repository/ - domain models + SongRepository/SongRepositoryImpl
+- data/repository/ - domain models + SongRepository/SongRepositoryImpl (override bodies in SongRepositoryImpl{Deletion,Replace,SongLists,Playlists,Queue}.kt)
 - data/scanner/ - FolderScanner (scan body in FolderScannerScan.kt), HashUtils (SHA-256 fingerprinting)
 - glitch/ - GlitchPattern.kt
 - navigation/ - Screen.kt (nav routes)
-- playback/ - PlaybackEngine -> ExoPlayerEngine -> PlaybackController -> PlaybackViewModel, SynthXPlaybackService, QueuePersistence, GlitchBitmapGenerator
+- playback/ - PlaybackEngine -> ExoPlayerEngine (split across ExoPlayerEngine*.kt siblings, incl. Session, LibraryEvents, QueueLoad, QueueOps) -> PlaybackController -> PlaybackViewModel, SynthXPlaybackService, QueuePersistence, GlitchBitmapGenerator
 - preferences/ - PreferencesManager
 - ui/MainScaffold.kt - shell-level gating on RestoreCoordinator.Mode/Terminal; switches between normal nav graph, restore-maintenance surface, and terminal (restart-required) surface (the two restore surfaces live in ui/RestoreShellSurfaces.kt)
 - ui/common/ - UiState.kt
 - ui/components/ - shared composables (SongRow, TopBars, Wordmark, etc.)
-- ui/player/ - PlayerSheetSkeleton + 17 sibling files: the live player UI, float-lerp based (hand-lerp pattern per namida/Tear Music reference), independent of the ReadinessCoverOverlay standard below - known, deliberate gap, not yet reconciled
+- ui/player/ - PlayerSheetSkeleton + 18 sibling files: the live player UI, float-lerp based (hand-lerp pattern per namida/Tear Music reference), independent of the ReadinessCoverOverlay standard below - known, deliberate gap, not yet reconciled
 - ui/screens/ - one dir per screen, each with <Name>Screen.kt + <Name>ViewModel.kt: albumdetail, albumlist, artistdetail, artistlist, backupsandrestore, createplaylist, developersettings, groupdetail, home, issues, librarymanagement, library, onboarding, playlistdetail, playlistlist, replacesong, restore, search, settings, songs, starred
 - ui/theme/ - Color, Motion, Shape, Spacing, Theme, Type (design tokens)
 
