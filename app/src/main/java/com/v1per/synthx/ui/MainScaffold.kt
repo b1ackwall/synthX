@@ -28,11 +28,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.tracing.Trace
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupFolderLaunchCheck
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.navigation.Screen
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.playback.PlaybackError
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.rememberNotificationPermissionGate
@@ -112,6 +114,7 @@ private fun NormalShell(
     startDestination: String,
     restoreStatusViewModel: RestoreStatusViewModel?,
 ) {
+    Trace.beginSection(PerfTraceSections.MainShell)
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val restoreStatus = if (restoreStatusViewModel == null) {
@@ -245,6 +248,7 @@ private fun NormalShell(
         onAddToQueue = playbackViewModel::addToQueue,
         currentSongId = currentSong?.id,
     ) {
+    Trace.beginSection(PerfTraceSections.MainShellContent)
     // Exposes test tags to UiAutomator as resource ids for the benchmark module.
     Box(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
         // Excluded from TalkBack traversal while the sort sheet is open — see
@@ -368,7 +372,9 @@ private fun NormalShell(
             currentRoute == Screen.Restore.route
         RestoreObservedStatusHost(restoreStatus, routeOwnsRestoreOutcome, restoreStatusViewModel)
     }
+    Trace.endSection()
     }
+    Trace.endSection()
 }
 
 internal fun isHomeAmbientFullyOccluded(currentRoute: String?, playerProgress: Float): Boolean =

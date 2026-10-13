@@ -45,9 +45,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.tracing.Trace
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.perf.PerfTestTags
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
@@ -69,6 +71,7 @@ fun LibraryScreen(
     playbackViewModel: PlaybackViewModel,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(LocalContext.current)),
 ) {
+    Trace.beginSection(PerfTraceSections.LibraryScreen)
     val recentSongs by viewModel.recentSongs.collectAsState()
     val error by viewModel.error.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -124,6 +127,7 @@ fun LibraryScreen(
             )
         }
     }
+    Trace.endSection()
 }
 
 @Composable
@@ -142,6 +146,7 @@ internal fun LibraryScreenContent(
     // Takes the tapped song's index in [recentSongs]: the whole section becomes the queue.
     onSongClick: (Int) -> Unit,
 ) {
+    Trace.beginSection(PerfTraceSections.LibraryContent)
     LazyColumn(modifier = modifier.fillMaxSize().background(Background)) {
         item(key = "title") {
             Text(
@@ -233,6 +238,7 @@ internal fun LibraryScreenContent(
             Spacer(modifier = Modifier.height(Spacing.lg))
         }
     }
+    Trace.endSection()
 }
 
 /** @param trailingText optional count badge, rendered right-aligned; null hides it. */

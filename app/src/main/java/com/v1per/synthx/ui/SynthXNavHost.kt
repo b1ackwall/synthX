@@ -12,8 +12,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import androidx.tracing.Trace
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.navigation.Screen
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.screens.songs.SortOrder
 import com.v1per.synthx.ui.theme.Background
@@ -44,6 +46,7 @@ internal fun SynthXNavHost(
     startDestination: String = Screen.Home.route,
     onRestoreTerminalShown: (UUID) -> Unit = {},
 ) {
+    Trace.beginSection(PerfTraceSections.NavHost)
     Scaffold(
         containerColor = Background,
         contentColor = TextPrimary,
@@ -99,4 +102,5 @@ internal fun SynthXNavHost(
             )
         }
     }
+    Trace.endSection()
 }

@@ -29,4 +29,17 @@ internal object PerfTraceSections {
 
     /** One section per decode source tried on a song change, on an IO thread. */
     const val ArtDecode = "synthX.PlayerArtDecode"
+
+    /** NormalShell's body, which reads the sheet's progress. */
+    const val MainShell = "synthX.MainShell"
+
+    /** The shell's content lambda: nav host, bottom chrome, sheets and dialogs. */
+    const val MainShellContent = "synthX.MainShell.content"
+    const val NavHost = "synthX.NavHost"
+    const val BottomChrome = "synthX.BottomChrome"
+    const val BottomNav = "synthX.BottomNav"
+
+    const val LibraryScreen = "synthX.LibraryScreen"
+    const val LibraryContent = "synthX.LibraryContent"
+    const val HomeScreen = "synthX.HomeScreen"
 }

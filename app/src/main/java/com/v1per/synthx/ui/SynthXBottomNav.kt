@@ -35,10 +35,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.tracing.Trace
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.perf.PerfTestTags
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.playback.PlayerBackgroundArtRequest
 import com.v1per.synthx.ui.components.BottomNavHeight
@@ -62,6 +64,7 @@ internal fun BottomChromeOverlay(
     playbackViewModel: PlaybackViewModel,
     onSearchReselected: () -> Unit,
 ) {
+    Trace.beginSection(PerfTraceSections.BottomChrome)
     // Collected here rather than hoisted up into MainScaffold: currentPosition ticks every
     // second while a song plays, and MainScaffold's body also hosts navigation/dialog state
     // that has no reason to re-evaluate on that tick. Scoping the read to this composable
@@ -163,6 +166,7 @@ internal fun BottomChromeOverlay(
             }
         }
     }
+    Trace.endSection()
 }
 
 // Tapping the Library tab from any of these should reset to Library's root rather than
@@ -177,6 +181,7 @@ private fun SynthXBottomNav(
     onSearchReselected: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    Trace.beginSection(PerfTraceSections.BottomNav)
     val items = listOf(
         BottomNavItem(
             Screen.Home,
@@ -286,10 +291,10 @@ private fun SynthXBottomNav(
                             style = MaterialTheme.typography.labelSmall,
                         )
                     },
-                    modifier = if (item.screen == Screen.Library) {
-                        Modifier.testTag(PerfTestTags.NavLibrary)
-                    } else {
-                        Modifier
+                    modifier = when (item.screen) {
+                        Screen.Library -> Modifier.testTag(PerfTestTags.NavLibrary)
+                        Screen.Home -> Modifier.testTag(PerfTestTags.NavHome)
+                        else -> Modifier
                     },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = Accent,
@@ -302,6 +307,7 @@ private fun SynthXBottomNav(
             }
         }
     }
+    Trace.endSection()
 }
 
 private data class BottomNavItem(

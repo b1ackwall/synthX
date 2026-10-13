@@ -26,4 +26,7 @@ internal object PerfTestTags {
 
     const val NavLibrary = "nav_library"
     const val LibraryScreen = "screen_library"
+
+    const val NavHome = "nav_home"
+    const val HomeScreen = "screen_home"
 }

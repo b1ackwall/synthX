@@ -12,9 +12,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.tracing.Trace
 import com.v1per.synthx.BuildConfig
+import com.v1per.synthx.perf.PerfTestTags
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.AmbientBlobBackground
 import com.v1per.synthx.ui.components.BaseSurfaceLightness
 import com.v1per.synthx.ui.components.BaseSurfaceSaturation
@@ -30,6 +34,7 @@ import com.v1per.synthx.ui.theme.SurfaceVariant
 internal fun HomeScreen(
     ambientPaused: Boolean = false,
 ) {
+    Trace.beginSection(PerfTraceSections.HomeScreen)
     // The Developer Settings blob sheet's state, which starts at the renderer's default blobs.
     val debugState by HomeBlobDebugStateHolder.state
 
@@ -41,7 +46,7 @@ internal fun HomeScreen(
 
     // MainScaffold's innerPadding already confines this screen to the safe area between
     // the system bars; the gradient clips its blur to those bounds itself.
-    Box(Modifier.fillMaxSize().background(SurfaceVariant)) {
+    Box(Modifier.fillMaxSize().testTag(PerfTestTags.HomeScreen).background(SurfaceVariant)) {
         AmbientBlobBackground(
             blobs = debugState.blobs,
             baseSurfaceColor = baseSurfaceColor,
@@ -70,4 +75,5 @@ internal fun HomeScreen(
         }
         if (BuildConfig.DEBUG) PlayerBackgroundDebugControls()
     }
+    Trace.endSection()
 }
