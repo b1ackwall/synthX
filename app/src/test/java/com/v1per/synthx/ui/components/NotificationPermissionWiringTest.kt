@@ -76,6 +76,9 @@ class NotificationPermissionWiringTest {
             "com/v1per/synthx/ui/screens/restore/RestoreStatusViewModel.kt",
             "com/v1per/synthx/ui/screens/restore/RestoreViewModel.kt",
             "com/v1per/synthx/ui/screens/librarymanagement/LibraryManagementViewModel.kt",
+            "com/v1per/synthx/ui/screens/librarymanagement/LibraryManagementViewModelFolders.kt",
+            "com/v1per/synthx/ui/screens/librarymanagement/LibraryManagementViewModelFirstScan.kt",
+            "com/v1per/synthx/ui/screens/librarymanagement/ScanUiState.kt",
             "com/v1per/synthx/ui/screens/onboarding/OnboardingViewModel.kt",
         ).forEach { path ->
             val text = source(path)

@@ -9,17 +9,13 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import androidx.work.await
 import com.v1per.synthx.R
-import com.v1per.synthx.data.FileOperationCoordinator
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupReason
-import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
-import com.v1per.synthx.data.scanner.RootNesting
 import com.v1per.synthx.data.scanner.scanDegradations
 import com.v1per.synthx.preferences.DeleteSongsGate
 import com.v1per.synthx.preferences.PreferencesManager
@@ -27,7 +23,6 @@ import com.v1per.synthx.ui.common.LIBRARY_SCAN_TAG
 import com.v1per.synthx.ui.common.NEW_ARRIVALS_TAG
 import com.v1per.synthx.ui.common.ScanStatusStrings
 import com.v1per.synthx.ui.common.VERIFY_TAG
-import com.v1per.synthx.ui.common.launchCatching
 import com.v1per.synthx.ui.common.scanStatusFor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -68,53 +63,15 @@ private object ScanStatusAcknowledgement {
  *  visible before auto-clearing, matching typical snackbar/status-message durations. */
 private const val StatusMessageDisplayMs = 4_000L
 
-/** Determinate when [total] is positive; otherwise the scan is in an uncounted phase. */
-data class ScanProgress(val current: Int, val total: Int) {
-    val isDeterminate: Boolean get() = total > 0
-    val fraction: Float get() = if (isDeterminate) current.toFloat() / total else 0f
-}
-
 /** How long an unresolvable first-scan id shows as Running before it is treated as lost. */
 private const val MissingFirstScanGraceMs = 10_000L
 
-/** ScanningStep's view of the first scan — see [LibraryManagementViewModel.firstScanState]. */
-sealed interface FirstScanState {
-    /** [status] is the live progress line, or null before the first WorkInfo is observed. */
-    data class Running(val status: String?) : FirstScanState
-
-    data object Succeeded : FirstScanState
-
-    /** [cancelled] distinguishes a cancelled scan from a failed one (same recovery, own wording). */
-    data class Failed(val message: String, val cancelled: Boolean) : FirstScanState
-}
-
-/** Branches on the actual terminal [WorkInfo.State] — never on a status string existing. */
-internal fun firstScanStateFor(info: WorkInfo, strings: ScanStatusStrings): FirstScanState =
-    when (info.state) {
-        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED, WorkInfo.State.RUNNING ->
-            FirstScanState.Running(scanStatusFor(info, strings))
-        WorkInfo.State.SUCCEEDED -> FirstScanState.Succeeded
-        WorkInfo.State.FAILED ->
-            FirstScanState.Failed(scanStatusFor(info, strings).orEmpty(), cancelled = false)
-        WorkInfo.State.CANCELLED ->
-            FirstScanState.Failed(scanStatusFor(info, strings).orEmpty(), cancelled = true)
-    }
-
-/**
- * Whether a New Arrivals scan that was queued behind another scan is still waiting to start
- * (P9-T4 / F18). Once it is running or finished, "will be scanned once it finishes" is stale:
- * running means it is no longer deferred, and finished (or failed, or cancelled) means the
- * promise has been kept or definitively broken.
- */
-internal fun isDeferredScanPending(state: WorkInfo.State): Boolean =
-    state == WorkInfo.State.ENQUEUED || state == WorkInfo.State.BLOCKED
-
 class LibraryManagementViewModel(
-    private val context: Context,
-    private val preferencesManager: PreferencesManager,
+    internal val context: Context,
+    internal val preferencesManager: PreferencesManager,
     private val repository: SongRepository,
-    private val backupManager: BackupManager,
-    private val releasePersistableGrant: (Uri) -> Unit = { uri ->
+    internal val backupManager: BackupManager,
+    internal val releasePersistableGrant: (Uri) -> Unit = { uri ->
         context.contentResolver.releasePersistableUriPermission(
             uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or
@@ -123,9 +80,9 @@ class LibraryManagementViewModel(
     },
 ) : ViewModel() {
 
-    private enum class ConfiguredFolderRole { MUSIC, NEW_ARRIVALS, BACKUP }
+    internal enum class ConfiguredFolderRole { MUSIC, NEW_ARRIVALS, BACKUP }
 
-    private val workManager = WorkManager.getInstance(context)
+    internal val workManager = WorkManager.getInstance(context)
 
     private val strings = ScanStatusStrings { id, args -> context.getString(id, *args) }
 
@@ -134,28 +91,28 @@ class LibraryManagementViewModel(
         .catch { emit(0) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    private val _musicFolderUri = MutableStateFlow(
+    internal val _musicFolderUri = MutableStateFlow(
         preferencesManager.musicFolderUri?.let { Uri.parse(it) }
     )
     val musicFolderUri: StateFlow<Uri?> = _musicFolderUri.asStateFlow()
 
-    private val _newArrivalsFolderUri = MutableStateFlow(
+    internal val _newArrivalsFolderUri = MutableStateFlow(
         preferencesManager.newArrivalsFolderUri?.let { Uri.parse(it) }
     )
     val newArrivalsFolderUri: StateFlow<Uri?> = _newArrivalsFolderUri.asStateFlow()
 
-    private val _folderError = MutableStateFlow<String?>(null)
+    internal val _folderError = MutableStateFlow<String?>(null)
     val folderError: StateFlow<String?> = _folderError.asStateFlow()
 
     /** Separate from [folderError] so a rejected pick's message renders under the row the
      *  user actually tapped rather than under the music folder row above it. */
-    private val _newArrivalsFolderError = MutableStateFlow<String?>(null)
+    internal val _newArrivalsFolderError = MutableStateFlow<String?>(null)
     val newArrivalsFolderError: StateFlow<String?> = _newArrivalsFolderError.asStateFlow()
 
     // The one New Arrivals scan whose start was deferred behind a scan already running (P9-T4 /
     // F18), tracked by request id — the same pattern as the first scan — rather than by the shared
     // unique name, which any of the three scan workers can also occupy.
-    private val _deferredNewArrivalsScanId = MutableStateFlow<UUID?>(null)
+    internal val _deferredNewArrivalsScanId = MutableStateFlow<UUID?>(null)
 
     /**
      * Informational, not an error: "a scan is already running, this folder will follow". Its own
@@ -194,7 +151,7 @@ class LibraryManagementViewModel(
 
     // Set only for states WorkManager can't express — currently just "no folder picked",
     // which never reaches the worker. Cleared as soon as a scan is actually enqueued.
-    private val _localStatus = MutableStateFlow<String?>(null)
+    internal val _localStatus = MutableStateFlow<String?>(null)
 
     // The single source of truth for scan state. Reading it from WorkManager rather than
     // from local flows is what makes progress survive navigation and app restart: a
@@ -295,7 +252,7 @@ class LibraryManagementViewModel(
     /** Sets a terminal (non-"in progress") status message, then clears it after
      *  [StatusMessageDisplayMs] — guarded so a newer status set in the meantime isn't
      *  clobbered by a stale clear from an earlier call. */
-    private fun MutableStateFlow<String?>.showTemporarily(message: String?) {
+    internal fun MutableStateFlow<String?>.showTemporarily(message: String?) {
         value = message
         viewModelScope.launch {
             delay(StatusMessageDisplayMs)
@@ -315,60 +272,7 @@ class LibraryManagementViewModel(
         _newArrivalsFolderError.value = message
     }
 
-    fun saveMusicFolder(uri: Uri) {
-        // Backup first, then persist: the snapshot must capture the library as it was
-        // under the old folder, before the change invalidates it. Validation precedes even
-        // that — a rejected pick must leave no trace, backup included.
-        launchCatching(onError = {
-            _folderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
-        }) {
-            val rejected = rejectIfNested(
-                candidate = uri,
-                other = _newArrivalsFolderUri.value,
-                onError = { _folderError.value = it },
-            )
-            if (rejected) return@launchCatching
-
-            // P7-T3 / R7-F08: nothing has actually been backed up yet at this point on a fresh
-            // install — the backup folder is a later, separate step in the same wizard — so
-            // attempting the snapshot here would only ever throw BackupNotConfiguredException,
-            // which BackupOutcomeStore would then durably record as a genuine backup *failure*.
-            // That surfaces as a false "Failed" health warning the very first time the user
-            // opens Backups and Restore, for an operation that was never actually possible.
-            // Skip the attempt entirely (not merely catch the exception) so no outcome is
-            // recorded at all — a later re-pick from Library Management, once a backup folder
-            // is actually configured, still takes its snapshot as before.
-            if (preferencesManager.backupFolderUri != null) {
-                backupManager.createBackup(BackupTier.Auto, BackupReason.FOLDER_CHANGE)
-            }
-
-            releaseGrantIfSuperseded(
-                old = _musicFolderUri.value,
-                new = uri,
-                supersededRole = ConfiguredFolderRole.MUSIC,
-            )
-            preferencesManager.musicFolderUri = uri.toString()
-            _musicFolderUri.value = uri
-            clearFolderError()
-            _localStatus.value = null
-            // REPLACE, not KEEP: any scan still running is walking the folder the user just
-            // replaced, so its results are already stale.
-            LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE)
-        }
-    }
-
-    /**
-     * Idempotent no-op once onboarding is already complete. Only [startFirstScan] calls this now:
-     * completion moved from the folder pick to Done (P9-T1) so that a first scan the user has not
-     * yet confirmed can never be the thing that flips the flag.
-     */
-    private fun markOnboardingCompleteIfNeeded() {
-        if (!preferencesManager.onboardingComplete) {
-            check(preferencesManager.setOnboardingCompleteDurably(true)) {
-                "Could not persist onboarding completion"
-            }
-        }
-    }
+    fun saveMusicFolder(uri: Uri) = saveMusicFolderInternal(uri)
 
     /**
      * Fresh-install onboarding's folder pick. Persist only — the same shape as
@@ -383,7 +287,7 @@ class LibraryManagementViewModel(
     // The one scan the wizard's ScanningStep is watching, tracked by request id rather than by the
     // shared unique name (which any of the three scan workers can also occupy). Seeded from
     // preferences so a process-death resume re-attaches to the very same scan.
-    private val _firstScanRequestId = MutableStateFlow(
+    internal val _firstScanRequestId = MutableStateFlow(
         preferencesManager.firstScanRequestId?.let { value ->
             runCatching { UUID.fromString(value) }.getOrNull()
         },
@@ -434,92 +338,25 @@ class LibraryManagementViewModel(
      * Deliberately synchronous: the caller advances the wizard on the return value, and
      * WorkManager assigns the request id client-side, so nothing here needs to suspend.
      */
-    fun startFirstScan(): UUID? {
-        if (preferencesManager.musicFolderUri == null) {
-            _folderError.showTemporarily(context.getString(R.string.settings_no_folder_selected))
-            return null
-        }
-        return try {
-            markOnboardingCompleteIfNeeded()
-            val id = LibraryScanWorker.enqueue(context, ExistingWorkPolicy.REPLACE).id
-            check(preferencesManager.trackFirstScanRequestDurably(id.toString())) {
-                "Could not persist first-scan request id"
-            }
-            _localStatus.value = null
-            _firstScanRequestId.value = id
-            id
-        } catch (e: Exception) {
-            _folderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
-            null
-        }
-    }
+    fun startFirstScan(): UUID? = startFirstScanInternal()
 
     /** Retry after a failed/cancelled first scan — same folder, REPLACE, fresh tracked id. */
     fun retryFirstScan(): UUID? = startFirstScan()
 
     /** The scan succeeded and the wizard is handing over to Home. */
-    fun completeFirstScan() {
-        check(preferencesManager.completeFirstScanDurably()) {
-            "Could not persist first-scan completion"
-        }
-    }
+    fun completeFirstScan() = completeFirstScanInternal()
 
     /**
      * "Change folder" after a failed/cancelled first scan. Drops the tracked id and un-completes
      * onboarding, so the wizard is once again the honest cold-start destination.
      */
-    fun abandonFirstScan() {
-        check(preferencesManager.abandonFirstScanDurably()) {
-            "Could not persist first-scan abandonment"
-        }
-        _firstScanRequestId.value = null
-    }
+    fun abandonFirstScan() = abandonFirstScanInternal()
 
     /** Recovery setup only: validate and persist without backing up or scanning the empty library. */
-    fun saveRecoveryMusicFolder(uri: Uri) {
-        launchCatching(onError = {
-            _folderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
-        }) {
-            val rejected = rejectIfNested(
-                candidate = uri,
-                other = _newArrivalsFolderUri.value,
-                onError = { _folderError.value = it },
-            )
-            if (rejected) return@launchCatching
-
-            releaseGrantIfSuperseded(
-                old = _musicFolderUri.value,
-                new = uri,
-                supersededRole = ConfiguredFolderRole.MUSIC,
-            )
-            preferencesManager.musicFolderUri = uri.toString()
-            _musicFolderUri.value = uri
-            clearFolderError()
-        }
-    }
+    fun saveRecoveryMusicFolder(uri: Uri) = saveRecoveryMusicFolderInternal(uri)
 
     /** The optional recovery root also waits until after restore for its first scan. */
-    fun saveRecoveryNewArrivalsFolder(uri: Uri) {
-        launchCatching(onError = {
-            _newArrivalsFolderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
-        }) {
-            val rejected = rejectIfNested(
-                candidate = uri,
-                other = _musicFolderUri.value,
-                onError = { _newArrivalsFolderError.value = it },
-            )
-            if (rejected) return@launchCatching
-
-            releaseGrantIfSuperseded(
-                old = _newArrivalsFolderUri.value,
-                new = uri,
-                supersededRole = ConfiguredFolderRole.NEW_ARRIVALS,
-            )
-            preferencesManager.newArrivalsFolderUri = uri.toString()
-            _newArrivalsFolderUri.value = uri
-            _newArrivalsFolderError.value = null
-        }
-    }
+    fun saveRecoveryNewArrivalsFolder(uri: Uri) = saveRecoveryNewArrivalsFolderInternal(uri)
 
     /**
      * Deliberately diverges from [saveMusicFolder]: no [BackupReason.FOLDER_CHANGE] snapshot
@@ -533,127 +370,7 @@ class LibraryManagementViewModel(
      * their scan is queued rather than left to wonder why nothing happened — via
      * [newArrivalsFolderNotice], not the error channel.
      */
-    fun saveNewArrivalsFolder(uri: Uri) {
-        launchCatching(onError = {
-            _newArrivalsFolderError.showTemporarily(context.getString(R.string.error_folder_save_failed))
-        }) {
-            val rejected = rejectIfNested(
-                candidate = uri,
-                other = _musicFolderUri.value,
-                onError = { _newArrivalsFolderError.value = it },
-            )
-            if (rejected) return@launchCatching
-
-            releaseGrantIfSuperseded(
-                old = _newArrivalsFolderUri.value,
-                new = uri,
-                supersededRole = ConfiguredFolderRole.NEW_ARRIVALS,
-            )
-            preferencesManager.newArrivalsFolderUri = uri.toString()
-            _newArrivalsFolderUri.value = uri
-
-            val anotherScanRunning = workManager
-                .getWorkInfosForUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME)
-                .await()
-                .any { !it.state.isFinished }
-            _newArrivalsFolderError.value = null
-            val enqueued = NewArrivalsScanWorker.enqueue(context, ExistingWorkPolicy.APPEND_OR_REPLACE)
-            // Informational, on its own channel (F18): cleared when this request stops waiting.
-            _deferredNewArrivalsScanId.value = if (anotherScanRunning) enqueued.id else null
-        }
-    }
-
-    /**
-     * Guards both audio-root pickers against overlapping trees — see [RootNesting] for why
-     * nesting is unrecoverable rather than merely untidy. Returns `true` when the pick was
-     * rejected, in which case nothing is persisted and the previously configured URI stands
-     * unchanged; the caller must return without saving.
-     *
-     * The grant the picker just took is released only when no configured folder role still
-     * depends on that URI. In particular, a [RootNesting.Relation.SAME] conflict can mean the
-     * candidate is another role's active grant; that grant must remain intact even though this
-     * pick is rejected. Grant release stays behind validation so genuinely orphaned rejected
-     * picks do not leave unused persisted permissions behind.
-     */
-    private suspend fun rejectIfNested(
-        candidate: Uri,
-        other: Uri?,
-        onError: (String) -> Unit,
-    ): Boolean {
-        if (other == null) return false
-        val relation = RootNesting.detect(context, candidate, other)
-        if (!relation.isConflict) return false
-
-        // UNDETERMINED means nesting couldn't be ruled out (opaque provider ids) rather than
-        // confirmed — fail closed with a message that doesn't overclaim actual nesting.
-        val message = if (relation == RootNesting.Relation.UNDETERMINED) {
-            context.getString(R.string.error_folders_nesting_undetermined)
-        } else {
-            context.getString(R.string.error_folders_nested)
-        }
-        onError(message)
-        if (!isGrantOwnedByConfiguredRole(candidate)) releaseGrantWhenIdle(candidate)
-        return true
-    }
-
-    /** No-op when the old grant is still needed by the replacement or another configured role. */
-    private suspend fun releaseGrantIfSuperseded(
-        old: Uri?,
-        new: Uri,
-        supersededRole: ConfiguredFolderRole,
-    ) {
-        if (old != null && old != new &&
-            !isGrantOwnedByConfiguredRole(old, excluding = supersededRole)
-        ) {
-            releaseGrantWhenIdle(old)
-        }
-    }
-
-    /** Persisted SAF permissions are URI-wide, not separate leases for each configured role. */
-    private fun isGrantOwnedByConfiguredRole(
-        uri: Uri,
-        excluding: ConfiguredFolderRole? = null,
-    ): Boolean {
-        val configuredRoles = listOf(
-            ConfiguredFolderRole.MUSIC to preferencesManager.musicFolderUri,
-            ConfiguredFolderRole.NEW_ARRIVALS to preferencesManager.newArrivalsFolderUri,
-            ConfiguredFolderRole.BACKUP to preferencesManager.backupFolderUri,
-        )
-        return configuredRoles.any { (role, storedUri) ->
-            role != excluding && storedUri?.let(Uri::parse) == uri
-        }
-    }
-
-    /**
-     * Every grant release goes through here — all four folder-save paths and [rejectIfNested].
-     * The tree is first closed to new file operations, then any graduation still copying into or
-     * deleting out of it is waited out, and only then is the grant revoked (P2-T1): revoking it
-     * mid-move used to fail the move part-way, after the original could already be gone.
-     */
-    private suspend fun releaseGrantWhenIdle(uri: Uri) {
-        FileOperationCoordinator.retireRootWhenIdle(FileOperationCoordinator.rootKey(uri)) {
-            releaseGrant(uri)
-        }
-    }
-
-    /**
-     * Both flags, matching what both audio roots are now taken with — graduation writes into the
-     * music folder and deletes out of New Arrivals, so each picker takes read+write. Releasing
-     * only read would strand a superseded root's write grant permanently, against a URI nothing
-     * points at any more.
-     *
-     * Kept as the wider set rather than something per-root: this one function serves both roots
-     * and [rejectIfNested]'s rejected candidate, and naming a flag that was never held is not an
-     * error — the platform releases the intersection of what is asked for and what is actually
-     * persisted, so a grant predating the write widening still releases cleanly.
-     */
-    private fun releaseGrant(uri: Uri) {
-        try {
-            releasePersistableGrant(uri)
-        } catch (e: SecurityException) {
-            // Already gone — nothing to release
-        }
-    }
+    fun saveNewArrivalsFolder(uri: Uri) = saveNewArrivalsFolderInternal(uri)
 
     fun rescanLibrary() {
         if (_musicFolderUri.value == null) {
