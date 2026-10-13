@@ -68,6 +68,17 @@ android {
             )
             resValue("string", "app_name", "synthX")
         }
+        // Macrobenchmark target: release code and R8, debug-signed, profileable through
+        // src/benchmark/AndroidManifest.xml. Its own package, so it never replaces production.
+        create("benchmark") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".benchmark"
+            versionNameSuffix = "-benchmark"
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            resValue("string", "app_name", "synthX bench")
+        }
     }
 
     compileOptions {
@@ -108,6 +119,29 @@ tasks.matching {
     it.name.startsWith("merge") && it.name.endsWith("AndroidTestAssets")
 }.configureEach {
     dependsOn(stageProductionMigrationDb)
+}
+
+// Fails a benchmark build before it starts if its package could replace production.
+androidComponents {
+    onVariants(selector().withBuildType("benchmark")) { variant ->
+        val taskSuffix = variant.name.replaceFirstChar { it.uppercase() }
+        val applicationId = variant.applicationId
+        val checkApplicationId = tasks.register("check${taskSuffix}ApplicationId") {
+            group = "verification"
+            description = "Verifies the benchmark applicationId is not the production one"
+            inputs.property("applicationId", applicationId)
+            doLast {
+                val id = applicationId.get()
+                check(id != "com.v1per.synthx" && id.endsWith(".benchmark")) {
+                    "Benchmark build applicationId is '$id'; it must end in '.benchmark' and " +
+                        "never be the production 'com.v1per.synthx'"
+                }
+            }
+        }
+        tasks.matching { it.name == "pre${taskSuffix}Build" }.configureEach {
+            dependsOn(checkApplicationId)
+        }
+    }
 }
 
 composeCompiler {

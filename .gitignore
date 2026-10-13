@@ -28,3 +28,7 @@ Thumbs.db
 
 # Release build outputs
 app/release/
+
+# Benchmark results and traces (scripts/perf/run-benchmark.fish)
+perf-output/
+*.perfetto-trace
