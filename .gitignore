@@ -32,3 +32,6 @@ app/release/
 # Benchmark results and traces (scripts/perf/run-benchmark.fish)
 perf-output/
 *.perfetto-trace
+
+# Python bytecode (scripts/perf)
+__pycache__/

@@ -50,6 +50,13 @@ internal object AppReadiness {
         findOrFail(device, Tags.LibraryScreen, "Library screen")
     }
 
+    /** Selects the Home tab if the Home screen is not already showing. */
+    fun showHome(device: UiDevice) {
+        if (device.hasObject(By.res(Tags.HomeScreen))) return
+        findOrFail(device, Tags.NavHome, "Home tab").click()
+        findOrFail(device, Tags.HomeScreen, "Home screen")
+    }
+
     /**
      * Waits for the launch-time scans, backup and maintenance work to finish, so they do not
      * compete with the measured frames.
