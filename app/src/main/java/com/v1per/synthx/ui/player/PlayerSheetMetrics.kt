@@ -1,0 +1,62 @@
+package com.v1per.synthx.ui.player
+
+import androidx.compose.foundation.gestures.AnchoredDraggableDefaults
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+
+/**
+ * Height reserved below the art for the regular player's title/artist row. Canonical
+ * declaration used by PlayerSkeletonExpandedContent.kt (the title row's current home) and
+ * the regular-player geometry in QueueArtPositioning.kt's computeArtPosition.
+ *
+ * Internal rather than private: `internal` in Kotlin is module-wide, not package-scoped, so
+ * this is importable from ui/components/ despite the different package.
+ */
+internal val TitleRowReservedHeight: Dp = 52.dp
+
+/**
+ * Gap between the expanded sheet's top edge and the art region.
+ */
+internal val ExpandedTopMargin: Dp = 32.dp
+
+/**
+ * Fixed footprint of the bottom controls overlay (seek bar, transport controls, queue
+ * placeholder). Used *without* adding a navigation-bar inset on top — PlayerSheetSkeleton
+ * is hosted inside SynthXBottomNav's Box, which already applies `.navigationBarsPadding()`
+ * around both the nav and the sheet, so the inset is already excluded from this composable's
+ * own `maxHeight`. Re-adding it here would double-count it.
+ */
+internal val ControlsOverlayHeight: Dp = 300.dp
+
+/**
+ * How far below its resting position an alpha-faded block starts before sliding up into
+ * place. Queue mode's header/list block (PlayerSkeletonQueueContent) travels this distance
+ * as its slide term runs 0→1; the controls overlay travels with the sheet instead and uses
+ * this only until the sheet's anchors exist (see PlayerSheetMotion.kt's controlsOverlaySlide).
+ *
+ * Internal rather than private for the same reason [TitleRowReservedHeight] above is —
+ * top-level `private` in Kotlin is file-private, and both consumers live in other files.
+ * Declared here, alongside the sheet's other layout constants, rather than duplicated as a
+ * bare `40.dp` literal in each consumer.
+ *
+ * Deliberately not applied to the album art (its own mini↔expanded↔queue morph already owns
+ * its position and size) or to the player-mode title row (whose slide is emergent from the
+ * art/sheet geometry — see QueueArtPositioning.kt's titleRowY derivation).
+ */
+internal val ContentSlideDistance: Dp = 40.dp
+
+/**
+ * 20% of the full collapsed↔expanded travel, not the 0.5f used by QueueRow. Here the travel is
+ * nearly the whole screen, so a larger fraction meant a slow, non-flick drag had to cover
+ * ~294dp before it would snap — far more than a deliberate drag feels like it should need.
+ * Top-level so [AnchoredDraggableDefaults.flingBehavior]'s `remember` key stays stable.
+ *
+ * Trial (#176): Compose Foundation 1.12.0 moved fling configuration into
+ * [AnchoredDraggableDefaults.flingBehavior], which hardcodes a 125.dp/s velocity threshold
+ * (above it, the positional test is skipped) and never decays. The previous deprecated-
+ * constructor setup used `velocityThreshold = 40.dp` and
+ * `decayAnimationSpec = exponentialDecay(frictionMultiplier = 1.8f)` — the higher friction let a
+ * fast release decelerate before the snap spring took over, reading as one continuous motion.
+ * Those cannot simply be restored here; see #176 option (b), a custom fling behavior.
+ */
+internal val PlayerSheetPositionalThreshold: (Float) -> Float = { totalDistance -> totalDistance * 0.2f }
