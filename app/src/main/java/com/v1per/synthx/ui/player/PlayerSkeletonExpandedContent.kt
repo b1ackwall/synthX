@@ -17,7 +17,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.tracing.Trace
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.MoreOptionsButton
 import com.v1per.synthx.ui.theme.Spacing
 
@@ -37,6 +39,7 @@ fun PlayerSkeletonExpandedContent(
     expandedContentEnabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    Trace.beginSection(PerfTraceSections.TitleRow)
     val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
     Box(
         modifier = modifier
@@ -73,4 +76,5 @@ fun PlayerSkeletonExpandedContent(
             MoreOptionsButton(song = song, enabled = expandedContentEnabled)
         }
     }
+    Trace.endSection()
 }

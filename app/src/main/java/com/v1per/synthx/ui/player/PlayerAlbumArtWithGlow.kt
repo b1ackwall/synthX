@@ -14,7 +14,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.tracing.Trace
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.PlayerAlbumArt
 import com.v1per.synthx.ui.components.animatedPlayerAlbumArtScale
 import kotlin.math.round
@@ -45,6 +47,7 @@ internal fun PlayerAlbumArtWithGlow(
     size: Dp,
     modifier: Modifier = Modifier,
 ) {
+    Trace.beginSection(PerfTraceSections.AlbumArtWithGlow)
     // Keep the layout footprint equal to the art throughout the morph. The larger
     // glow overflows symmetrically without moving the art or changing its size.
     Box(modifier = modifier.size(size)) {
@@ -74,4 +77,5 @@ internal fun PlayerAlbumArtWithGlow(
             scale = artScale,
         )
     }
+    Trace.endSection()
 }

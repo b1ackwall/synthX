@@ -21,13 +21,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.tracing.Trace
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.perf.PerfTestTags
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.DragResistantIconButton
 import com.v1per.synthx.ui.theme.Spacing
 
@@ -49,12 +53,14 @@ fun BoxScope.PlayerSkeletonMiniContent(
     height: Dp,
     modifier: Modifier = Modifier,
 ) {
+    Trace.beginSection(PerfTraceSections.MiniContent)
     val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
     Row(
         modifier = modifier
             .align(Alignment.TopCenter)
             .fillMaxWidth()
             .height(height)
+            .testTag(PerfTestTags.MiniPlayer)
             .alpha(miniContentAlpha)
             .padding(horizontal = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
@@ -85,6 +91,7 @@ fun BoxScope.PlayerSkeletonMiniContent(
         }
         DragResistantIconButton(
             onClick = onPlayPauseClick,
+            modifier = Modifier.testTag(PerfTestTags.MiniPlayPause),
             enabled = miniContentEnabled,
         ) {
             if (isBuffering) {
@@ -107,4 +114,5 @@ fun BoxScope.PlayerSkeletonMiniContent(
             }
         }
     }
+    Trace.endSection()
 }

@@ -27,7 +27,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.tracing.Trace
+import androidx.tracing.trace
 import com.v1per.synthx.BuildConfig
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.rememberSystemReducedMotionActive
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.SurfaceVariant
@@ -53,6 +56,7 @@ internal fun BoxScope.PlayerAltStageBackground(
     fullHeight: Dp,
     progress: Float,
 ) {
+    Trace.beginSection(PerfTraceSections.Background)
     val paused = shouldPausePlayerAltStageMotion(hasSong, progress, rememberSystemReducedMotionActive())
     val motion = rememberAltStageMotion(paused)
     val image = remember(art) { art?.asImageBitmap() }
@@ -87,10 +91,13 @@ internal fun BoxScope.PlayerAltStageBackground(
     ) {
         // Read here so a motion update invalidates only this draw pass.
         motion.frame.longValue
-        drawRect(SurfaceVariant)
-        val source = image ?: return@Canvas
-        drawAltStageArt(source, motion.angles)
+        trace(PerfTraceSections.BackgroundDraw) {
+            drawRect(SurfaceVariant)
+            val source = image ?: return@Canvas
+            drawAltStageArt(source, motion.angles)
+        }
     }
+    Trace.endSection()
 }
 
 /** The scrim drawn over the finished background, or null while [alpha] is 0. */

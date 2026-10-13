@@ -25,10 +25,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.tracing.Trace
 import com.v1per.synthx.R
+import com.v1per.synthx.perf.PerfTestTags
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.DragResistantIconButton
 import com.v1per.synthx.ui.components.PlayerSeekBar
 import com.v1per.synthx.ui.theme.Alpha
@@ -111,6 +115,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
     // bug the shield fix addressed, but on real controls the shield's own gating can't
     // reach (they consume their own touches first, child-before-parent). Same 0.5f
     // threshold convention as the shield fix, for the same reason.
+    Trace.beginSection(PerfTraceSections.ControlsOverlay)
     val overlayControlsEnabled = expandedContentEnabled && overlayVisibleAlpha > 0.5f
     val transportGap = 40f.dp
     val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
@@ -210,6 +215,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 onSeek = onSeek,
                 unplayedColor = contentColors.content.copy(alpha = Alpha.SeekTrackUnplayed),
                 playedColor = contentColors.content.copy(alpha = Alpha.SeekTrackPlayed),
+                modifier = Modifier.testTag(PerfTestTags.SeekBar),
                 enabled = overlayControlsEnabled,
             )
             Spacer(modifier = Modifier.height(transportGap))
@@ -222,6 +228,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 Spacer(modifier = Modifier.weight(2f))
                 DragResistantIconButton(
                     onClick = onPreviousClick,
+                    modifier = Modifier.testTag(PerfTestTags.Previous),
                     size = 72.dp,
                     enabled = previousEnabled,
                 ) {
@@ -237,6 +244,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 Spacer(modifier = Modifier.weight(1f))
                 DragResistantIconButton(
                     onClick = onPlayPauseClick,
+                    modifier = Modifier.testTag(PerfTestTags.PlayPause),
                     size = 96.dp,
                     enabled = overlayControlsEnabled,
                 ) {
@@ -262,6 +270,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 Spacer(modifier = Modifier.weight(1f))
                 DragResistantIconButton(
                     onClick = onNextClick,
+                    modifier = Modifier.testTag(PerfTestTags.Next),
                     size = 72.dp,
                     enabled = nextEnabled,
                 ) {
@@ -290,6 +299,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 // see its doc comment for why.
                 DragResistantIconButton(
                     onClick = onQueueClick,
+                    modifier = Modifier.testTag(PerfTestTags.QueueButton),
                     enabled = overlayControlsEnabled,
                 ) {
                     Icon(
@@ -305,4 +315,5 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
             Spacer(modifier = Modifier.weight(1f))
         }
     }
+    Trace.endSection()
 }

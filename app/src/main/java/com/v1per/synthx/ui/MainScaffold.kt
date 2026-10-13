@@ -18,6 +18,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -243,7 +245,8 @@ private fun NormalShell(
         onAddToQueue = playbackViewModel::addToQueue,
         currentSongId = currentSong?.id,
     ) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Exposes test tags to UiAutomator as resource ids for the benchmark module.
+    Box(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
         // Excluded from TalkBack traversal while the sort sheet is open — see
         // hiddenFromAccessibilityWhileSheetShown's kdoc in RefinedBottomSheet.kt.
         Box(

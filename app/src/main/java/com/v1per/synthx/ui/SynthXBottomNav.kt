@@ -31,12 +31,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.navigation.Screen
+import com.v1per.synthx.perf.PerfTestTags
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.playback.PlayerBackgroundArtRequest
 import com.v1per.synthx.ui.components.BottomNavHeight
@@ -283,6 +285,11 @@ private fun SynthXBottomNav(
                             text = item.label,
                             style = MaterialTheme.typography.labelSmall,
                         )
+                    },
+                    modifier = if (item.screen == Screen.Library) {
+                        Modifier.testTag(PerfTestTags.NavLibrary)
+                    } else {
+                        Modifier
                     },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = Accent,

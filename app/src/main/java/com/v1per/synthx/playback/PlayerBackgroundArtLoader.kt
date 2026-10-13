@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
+import androidx.tracing.trace
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -57,7 +59,8 @@ internal class PlayerBackgroundArtLoader(private val contentResolver: ContentRes
     suspend fun load(request: PlayerBackgroundArtRequest): Bitmap? = withContext(Dispatchers.IO) {
         for (source in request.decodeSources()) {
             ensureActive()
-            decode(source, PlayerBackgroundArtSidePx)?.let { return@withContext it }
+            trace(PerfTraceSections.ArtDecode) { decode(source, PlayerBackgroundArtSidePx) }
+                ?.let { return@withContext it }
         }
         null
     }

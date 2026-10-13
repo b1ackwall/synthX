@@ -40,12 +40,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.perf.PerfTestTags
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
@@ -98,12 +100,14 @@ fun LibraryScreen(
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = viewModel::onPullToRefresh,
-            modifier = Modifier.padding(
-                start = innerPadding.calculateStartPadding(LayoutDirection.Ltr),
-                top = innerPadding.calculateTopPadding(),
-                end = innerPadding.calculateEndPadding(LayoutDirection.Ltr),
-                bottom = innerPadding.calculateBottomPadding(),
-            ),
+            modifier = Modifier
+                .padding(
+                    start = innerPadding.calculateStartPadding(LayoutDirection.Ltr),
+                    top = innerPadding.calculateTopPadding(),
+                    end = innerPadding.calculateEndPadding(LayoutDirection.Ltr),
+                    bottom = innerPadding.calculateBottomPadding(),
+                )
+                .testTag(PerfTestTags.LibraryScreen),
         ) {
             LibraryScreenContent(
                 recentSongs = recentSongs,

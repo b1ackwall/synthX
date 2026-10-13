@@ -30,15 +30,20 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
+import androidx.tracing.Trace
+import androidx.tracing.trace
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.perf.PerfTestTags
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.MoreOptionsButton
 import com.v1per.synthx.ui.components.QueueList
@@ -122,6 +127,7 @@ fun PlayerSkeletonQueueContent(
     bottomInset: Dp,
     modifier: Modifier = Modifier,
 ) {
+    Trace.beginSection(PerfTraceSections.QueueContent)
     val queueContentAlpha = queueFadeAlpha * queueProgressValue
     val queueSlideProgress = expandedContentAlpha * queueProgressValue
     val queueContentEnabled = expandedContentEnabled && queueProgressValue > 0.5f
@@ -251,6 +257,7 @@ fun PlayerSkeletonQueueContent(
                     .nestedScroll(queueScrollConnection)
                     .fillMaxWidth()
                     .fillMaxHeight()
+                    .testTag(PerfTestTags.QueueList)
                     .graphicsLayer {
                         alpha = queueContentAlpha
                         // DstIn must multiply only the queue pixels, never the player
@@ -272,17 +279,20 @@ fun PlayerSkeletonQueueContent(
                             endY = fadeEnd,
                         )
                         onDrawWithContent {
-                            drawContent()
-                            // An opaque mask preserves alpha; transparent removes it.
-                            // Release only the lower region, not the whole list's opacity.
-                            if (strength > 0f) {
-                                drawRect(brush = mask, blendMode = BlendMode.DstIn)
+                            trace(PerfTraceSections.QueueMaskDraw) {
+                                drawContent()
+                                // An opaque mask preserves alpha; transparent removes it.
+                                // Release only the lower region, not the whole list's opacity.
+                                if (strength > 0f) {
+                                    drawRect(brush = mask, blendMode = BlendMode.DstIn)
+                                }
                             }
                         }
                     },
             )
         }
     }
+    Trace.endSection()
 }
 
 internal fun queueCompositingStrategy(contentAlpha: Float): CompositingStrategy =

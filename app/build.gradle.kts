@@ -151,6 +151,7 @@ dependencies {
     implementation(libs.reorderable)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.collections.immutable)
+    implementation(libs.androidx.tracing)
 
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")

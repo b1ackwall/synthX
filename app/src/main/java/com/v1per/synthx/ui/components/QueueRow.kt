@@ -34,14 +34,18 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
+import androidx.tracing.Trace
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.QueueSlot
+import com.v1per.synthx.perf.PerfTestTags
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.player.LocalPlayerContentColors
 import com.v1per.synthx.ui.player.PlayerContentColors
 import com.v1per.synthx.ui.theme.Error
@@ -114,6 +118,7 @@ fun QueueRow(
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
 ) {
+    Trace.beginSection(PerfTraceSections.QueueRow)
     // The removal watcher below lives in a no-key LaunchedEffect, so it would otherwise keep
     // calling whichever onRemove existed when this row first entered composition — and
     // QueueList hands every row a freshly-built closure over its current index on each
@@ -173,6 +178,7 @@ fun QueueRow(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag(PerfTestTags.QueueRow)
             // Anchors are the row's own measured width, so the drag runs the full width in
             // either direction. Set from the layout phase, as updateAnchors requires.
             .onSizeChanged { size ->
@@ -289,4 +295,5 @@ fun QueueRow(
             }
         }
     }
+    Trace.endSection()
 }

@@ -36,11 +36,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.lerp as lerpDp
+import androidx.tracing.Trace
+import androidx.tracing.trace
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.perf.PerfTestTags
+import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
@@ -91,6 +96,7 @@ internal fun PlayerSheetSkeleton(
     val scope = rememberCoroutineScope()
     val collapsedHeightPx = with(density) { CollapsedPlayerHeight.toPx() }
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        Trace.beginSection(PerfTraceSections.PlayerSheet)
         val availableHeightPx = constraints.maxHeight.toFloat()
 
         val draggableState = remember { AnchoredDraggableState(initialValue = PlayerSheetValue.Collapsed) }
@@ -147,7 +153,7 @@ internal fun PlayerSheetSkeleton(
             }
         }
 
-        onProgressChanged(progress)
+        trace(PerfTraceSections.OnProgressChanged) { onProgressChanged(progress) }
 
         // Queue-mode toggle, its crossfade progress, the queue list's own scroll state, and
         // the derived controls-overlay visibility — all gathered behind one remembered holder
@@ -244,6 +250,7 @@ internal fun PlayerSheetSkeleton(
                     .height(sheetHeight)
                     .align(Alignment.BottomCenter)
                     .clip(RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius))
+                    .testTag(PerfTestTags.PlayerSheet)
                     // Single unified detector driving draggableState directly — replaces the
                     // anchoredDraggable + dragResistantClickable pairing, which silently
                     // swallowed touches when co-located on one node (anchoredDraggable's
@@ -461,5 +468,6 @@ internal fun PlayerSheetSkeleton(
                 )
             }
         }
+        Trace.endSection()
     }
 }
