@@ -1,7 +1,6 @@
 package com.v1per.synthx.data.backup
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
@@ -13,108 +12,8 @@ import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-
-/** Backup tiers, each retained independently in its own subdirectory. */
-enum class BackupTier(val folderName: String, val retention: Int) {
-    Daily("Daily", 20),
-    Auto("Auto", 30),
-    Manual("Manual", 20),
-}
-
-/** Reason strings recorded in the sidecar for [BackupTier.Auto] snapshots. */
-object BackupReason {
-    const val MIGRATION = "migration"
-    const val FOLDER_CHANGE = "folder_change"
-    const val DELETE_SONG = "delete_song"
-    const val DELETE_PLAYLIST = "delete_playlist"
-    const val REPLACE_SONG = "replace_song"
-    const val RESCAN = "rescan"
-    const val PRE_RESTORE_SAFETY = "pre_restore_safety"
-}
-
-/** Read-only content counts for a candidate backup (P4.3 restore preview), never a live query. */
-data class BackupPreviewCounts(
-    val playlistCount: Int,
-    val songCount: Int,
-    val playlistEntryCount: Int,
-)
-
-data class BackupInfo(
-    val databaseUri: Uri,
-    val metadataUri: Uri?,
-    val fileName: String,
-    val tier: BackupTier,
-    val timestamp: Long,
-    val reason: String?,
-    val sizeBytes: Long,
-    val restoreEligible: Boolean = false,
-    val restoreIneligibleReason: BackupIneligibilityReason? = null,
-)
-
-/**
- * Why a listed backup can't be restored — distinguishing causes that [BackupManager.listBackups]
- * used to collapse into one "Legacy backup" literal (R7-F07). Derived from data already read
- * while listing (metadata presence/contents, actual file size, display-name collisions, schema
- * contract lookup) rather than a value discarded elsewhere — nothing upstream already computes
- * this breakdown. [Unrecognized] is the residual bucket: [BackupManager]'s authoritative eligibility
- * check (a fully validated [CompletedBackup] pair with a supported schema) failed for a reason
- * none of the other cases identify, e.g. a structurally invalid metadata field.
- */
-sealed interface BackupIneligibilityReason {
-    data object MissingMetadata : BackupIneligibilityReason
-    data class SizeMismatch(val expectedBytes: Long, val actualBytes: Long) : BackupIneligibilityReason
-    data object DuplicateDisplayName : BackupIneligibilityReason
-    data class UnsupportedSchema(val dbVersion: Int) : BackupIneligibilityReason
-    data object Unrecognized : BackupIneligibilityReason
-}
-
-/**
- * Derives [BackupIneligibilityReason] from facts already on hand while listing a candidate —
- * pure and Android-free so it is unit-testable without a real SAF tree. Checked in this order:
- * a duplicate display name makes the entry ambiguous regardless of what its metadata claims;
- * missing metadata is worse than a stale one; a size mismatch is checked before schema support
- * since a corrupt/truncated file's schema claim can't be trusted either. Returns null when none
- * of these checks find fault — callers combine that with their own authoritative eligibility
- * check, since this function alone cannot see every validation [CompletedBackupCatalog] applies.
- */
-internal fun classifyIneligibility(
-    metadata: BackupMetadata?,
-    actualSizeBytes: Long,
-    isDuplicateName: Boolean,
-    schemaSupported: Boolean,
-): BackupIneligibilityReason? = when {
-    isDuplicateName -> BackupIneligibilityReason.DuplicateDisplayName
-    metadata == null -> BackupIneligibilityReason.MissingMetadata
-    metadata.sizeBytes != null && metadata.sizeBytes != actualSizeBytes ->
-        BackupIneligibilityReason.SizeMismatch(metadata.sizeBytes, actualSizeBytes)
-    !schemaSupported -> BackupIneligibilityReason.UnsupportedSchema(metadata.dbVersion)
-    else -> null
-}
-
-/**
- * The outcome of listing candidate backups (R7-F04) — distinguishes situations
- * [BackupManager.listBackups] used to collapse into one identical empty list: no folder chosen
- * yet, a folder that can't currently be read (missing/renamed tier directories or a provider
- * listing failure — merged into one case because both mean the same thing to the user: "we can't
- * see what's in the folder you picked," with the same remedy), a folder that reads fine but
- * genuinely holds nothing, and an actual list.
- */
-sealed interface BackupListResult {
-    data object NoFolderConfigured : BackupListResult
-    data object FolderUnreachable : BackupListResult
-    data object Empty : BackupListResult
-    data class Success(val backups: List<BackupInfo>) : BackupListResult
-}
-
-/** For callers that only want "whatever's there, or nothing" without caring why. */
-internal fun BackupListResult.backupsOrEmpty(): List<BackupInfo> =
-    (this as? BackupListResult.Success)?.backups.orEmpty()
-
-class BackupNotConfiguredException : IllegalStateException("No backup folder selected")
 
 /**
  * Whole-database backup and restore against a user-chosen SAF tree.
@@ -123,7 +22,7 @@ class BackupNotConfiguredException : IllegalStateException("No backup folder sel
  * deliberately special: it snapshots through a raw framework handle so opening Room cannot migrate
  * the source before its pre-migration state is captured.
  */
-open class BackupManager(private val context: Context) {
+open class BackupManager(internal val context: Context) {
 
     private val preferences = PreferencesManager(context)
 
@@ -353,87 +252,6 @@ open class BackupManager(private val context: Context) {
         classifyBackupList(root)
     }
 
-    /**
-     * Split out from [listBackups] so tests can supply a real, file-backed [DocumentFile] root
-     * (as [SafBackupPublisherInstrumentedTest] already does via `DocumentFile.fromFile`) instead
-     * of needing a genuine SAF tree grant, which `DocumentFile.fromTreeUri` requires.
-     */
-    internal fun classifyBackupList(root: DocumentFile?): BackupListResult {
-        // A revoked grant or a provider that has gone away can make even `.isDirectory` throw,
-        // not just return false — this is the same distrust-the-provider posture as the
-        // `runCatching` around `listFiles()` below.
-        val safeRoot = root?.takeIf { runCatching { it.isDirectory }.getOrDefault(false) }
-            ?: return BackupListResult.FolderUnreachable
-
-        var anyTierUnreadable = false
-        val backups = BackupTier.entries.flatMap { tier ->
-            val directory = runCatching { safeRoot.findFile(tier.folderName) }.getOrNull()
-                ?.takeIf { runCatching { it.isDirectory }.getOrDefault(false) }
-            if (directory == null) {
-                anyTierUnreadable = true
-                return@flatMap emptyList()
-            }
-            val children = runCatching { directory.listFiles().toList() }
-                .onFailure { anyTierUnreadable = true }
-                .getOrDefault(emptyList())
-            val nameCounts = children.groupingBy { it.name.orEmpty() }.eachCount()
-            val byName = children.associateBy { it.name.orEmpty() }
-            val completedByDatabaseName = completedPairs(children, tier)
-                .associateBy { it.databaseName }
-
-            children
-                .filter { document ->
-                    document.isFile &&
-                        document.name?.let(BackupFileNames::isCompletedDatabaseName) == true
-                }
-                .map { databaseDocument ->
-                    val name = databaseDocument.name.orEmpty()
-                    val stem = name.removeSuffix(".db")
-                    val completePair = completedByDatabaseName[name]
-                    val metadataDocument = completePair?.metadataDocument?.document
-                        ?: byName["$stem.json"]
-                    val metadata = completePair?.metadata
-                        ?: metadataDocument?.let { readMetadata(it.uri) }
-                    val schemaSupported = metadata?.let { value ->
-                        runCatching {
-                            value.dbVersion <= SynthXDatabase.VERSION &&
-                                BackupSchemaContracts.forVersion(value.dbVersion)?.hasMigrationPathToCurrent == true
-                        }.getOrDefault(false)
-                    } == true
-                    val eligible = completePair != null && schemaSupported
-                    val ineligibleReason = if (eligible) {
-                        null
-                    } else {
-                        classifyIneligibility(
-                            metadata = metadata,
-                            actualSizeBytes = databaseDocument.length(),
-                            isDuplicateName = (nameCounts[name] ?: 0) > 1,
-                            schemaSupported = schemaSupported,
-                        ) ?: BackupIneligibilityReason.Unrecognized
-                    }
-                    BackupInfo(
-                        databaseUri = databaseDocument.uri,
-                        metadataUri = metadataDocument?.uri,
-                        fileName = name,
-                        tier = tier,
-                        timestamp = metadata?.timestamp?.takeIf { it > 0 }
-                            ?: BackupFileNames.parseTimestampMillis(name)
-                            ?: databaseDocument.lastModified(),
-                        reason = metadata?.reason?.takeIf { it.isNotBlank() },
-                        sizeBytes = databaseDocument.length(),
-                        restoreEligible = eligible,
-                        restoreIneligibleReason = ineligibleReason,
-                    )
-                }
-        }.sortedByDescending { it.timestamp }
-
-        return when {
-            backups.isNotEmpty() -> BackupListResult.Success(backups)
-            anyTierUnreadable -> BackupListResult.FolderUnreachable
-            else -> BackupListResult.Empty
-        }
-    }
-
     // ------------------------------------------------------------ verification (P3.2)
 
     /**
@@ -459,43 +277,6 @@ open class BackupManager(private val context: Context) {
     suspend fun verifyMostRecentBackup(): Result<Unit> =
         verifyBackupList(runCatching { listBackups() }.getOrDefault(BackupListResult.FolderUnreachable))
 
-    /**
-     * Split out from [verifyMostRecentBackup] so tests can supply a [BackupListResult] directly
-     * — real [BackupInfo] entries built with `file://` URIs and a genuine SQLite backup file —
-     * the same technique [classifyBackupList] uses to avoid needing a genuine SAF tree grant.
-     */
-    internal suspend fun verifyBackupList(listing: BackupListResult): Result<Unit> = withContext(Dispatchers.IO) {
-        val eligible = listing.backupsOrEmpty().firstOrNull { it.restoreEligible }
-
-        if (eligible == null) {
-            BackupOutcomeStore.recordVerificationSkipped(context)
-            return@withContext Result.success(Unit)
-        }
-
-        val result = runCatching {
-            val metadata = requireNotNull(readRestoreMetadata(eligible)) {
-                "Eligible backup is missing valid metadata"
-            }
-            val stage = BackupStagingCoordinator.acquire(context, "verify")
-            val copy = stage.file
-            try {
-                val digest = RestoreTransaction.copySafOnce(context, eligible.databaseUri.toString(), copy)
-                require(digest.sizeBytes == metadata.sizeBytes && digest.sha256 == metadata.sha256) {
-                    "Backup bytes do not match its declared size and SHA-256 metadata"
-                }
-                val validated = BackupSnapshotValidator.validate(copy, migrationSnapshot = true)
-                require(validated.schema.userVersion == metadata.dbVersion) {
-                    "Backup metadata version does not match the database"
-                }
-            } finally {
-                stage.close()
-            }
-            Unit
-        }
-        BackupOutcomeStore.recordVerificationOutcome(context, result)
-        result
-    }
-
     // ---------------------------------------------------------------- preview (P4.3)
 
     /**
@@ -508,55 +289,7 @@ open class BackupManager(private val context: Context) {
     suspend fun previewBackup(
         backup: BackupInfo,
         onProgress: (RestoreProgressStep) -> Unit = {},
-    ): Result<BackupPreviewCounts> = withContext(Dispatchers.IO) {
-        runCatching {
-            val stage = BackupStagingCoordinator.acquire(context, "preview")
-            val copy = stage.file
-            try {
-                // R7-F15: preview never touches the live database, so liveSize=0 here rather
-                // than the live database's real size — RestoreStorage.requiredBytes' formula
-                // still reserves 2x candidateSize (a bit more than the single copy preview
-                // actually writes), a deliberately conservative reuse of the same shared
-                // free-space policy execute() uses, rather than a second bespoke formula.
-                // R7-F15: preview never touches the live database, so liveSize=0 here rather
-                // than the live database's real size — RestoreStorage.requiredBytes' formula
-                // still reserves 2x candidateSize (a bit more than the single copy preview
-                // actually writes), a deliberately conservative reuse of the same shared
-                // free-space policy execute() uses, rather than a second bespoke formula.
-                RestoreTransaction.ensureSpace(
-                    dir = copy.parentFile ?: error("Preview staging directory is unavailable"),
-                    liveSize = 0L,
-                    candidateSize = backup.sizeBytes,
-                )
-                onProgress(RestoreProgressStep.COPYING)
-                val copyJob = currentCoroutineContext()[Job]
-                RestoreTransaction.copySafOnce(
-                    context,
-                    backup.databaseUri.toString(),
-                    copy,
-                    isCancelled = { copyJob?.isActive == false },
-                )
-                onProgress(RestoreProgressStep.VALIDATING)
-                // migrationSnapshot=true: a preview must work on a candidate at any restorable
-                // schema version, not only one already at the current version.
-                BackupSnapshotValidator.validate(copy, migrationSnapshot = true)
-                SQLiteDatabase.openDatabase(copy.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { db ->
-                    BackupPreviewCounts(
-                        playlistCount = countRows(db, "playlists"),
-                        songCount = countRows(db, "songs"),
-                        playlistEntryCount = countRows(db, "playlist_songs"),
-                    )
-                }
-            } finally {
-                stage.close()
-            }
-        }
-    }
-
-    private fun countRows(database: SQLiteDatabase, table: String): Int =
-        database.rawQuery("SELECT COUNT(*) FROM $table", null).use { cursor ->
-            if (cursor.moveToFirst()) cursor.getInt(0) else 0
-        }
+    ): Result<BackupPreviewCounts> = previewBackupInternal(backup, onProgress)
 
     // --------------------------------------------------------------- restore
 
@@ -634,86 +367,7 @@ open class BackupManager(private val context: Context) {
         return if (create) root.createDirectory(tier.folderName) else null
     }
 
-    /**
-     * `internal`: a test seam so retention/orphan-sweep behavior can be exercised against a real,
-     * file-backed [DocumentFile] tier directory (see [classifyBackupList]'s doc for why a genuine
-     * SAF tree grant is unavailable in an instrumented test).
-     */
-    internal fun enforceRetention(
-        tierDirectory: DocumentFile,
-        tier: BackupTier,
-        protected: BackupFileIdentity,
-    ) {
-        val children = runCatching { tierDirectory.listFiles().toList() }.getOrDefault(emptyList())
-        val outcome = BackupRetention.prune(
-            completed = completedPairs(children, tier),
-            limit = tier.retention,
-            protectedDatabaseName = protected.databaseFileName,
-        ) { pair ->
-            // Attempt both sides independently and report what actually happened — a thrown
-            // exception or a refused (Boolean false) SAF delete are both now visible to the
-            // caller instead of being discarded, per R8-A12.
-            val databaseDeleted = runCatching { pair.database.document.delete() }.getOrDefault(false)
-            val metadataDeleted = runCatching { pair.metadataDocument.document.delete() }.getOrDefault(false)
-            PairDeletionResult(databaseDeleted, metadataDeleted)
-        }
-        BackupOutcomeStore.recordRetentionOutcome(context, tier, outcome)
-
-        // R8-A12: fold orphan cleanup into this same directory listing rather than a separate
-        // scan — reuses the DocumentFile handles already fetched above; deletions above are
-        // reflected live since DocumentFile.exists()/isFile query the provider, not a cache.
-        sweepOrphanHalves(children)
-    }
-
-    /**
-     * R8-A12: removes a stray database or metadata file that has no matching other half — either
-     * left behind by a partial pruning deletion above, or from an earlier run that crashed
-     * mid-publish/mid-prune. A stray database half is unrestorable through the supported UI (no
-     * metadata pointing at it); a stray metadata half references bytes that no longer exist.
-     * Neither can be "repaired" by re-pairing against a DIFFERENT orphan — pairing is purely
-     * name-derived (see [CompletedBackupCatalog]), so if two files' stems matched they would
-     * already form a complete pair and not be orphans in the first place. Safe removal is the
-     * only real option.
-     */
-    private fun sweepOrphanHalves(children: List<DocumentFile>) {
-        val surviving = children.filter { it.isFile && it.exists() }
-        val namesPresent = surviving.mapNotNull { it.name }.toSet()
-        surviving.forEach { document ->
-            val name = document.name ?: return@forEach
-            when {
-                BackupFileNames.isCompletedDatabaseName(name) -> {
-                    val metadataName = name.removeSuffix(".db") + ".json"
-                    if (metadataName !in namesPresent) {
-                        runCatching { document.delete() }
-                    }
-                }
-                name.endsWith(".json") && !name.endsWith(".json.partial") -> {
-                    val databaseName = name.removeSuffix(".json") + ".db"
-                    if (databaseName !in namesPresent || !BackupFileNames.isCompletedDatabaseName(databaseName)) {
-                        runCatching { document.delete() }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun completedPairs(
-        children: List<DocumentFile>,
-        tier: BackupTier,
-    ): List<CompletedBackup<DocumentFile>> = CompletedBackupCatalog.enumerate(
-        tier = tier,
-        artifacts = children.map { document ->
-            BackupArtifact(
-                document = document,
-                name = document.name.orEmpty(),
-                isFile = document.isFile,
-                sizeBytes = document.length(),
-            )
-        },
-        readMetadata = { document -> readMetadata(document.uri) },
-    )
-
-    private fun readMetadata(uri: Uri): BackupMetadata? = runCatching {
+    internal fun readMetadata(uri: Uri): BackupMetadata? = runCatching {
         context.contentResolver.openInputStream(uri)?.use { input ->
             BackupMetadataCodec.decodeOrNull(input.readBytes())
         }
