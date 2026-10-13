@@ -30,16 +30,10 @@ import androidx.compose.ui.text.font.FontWeight
 import com.v1per.synthx.ui.components.RefinedBottomSheet
 import com.v1per.synthx.ui.components.RefinedBottomSheetState
 import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
-// DEAD CODE: only the hidden adaptive-text controls used it. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.ui.player.AdaptiveTextMetric
-// DEAD CODE: only the hidden adaptive-text controls used it. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.ui.player.AdaptiveTextStatistic
 import com.v1per.synthx.ui.player.AltStageBlurEdgeMode
 import com.v1per.synthx.ui.player.PlayerBackgroundBlurMaxDp
 import com.v1per.synthx.ui.player.PlayerBackgroundBlurMinDp
 import com.v1per.synthx.ui.player.PlayerBackgroundDebugStateHolder
-// DEAD CODE: only the hidden adaptive-text controls used it. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.ui.player.select
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -86,8 +80,6 @@ private fun PlayerBackgroundDebugSheet(
     onDismissRequest: () -> Unit,
 ) {
     val debugState by PlayerBackgroundDebugStateHolder.state
-    // DEAD CODE: the sheet's brightness readout is hidden. Delete in a cleanup pass. Ask  before deleting.
-    // val measuredBrightness by PlayerBackgroundDebugStateHolder.measuredBrightness
 
     RefinedBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -145,69 +137,6 @@ private fun PlayerBackgroundDebugSheet(
                     }
                 }
             }
-            // DEAD CODE: the adaptive title color is locked in PlayerAltStageStyle, so the sheet no longer shows its controls. Delete in a cleanup pass. Ask  before deleting.
-            // Row(
-            //     modifier = Modifier.fillMaxWidth(),
-            //     verticalAlignment = Alignment.CenterVertically,
-            // ) {
-            //     Text("Adaptive text color", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-            //     Switch(
-            //         checked = debugState.adaptiveTextEnabled,
-            //         onCheckedChange = PlayerBackgroundDebugStateHolder::setAdaptiveTextEnabled,
-            //     )
-            // }
-            // Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            //     Text(
-            //         text = "Threshold: ${"%.2f".format(debugState.adaptiveTextThreshold)}",
-            //         style = MaterialTheme.typography.labelSmall,
-            //     )
-            //     Slider(
-            //         value = debugState.adaptiveTextThreshold,
-            //         onValueChange = PlayerBackgroundDebugStateHolder::setAdaptiveTextThreshold,
-            //         valueRange = 0f..1f,
-            //         modifier = Modifier.fillMaxWidth(),
-            //     )
-            // }
-            // // The selected mode is bold.
-            // Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            //     AdaptiveTextMetric.entries.forEach { metric ->
-            //         TextButton(onClick = { PlayerBackgroundDebugStateHolder.setAdaptiveTextMetric(metric) }) {
-            //             Text(
-            //                 text = metric.name,
-            //                 fontWeight = if (metric == debugState.adaptiveTextMetric) FontWeight.Bold else FontWeight.Normal,
-            //             )
-            //         }
-            //     }
-            // }
-            // Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            //     AdaptiveTextStatistic.entries.forEach { statistic ->
-            //         TextButton(onClick = { PlayerBackgroundDebugStateHolder.setAdaptiveTextStatistic(statistic) }) {
-            //             Text(
-            //                 text = statistic.name,
-            //                 fontWeight = if (statistic == debugState.adaptiveTextStatistic) FontWeight.Bold else FontWeight.Normal,
-            //             )
-            //         }
-            //     }
-            // }
-            // // The value the player uses is marked with ">" and bold.
-            // val brightness = measuredBrightness
-            // if (brightness == null) {
-            //     Text(text = "Current song: none", style = MaterialTheme.typography.labelSmall)
-            // } else {
-            //     Text(text = "Current song", style = MaterialTheme.typography.labelSmall)
-            //     AdaptiveTextMetric.entries.forEach { metric ->
-            //         AdaptiveTextStatistic.entries.forEach { statistic ->
-            //             val selected = metric == debugState.adaptiveTextMetric &&
-            //                 statistic == debugState.adaptiveTextStatistic
-            //             Text(
-            //                 text = "${if (selected) "> " else "  "}${metric.name} ${statistic.name}: " +
-            //                     "%.3f".format(brightness.select(metric, statistic)),
-            //                 style = MaterialTheme.typography.labelSmall,
-            //                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            //             )
-            //         }
-            //     }
-            // }
         }
     }
 }

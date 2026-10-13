@@ -1,7 +1,6 @@
 package com.v1per.synthx.ui.components
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
 import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Box

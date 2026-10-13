@@ -99,7 +99,7 @@ internal object ArtRecovery {
      * [extractArt] is the file-I/O + decode step (resolve the source document, read embedded
      * art via [AlbumArtExtractor.extract]) — defaulted to the real implementation below, but
      * swappable so a test can control what a recovery attempt "found" without a real embedded-art
-     * audio fixture, same seam shape as [PaletteRecovery.recover]'s `extractSwatches` parameter.
+     * audio fixture, same seam shape the retired palette recovery used for swatch extraction.
      * Returns null when nothing usable came back (source unresolvable, or extraction produced
      * neither variant) — both collapse to [RecoveryOutcome.FAILED] the same way the inline
      * pre-refactor code did.

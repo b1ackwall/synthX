@@ -1,13 +1,7 @@
 package com.v1per.synthx.ui.player
 
-// DEAD CODE: only the retired playerTitleColor/playerArtistColor below used these. Delete in a cleanup pass. Ask  before deleting.
-// import androidx.compose.ui.graphics.Color
 import com.v1per.synthx.playback.BackgroundBrightness
 import com.v1per.synthx.playback.BrightnessStats
-// DEAD CODE: only the retired playerTitleColor/playerArtistColor below used these. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.ui.theme.Background
-// import com.v1per.synthx.ui.theme.TextPrimary
-// import com.v1per.synthx.ui.theme.TextSecondary
 
 /** Which brightness measure the adaptive title color reads. */
 internal enum class AdaptiveTextMetric { WcagLuminance, OklabLightness }
@@ -36,10 +30,3 @@ internal fun useDarkPlayerTitle(
     statistic: AdaptiveTextStatistic,
     threshold: Float,
 ): Boolean = enabled && brightness != null && brightness.select(metric, statistic) > threshold
-
-// DEAD CODE: the title and artist read PlayerContentColors from LocalPlayerContentColors instead. Delete in a cleanup pass. Ask  before deleting.
-// /** The expanded title color: the darkest token on a bright background, else the usual one. */
-// internal fun playerTitleColor(dark: Boolean): Color = if (dark) Background else TextPrimary
-//
-// /** The expanded artist color: the darkest token on a bright background, else the usual one. */
-// internal fun playerArtistColor(dark: Boolean): Color = if (dark) Background else TextSecondary

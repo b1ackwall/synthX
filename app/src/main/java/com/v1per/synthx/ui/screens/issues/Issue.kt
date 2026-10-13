@@ -31,8 +31,4 @@ sealed class Issue {
      * excluded from backups. See [com.v1per.synthx.data.scanner.ArtRecovery].
      */
     data class MissingArt(val songIds: List<String>) : Issue()
-
-    // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-    // /** Songs with an art URI and available audio, but no stored background swatches. */
-    // data class MissingPalette(val songIds: List<String>) : Issue()
 }

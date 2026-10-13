@@ -11,7 +11,6 @@ import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
-import java.io.FileOutputStream
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

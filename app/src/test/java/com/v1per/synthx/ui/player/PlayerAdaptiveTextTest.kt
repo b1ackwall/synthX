@@ -48,14 +48,6 @@ class PlayerAdaptiveTextTest {
         assertEquals(false, dark(withMedian(0.1f)))
     }
 
-    // DEAD CODE: playerTitleColor/playerArtistColor are retired; titleAndArtistAreTextPrimaryOrBackground covers the new mapping. Delete in a cleanup pass. Ask  before deleting.
-    // @Test fun darkAndLightColorsAreTheExistingTokens() {
-    //     assertEquals(com.v1per.synthx.ui.theme.Background, playerTitleColor(true))
-    //     assertEquals(com.v1per.synthx.ui.theme.Background, playerArtistColor(true))
-    //     assertEquals(com.v1per.synthx.ui.theme.TextPrimary, playerTitleColor(false))
-    //     assertEquals(com.v1per.synthx.ui.theme.TextSecondary, playerArtistColor(false))
-    // }
-
     @Test fun titleAndArtistAreTextPrimaryOrBackground() {
         // Title and artist both draw PlayerContentColors.content, so one mapping covers both.
         assertEquals(com.v1per.synthx.ui.theme.TextPrimary, playerContentColorsFor(withMedian(0.1f)).content)

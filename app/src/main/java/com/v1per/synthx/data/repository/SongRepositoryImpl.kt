@@ -18,9 +18,7 @@ import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.db.QueueDao
-import com.v1per.synthx.data.db.SongArtistEntity
 import com.v1per.synthx.data.db.SongDao
-import com.v1per.synthx.data.db.SongWithDetails
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.db.queryInBatches
 import android.util.Log
@@ -37,9 +35,6 @@ import com.v1per.synthx.data.scanner.ArtRecovery
 import com.v1per.synthx.data.scanner.ArtRecoveryResult
 import com.v1per.synthx.data.scanner.DestructiveFilePreflight
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
-// DEAD CODE: palette recovery and the Issues MissingPalette item are retired. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.data.scanner.PaletteRecovery
-// import com.v1per.synthx.data.scanner.PaletteRecoveryResult
 import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.GraduationStage
@@ -49,7 +44,6 @@ import com.v1per.synthx.data.scanner.ConfiguredAudioRoot
 import com.v1per.synthx.data.scanner.VerifyResult
 import com.v1per.synthx.data.scanner.walkAndClassifyRootOrganization
 import com.v1per.synthx.data.scanner.graduateSong as graduateSongFile
-import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.repository.RepositoryDbFlow.retryOnFailure
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import java.util.UUID
@@ -847,17 +841,6 @@ class SongRepositoryImpl(
     override suspend fun recoverMissingArt(songIds: List<String>?): ArtRecoveryResult = dbOperation {
         ArtRecovery.recover(context, database, songIds)
     }
-
-    // DEAD CODE: palette recovery and the Issues MissingPalette item are retired. Delete in a cleanup pass. Ask  before deleting.
-    // /** Both cache values describe the same database snapshot. Caller owns worker admission. */
-    // internal suspend fun getMissingPaletteSnapshotAlreadyAdmitted(): Pair<List<String>, Int> =
-    //     database.withTransaction {
-    //         songDao.getSongIdsMissingPalette() to songDao.getMissingPaletteCountOnce()
-    //     }
-    //
-    // override suspend fun recoverPaletteData(songIds: List<String>): PaletteRecoveryResult = dbOperation {
-    //     PaletteRecovery.recover(context, database, songIds)
-    // }
 
     override fun getAllGroups(): Flow<List<PlaylistGroup>> =
         RepositoryDbFlow.observe { playlistDao.getAllGroups() }.map { entities ->

@@ -17,8 +17,6 @@ import com.v1per.synthx.ui.screens.search.SearchViewModel
 import com.v1per.synthx.ui.screens.settings.SettingsScreen
 import com.v1per.synthx.ui.screens.developersettings.DeveloperSettingsScreen
 import com.v1per.synthx.ui.components.DetailTopBar
-// DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.ui.components.DerivedBlobColors
 import com.v1per.synthx.R
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.flow.SharedFlow
@@ -29,14 +27,10 @@ internal fun NavGraphBuilder.tabRoutes(
     chromeBottomPadding: Dp,
     searchReselectEvents: SharedFlow<Unit>,
     homeAmbientPaused: Boolean = false,
-    // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
-    // ambientColors: DerivedBlobColors? = null,
 ) {
     composable(Screen.Home.route) {
         RouteContent(chromeBottomPadding) {
             HomeScreen(
-                // DEAD CODE: Home and the player no longer use the playing song's palette. Delete in a cleanup pass. Ask  before deleting.
-                // ambientColors = ambientColors,
                 ambientPaused = homeAmbientPaused,
             )
         }

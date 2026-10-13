@@ -44,9 +44,6 @@ import com.v1per.synthx.ui.components.MoreOptionsButton
 import com.v1per.synthx.ui.components.QueueList
 import com.v1per.synthx.ui.components.QueuePlaybackModeRow
 import com.v1per.synthx.ui.theme.Spacing
-// DEAD CODE: the queue header and empty-queue text follow LocalPlayerContentColors instead of fixed text tokens. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.ui.theme.TextPrimary
-// import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.collections.immutable.toPersistentList
 
 private val ControlsMaskFadeHeight = 48.dp
@@ -125,8 +122,6 @@ fun PlayerSkeletonQueueContent(
     bottomInset: Dp,
     modifier: Modifier = Modifier,
 ) {
-    // DEAD CODE: the alpha fades over its own window of the sheet's progress, passed in as queueFadeAlpha. Delete in a cleanup pass. Ask  before deleting.
-    // val queueContentAlpha = expandedContentAlpha * queueProgressValue
     val queueContentAlpha = queueFadeAlpha * queueProgressValue
     val queueSlideProgress = expandedContentAlpha * queueProgressValue
     val queueContentEnabled = expandedContentEnabled && queueProgressValue > 0.5f
@@ -153,14 +148,10 @@ fun PlayerSkeletonQueueContent(
     // button in/out animates queueProgressValue, and the offset simply tracks whichever
     // changed. Both children take the identical offset, so the header-to-list gap is constant
     // throughout the slide rather than the two drifting apart.
-    // DEAD CODE: the slide keeps the expandedContentAlpha product, now named queueSlideProgress. Delete in a cleanup pass. Ask  before deleting.
-    // val queueContentSlideOffset = lerpDp(ContentSlideDistance, 0.dp, queueContentAlpha)
     val queueContentSlideOffset = lerpDp(ContentSlideDistance, 0.dp, queueSlideProgress)
     // Match the controls' placement: the same slide PlayerSheetSkeleton hands the overlay,
     // plus the overlay's compensation for the sheet's bottom inset. Queue content has a
     // separate slide during its crossfade.
-    // DEAD CODE: the slide is computed once in PlayerSheetSkeleton and shared with the overlay. Delete in a cleanup pass. Ask  before deleting.
-    // val controlsOverlayOffsetY = lerpDp(ContentSlideDistance, 0.dp, expandedContentAlpha) + bottomInset
     val controlsOverlayOffsetY = controlsOverlaySlide + bottomInset
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -192,8 +183,6 @@ fun PlayerSkeletonQueueContent(
                         text = song.title,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
-                        // DEAD CODE: the queue header title follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
-                        // color = TextPrimary,
                         color = contentColors.content,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -202,8 +191,6 @@ fun PlayerSkeletonQueueContent(
                     Text(
                         text = song.artist,
                         style = MaterialTheme.typography.bodyMedium,
-                        // DEAD CODE: the queue header artist follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
-                        // color = TextSecondary,
                         color = contentColors.content,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -242,8 +229,6 @@ fun PlayerSkeletonQueueContent(
                 Text(
                     text = stringResource(R.string.empty_queue_no_upcoming),
                     style = MaterialTheme.typography.bodyLarge,
-                    // DEAD CODE: the empty-queue text follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
-                    // color = TextSecondary,
                     color = contentColors.content,
                 )
             }

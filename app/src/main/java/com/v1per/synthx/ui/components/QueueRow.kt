@@ -47,8 +47,6 @@ import com.v1per.synthx.ui.player.PlayerContentColors
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
-// DEAD CODE: the reorder handle follows LocalPlayerContentColors instead of a fixed text token. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.ui.theme.TextTertiary
 import kotlinx.collections.immutable.ImmutableList
 import kotlin.math.roundToInt
 
@@ -286,8 +284,6 @@ fun QueueRow(
                 Icon(
                     imageVector = Icons.Filled.DragHandle,
                     contentDescription = stringResource(R.string.cd_drag_handle),
-                    // DEAD CODE: the reorder handle follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
-                    // tint = TextTertiary,
                     tint = (LocalPlayerContentColors.current ?: PlayerContentColors.Light).content,
                 )
             }

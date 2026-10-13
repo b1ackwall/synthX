@@ -35,8 +35,6 @@ import com.v1per.synthx.R
 import com.v1per.synthx.ui.player.LocalPlayerContentColors
 import com.v1per.synthx.ui.player.PlayerContentColors
 import com.v1per.synthx.ui.theme.Spacing
-// DEAD CODE: the time labels follow LocalPlayerContentColors instead of a fixed text token. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.ui.theme.TextSecondary
 import java.util.Locale
 import kotlin.math.abs
 
@@ -190,15 +188,11 @@ fun PlayerSeekBar(
             Text(
                 text = formatDuration(displayedPosition),
                 style = MaterialTheme.typography.labelSmall,
-                // DEAD CODE: the elapsed label follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
-                // color = TextSecondary,
                 color = contentColors.content,
             )
             Text(
                 text = formatDuration(duration),
                 style = MaterialTheme.typography.labelSmall,
-                // DEAD CODE: the duration label follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
-                // color = TextSecondary,
                 color = contentColors.content,
             )
         }

@@ -15,8 +15,6 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.player.LocalPlayerContentColors
 import com.v1per.synthx.ui.player.PlayerContentColors
-// DEAD CODE: the button follows LocalPlayerContentColors instead of a fixed text token. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
  * Same [LocalSongActions] trigger in both header modes, just relocated per layout.
@@ -51,8 +49,6 @@ internal fun MoreOptionsButton(song: Song, enabled: Boolean) {
         Icon(
             imageVector = Icons.Default.MoreVert,
             contentDescription = stringResource(R.string.cd_more_options),
-            // DEAD CODE: the button follows the player's shared content color. Delete in a cleanup pass. Ask  before deleting.
-            // tint = TextSecondary,
             tint = contentColors.content,
             modifier = Modifier.size(24.dp),
         )

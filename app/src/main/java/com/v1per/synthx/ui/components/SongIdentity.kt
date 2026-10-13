@@ -64,8 +64,6 @@ fun SongIdentity(
             Text(
                 text = song.title,
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                // DEAD CODE: inside the player the title follows the shared content color; elsewhere it is still TextPrimary. Delete in a cleanup pass. Ask  before deleting.
-                // color = TextPrimary,
                 color = playerColors?.content ?: TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -73,8 +71,6 @@ fun SongIdentity(
             Text(
                 text = song.artist,
                 style = MaterialTheme.typography.bodyMedium,
-                // DEAD CODE: inside the player the artist follows the shared content color; elsewhere it is still TextSecondary. Delete in a cleanup pass. Ask  before deleting.
-                // color = TextSecondary,
                 color = playerColors?.content ?: TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

@@ -58,7 +58,6 @@ import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 // Aliased: the Material3 `Surface` composable already owns this simple name in this file.
-import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
 @Composable
 fun IssuesScreen(
@@ -150,8 +149,6 @@ fun IssuesScreen(
                 onLoadDeletePreview = viewModel::loadDeletePreview,
                 onDelete = viewModel::deleteSong,
                 onFixMissingArt = viewModel::fixMissingArt,
-                // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-                // onFixMissingPalette = viewModel::fixMissingPalette,
                 onNavigateToBackups = onNavigateToBackups,
                 modifier = Modifier.weight(1f),
             )
@@ -230,8 +227,6 @@ private fun IssuesContent(
     onLoadDeletePreview: (String) -> Unit = {},
     onDelete: (String, String) -> Unit,
     onFixMissingArt: (List<String>) -> Unit,
-    // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-    // onFixMissingPalette: (List<String>) -> Unit,
     onNavigateToBackups: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -291,11 +286,6 @@ private fun IssuesContent(
                             songIds = issue.songIds,
                             onFix = { onFixMissingArt(issue.songIds) },
                         )
-                        // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-                        // is Issue.MissingPalette -> MissingPaletteRow(
-                        //     songIds = issue.songIds,
-                        //     onFix = { onFixMissingPalette(issue.songIds) },
-                        // )
                     }
                 }
             }
@@ -313,8 +303,6 @@ private fun Issue.rowKey(): String = when (this) {
     is Issue.ReconciledPendingCleanups -> "reconciled_pending_cleanups"
     is Issue.BackupFolderGrantLost -> "backup_folder_grant_lost"
     is Issue.MissingArt -> "missing_art"
-    // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-    // is Issue.MissingPalette -> "missing_palette"
 }
 
 /** The row body is inert — a missing song has no file to play. Actions live in the menu. */
@@ -424,16 +412,6 @@ private fun MissingArtRow(songIds: List<String>, onFix: () -> Unit) {
         onFix = onFix,
     )
 }
-
-// DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-// @Composable
-// private fun MissingPaletteRow(songIds: List<String>, onFix: () -> Unit) {
-//     ArtworkIssueRow(
-//         title = stringResource(R.string.issues_missing_palette_title, songIds.size),
-//         subtitle = stringResource(R.string.issues_missing_palette_subtitle),
-//         onFix = onFix,
-//     )
-// }
 
 /** Both aggregates have an inert body and the same non-destructive Fix menu. */
 @Composable
@@ -645,8 +623,6 @@ private fun IssuesPreview() {
                             ),
                         ),
                         Issue.DestructiveActionsSinceBackup(count = 4),
-                        // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-                        // Issue.MissingPalette(listOf("a", "b")),
                         Issue.MissingSong(
                             MissingSongInfo(
                                 id = "1",
@@ -677,8 +653,6 @@ private fun IssuesPreview() {
                 deleteInProgress = false,
                 onDelete = { _, _ -> },
                 onFixMissingArt = {},
-                // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-                // onFixMissingPalette = {},
                 onNavigateToBackups = {},
                 modifier = Modifier.weight(1f),
             )
@@ -710,8 +684,6 @@ private fun IssuesEmptyPreview() {
                     deleteInProgress = false,
                     onDelete = { _, _ -> },
                     onFixMissingArt = {},
-                    // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-                    // onFixMissingPalette = {},
                     onNavigateToBackups = {},
                     modifier = Modifier.weight(1f),
                 )
@@ -737,8 +709,6 @@ private fun IssuesScanningPreview() {
                     deleteInProgress = false,
                     onDelete = { _, _ -> },
                     onFixMissingArt = {},
-                    // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-                    // onFixMissingPalette = {},
                     onNavigateToBackups = {},
                     modifier = Modifier.weight(1f),
                 )

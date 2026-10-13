@@ -19,9 +19,6 @@ import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.player.LocalPlayerContentColors
 import com.v1per.synthx.ui.player.PlayerContentColors
 import com.v1per.synthx.ui.theme.Spacing
-// DEAD CODE: shuffle/repeat follow LocalPlayerContentColors instead of fixed text tokens. Delete in a cleanup pass. Ask  before deleting.
-// import com.v1per.synthx.ui.theme.TextPrimary
-// import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
  * Shuffle / Repeat row. Both tint the player's content color when active (vs. the same color
@@ -56,8 +53,6 @@ fun QueuePlaybackModeRow(
             Icon(
                 imageVector = Icons.Filled.Shuffle,
                 contentDescription = stringResource(R.string.cd_shuffle),
-                // DEAD CODE: on/off is now the shared content color vs. the same color at Alpha.ToggleOff. Delete in a cleanup pass. Ask  before deleting.
-                // tint = if (shuffleEnabled) TextPrimary else TextSecondary,
                 tint = if (shuffleEnabled) contentColors.content else contentColors.off,
                 modifier = Modifier.size(24.dp),
             )
@@ -70,8 +65,6 @@ fun QueuePlaybackModeRow(
                     Icons.Filled.Repeat
                 },
                 contentDescription = stringResource(R.string.cd_repeat),
-                // DEAD CODE: on/off is now the shared content color vs. the same color at Alpha.ToggleOff. Delete in a cleanup pass. Ask  before deleting.
-                // tint = if (repeatMode != RepeatMode.Off) TextPrimary else TextSecondary,
                 tint = if (repeatMode != RepeatMode.Off) contentColors.content else contentColors.off,
                 modifier = Modifier.size(24.dp),
             )

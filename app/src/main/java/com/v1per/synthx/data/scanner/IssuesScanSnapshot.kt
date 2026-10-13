@@ -20,8 +20,6 @@ internal data class IssuesScanSnapshot(
     val exportUnhealthy: Boolean,
     val verificationFailed: Boolean,
     val destructiveActionCount: Int,
-    // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-    // val missingPaletteSongIds: List<String> = emptyList(),
 ) {
     val issueCount: Int
         get() = missingSongCount + listOf(
@@ -31,8 +29,6 @@ internal data class IssuesScanSnapshot(
             verificationFailed,
             destructiveActionCount > 0,
             missingArtSongIds.isNotEmpty(),
-            // DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-            // missingPaletteSongIds.isNotEmpty(),
         ).count { it }
 
     companion object {

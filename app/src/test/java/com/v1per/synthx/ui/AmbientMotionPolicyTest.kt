@@ -35,13 +35,6 @@ class AmbientMotionPolicyTest {
         assertTrue(queueCompositingStrategy(0.01f) == CompositingStrategy.Offscreen)
     }
 
-    // DEAD CODE: the glow now uses a 2dp spread and 4dp steps from a 48dp anchor. Delete in a cleanup pass. Ask  before deleting.
-    // @Test fun glowQuantizationPreservesMiniEndpointAndAdvancesInEightDpSteps() {
-    //     assertEquals(60.dp, quantizePlayerGlowSize(60.dp))
-    //     assertEquals(60.dp, quantizePlayerGlowSize(63.9.dp))
-    //     assertEquals(68.dp, quantizePlayerGlowSize(64.1.dp))
-    // }
-
     @Test fun glowQuantizationPreservesMiniEndpointAndAdvancesInFourDpSteps() {
         // 44dp mini art + 2dp spread on each side.
         assertEquals(48.dp, quantizePlayerGlowSize(48.dp))

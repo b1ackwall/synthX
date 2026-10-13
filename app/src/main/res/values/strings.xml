@@ -161,10 +161,6 @@
     <string name="issues_missing_art_title">%1$d song(s) missing cover art</string>
     <string name="issues_missing_art_subtitle">Art isn\'t included in backups — tap Fix to re-extract it from the original files</string>
     <string name="issues_fix_art">Fix</string>
-    <!-- DEAD CODE: the Issues MissingPalette item is retired. Delete in a cleanup pass. Ask  before deleting.
-    <string name="issues_missing_palette_title">%1$d song(s) missing background colors</string>
-    <string name="issues_missing_palette_subtitle">Tap Fix to extract background colors from existing cover art</string>
-    -->
     <string name="issues_scan">Scan</string>
     <string name="issues_scan_status_checking">Checking…</string>
     <string name="issues_scan_status_scanning">Scanning your library…</string>
