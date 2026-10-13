@@ -919,9 +919,6 @@ internal object RestoreTransaction {
             database.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use(::readCheckpointResult)
         }
 
-    internal fun proveCandidateStandaloneForTest(candidate: File) =
-        proveCandidateStandalone(candidate)
-
     internal fun writeStateForTest(dir: File, state: State) =
         writeState(dir, state)
 

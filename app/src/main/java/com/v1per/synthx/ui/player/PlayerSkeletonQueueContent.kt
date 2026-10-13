@@ -253,8 +253,9 @@ fun PlayerSkeletonQueueContent(
                     .fillMaxHeight()
                     .graphicsLayer {
                         alpha = queueContentAlpha
-                        // DstIn must multiply only the queue pixels, never the blobs or
-                        // sibling controls. Keep its existing crossfade in the same layer.
+                        // DstIn must multiply only the queue pixels, never the player
+                        // background or sibling controls. Keep its existing crossfade in the
+                        // same layer.
                         compositingStrategy = queueCompositingStrategy(queueContentAlpha)
                     }
                     .drawWithCache {

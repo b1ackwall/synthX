@@ -21,16 +21,15 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Computes the Issues screen's full eight-category snapshot in one pass and caches the result,
+ * Computes the Issues screen's full seven-category snapshot in one pass and caches the result,
  * so opening the screen is a cache read rather than a whole-library filesystem sweep.
  *
  * Six categories stay live on the screen — five are process-wide in-memory
  * StateFlows ([BackupOutcomeStore]'s three outcomes, [DestructiveActionTracker.count],
- * [BackupFolderLaunchCheck.grantLost]) and the sixth is a Room query. Missing palette data is
- * a SQL-only check, cached alongside missing art so both Fix actions use this worker's snapshot.
+ * [BackupFolderLaunchCheck.grantLost]) and the sixth is a Room query.
  * Missing album art is the expensive aggregate: it walks every song row against `filesDir/art/`
  * (see [ArtRecovery.findMissingArt]), which is what this worker exists to move off the screen's
- * critical path. Both aggregate results are persisted; the other six stay live reads on the screen,
+ * critical path. Its result is persisted; the other six stay live reads on the screen,
  * where they cost nothing and are always current.
  *
  * Scheduled once a day from MainActivity's launch maintenance (the same due-check shape as the

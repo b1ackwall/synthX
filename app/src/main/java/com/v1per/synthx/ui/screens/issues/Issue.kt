@@ -6,7 +6,7 @@ import com.v1per.synthx.data.backup.VerificationAttemptOutcome
 import com.v1per.synthx.data.repository.MissingSongInfo
 
 /**
- * Live missing-song/safety signals and two cached artwork-related aggregates.
+ * Live missing-song/safety signals and one cached missing-art aggregate.
  * See IssuesViewModel for filtering and ordering.
  */
 sealed class Issue {

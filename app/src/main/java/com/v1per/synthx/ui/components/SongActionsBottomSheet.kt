@@ -383,7 +383,7 @@ private fun SubPage(
 /**
  * The SortBottomSheet row recipe with a leading icon added. Disabled rows stay visible
  * but dim to [Alpha.Disabled] and take no clicks — the canonical disabled-content
- * convention shared with SongRow and PlayerTransportControls.
+ * convention shared with SongRow and PlayerSkeletonControlsOverlay's transport buttons.
  */
 @Composable
 private fun ActionRow(

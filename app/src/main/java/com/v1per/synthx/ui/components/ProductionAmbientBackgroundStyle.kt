@@ -14,9 +14,6 @@ internal object ProductionAmbientBackgroundStyle {
     val ScrimBlendMode = BlendMode.SrcOver
 }
 
-internal fun productionAmbientScrimColor(colors: DerivedBlobColors?): Color? =
-    productionAmbientScrimColor(colors?.artworkSwatches)
-
 internal fun productionAmbientScrimColor(swatches: List<ExtractedSwatchHsl>?): Color? =
     swatches?.firstOrNull()?.let { first ->
         Color.hsl(

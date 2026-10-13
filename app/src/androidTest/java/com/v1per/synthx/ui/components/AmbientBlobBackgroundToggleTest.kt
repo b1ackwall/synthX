@@ -23,9 +23,8 @@ import org.junit.runner.RunWith
  * R5-F17: rememberBlobAnimation/rememberOrganicWobble used to be composed conditionally inside
  * `if (blob.enabled)`, so toggling a blob off disposed its remember slots (position, heading,
  * wobble phase) and re-enabling it respawned at a fresh random position. The fix keeps
- * composition unconditional and gates only the draw — this proves state survives the toggle,
- * mirroring StoredPaletteBackgroundTest's paletteToNullToPalettePreservesThePausedBlobFrame
- * pixel-capture technique for the analogous P5-T4 (R5-F8) fix.
+ * composition unconditional and gates only the draw — this proves state survives the toggle
+ * by pixel capture.
  */
 @RunWith(AndroidJUnit4::class)
 class AmbientBlobBackgroundToggleTest {

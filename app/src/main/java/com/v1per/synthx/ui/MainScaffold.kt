@@ -299,8 +299,8 @@ private fun NormalShell(
 
     val backupFolderNeedsAttention by BackupFolderLaunchCheck.grantLost.collectAsState()
 
-    // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerSheet and used
-    // to slide the bottom nav down in lockstep with the sheet's expansion.
+    // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerSheetSkeleton and
+    // used to slide the bottom nav down in lockstep with the sheet's expansion.
     var playerProgress by remember { mutableStateOf(0f) }
     val homeAmbientPaused = isHomeAmbientFullyOccluded(currentRoute, playerProgress)
 
@@ -354,7 +354,7 @@ private fun NormalShell(
         }
     }
 
-    // Hosted here so every SongRow inside the NavHost, and the PlayerSheet below it,
+    // Hosted here so every SongRow inside the NavHost, and the PlayerSheetSkeleton below it,
     // share one sheet instance with navigation already wired.
     SongActionsHost(
         snackbarHostState = snackbarHostState,

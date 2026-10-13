@@ -82,13 +82,12 @@ sealed class IssuesActionEvent {
 }
 
 /**
- * Reads the Issues screen's eight categories from live signals and the worker cache.
+ * Reads the Issues screen's seven categories from live signals and the worker cache.
  *
  * The six cheap ones stay live: five are process-wide in-memory StateFlows and the sixth is a
  * Room Flow, so they are always current and cost nothing to re-read on every visit. The
- * artwork aggregates are read from a shared snapshot. [IssuesScanWorker] computes missing art
- * and missing palette data (daily, or on demand) and caches them in
- * [PreferencesManager]; this ViewModel reads that cache.
+ * missing-art aggregate is read from a shared snapshot: [IssuesScanWorker] computes it
+ * (daily, or on demand) and caches it in [PreferencesManager]; this ViewModel reads that cache.
  *
  * That split is what fixes the bug this replaced: the old init block kicked off the expensive
  * sweep on every navigation to the screen and seeded its result with an empty list, so for the
@@ -225,7 +224,7 @@ class IssuesViewModel(
      * count sorts last (the softest signal — a plain count with no failure behind it). Missing
      * songs keep their existing most-recent-first order.
      *
-     * The two artwork aggregates arrive from the worker cache and stay adjacent.
+     * The missing-art aggregate arrives from the worker cache.
      * IssuesScanSnapshot.issueCount mirrors this shape for the status line's count.
      */
     private fun buildIssues(

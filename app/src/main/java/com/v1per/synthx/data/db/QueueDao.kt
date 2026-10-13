@@ -20,20 +20,6 @@ interface QueueDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertQueueItems(items: List<QueueItemEntity>)
 
-    /**
-     * Replaces the whole queue in one atomic step — `position` follows list order.
-     * The queue is rewritten on every mutation, so there is no per-row state worth preserving.
-     */
-    @Transaction
-    suspend fun replaceQueue(slots: List<QueueSlotRecord>) {
-        clearQueue()
-        insertQueueItems(
-            slots.mapIndexed { index, slot ->
-                QueueItemEntity(slotId = slot.slotId, position = index, songId = slot.songId)
-            }
-        )
-    }
-
     // --- cursor (see PlaybackCursorEntity's kdoc) ---
 
     @Query("SELECT * FROM playback_cursor WHERE id = 0")
@@ -150,8 +136,8 @@ interface QueueDao {
      * shuffle toggle, at the time this was added. All five pieces land in the same transaction,
      * so an interrupted write can never leave some already changed and others still at their
      * previous values — unlike the old shape, where each piece went through one of
-     * [replaceQueue]/[replaceBaselineQueue]/[updateShuffleEnabled]/[updateRepeatMode]/
-     * [updateCursor]/[replaceQueueAndCursor] as its own independent commit. Narrow single-piece
+     * [replaceBaselineQueue]/[updateShuffleEnabled]/[updateRepeatMode]/[updateCursor]/
+     * [replaceQueueAndCursor] as its own independent commit. Narrow single-piece
      * call sites (a plain track transition, Play Next, a drag-reorder) are unaffected and keep
      * using those — this is not a replacement for them, only for the call sites that used to
      * fire several of them back to back for one logical change.

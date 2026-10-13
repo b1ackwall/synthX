@@ -203,7 +203,7 @@ fun QueueRow(
             modifier = Modifier
                 .matchParentSize()
                 // Transparent rows cannot hide the removal cue. Draw it only in the
-                // strip exposed by the swipe, leaving the shared blobs visible at rest.
+                // strip exposed by the swipe, leaving the player background visible at rest.
                 .drawWithContent {
                     val offset = swipeState.offset
                     val x = if (offset.isNaN()) 0f else offset.roundToInt().toFloat()

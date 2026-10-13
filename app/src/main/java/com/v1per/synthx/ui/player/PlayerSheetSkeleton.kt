@@ -107,10 +107,8 @@ internal val ContentSlideDistance: Dp = 40.dp
 private val PlayerSheetPositionalThreshold: (Float) -> Float = { totalDistance -> totalDistance * 0.2f }
 
 /**
- * Empty skeleton stand-in for [com.v1per.synthx.ui.components.PlayerSheet]: same single
- * AnchoredDraggableState morph between mini/full player, wired to real [PlaybackViewModel]
- * state, but rendering blank surfaces only. The old PlayerSheet and its child composables
- * are untouched and unused — swap the BottomChromeOverlay call site back to restore them.
+ * The live player sheet: a single AnchoredDraggableState morph between mini/full player,
+ * wired to real [PlaybackViewModel] state.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -233,10 +231,9 @@ internal fun PlayerSheetSkeleton(
         val cornerRadius = lerpDp(0.dp, 24.dp, progress)
         val bottomInset = lerpDp(BottomNavHeight, 0.dp, progress)
 
-        // Identical formulas to the old (dead) PlayerSheetContent.kt — not a fresh judgment
-        // call, reused verbatim: mini content fades out over the first third of the drag,
-        // expanded content fades in over the last 60%, leaving a small dead zone
-        // (progress 0.33–0.4) where neither is visible.
+        // Mini content fades out over the first third of the drag, expanded content fades in
+        // over the last 60%, leaving a small dead zone (progress 0.33–0.4) where neither is
+        // visible.
         val miniContentAlpha = (1f - progress * 3f).coerceIn(0f, 1f)
         val expandedContentAlpha = ((progress - 0.4f) * (1f / 0.6f)).coerceIn(0f, 1f)
         val miniContentEnabled = miniContentAlpha > 0.5f

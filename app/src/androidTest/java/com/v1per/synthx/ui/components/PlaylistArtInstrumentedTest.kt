@@ -30,9 +30,8 @@ import org.junit.runner.RunWith
  * Compose's own [androidx.compose.ui.graphics.Color.hsl] precondition is pure JVM math with no
  * Android-framework dependency, but rendering [PlaylistArt] itself (Canvas draw calls, density,
  * MaterialTheme shapes) needs a real composition - hence instrumented rather than a local unit
- * test, matching the pattern in ui/player/StoredPaletteBackgroundTest.kt. A single `setContent`
- * driven by mutable state (rather than calling `setContent` again per case) matches that same
- * file's pattern for exercising several inputs against one composition.
+ * test. A single `setContent` driven by mutable state (rather than calling `setContent` again
+ * per case) exercises several inputs against one composition.
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistArtInstrumentedTest {

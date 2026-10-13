@@ -66,13 +66,6 @@ internal object MigrationValidationMarker {
      *  alone is the signal, not its parsed contents. */
     fun isPresent(context: Context): Boolean = markerFile(context).isFile
 
-    /** Best-effort diagnostics only. Never used to decide presence — see [isPresent]. */
-    fun readOrNull(context: Context): Marker? {
-        val file = markerFile(context)
-        if (!file.isFile) return null
-        return runCatching { json.decodeFromString(Marker.serializer(), file.readText()) }.getOrNull()
-    }
-
     /** Cleared only once [MigrationInvariantCheck.verify] has actually succeeded. */
     fun clear(context: Context) {
         val directory = dir(context)

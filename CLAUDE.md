@@ -79,8 +79,8 @@ Top-level packages under app/src/main/java/com/v1per/synthx/:
 - preferences/ - PreferencesManager
 - ui/MainScaffold.kt - shell-level gating on RestoreCoordinator.Mode/Terminal; switches between normal nav graph, restore-maintenance surface, and terminal (restart-required) surface
 - ui/common/ - UiState.kt
-- ui/components/ - shared composables (PlayerSheet, SongRow, TopBars, Wordmark, etc.)
-- ui/player/ - PlayerSheetSkeleton + 7 sibling files: the live player UI, float-lerp based (hand-lerp pattern per namida/Tear Music reference), independent of the ReadinessCoverOverlay standard below - known, deliberate gap, not yet reconciled
+- ui/components/ - shared composables (SongRow, TopBars, Wordmark, etc.)
+- ui/player/ - PlayerSheetSkeleton + 17 sibling files: the live player UI, float-lerp based (hand-lerp pattern per namida/Tear Music reference), independent of the ReadinessCoverOverlay standard below - known, deliberate gap, not yet reconciled
 - ui/screens/ - one dir per screen, each with <Name>Screen.kt + <Name>ViewModel.kt: albumdetail, albumlist, artistdetail, artistlist, backupsandrestore, createplaylist, developersettings, groupdetail, home, issues, librarymanagement, library, onboarding, playlistdetail, playlistlist, replacesong, restore, search, settings, songs, starred
 - ui/theme/ - Color, Motion, Shape, Spacing, Theme, Type (design tokens)
 

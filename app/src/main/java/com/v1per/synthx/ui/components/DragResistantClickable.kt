@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 /**
  * Drop-in replacement for [Modifier.clickable] for tap targets nested inside an
  * ancestor drag detector (e.g. [androidx.compose.foundation.gestures.anchoredDraggable]
- * on PlayerSheet's sheet Box).
+ * on PlayerSheetSkeleton's sheet Box).
  *
  * Stock `clickable` never consumes small position deltas during a press — by design,
  * so it doesn't block a scrolling ancestor — which lets an ancestor drag detector's own
@@ -114,8 +114,8 @@ fun Modifier.dragResistantClickable(
  * Drop-in replacement for Material3's [androidx.compose.material3.IconButton] built on
  * [dragResistantClickable] instead of `clickable`, for icon buttons nested inside an
  * ancestor drag detector. [size] defaults to IconButton's own default 40dp circular
- * touch target; callers with a larger custom touch target (e.g. PlayerTransportControls'
- * 72dp/96dp buttons) pass it explicitly rather than layering a conflicting
+ * touch target; callers with a larger custom touch target (e.g. PlayerSkeletonControlsOverlay's
+ * 72dp/96dp transport buttons) pass it explicitly rather than layering a conflicting
  * `Modifier.size(...)` on top.
  */
 @Composable

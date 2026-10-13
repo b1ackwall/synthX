@@ -71,7 +71,6 @@
     <string name="remove_from_playlist_dialog_confirm">Remove</string>
     <string name="actions_playing_next">Playing next</string>
     <string name="actions_added_to_queue">Added to queue</string>
-    <string name="actions_already_in_queue">Already in queue</string>
     <string name="actions_already_playing_next">Already playing next</string>
     <string name="actions_remove_from_starred">Remove from Starred (Graduate)</string>
     <string name="actions_removed_from_starred">Moved to library</string>
@@ -122,7 +121,6 @@
     <!-- Hints / placeholders -->
     <string name="hint_playlist_name">My Playlist</string>
     <string name="hint_group_name">Group name</string>
-    <string name="hint_search_songs">Search songs...</string>
 
     <!-- Labels -->
     <string name="label_playlist_name">Playlist name</string>
@@ -182,7 +180,6 @@
     <string name="replace_song_pick_old_subtitle">Pick the wrong or lower-quality copy. It will be deleted at the end.</string>
     <string name="replace_song_pick_new_subtitle">Pick the copy to keep. It inherits the other song\'s playlists and date added.</string>
     <string name="replace_song_no_results">No songs match that search</string>
-    <string name="replace_song_search_empty">Start typing to find a song</string>
     <string name="replace_song_section_old">Replacing</string>
     <string name="replace_song_section_new">With</string>
     <string name="replace_song_section_transferring">Playlists that transfer (%1$d)</string>
@@ -199,7 +196,6 @@
     <string name="replace_song_summary">The replacement inherits the old song\'s date added. If it stays in Starred/inbox, that older date may place it far down the date-sorted list. If it lands in any playlist, it is dismissed from Starred/inbox. The old song is then permanently deleted from your library and its audio file removed from your device. If the old song is currently playing, playback will skip to another track. This cannot be undone.</string>
     <string name="replace_song_done">Replacement complete.</string>
     <string name="audio_cleanup_retry_succeeded">Audio file deleted.</string>
-    <string name="audio_cleanup_retry_failed">The audio file still couldn’t be deleted.</string>
     <string name="replace_song_action_replace">Replace</string>
     <string name="replace_song_preview_loading">Working out what will change…</string>
     <string name="replace_song_working">Replacing…</string>
@@ -254,11 +250,6 @@
     <string name="restore_notification_restoring">Restoring…</string>
     <string name="restore_row_most_recent">Most recent</string>
     <string name="restore_row_counts">%1$d songs · %2$d playlists</string>
-    <string name="restore_error_version_unknown">Could not verify this backup\'s compatibility — its metadata is missing or unreadable, so the restore was not attempted.</string>
-    <string name="restore_error_version_mismatch">This backup is from a different app version (schema %1$d, this app expects %2$d) and can\'t be restored.</string>
-    <string name="restore_error_integrity">This backup file appears to be corrupted and failed its integrity check.</string>
-    <string name="restore_error_safety_backup">Could not back up your current library before restoring, so the restore was cancelled to avoid losing it.</string>
-    <string name="restore_error_restore_failed">Restore failed.</string>
     <string name="restore_error_cancelled">Restore was interrupted before it finished.</string>
     <string name="restore_error_unknown">Restore failed for an unknown reason.</string>
     <string name="restore_error_music_folder_required">A root music folder must be selected before restoring — a restored library needs somewhere to find its songs.</string>
@@ -273,7 +264,6 @@
     <!-- Queue -->
     <string name="queue_prompt_title">Keep the songs in your Up Next queue?</string>
     <string name="queue_prompt_message">Keep plays this song now and continues with the songs you queued. Clear replaces the queue with the list you tapped from.</string>
-    <string name="queue_up_next">Up Next</string>
     <string name="play_next_duplicate_title">Already playing next</string>
     <string name="play_next_duplicate_message">This song is already up next in your queue. Play it next again?</string>
     <string name="add_to_queue_duplicate_title">Already at the end of the queue</string>
@@ -366,14 +356,10 @@
     <string name="cd_next_track">Next</string>
     <string name="cd_queue">Queue</string>
     <string name="cd_clear">Clear</string>
-    <string name="cd_enter_library">Enter library</string>
-    <string name="cd_search">Search</string>
     <string name="cd_close">Close</string>
     <string name="cd_shuffle">Shuffle</string>
     <string name="cd_repeat">Repeat</string>
-    <string name="cd_autoplay">Autoplay</string>
     <string name="cd_drag_handle">Reorder</string>
-    <string name="cd_remove_from_queue">Remove from queue</string>
     <string name="cd_seek_bar">Playback position</string>
     <string name="cd_current_group">Current group</string>
     <string name="cd_already_in_playlist">Already in playlist</string>

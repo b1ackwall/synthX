@@ -12,13 +12,12 @@ object Motion {
     const val DurationInstant = 100
     const val DurationFast = 150
     const val DurationNormal = 300
-    const val DurationSlow = 500
 
     val EasingStandard = FastOutSlowInEasing
     val EasingDecelerate = LinearOutSlowInEasing
     val EasingAccelerate = FastOutLinearInEasing
 
-    /** Shared damped-spring feel for settle/breathe animations — see PlayerAlbumArt and PlayerSheet. */
+    /** Shared damped-spring feel for settle/breathe animations — see PlayerAlbumArt and PlayerSheetSkeleton. */
     val SpringStandard: SpringSpec<Float> = spring(
         dampingRatio = Spring.DampingRatioNoBouncy,
         stiffness = Spring.StiffnessMediumLow,

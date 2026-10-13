@@ -10,7 +10,7 @@ package com.v1per.synthx.data.scanner
  *
  * [issueCount] must stay in step with IssuesViewModel.buildIssues, which is what actually
  * renders these rows — one row per missing song, one per unhealthy safety-net signal, and one
- * aggregate row each for missing art and missing palette, no matter how many songs they cover.
+ * aggregate row for missing art, no matter how many songs it covers.
  */
 internal data class IssuesScanSnapshot(
     val missingArtSongIds: List<String>,

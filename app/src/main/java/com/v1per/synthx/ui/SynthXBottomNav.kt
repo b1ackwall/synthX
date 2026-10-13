@@ -199,7 +199,7 @@ private fun SynthXBottomNav(
 
     // Slides the whole bar (divider + nav) down by its full BottomNavHeight as the player
     // expands, clearing the way for the sheet to cover the full screen at progress = 1f.
-    // Shares BottomNavHeight with PlayerSheet's bottomInset lerp rather than a separate
+    // Shares BottomNavHeight with PlayerSheetSkeleton's bottomInset lerp rather than a separate
     // hardcoded constant — a mismatch here previously let the sheet's bottom edge and the
     // nav's sliding top edge drift apart by up to 1dp across the drag.
     //

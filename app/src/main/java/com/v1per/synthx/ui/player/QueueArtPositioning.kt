@@ -27,7 +27,7 @@ data class ArtPosition(
  * independent axes — [progress] (collapsed↔expanded) and [queueProgressValue]
  * (player↔queue) — so the morph is continuous while matching each source layout exactly at
  * its own endpoint:
- *  - Mini (progress 0): PlayerMiniBar.kt — leading element of a Spacing.md-padded Row,
+ *  - Mini (progress 0): leading element of the mini bar's Spacing.md-padded Row,
  *    vertically centered against the row's own height.
  *  - Expanded (progress 1, queueProgressValue 0): horizontally centered; leftover space
  *    splits above/below the art by [artWeightAbove]:[artWeightBelow]. The below-art share
@@ -66,7 +66,7 @@ fun computeArtPosition(
 
     // Art position, lerped between its two known-correct endpoints so the morph is continuous
     // while matching each source layout exactly at progress 0 / 1:
-    //  - Mini (progress 0): PlayerMiniBar.kt — leading element of a Spacing.md-padded Row,
+    //  - Mini (progress 0): leading element of the mini bar's Spacing.md-padded Row,
     //    vertically centered against the row's own height.
     //  - Expanded (progress 1): horizontally centered; the art weights split leftover space
     //    after accounting for expandedTopMargin, the title row, and the controls reservation.

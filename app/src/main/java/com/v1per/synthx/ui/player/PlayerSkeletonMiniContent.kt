@@ -32,11 +32,11 @@ import com.v1per.synthx.ui.components.DragResistantIconButton
 import com.v1per.synthx.ui.theme.Spacing
 
 /**
- * Mini content: title/artist + play/pause, PlayerMiniBar.kt's Row minus the art (art is the
- * single shared element positioned separately by [PlayerSheetSkeleton], already at the right
- * spot at progress 0). Pinned to the sheet's own top edge at a fixed CollapsedPlayerHeight,
- * exactly like the old PlayerMiniBar's Modifier.align(Alignment.TopCenter) — as sheetHeight
- * grows the sheet's top edge rises with it, carrying this row along while it fades out.
+ * Mini content: a title/artist + play/pause Row without the art (art is the single shared
+ * element positioned separately by [PlayerSheetSkeleton], already at the right spot at
+ * progress 0). Pinned to the sheet's own top edge at a fixed CollapsedPlayerHeight via
+ * Modifier.align(Alignment.TopCenter) — as sheetHeight grows the sheet's top edge rises
+ * with it, carrying this row along while it fades out.
  */
 @Composable
 fun BoxScope.PlayerSkeletonMiniContent(

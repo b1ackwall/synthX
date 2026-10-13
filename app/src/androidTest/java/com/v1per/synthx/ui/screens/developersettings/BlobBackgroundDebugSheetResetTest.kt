@@ -17,7 +17,7 @@ import org.junit.runner.RunWith
 /**
  * P5-T6 acceptance criteria: Developer Settings' blob-tuning holder is a process-lifetime
  * singleton with no reset control (R5-F11(b)) — a previously-disabled blob (`enabled = false`)
- * in particular is never restored by ordinary palette updates. This proves the sheet's new
+ * in particular is never restored on its own. This proves the sheet's new
  * "Reset" button genuinely restores every field, including that stuck-disabled blob.
  */
 @RunWith(AndroidJUnit4::class)
@@ -30,8 +30,7 @@ class BlobBackgroundDebugSheetResetTest {
     }
 
     @Test fun resetButtonRestoresDefaultsIncludingADisabledBlob() {
-        // Simulate prior developer tuning: a disabled blob plus a changed base hue, neither of
-        // which ordinary palette updates (applyHomeAmbientColors) ever touch.
+        // Simulate prior developer tuning: a disabled blob plus a changed base hue.
         HomeBlobDebugStateHolder.state.value = BlobBackgroundDebugState(
             blobs = DefaultInitialBlobs.mapIndexed { index, blob ->
                 blob.copy(enabled = index != 0, hue = 300f)

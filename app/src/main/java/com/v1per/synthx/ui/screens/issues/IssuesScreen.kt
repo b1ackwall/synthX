@@ -413,7 +413,7 @@ private fun MissingArtRow(songIds: List<String>, onFix: () -> Unit) {
     )
 }
 
-/** Both aggregates have an inert body and the same non-destructive Fix menu. */
+/** Aggregate row with an inert body and a non-destructive Fix menu. */
 @Composable
 private fun ArtworkIssueRow(title: String, subtitle: String, onFix: () -> Unit) {
     Column {

@@ -70,13 +70,6 @@ class SearchViewModel(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    // Flips true exactly once, on the first combine() emission below, and never back to
-    // false for the rest of this ViewModel's lifetime — a re-collected flow (e.g. after
-    // config change) must not re-cover already-shown content. Same one-shot discipline as
-    // RefinedBottomSheetState's re-entry guard.
-    private val _hasLoadedInitialData = MutableStateFlow(false)
-    val hasLoadedInitialData: StateFlow<Boolean> = _hasLoadedInitialData.asStateFlow()
-
     // A failed rename/delete is a transient event, not a change to the search results —
     // see GroupDetailViewModel._actionErrors for the same reasoning.
     private val _actionErrors = MutableSharedFlow<ActionError>(
@@ -114,7 +107,6 @@ class SearchViewModel(
                 .collect {
                     _results.value = it
                     _error.value = null
-                    _hasLoadedInitialData.value = true
                 }
         }
     }

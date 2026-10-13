@@ -379,15 +379,15 @@ class PreferencesManager(context: Context) {
             .commit()
 
     // ------------------------------------------------- issues scan cache (see IssuesScanWorker)
-    // Six categories stay live. Missing-art and missing-palette aggregate IDs are persisted
-    // so the screen and both Fix actions share the last worker snapshot across cold starts.
+    // Six categories stay live. Missing-art aggregate IDs are persisted so the screen and
+    // the Fix action share the last worker snapshot across cold starts.
 
     /** Epoch millis the last [IssuesScanWorker] run completed. 0 means never scanned. */
     var lastIssuesScanTimestamp: Long
         get() = prefs.getLong(KEY_LAST_ISSUES_SCAN_TIMESTAMP, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_ISSUES_SCAN_TIMESTAMP, value).apply()
 
-    /** Total issue rows the last scan found, across all eight categories — status-line summary only. */
+    /** Total issue rows the last scan found, across all seven categories — status-line summary only. */
     var lastIssuesScanIssueCount: Int
         get() = prefs.getInt(KEY_LAST_ISSUES_SCAN_ISSUE_COUNT, 0)
         set(value) = prefs.edit().putInt(KEY_LAST_ISSUES_SCAN_ISSUE_COUNT, value).apply()

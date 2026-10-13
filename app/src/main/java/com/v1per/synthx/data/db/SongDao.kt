@@ -22,9 +22,6 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE file_path = :path")
     suspend fun getSongByPath(path: String): SongEntity?
 
-    @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE")
-    fun getAllSongs(): Flow<List<SongEntity>>
-
     @Transaction
     @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE ASC")
     fun getAllSongsWithDetails(): Flow<List<SongWithDetails>>

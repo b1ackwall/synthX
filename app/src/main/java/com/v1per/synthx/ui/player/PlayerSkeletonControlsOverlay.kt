@@ -36,11 +36,10 @@ import com.v1per.synthx.ui.theme.Spacing
 
 /**
  * Controls overlay: seek bar, transport controls, queue placeholder, laid out as a Column.
- * Queue-mode content (PlayerSkeletonQueueContent's QueueList) now sits
- * beneath this overlay in the same screen region, so the source file's no-op
- * `.clickable(indication = null, onClick = {})` touch-blocker is restored on the outer
- * Column, in the same position PlayerControlsSection.kt used it, to keep taps in the
- * transparent controls area from reaching the queue rows underneath. Real
+ * Queue-mode content (PlayerSkeletonQueueContent's QueueList) sits beneath this overlay in
+ * the same screen region, so a no-op `.clickable(indication = null, onClick = {})`
+ * touch-blocker on the outer Column keeps taps in the transparent controls area from
+ * reaching the queue rows underneath. Real
  * controls (seek bar, transport, queue button) still consume their own touches first —
  * child-before-parent dispatch — so this only ever swallows taps on the overlay's empty
  * background.
@@ -167,7 +166,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
             // PlayerSheetSkeleton.kt. Also gated on overlayVisibleAlpha (not the raw
             // overlayVisible boolean, and not just expandedContentEnabled): overlayVisible
             // flips the instant controlsVisible/isQueueMode change, same composition pass, but
-            // overlayVisibleAlpha only reaches its new value DurationFast later via
+            // overlayVisibleAlpha only reaches its new value DurationInstant later via
             // animateFloatAsState — gating on the boolean instead of the alpha desyncs the
             // shield from what's actually on screen in both directions (confirmed): fading in,
             // the shield attaches before the overlay is visibly there, swallowing taps meant
