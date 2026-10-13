@@ -1,72 +1,48 @@
 package com.v1per.synthx.ui.screens.restore
 
-import android.text.format.DateUtils
-import android.text.format.Formatter
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
-import com.v1per.synthx.data.backup.BackupIneligibilityReason
 import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupListResult
 import com.v1per.synthx.data.backup.BackupPreviewCounts
-import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.RestoreProgressStep
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.LoadingIndicator
-import com.v1per.synthx.ui.components.TypedConfirmationField
 import com.v1per.synthx.ui.components.rememberNotificationPermissionGate
-import com.v1per.synthx.ui.components.typedConfirmationMatches
-import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.SurfaceVariant
-import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
-import com.v1per.synthx.ui.theme.TextTertiary
 import kotlin.system.exitProcess
 import android.net.Uri
 import java.util.UUID
@@ -342,241 +318,5 @@ private fun EmptyStateMessage(text: String) {
             color = TextSecondary,
             modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
         )
-    }
-}
-
-@Composable
-private fun AllIneligibleBanner(onBack: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
-    ) {
-        Text(
-            text = stringResource(R.string.restore_all_ineligible),
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Button(
-            onClick = onBack,
-            shape = MaterialTheme.shapes.small,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SurfaceVariant,
-                contentColor = TextPrimary,
-            ),
-        ) {
-            Text(text = stringResource(R.string.action_go_back))
-        }
-    }
-}
-
-private fun ineligibilityMessage(reason: BackupIneligibilityReason?): Int = when (reason) {
-    is BackupIneligibilityReason.MissingMetadata -> R.string.restore_ineligible_missing_metadata
-    is BackupIneligibilityReason.SizeMismatch -> R.string.restore_ineligible_size_mismatch
-    is BackupIneligibilityReason.DuplicateDisplayName -> R.string.restore_ineligible_duplicate_name
-    is BackupIneligibilityReason.UnsupportedSchema -> R.string.restore_ineligible_unsupported_schema
-    is BackupIneligibilityReason.Unrecognized, null -> R.string.restore_ineligible_unknown
-}
-
-@Composable
-private fun BackupRow(
-    backup: BackupInfo,
-    enabled: Boolean = true,
-    isMostRecent: Boolean = false,
-    counts: BackupPreviewCounts? = null,
-    onClick: () -> Unit,
-) {
-    val context = LocalContext.current
-    val interactionSource = remember { MutableInteractionSource() }
-
-    Column {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = ripple(color = Accent),
-                    enabled = enabled,
-                    onClick = onClick,
-                )
-                .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = DateUtils.getRelativeTimeSpanString(
-                        backup.timestamp,
-                        System.currentTimeMillis(),
-                        DateUtils.MINUTE_IN_MILLIS,
-                        DateUtils.FORMAT_ABBREV_RELATIVE,
-                    ).toString(),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                // R7-F15: trivial identity signal — no new data, just the position this row
-                // already has in the newest-first sorted list.
-                if (isMostRecent) {
-                    Spacer(modifier = Modifier.width(Spacing.sm))
-                    Text(
-                        text = stringResource(R.string.restore_row_most_recent),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Accent,
-                        maxLines = 1,
-                    )
-                }
-            }
-            if (!backup.restoreEligible) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = stringResource(ineligibilityMessage(backup.restoreIneligibleReason)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Error,
-                )
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = backup.reason?.let {
-                    stringResource(R.string.restore_tier_with_reason, backup.tier.folderName, it)
-                } ?: backup.tier.folderName,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "${backup.fileName} · ${Formatter.formatShortFileSize(context, backup.sizeBytes)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextTertiary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            // R7-F15: shown once known (cached from a prior preview tap-through) rather than
-            // eagerly staged+counted for every row — see BackupManager.previewBackup's doc.
-            if (counts != null) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = stringResource(R.string.restore_row_counts, counts.songCount, counts.playlistCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextTertiary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        HorizontalDivider(thickness = 1.dp, color = Hairline)
-    }
-}
-
-/** Internal (not private) so instrumented tests can drive it directly, the same seam
- *  [RestoreContent] already uses. */
-@Composable
-internal fun ConfirmRestoreDialog(
-    backup: BackupInfo,
-    counts: BackupPreviewCounts,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    // R7-F17: restore replaces the entire library irreversibly — a bigger-stakes action than
-    // single-song delete, which already gates behind this same typed-confirmation mechanism
-    // (see DeleteSongDialog). requiredWord is sourced from the confirm button's own label,
-    // exactly like DeleteSongDialog, so the two can never drift apart.
-    val requiredWord = stringResource(R.string.restore_confirm_action)
-    var typedConfirmation by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.restore_confirm_title)) },
-        text = {
-            Column {
-                Text(stringResource(R.string.restore_confirm_message, backup.fileName))
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                Text(
-                    stringResource(
-                        R.string.restore_confirm_counts,
-                        counts.playlistCount,
-                        counts.songCount,
-                        counts.playlistEntryCount,
-                    ),
-                )
-                Spacer(modifier = Modifier.height(Spacing.md))
-                TypedConfirmationField(
-                    requiredWord = requiredWord,
-                    value = typedConfirmation,
-                    onValueChange = { typedConfirmation = it },
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                enabled = typedConfirmationMatches(typedConfirmation, requiredWord),
-                colors = ButtonDefaults.textButtonColors(contentColor = Error),
-            ) {
-                Text(text = requiredWord)
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
-            ) {
-                Text(stringResource(R.string.action_cancel))
-            }
-        },
-        containerColor = SurfaceColor,
-        titleContentColor = TextPrimary,
-        textContentColor = TextSecondary,
-    )
-}
-
-@Preview(name = "Restore — Success", showBackground = true)
-@Composable
-private fun RestoreListPreview() {
-    val now = System.currentTimeMillis()
-    SynthXTheme {
-        Surface(modifier = Modifier.fillMaxSize(), color = Background) {
-            RestoreContent(
-                uiState = UiState.Success(
-                    BackupListResult.Success(
-                        listOf(
-                            BackupInfo(
-                                databaseUri = Uri.EMPTY,
-                                metadataUri = null,
-                                fileName = "synthx_backup_2026-08-06_143022.db",
-                                tier = BackupTier.Manual,
-                                timestamp = now - DateUtils.HOUR_IN_MILLIS,
-                                reason = null,
-                                sizeBytes = 2_400_000,
-                                restoreEligible = true,
-                            ),
-                            BackupInfo(
-                                databaseUri = Uri.parse("content://x/2"),
-                                metadataUri = null,
-                                fileName = "synthx_backup_2026-08-05_090114.db",
-                                tier = BackupTier.Auto,
-                                timestamp = now - DateUtils.DAY_IN_MILLIS,
-                                reason = "delete_song",
-                                sizeBytes = 2_390_000,
-                                restoreEligible = true,
-                            ),
-                        ),
-                    ),
-                ),
-                onSelect = {},
-            )
-        }
-    }
-}
-
-@Preview(name = "Restore — Empty", showBackground = true)
-@Composable
-private fun RestoreEmptyPreview() {
-    SynthXTheme {
-        Surface(modifier = Modifier.fillMaxSize(), color = Background) {
-            RestoreContent(uiState = UiState.Success(BackupListResult.Empty), onSelect = {})
-        }
     }
 }

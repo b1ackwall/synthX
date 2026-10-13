@@ -67,17 +67,17 @@ Single-module Android project. Root: app/
 
 Top-level packages under app/src/main/java/com/v1per/synthx/:
 
-- MainActivity.kt, SynthXApplication.kt
+- MainActivity.kt, DatabaseStartupContent.kt (startup-failure composables MainActivity shows), SynthXApplication.kt
 - data/backup/ - BackupManager, RestoreCoordinator, RestoreTransaction, DatabaseStartupGate, RepositoryDbFlow/RepositoryDbOperation (see Architecture section - do not bypass these)
-- data/db/ - Room entities, DAOs, SynthXDatabase (v16, see Architecture)
+- data/db/ - Room entities, DAOs, SynthXDatabase (v16, see Architecture), SynthXLegacyMigrations (frozen MIGRATION_1_2 to MIGRATION_7_8; the chain itself stays in SynthXDatabase.ALL_MIGRATIONS)
 - data/playlistart/ - generated playlist cover art support: PlaylistArtHue (perceptually spaced hue selection), PlaylistArtColor (OkLab palette helpers), PlaylistArtBackfill (fills art for playlists that predate the art columns). The drawing itself lives in ui/components/PlaylistArt*.kt
 - data/repository/ - domain models + SongRepository/SongRepositoryImpl
-- data/scanner/ - FolderScanner, HashUtils (SHA-256 fingerprinting)
+- data/scanner/ - FolderScanner (scan body in FolderScannerScan.kt), HashUtils (SHA-256 fingerprinting)
 - glitch/ - GlitchPattern.kt
 - navigation/ - Screen.kt (nav routes)
 - playback/ - PlaybackEngine -> ExoPlayerEngine -> PlaybackController -> PlaybackViewModel, SynthXPlaybackService, QueuePersistence, GlitchBitmapGenerator
 - preferences/ - PreferencesManager
-- ui/MainScaffold.kt - shell-level gating on RestoreCoordinator.Mode/Terminal; switches between normal nav graph, restore-maintenance surface, and terminal (restart-required) surface
+- ui/MainScaffold.kt - shell-level gating on RestoreCoordinator.Mode/Terminal; switches between normal nav graph, restore-maintenance surface, and terminal (restart-required) surface (the two restore surfaces live in ui/RestoreShellSurfaces.kt)
 - ui/common/ - UiState.kt
 - ui/components/ - shared composables (SongRow, TopBars, Wordmark, etc.)
 - ui/player/ - PlayerSheetSkeleton + 17 sibling files: the live player UI, float-lerp based (hand-lerp pattern per namida/Tear Music reference), independent of the ReadinessCoverOverlay standard below - known, deliberate gap, not yet reconciled
@@ -167,6 +167,25 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
 - "refined-instant-cut" navigation standard (ReadinessCoverOverlay in SynthXNavHost) is the
   locked standard for applicable destinations — note the live player UI (ui/player/) is a
   known, deliberate exception, see Project Structure above.
+
+## File Size
+- No source file should exceed 500 raw lines (as counted by `wc -l`).
+- When a file crosses it, do a discovery-first refactor: plan the seams, then split it by
+  move-only moves into sibling files in the same package — no behavior change, no renames.
+
+## Gesture and Animation Rules
+- Use `rememberUpdatedState` for callbacks read inside no-key `remember` blocks — frozen
+  closures are the most expensive recurring bug.
+- Never gate `anchoredDraggable`'s `enabled` parameter on dynamic conditions — it tears down
+  the gesture node.
+- When an element must leave hit-testing, compose it conditionally instead of alpha-fading it.
+- Resolve song identity at the UI layer before async boundaries.
+- Prefer reactive `LaunchedEffect` keying over timer-based self-healing.
+
+## Working Style
+- Gesture and animation work: small changes, one variable at a time.
+- Design tokens only — no raw `dp` literals in new code.
+- In-code comments are short and describe current behavior only.
 
 ## Conventions
 - Incremental, debuggable sub-tasks — do not attempt large multi-file rewrites in one pass.
