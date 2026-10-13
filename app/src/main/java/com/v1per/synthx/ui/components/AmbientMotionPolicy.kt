@@ -36,8 +36,8 @@ private fun systemReducedMotionActive(context: Context): Boolean {
 }
 
 /**
- * A lightweight shared policy for both Home and player blobs. System animation scale and power
- * saver change very rarely, so polling once a second avoids introducing app-wide receiver and
+ * A lightweight shared policy for Home's blobs and the player background. System animation
+ * scale and power saver change very rarely, so polling once a second avoids introducing app-wide receiver and
  * ContentObserver lifecycles solely for this decorative effect while still reacting promptly.
  */
 @Composable

@@ -609,7 +609,7 @@ internal suspend fun commitGraduatedPath(
     )
     // Read back through the same album/artist-joined path the repository maps every other
     // domain Song from, inside this same transaction. A Song assembled by hand from `fresh` alone
-    // would be missing artists/album/palette, and the remap consumer replaces the engine's whole
+    // would be missing artists/album, and the remap consumer replaces the engine's whole
     // cached Song for the slot — so a degraded one here would trade a stale path for stale
     // metadata in the player UI.
     GraduationCommit.Updated(

@@ -36,10 +36,10 @@ data class PlaylistEntity(
      * (the previous palette) for older rows — chosen to sit as far as possible, by eye, from
      * every hue already in use; [artStructureSeed] seeds the
      * symmetry plane, path walk and mirroring. Both NULL means "not generated yet", which
-     * renders as the flat ArtPlaceholder — the same fallback missing palette data uses.
+     * renders as the flat ArtPlaceholder.
      *
      * [ColumnInfo.defaultValue] must match MIGRATION_13_14's SQL default exactly or Room's
-     * open-time schema validation throws — same contract as SongEntity's swatch columns.
+     * open-time schema validation throws.
      */
     @ColumnInfo(name = "art_hue", defaultValue = "NULL") val artHue: Int? = null,
     @ColumnInfo(name = "art_structure_seed", defaultValue = "NULL") val artStructureSeed: Long? = null,

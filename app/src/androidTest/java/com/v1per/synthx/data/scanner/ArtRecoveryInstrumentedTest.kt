@@ -18,11 +18,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Race coverage for [ArtRecovery.recoverOneSong]'s transactional re-read-merge-write (R1-F01),
- * modeled directly on the retired palette recovery's equivalent race tests: a concurrent
- * write is injected via the extraction seam — here [ArtRecovery.recover]'s `extractArt`
- * parameter, mirroring the retired palette recovery's swatch seam — so it lands exactly
- * between ArtRecovery's pre-transaction read (for extraction) and its DB write.
+ * Race coverage for [ArtRecovery.recoverOneSong]'s transactional re-read-merge-write (R1-F01):
+ * a concurrent write is injected via the extraction seam ([ArtRecovery.recover]'s `extractArt`
+ * parameter) so it lands exactly between ArtRecovery's pre-transaction read (for extraction)
+ * and its DB write.
  */
 @RunWith(AndroidJUnit4::class)
 class ArtRecoveryInstrumentedTest {

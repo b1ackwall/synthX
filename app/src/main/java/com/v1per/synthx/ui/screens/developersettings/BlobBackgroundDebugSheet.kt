@@ -207,10 +207,9 @@ private fun DebugColorSwatch(color: Color) {
     Box(Modifier.size(24.dp).clip(CircleShape).background(color))
 }
 
-// P5-T6 (R5-F11(b)): Home/player both render at ProductionAmbientBackgroundStyle's fixed
-// 150dp blur/scrim, not the debug holder's blurRadiusDp — a slider that wrote to that field
-// silently did nothing for what the user actually sees. Replaced with a read-only preview of
-// the real production values instead of presenting a dead control.
+// P5-T6 (R5-F11(b)): Home renders at ProductionAmbientBackgroundStyle's fixed 150dp
+// blur/scrim, not the debug holder's blurRadiusDp, so this is a read-only preview of the real
+// production values rather than a slider.
 @Composable
 private fun ProductionAmbientPreview(baseSurfaceHue: Float) {
     Row(

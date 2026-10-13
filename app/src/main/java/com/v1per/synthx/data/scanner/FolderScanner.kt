@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Re-reads [id] through the same album/artist-joined path every other domain [Song] is mapped
  * from, for a remap notice — mirrors [commitGraduatedPath]'s identical re-read. A hand-assembled
- * Song from just the entity would be missing artists/album/palette, degrading the engine's whole
+ * Song from just the entity would be missing artists/album, degrading the engine's whole
  * cached Song for the slot rather than only fixing what actually changed.
  */
 private suspend fun SongDao.getDomainSongById(id: String): Song? =

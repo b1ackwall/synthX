@@ -99,7 +99,7 @@ internal object ArtRecovery {
      * [extractArt] is the file-I/O + decode step (resolve the source document, read embedded
      * art via [AlbumArtExtractor.extract]) — defaulted to the real implementation below, but
      * swappable so a test can control what a recovery attempt "found" without a real embedded-art
-     * audio fixture, same seam shape the retired palette recovery used for swatch extraction.
+     * audio fixture.
      * Returns null when nothing usable came back (source unresolvable, or extraction produced
      * neither variant) — both collapse to [RecoveryOutcome.FAILED] the same way the inline
      * pre-refactor code did.
@@ -198,16 +198,16 @@ internal object ArtRecovery {
         return try {
             val (compressedUri, fullArtUri) = extractArt(context, song) ?: return RecoveryOutcome.FAILED
 
-            // Extraction/decode happens above, outside the transaction — same split as
-            // PaletteRecovery.recoverOneSong. Re-read and merge inside one short transaction so a
-            // concurrent deletion, retag, missing-status flip or another fix landing in the gap
-            // between the original read (above, for extraction) and this write can never be
-            // silently clobbered by this stale whole-row upsert — and so a row deleted in that
-            // window is never resurrected by it either.
+            // Extraction/decode happens above, outside the transaction. Re-read and merge
+            // inside one short transaction so a concurrent deletion, retag, missing-status flip
+            // or another fix landing in the gap between the original read (above, for
+            // extraction) and this write can never be silently clobbered by this stale
+            // whole-row upsert — and so a row deleted in that window is never resurrected by it
+            // either.
             //
-            // Unlike PaletteRecovery's `swatch1Hue == null` predicate, "still needs art recovery"
-            // is a DISK check (findMissingArt), and AlbumArtExtractor.extract already wrote the
-            // real art files to disk above, before this transaction opened — so re-running that
+            // "Still needs art recovery" is a DISK check (findMissingArt), and
+            // AlbumArtExtractor.extract already wrote the real art files to disk above, before
+            // this transaction opened — so re-running that
             // same disk predicate in here would read "already fixed" on every successful attempt
             // and silently no-op the write, defeating recovery entirely. The re-check that's
             // actually meaningful here is whether the SOURCE this extraction ran against is still

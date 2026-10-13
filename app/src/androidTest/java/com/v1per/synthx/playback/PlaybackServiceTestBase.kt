@@ -59,9 +59,9 @@ abstract class PlaybackServiceTestBase {
     private var extraControllerReleased = false
 
     @Before fun setUpPlaybackBase() {
-        // The engine observes the current song's palette through the live repository, which the
-        // startup gate refuses until MainActivity has run its startup. Model a ready gate, as the
-        // restore instrumentation does, and hand the process its lazy production gate back after.
+        // The engine's cache reconciliation reads the live repository, which the startup gate
+        // refuses until MainActivity has run its startup. Model a ready gate, as the restore
+        // instrumentation does, and hand the process its lazy production gate back after.
         DatabaseStartupGate.markReadyForTest()
         wav = File(context.cacheDir, "playback-test-silence.wav").also { writeSilentWav(it, seconds = 60) }
         persistence = createPersistence()

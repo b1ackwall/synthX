@@ -16,9 +16,6 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE id = :id")
     suspend fun getSongById(id: String): SongEntity?
 
-    @Query("SELECT * FROM songs WHERE id = :id")
-    fun observeSongById(id: String): Flow<SongEntity?>
-
     @Query("SELECT * FROM songs WHERE file_path = :path")
     suspend fun getSongByPath(path: String): SongEntity?
 
@@ -121,8 +118,8 @@ interface SongDao {
     /**
      * Narrow single-column write, deliberately not an [upsertSong] of a read-modify-written row:
      * Replace Song only transplants this one value onto the replacement, and rewriting the whole
-     * entity would clobber anything else touched between the read and the write (palette
-     * backfill, a missing-flag flip, an art re-extraction).
+     * entity would clobber anything else touched between the read and the write (a
+     * missing-flag flip, an art re-extraction).
      */
     @Query("UPDATE songs SET date_added = :dateAdded WHERE id = :id")
     suspend fun updateDateAdded(id: String, dateAdded: Long)
@@ -202,32 +199,6 @@ interface SongDao {
      *  (IssuesScanWorker) rather than observing — nothing there to keep a Flow subscribed for. */
     @Query("SELECT COUNT(*) FROM songs WHERE is_missing = 1")
     suspend fun getMissingSongCountOnce(): Int
-
-    // DEAD CODE: the Issues palette count queries are retired; the swatch columns stay. Delete in a cleanup pass. Ask  before deleting.
-    // @Query(
-    //     """
-    //     SELECT COUNT(*) FROM songs
-    //     WHERE is_missing = 0
-    //       AND (album_art_uri IS NOT NULL OR album_art_full_uri IS NOT NULL)
-    //       AND (swatch1_hue IS NULL OR swatch1_saturation IS NULL OR swatch1_lightness IS NULL
-    //         OR swatch2_hue IS NULL OR swatch2_saturation IS NULL OR swatch2_lightness IS NULL
-    //         OR swatch3_hue IS NULL OR swatch3_saturation IS NULL OR swatch3_lightness IS NULL)
-    //     """
-    // )
-    // suspend fun getMissingPaletteCountOnce(): Int
-    //
-    // @Query(
-    //     """
-    //     SELECT id FROM songs
-    //     WHERE is_missing = 0
-    //       AND (album_art_uri IS NOT NULL OR album_art_full_uri IS NOT NULL)
-    //       AND (swatch1_hue IS NULL OR swatch1_saturation IS NULL OR swatch1_lightness IS NULL
-    //         OR swatch2_hue IS NULL OR swatch2_saturation IS NULL OR swatch2_lightness IS NULL
-    //         OR swatch3_hue IS NULL OR swatch3_saturation IS NULL OR swatch3_lightness IS NULL)
-    //     ORDER BY id
-    //     """
-    // )
-    // suspend fun getSongIdsMissingPalette(): List<String>
 
     // Art URI of any other song still in the album, for re-pointing albums.album_art_uri
     // when the song that supplied it is deleted. Prefers a song that actually has art so

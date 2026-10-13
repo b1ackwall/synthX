@@ -48,7 +48,7 @@ data class RandomizerConfig(
 
 data class BlobParams(
     val enabled: Boolean = true,
-    // Caller-supplied degrees (0..360); live palette updates preserve animation state.
+    // Caller-supplied degrees (0..360); changing it preserves animation state.
     val hue: Float = 125f,
     val saturation: Float = 0.8f,
     val lightness: Float = 0.5f,
@@ -76,9 +76,8 @@ fun AmbientBlobBackground(
     val motionPaused = shouldPauseAmbientMotion(paused, rememberSystemReducedMotionActive())
     val drawAlphaMultiplier = blobAlphaMultiplier.coerceIn(0f, 1f)
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
-    // R5-F17: composition must stay unconditional regardless of blob.enabled, mirroring the
-    // draw-time-only gating P5-T4 already established for the null-palette case (see the
-    // blobAlphaMultiplier/radius<=0f skip below). Gating rememberBlobAnimation/rememberOrganicWobble
+    // R5-F17: composition must stay unconditional regardless of blob.enabled; only the draw is
+    // gated (see the blobAlphaMultiplier/radius<=0f skip below). Gating rememberBlobAnimation/rememberOrganicWobble
     // themselves behind `if (blob.enabled)` disposes their remember slots when a blob is disabled,
     // so re-enabling respawns at a fresh random position with phase reset to 0 instead of resuming.
     val animations = blobs.mapIndexed { index, blob ->

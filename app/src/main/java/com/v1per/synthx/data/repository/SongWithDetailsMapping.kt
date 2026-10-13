@@ -10,7 +10,7 @@ import com.v1per.synthx.data.db.SongWithDetails
  * also needed a fully-populated domain [Song] to hand to
  * [com.v1per.synthx.data.SongRemapEvents]. Lifted to an internal top-level extension rather than
  * copied: a second, drifting copy of this mapping would silently hand the playback engine a
- * degraded [Song] (missing artists/album/palette) for the graduated slot, which is exactly the
+ * degraded [Song] (missing artists/album) for the graduated slot, which is exactly the
  * kind of staleness the remap event exists to prevent. Same package, same name, same signature,
  * so every existing call site resolves to it unchanged.
  */
@@ -32,7 +32,6 @@ internal fun SongWithDetails.toDomain(refs: List<SongArtistEntity>): Song {
         filePath = song.filePath,
         albumArtUri = song.albumArtUri,
         albumArtFullUri = song.albumArtFullUri,
-        paletteSwatches = song.toPaletteSwatches(),
         isMissing = song.isMissing,
         dateAdded = song.dateAdded,
         albumId = song.albumId,

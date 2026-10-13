@@ -5,7 +5,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 
-/** Production rendering policy shared by Home and the player. Debug controls do not feed this. */
+/** Production rendering policy for Home's ambient background. Debug controls do not feed this. */
 internal object ProductionAmbientBackgroundStyle {
     const val BlurRadiusDp = 150f
     const val ScrimSaturation = 0.3f

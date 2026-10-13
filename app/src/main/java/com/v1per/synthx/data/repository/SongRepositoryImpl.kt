@@ -61,7 +61,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -180,12 +179,6 @@ class SongRepositoryImpl(
         )
 
     override fun getSongs(): Flow<List<Song>> = songsFlow
-
-    /** Refresh only the playing song's stored palette; no artwork I/O or artist joins. */
-    internal fun observePaletteSwatches(songId: String): Flow<List<SongPaletteSwatch>?> =
-        RepositoryDbFlow.observe { songDao.observeSongById(songId) }
-            .map { it?.toPaletteSwatches() }
-            .distinctUntilChanged()
 
     // Same caching rationale as songsFlow above — shared across every getArtists()
     // subscriber (Artists list, Search) instead of re-querying per collector.

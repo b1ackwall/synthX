@@ -141,7 +141,6 @@ dependencies {
 
     implementation(libs.accompanist.permissions)
     implementation(libs.coil.compose)
-    implementation(libs.androidx.palette.ktx)
     implementation(libs.androidx.documentfile)
 
     implementation(libs.androidx.room.runtime)
