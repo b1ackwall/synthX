@@ -7,13 +7,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -125,6 +126,8 @@ fun PlayerSkeletonQueueContent(
     controlsOverlayAlpha: Float,
     controlsOverlaySlide: Dp,
     bottomInset: Dp,
+    // The expanded sheet's height; the list keeps it while the sheet morphs.
+    fullHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
     Trace.beginSection(PerfTraceSections.QueueContent)
@@ -239,6 +242,8 @@ fun PlayerSkeletonQueueContent(
                 )
             }
         } else if (queueProgressValue > 0f) {
+            // The live sheet height, which the list's own size no longer follows.
+            val sheetHeightPx = constraints.maxHeight.toFloat()
             QueueList(
                 queue = persistentUpcomingQueue,
                 onSongClick = onQueueSongClick,
@@ -256,7 +261,10 @@ fun PlayerSkeletonQueueContent(
                     // visibility — see QueueModeState.queueScrollConnection's doc comment.
                     .nestedScroll(queueScrollConnection)
                     .fillMaxWidth()
-                    .fillMaxHeight()
+                    // Full-height and top-anchored, so the layer keeps one size through the
+                    // sheet's morph; the sheet's clip cuts it at the bottom edge.
+                    .wrapContentHeight(align = Alignment.Top, unbounded = true)
+                    .requiredHeight(fullHeight)
                     .testTag(PerfTestTags.QueueList)
                     .graphicsLayer {
                         alpha = queueContentAlpha
@@ -266,11 +274,11 @@ fun PlayerSkeletonQueueContent(
                         compositingStrategy = queueCompositingStrategy(queueContentAlpha)
                     }
                     .drawWithCache {
-                        // The list measures at sheet height, then is offset downward. Its
-                        // measured bottom is below the sheet's visible bottom: subtract
-                        // the list origin to express the controls' top in list coordinates.
-                        val overlayHeightPx = controlsOverlayHeight.toPx().coerceAtMost(size.height)
-                        val controlsTop = size.height - overlayHeightPx + controlsOverlayOffsetY.toPx()
+                        // The controls sit at the sheet's bottom, and the list is offset
+                        // downward: subtract the list origin to express the controls' top in
+                        // list coordinates.
+                        val overlayHeightPx = controlsOverlayHeight.toPx().coerceAtMost(sheetHeightPx)
+                        val controlsTop = sheetHeightPx - overlayHeightPx + controlsOverlayOffsetY.toPx()
                         val fadeEnd = controlsTop - (queueListOffsetY + queueContentSlideOffset).toPx()
                         val strength = controlsOverlayAlpha.coerceIn(0f, 1f)
                         val mask = Brush.verticalGradient(

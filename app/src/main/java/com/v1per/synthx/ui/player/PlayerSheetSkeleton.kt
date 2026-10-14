@@ -445,6 +445,7 @@ internal fun PlayerSheetSkeleton(
                     controlsOverlayAlpha = motion.maskStrength(overlayVisibleAlpha),
                     controlsOverlaySlide = motion.overlaySlide,
                     bottomInset = bottomInset,
+                    fullHeight = this@BoxWithConstraints.maxHeight,
                 )
 
                 PlayerSkeletonControlsOverlay(
