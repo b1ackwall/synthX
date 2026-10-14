@@ -19,12 +19,14 @@ internal object Scenario {
     }
 
     /**
-     * Frame timing plus every synthX.* section. Each metric here must report a value in every
-     * iteration (see [SectionMaxMetric]), or Macrobenchmark drops the iterations that lack it.
+     * Frame timing (from the frame timeline, or from the app's frame slices when
+     * [BenchmarkArgs.sliceFrames]) plus every synthX.* section. Each metric here must report a
+     * value in every iteration (see [SectionMaxMetric]), or Macrobenchmark drops the iterations
+     * that lack it.
      */
     @OptIn(ExperimentalMetricApi::class)
     fun metrics(): List<Metric> = buildList {
-        add(FrameTimingMetric())
+        add(if (BenchmarkArgs.sliceFrames()) SliceFrameTimingMetric() else FrameTimingMetric())
         Sections.All.forEach { add(TraceSectionMetric(it)) }
         Sections.WithMax.forEach { add(SectionMaxMetric(it)) }
     }

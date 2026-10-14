@@ -1,11 +1,12 @@
 #!/usr/bin/env fish
 # Builds and runs the player macrobenchmarks on ONE phone, then pulls the results.
 # Usage: scripts/perf/run-benchmark.fish <serial> [--scenario NAME[,NAME...]|all] [--none]
-#                                        [--iterations N] [--cooldown SECONDS]
+#                                        [--iterations N] [--cooldown SECONDS] [--slice-frames]
 #   --scenario NAME  scenario(s) to run, by test method name (default all; see README.md)
 #   --none           measure CompilationMode.None (worst case) instead of DEFAULT
 #   --iterations N   iterations for every scenario (default: each scenario's own count)
 #   --cooldown S     pause between scenarios in seconds (default 30)
+#   --slice-frames   frame timing from the app's frame slices, not the frame timeline (README.md)
 # Never uses the Gradle connected task and never uninstalls anything.
 
 set -l app_id com.v1per.synthx.benchmark
@@ -32,8 +33,8 @@ for row in $scenario_table
     set -a all_names (string split ' ' -- $row)[1]
 end
 
-set -l usage "Usage: scripts/perf/run-benchmark.fish <serial> [--scenario NAME[,NAME...]|all] [--none] [--iterations N] [--cooldown SECONDS]"
-argparse --name=run-benchmark n/none 'i/iterations=' 's/scenario=' 'c/cooldown=' h/help -- $argv
+set -l usage "Usage: scripts/perf/run-benchmark.fish <serial> [--scenario NAME[,NAME...]|all] [--none] [--iterations N] [--cooldown SECONDS] [--slice-frames]"
+argparse --name=run-benchmark n/none 'i/iterations=' 's/scenario=' 'c/cooldown=' slice-frames h/help -- $argv
 or exit 2
 if set -q _flag_help; or test (count $argv) -ne 1
     echo $usage >&2
@@ -43,6 +44,8 @@ end
 set -l serial $argv[1]
 set -l mode default
 set -q _flag_none; and set mode none
+set -l frame_source timeline
+set -q _flag_slice_frames; and set frame_source slices
 set -l iteration_args
 set -l iterations_json null
 if set -q _flag_iterations
@@ -148,9 +151,9 @@ set -l device_members (perf_device_members $serial)
 set -l commit_members (perf_commit_members $repo)
 set -l battery_start (perf_battery_now $serial)
 
-function write_device_json --argument-names file run_id mode iterations cooldown battery_start battery_end
+function write_device_json --argument-names file run_id mode frames iterations cooldown battery_start battery_end
     # Remaining arguments: member lines, then "--", selected scenarios, "--", failed scenarios.
-    set -l rest $argv[8..]
+    set -l rest $argv[9..]
     set -l split_at (contains -i -- -- $rest)
     set -l members $rest[1..(math $split_at - 1)]
     set -l names $rest[(math $split_at + 1)..]
@@ -165,6 +168,7 @@ function write_device_json --argument-names file run_id mode iterations cooldown
         echo '  "schema": 1,'
         echo "  \"run_id\": \"$run_id\","
         echo "  \"compilation\": \"$mode\","
+        echo "  \"frame_source\": \"$frames\","
         echo "  \"iterations_override\": $iterations,"
         echo "  \"cooldown_s\": $cooldown,"
         echo "  \"scenarios\": "(perf_json_list $names)","
@@ -175,7 +179,7 @@ function write_device_json --argument-names file run_id mode iterations cooldown
         echo '}'
     end >$file
 end
-write_device_json $local_dir/device.json $run_id $mode $iterations_json $cooldown \
+write_device_json $local_dir/device.json $run_id $mode $frame_source $iterations_json $cooldown \
     $battery_start null $commit_members $device_members -- $selected --
 echo "Wrote $local_dir/device.json."
 
@@ -200,6 +204,7 @@ for name in $selected
         -e class "$test_id.$class#$name" \
         -e additionalTestOutputDir $device_dir \
         -e synthx.compilation $mode \
+        -e synthx.frames $frame_source \
         $iteration_args \
         $compile_args \
         $runner >$log 2>&1
@@ -235,7 +240,7 @@ for name in $selected
 end
 
 # 6. Record the end state, so thermal drift across the run is visible.
-write_device_json $local_dir/device.json $run_id $mode $iterations_json $cooldown \
+write_device_json $local_dir/device.json $run_id $mode $frame_source $iterations_json $cooldown \
     $battery_start (perf_battery_now $serial) $commit_members $device_members -- $selected -- $failed
 if test (count $failed) -gt 0
     echo "Failed scenarios: $failed. Results so far: $local_dir" >&2

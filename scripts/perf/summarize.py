@@ -136,6 +136,7 @@ def build_summary(folder: Path) -> dict:
         "commit": (device_json or {}).get("commit"),
         "commit_dirty": (device_json or {}).get("commit_dirty"),
         "compilation": (device_json or {}).get("compilation"),
+        "frame_source": (device_json or {}).get("frame_source", "timeline"),
         "device": identity,
         "battery_start": (device_json or {}).get("battery_start"),
         "battery_end": (device_json or {}).get("battery_end"),
@@ -208,6 +209,9 @@ def render(summary: dict, top: int) -> str:
         f"- Commit: {summary['commit'] or 'unknown'}" + (" (uncommitted changes)" if summary["commit_dirty"] else ""),
         f"- Compilation: {summary['compilation'] or 'see scenarios'}",
     ]
+    if summary.get("frame_source") == "slices":
+        lines.append("- Frame timing from the app's frame slices (--slice-frames): no frameOverrunMs, "
+                     "so 'deadline missed' is n/a.")
     if not summary["has_device_json"]:
         lines.append("- No device.json in this folder: device budget and refresh rate are unknown.")
     for name, scenario in summary["scenarios"].items():

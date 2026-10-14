@@ -67,6 +67,7 @@ scripts/perf/run-benchmark.fish <serial> --scenario slowDrag,fling
 scripts/perf/run-benchmark.fish <serial> --none               # CompilationMode.None (worst case)
 scripts/perf/run-benchmark.fish <serial> --iterations 20      # same count for every scenario
 scripts/perf/run-benchmark.fish <serial> --cooldown 60        # seconds between scenarios
+scripts/perf/run-benchmark.fish <serial> --slice-frames        # frame timing without the frame timeline
 ```
 
 The script builds both APKs with assemble tasks, installs them with `adb install -r` (never
@@ -117,6 +118,19 @@ counts and about four seconds of tracing overhead per iteration.
 | `idleStates` | `PlayerIdleStatesBenchmark` | 4 | 3.5 min | No gesture inside the windows: four seconds each with the mini player paused and playing, expanded playing and paused, queue mode paused, and Home. Reports `<state>DrawnFps`, `<state>CallbackFps` and `<state>WindowMs` per iteration in the result file. Plays audio. |
 
 Every scenario records `FrameTimingMetric` and one `TraceSectionMetric` per `synthX.*` section.
+
+### When the frame timeline cannot be trusted (`--slice-frames`)
+
+From API 31 `FrameTimingMetric` keeps only frames that have an actual frame timeline slice from
+SurfaceFlinger. On the Redmi Note 7 Pro (Android 13 custom ROM) those slices report presents
+that drift from 0.1 s to several seconds late over a run, while `dumpsys SurfaceFlinger
+--latency` shows about 40 ms, so each iteration loses more frames past the end of its trace
+(slowDrag: 281 frames in the first iteration, 7 in the tenth, with about 200 drawn in each).
+`--slice-frames` replaces it with `SliceFrameTimingMetric`, which pairs the app's
+`Choreographer#doFrame <id>` with its RenderThread `DrawFrame* <id>` and reports
+`frameDurationCpuMs` (the same span) and `frameCount`, without `frameOverrunMs`. `device.json` and
+`summary.json` record it as `frame_source`, and `compare.py` warns when two runs differ in it. Use
+it for every run on such a phone; the Galaxy S25 Ultra keeps the default.
 
 ### How the drags are injected
 

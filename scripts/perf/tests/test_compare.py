@@ -106,6 +106,12 @@ class CompareRunsTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("refresh rate unknown", out)
 
+    def test_different_frame_source_only_warns(self):
+        self.candidate["frame_source"] = "slices"
+        code, out, _ = run_main(self.write("a.json", self.base), self.write("b.json", self.candidate))
+        self.assertEqual(code, 0)
+        self.assertIn("different frame sources: timeline vs slices", out)
+
     def test_fail_on_regression_exit_code(self):
         self.candidate["scenarios"][_support.SCENARIO]["frameDurationCpuMs"]["p99"] *= 2
         a, b = self.write("a.json", self.base), self.write("b.json", self.candidate)

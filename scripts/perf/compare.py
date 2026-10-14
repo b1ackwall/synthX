@@ -101,6 +101,9 @@ def device_problems(base: dict, candidate: dict) -> tuple[list[str], list[str]]:
         warn.append("different build fingerprints (system update between the runs)")
     if base.get("compilation") != candidate.get("compilation"):
         warn.append(f"different compilation modes: {base.get('compilation')} vs {candidate.get('compilation')}")
+    frames_a, frames_b = base.get("frame_source", "timeline"), candidate.get("frame_source", "timeline")
+    if frames_a != frames_b:
+        warn.append(f"different frame sources: {frames_a} vs {frames_b} (frameCount and frameOverrunMs differ)")
     return refuse, warn
 
 

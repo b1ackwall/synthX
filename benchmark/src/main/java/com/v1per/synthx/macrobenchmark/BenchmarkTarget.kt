@@ -88,6 +88,17 @@ internal object BenchmarkArgs {
     fun iterations(default: Int = 10): Int =
         args.getString("synthx.iterations")?.toIntOrNull() ?: default
 
+    /**
+     * `-e synthx.frames slices` takes frame timing from the app's frame slices
+     * ([SliceFrameTimingMetric]); the default `timeline` uses FrameTimingMetric.
+     */
+    fun sliceFrames(): Boolean =
+        when (val source = args.getString("synthx.frames") ?: "timeline") {
+            "timeline" -> false
+            "slices" -> true
+            else -> error("synthx.frames must be 'timeline' or 'slices', got '$source'")
+        }
+
     /** Macrobenchmark's own switch; false skips the compilation reset entirely. */
     fun compilationEnabled(): Boolean =
         args.getString("androidx.benchmark.compilation.enabled")?.toBoolean() ?: true
