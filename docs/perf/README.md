@@ -6,7 +6,7 @@ phone setup and the scenario list are in [scripts/perf/README.md](../../scripts/
 ## Workflow
 
 ```fish
-# 1. Run (about 17 minutes for every scenario; needs the phone)
+# 1. Run (about 20 minutes for every scenario; needs the phone)
 scripts/perf/run-benchmark.fish <serial>
 
 # 2. Summarize: tables on stdout, summary.json in the run folder

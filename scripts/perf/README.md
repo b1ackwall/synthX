@@ -61,7 +61,7 @@ Set `JAVA_HOME` as in CLAUDE.md, then from the repo root:
 
 ```fish
 adb devices -l                                                # find the serial
-scripts/perf/run-benchmark.fish <serial>                      # every scenario, about 17 minutes
+scripts/perf/run-benchmark.fish <serial>                      # every scenario, about 20 minutes
 scripts/perf/run-benchmark.fish <serial> --scenario slowDrag  # one scenario
 scripts/perf/run-benchmark.fish <serial> --scenario slowDrag,fling
 scripts/perf/run-benchmark.fish <serial> --none               # CompilationMode.None (worst case)
@@ -114,6 +114,7 @@ counts and about four seconds of tracing overhead per iteration.
 | `nextQueue` | `PlayerTrackChangeBenchmark` | 8 | 1 min | The same in queue mode, where the list also loses its first row. |
 | `nextMini` | `PlayerTrackChangeBenchmark` | 8 | 1 min | Collapsed, playing: a MEDIA_NEXT key, because the mini player has no next button. |
 | `homeExpandCollapse` | `PlayerHomeBenchmark` | 10 | 1 min | `expandCollapse` on the Home tab, whose animated background keeps running under the mini player. |
+| `idleStates` | `PlayerIdleStatesBenchmark` | 4 | 3.5 min | No gesture inside the windows: four seconds each with the mini player paused and playing, expanded playing and paused, queue mode paused, and Home. Reports `<state>DrawnFps`, `<state>CallbackFps` and `<state>WindowMs` per iteration in the result file. Plays audio. |
 
 Every scenario records `FrameTimingMetric` and one `TraceSectionMetric` per `synthX.*` section.
 

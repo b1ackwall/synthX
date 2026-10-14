@@ -49,7 +49,8 @@ internal object Baseline {
  * Runs one scenario. The app is launched once and stays alive across iterations.
  *
  * [prepare] runs once, unmeasured, after the baseline is confirmed; [beforeEach] runs unmeasured
- * before every iteration; [measure] is the traced block.
+ * before every iteration; [measure] is the traced block. [extraMetrics] are added to the shared
+ * ones.
  *
  * Macrobenchmark force-stops the app when the measurement ends or fails, so [cleanup] runs on a
  * fresh launch (player collapsed, playback stopped) and must set up whatever screen it needs.
@@ -58,6 +59,7 @@ internal object Baseline {
  */
 internal fun MacrobenchmarkRule.runScenario(
     defaultIterations: Int,
+    extraMetrics: List<Metric> = emptyList(),
     prepare: (UiDevice) -> Unit = {},
     beforeEach: (UiDevice) -> Unit = {},
     cleanup: (UiDevice) -> Unit = {},
@@ -68,7 +70,7 @@ internal fun MacrobenchmarkRule.runScenario(
     val measured = runCatching {
         measureRepeated(
             packageName = BenchmarkTarget.PACKAGE,
-            metrics = Scenario.metrics(),
+            metrics = Scenario.metrics() + extraMetrics,
             compilationMode = BenchmarkArgs.compilationMode(),
             iterations = BenchmarkArgs.iterations(defaultIterations),
             // No startup mode: the process is not killed between iterations.
