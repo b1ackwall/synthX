@@ -49,6 +49,7 @@ import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.components.MoreOptionsButton
 import com.v1per.synthx.ui.components.QueueList
 import com.v1per.synthx.ui.components.QueuePlaybackModeRow
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import kotlinx.collections.immutable.toPersistentList
 
@@ -195,7 +196,7 @@ fun PlayerSkeletonQueueContent(
                         color = contentColors.content,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.basicMarquee(),
+                        modifier = Modifier.basicMarquee(iterations = Motion.MarqueeIterations),
                     )
                     Text(
                         text = song.artist,

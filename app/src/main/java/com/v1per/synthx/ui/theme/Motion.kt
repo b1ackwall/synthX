@@ -13,6 +13,9 @@ object Motion {
     const val DurationFast = 150
     const val DurationNormal = 300
 
+    /** Passes a song title or artist marquee runs per text change; it then rests at its start. */
+    const val MarqueeIterations = 1
+
     val EasingStandard = FastOutSlowInEasing
     val EasingDecelerate = LinearOutSlowInEasing
     val EasingAccelerate = FastOutLinearInEasing

@@ -21,6 +21,7 @@ import androidx.tracing.Trace
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.MoreOptionsButton
+import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 
 /**
@@ -62,7 +63,7 @@ fun PlayerSkeletonExpandedContent(
                     color = contentColors.content,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.basicMarquee(),
+                    modifier = Modifier.basicMarquee(iterations = Motion.MarqueeIterations),
                 )
                 Text(
                     text = song.artist,
@@ -70,7 +71,7 @@ fun PlayerSkeletonExpandedContent(
                     color = contentColors.content,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.basicMarquee(),
+                    modifier = Modifier.basicMarquee(iterations = Motion.MarqueeIterations),
                 )
             }
             MoreOptionsButton(song = song, enabled = expandedContentEnabled)
