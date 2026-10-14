@@ -52,6 +52,7 @@ import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.PlayerSheetValue
 import com.v1per.synthx.ui.theme.Motion
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /**
  * The live player sheet: a single AnchoredDraggableState morph between mini/full player,
@@ -177,6 +178,8 @@ internal fun PlayerSheetSkeleton(
 
         val sheetHeight = lerpDp(CollapsedPlayerHeight, maxHeight, progress)
         val cornerRadius = lerpDp(0.dp, 24.dp, progress)
+        // Whole pixels, so the top-rounded clip stays an analytic round rect.
+        val cornerRadiusPx = with(density) { cornerRadius.toPx() }.roundToInt().toFloat()
         val bottomInset = lerpDp(BottomNavHeight, 0.dp, progress)
 
         // Mini content fades out over the first third of the drag, expanded content fades in
@@ -249,7 +252,7 @@ internal fun PlayerSheetSkeleton(
                     .fillMaxWidth()
                     .height(sheetHeight)
                     .align(Alignment.BottomCenter)
-                    .clip(RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius))
+                    .clip(RoundedCornerShape(topStart = cornerRadiusPx, topEnd = cornerRadiusPx))
                     .testTag(PerfTestTags.PlayerSheet)
                     // Single unified detector driving draggableState directly — replaces the
                     // anchoredDraggable + dragResistantClickable pairing, which silently
