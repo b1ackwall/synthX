@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -64,7 +65,12 @@ fun QueueList(
     state: LazyListState = rememberLazyListState(),
     enabled: Boolean = true,
 ) {
+    // Read only inside callbacks, so a flip of [enabled] never recomposes the rows.
+    val currentEnabled by rememberUpdatedState(enabled)
     var localQueue by remember(queue) { mutableStateOf(queue) }
+    // Read through State: a drag handle keeps the closures of its first touch, which would
+    // otherwise hold an older [queue] and an older [localQueue] holder.
+    val resetLocalQueue by rememberUpdatedState { localQueue = queue }
     // The dragged row's identity — captured once at drag-start and never re-derived from a
     // position, since [moveQueueItemInternal] now resolves it fresh against the engine's own
     // live order at execution time regardless of what this UI layer believes. See the class
@@ -90,16 +96,16 @@ fun QueueList(
                     slotId = slot.slotId,
                     song = slot.song,
                     queue = queue,
-                    onClick = { if (enabled) onSongClick(slot.slotId) },
+                    onClick = { if (currentEnabled) onSongClick(slot.slotId) },
                     // Resolved against [queue] by identity rather than reported as `index`:
                     // `index` is a position in [localQueue], whose optimistic order can differ
                     // from [queue]'s between a drop and the engine's echo, and the host
                     // resolves this index back to a song against [queue].
                     onRemove = {
                         val queueIndex = queue.indexOfFirst { it.slotId == slot.slotId }
-                        if (enabled && queueIndex != -1) onRemove(queueIndex)
+                        if (currentEnabled && queueIndex != -1) onRemove(queueIndex)
                     },
-                    enabled = enabled,
+                    enabled = { currentEnabled },
                     dragHandleModifier = Modifier.draggableHandle(
                         onDragStarted = {
                             dragStartSlotId = slot.slotId
@@ -135,8 +141,11 @@ fun QueueList(
                             // If the dragged song can no longer be found in the live list at
                             // all (e.g. removed during the drag), there is nothing valid to
                             // move — drop the reorder rather than call onMove with a -1 index.
-                            if (enabled && startSlotId != null && endIndex != -1 && startIndex != endIndex) {
+                            if (currentEnabled && startSlotId != null && endIndex != -1 && startIndex != endIndex) {
                                 onMove(startSlotId, endIndex)
+                            } else if (!currentEnabled) {
+                                // The engine did not take this order, so the display drops it.
+                                resetLocalQueue()
                             }
                             dragStartSlotId = null
                             dragStartQueueSnapshot = null
@@ -145,13 +154,13 @@ fun QueueList(
                     // Same onMove the drag gesture calls on drop — accessibility-action and
                     // drag paths land on the identical engine mutation, just with a fixed
                     // one-position delta instead of a live drag endpoint.
-                    onMoveUp = if (enabled && index > 0) {
-                        { onMove(slot.slotId, index - 1) }
+                    onMoveUp = if (index > 0) {
+                        { if (currentEnabled) onMove(slot.slotId, index - 1) }
                     } else {
                         null
                     },
-                    onMoveDown = if (enabled && index < localQueue.lastIndex) {
-                        { onMove(slot.slotId, index + 1) }
+                    onMoveDown = if (index < localQueue.lastIndex) {
+                        { if (currentEnabled) onMove(slot.slotId, index + 1) }
                     } else {
                         null
                     },

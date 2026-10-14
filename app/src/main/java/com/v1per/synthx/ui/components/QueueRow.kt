@@ -103,7 +103,8 @@ private val SwipePositionalThreshold: (Float) -> Float = { totalDistance -> tota
  * to never gate anchoredDraggable's `enabled` on a dynamic condition, since that tears down and
  * rebuilds the gesture node. Instead it's read by the swipe-settle watcher below: a disabled row
  * still lets the swipe gesture run and settle, but snaps back instead of removing, since a
- * disabled row's removal is deliberately a no-op one level up in [QueueList].
+ * disabled row's removal is deliberately a no-op one level up in [QueueList]. It is a lambda
+ * called only there, never in composition, so a change of its result does not recompose the row.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -114,7 +115,7 @@ fun QueueRow(
     onClick: () -> Unit,
     onRemove: () -> Unit,
     dragHandleModifier: Modifier,
-    enabled: Boolean = true,
+    enabled: () -> Boolean = { true },
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
 ) {
@@ -126,7 +127,7 @@ fun QueueRow(
     val currentOnRemove = rememberUpdatedState(onRemove)
     // Same frozen-closure hazard as onRemove above: the watcher effect is keyed on
     // swipeState only, so it must read enabled through rememberUpdatedState rather than
-    // capturing whatever value was current when the effect block first launched.
+    // capturing whatever lambda was current when the effect block first launched.
     val currentEnabled = rememberUpdatedState(enabled)
 
     val swipeState = remember { AnchoredDraggableState(initialValue = QueueRowSwipe.Settled) }
@@ -140,7 +141,7 @@ fun QueueRow(
         snapshotFlow { swipeState.settledValue }
             .collect { settled ->
                 if (settled != QueueRowSwipe.Settled) {
-                    if (currentEnabled.value) {
+                    if (currentEnabled.value()) {
                         currentOnRemove.value()
                     } else {
                         // Disabled: the removal above would be a no-op at the QueueList
