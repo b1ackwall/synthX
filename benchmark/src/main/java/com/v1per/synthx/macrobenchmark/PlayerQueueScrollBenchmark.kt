@@ -18,11 +18,16 @@ import org.junit.runner.RunWith
  * rows are compared before and after, and the scenario fails loudly if they differ; it cannot
  * undo a change, only report it. Queue edits never touch the music folder.
  *
- * Likely flaky: needs at least eight upcoming songs on screen; fling distance varies between
- * iterations; on a ROM whose gesture injection wobbles sideways the row swipe could engage.
+ * Likely flaky: needs a queue long enough for two swipes, which one unmeasured rehearsal of the
+ * gesture checks first; on a ROM whose gesture injection wobbles sideways the row swipe could
+ * engage.
  */
 @RunWith(AndroidJUnit4::class)
 class PlayerQueueScrollBenchmark {
+    private companion object {
+        const val SwipesEachWay = 2
+    }
+
     @get:Rule
     val rule = MacrobenchmarkRule()
 
@@ -42,13 +47,14 @@ class PlayerQueueScrollBenchmark {
                 queue.ensureQueueMode(on = true)
                 lane = queue.requireScrollLane()
                 rowsBefore = queue.topRowsSignature()
+                queue.rehearseScroll(lane, SwipesEachWay)
             },
             beforeEach = { QueueDriver(it).showControls() },
             cleanup = {
+                // Runs on a fresh launch, so the list is read back from the saved queue.
                 val queue = QueueDriver(it)
-                // One more swipe back so the list rests at its start before the comparison.
-                queue.scrollTowardStart(lane)
-                queue.showControls()
+                PlayerDriver(it).ensureExpanded()
+                queue.ensureQueueMode(on = true)
                 val rowsAfter = queue.topRowsSignature()
                 check(rowsAfter == rowsBefore) {
                     "The queue's first rows changed during the scroll scenario, so a swipe " +
@@ -59,8 +65,8 @@ class PlayerQueueScrollBenchmark {
             },
         ) {
             val queue = QueueDriver(it)
-            repeat(2) { queue.scrollTowardEnd(lane) }
-            repeat(2) { queue.scrollTowardStart(lane) }
+            repeat(SwipesEachWay) { queue.scrollTowardEnd(lane) }
+            repeat(SwipesEachWay) { queue.scrollTowardStart(lane) }
         }
     }
 }

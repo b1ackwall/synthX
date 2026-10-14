@@ -18,12 +18,15 @@ internal object Scenario {
         AppReadiness.requireInstalled(device())
     }
 
-    /** Frame timing plus every synthX.* section. */
+    /**
+     * Frame timing plus every synthX.* section. Each metric here must report a value in every
+     * iteration (see [SectionMaxMetric]), or Macrobenchmark drops the iterations that lack it.
+     */
     @OptIn(ExperimentalMetricApi::class)
     fun metrics(): List<Metric> = buildList {
         add(FrameTimingMetric())
         Sections.All.forEach { add(TraceSectionMetric(it)) }
-        Sections.WithMax.forEach { add(TraceSectionMetric(it, TraceSectionMetric.Mode.Max)) }
+        Sections.WithMax.forEach { add(SectionMaxMetric(it)) }
     }
 }
 
@@ -46,9 +49,12 @@ internal object Baseline {
  * Runs one scenario. The app is launched once and stays alive across iterations.
  *
  * [prepare] runs once, unmeasured, after the baseline is confirmed; [beforeEach] runs unmeasured
- * before every iteration; [measure] is the traced block; [cleanup] runs once after the last
- * iteration, and the baseline is then confirmed again. After a failure the same cleanup is still
- * attempted, but its own errors are dropped so the original failure is the one reported.
+ * before every iteration; [measure] is the traced block.
+ *
+ * Macrobenchmark force-stops the app when the measurement ends or fails, so [cleanup] runs on a
+ * fresh launch (player collapsed, playback stopped) and must set up whatever screen it needs.
+ * The baseline is then confirmed again. After a failure the same cleanup is still attempted, but
+ * its own errors are dropped so the original failure is the one reported.
  */
 internal fun MacrobenchmarkRule.runScenario(
     defaultIterations: Int,
@@ -59,7 +65,7 @@ internal fun MacrobenchmarkRule.runScenario(
 ) {
     val device = Scenario.device()
     var prepared = false
-    try {
+    val measured = runCatching {
         measureRepeated(
             packageName = BenchmarkTarget.PACKAGE,
             metrics = Scenario.metrics(),
@@ -84,13 +90,14 @@ internal fun MacrobenchmarkRule.runScenario(
         ) {
             measure(device)
         }
-    } catch (failure: Throwable) {
-        if (device.currentPackageName == BenchmarkTarget.PACKAGE) {
-            runCatching { cleanup(device) }
-            runCatching { Baseline.require(device) }
-        }
-        throw failure
     }
-    cleanup(device)
-    Baseline.require(device)
+    val cleaned = runCatching {
+        AppReadiness.relaunch(device)
+        cleanup(device)
+    }
+    // Attempted even when the cleanup failed, so the next scenario starts from the baseline.
+    val restored = runCatching { Baseline.require(device) }
+    measured.getOrThrow()
+    cleaned.getOrThrow()
+    restored.getOrThrow()
 }

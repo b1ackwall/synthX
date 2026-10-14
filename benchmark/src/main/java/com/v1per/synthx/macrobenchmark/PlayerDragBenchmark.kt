@@ -8,16 +8,17 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Finger-driven expand and collapse from the Library tab, once each per iteration.
+ * Finger-driven expand and collapse from the Library tab, once each per iteration. The touch
+ * samples are equal steps 33 ms apart (see TouchInjector for why), so at 60 Hz the sheet gets a
+ * new finger position on every second frame.
  *
- * slowDrag: about one second of travel across 35% of the display, a 300 ms hold, then release.
- * The hold makes the release velocity zero, so the sheet settles by its 20% positional threshold
- * and not by fling velocity. Likely flaky: UiAutomator's step timing varies with injection
- * latency, so the drag lasts between one and two seconds, and a ROM that drops the stationary
- * moves of the hold turns the release into a slow fling (same end state, different settle).
+ * slowDrag: one second of travel across 35% of the display, a 300 ms hold, then release. The
+ * sheet reads a release velocity far below its 125 dp/s fling threshold, so it settles by its
+ * 20% positional threshold. Rarely flaky.
  *
- * fling: a 60 ms swipe across 25% of the display. Moderately flaky: the injected velocity varies,
- * which changes the spring's starting speed but not where the sheet ends.
+ * fling: half the display in 200 ms, released while moving, which the sheet reads as a release
+ * velocity above the fling threshold. Rarely flaky; it ends past the positional threshold too,
+ * so a slower reading would settle the same way.
  *
  * Both start below the status bar and above the system gesture area. A ROM edge gesture (side
  * panel, one-handed mode) that claims a vertical swipe would fail the expanded/collapsed check.

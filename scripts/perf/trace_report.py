@@ -149,15 +149,19 @@ def scenario_report(scenario: str, results: list, device_hz: float | None, top: 
     lines = [f"## {scenario}", ""]
     tagged = [(result, frame) for result in results for frame in result.frames]
     frames_by_window = {window: [f for _, f in tagged if f.window == window] for window in WINDOWS}
-    periods = [r.vsync_period_ms for r in results if r.vsync_period_ms]
+    measured = [r for r in results if r.vsync_period_ms]
+    periods = [r.vsync_period_ms for r in measured]
     window_ms = sum((b - a) / 1e6 for r in results for a, b in r.windows)
     lines.append(f"- Traces: {len(results)} (iterations {', '.join(str(r.iteration) for r in results)})")
     if periods:
         period = sum(periods) / len(periods)
-        lines.append(f"- Vsync period in the traces: {period:.2f} ms ({1000 / period:.0f} Hz, from {results[0].vsync_source})")
+        lines.append(f"- Vsync period in the traces: {period:.2f} ms ({1000 / period:.0f} Hz, from {measured[0].vsync_source})")
         if device_hz and abs(1000 / period - device_hz) > 5:
             lines.append(f"- MISMATCH: device.json recorded {device_hz:g} Hz, the traces ran at {1000 / period:.0f} Hz. "
                          "The panel changed rate during the run; budgets from device.json are wrong for these frames.")
+    else:
+        lines.append("- Vsync period in the traces: not measurable, too few back-to-back frames"
+                     + (f" (device.json recorded {device_hz:g} Hz)" if device_hz else ""))
     lines.append(f"- Animation windows: {sum(len(r.windows) for r in results)} in total, {window_ms:.0f} ms; "
                  f"{len(frames_by_window['animation'])} animation frames, {len(frames_by_window['idle'])} idle frames")
     for result in results:
@@ -218,8 +222,8 @@ def render_report(run_name: str, by_scenario: dict, device_hz: float | None, top
     lines = [
         f"# Trace analysis: {run_name}",
         "",
-        "Frames are split into animation windows (dense runs of synthX.* sections or input events, plus a "
-        "margin) and idle frames (everything else, mostly the fixed pauses). cpu ms is main-thread start to "
+        "Frames are split into animation windows (dense runs of synthX.* sections, input events or layout "
+        "passes, plus a margin) and idle frames (everything else, mostly the fixed pauses). cpu ms is main-thread start to "
         "RenderThread end, the same span as frameDurationCpuMs. Breakdowns use self time.",
         "",
     ]

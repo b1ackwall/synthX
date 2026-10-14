@@ -2,6 +2,7 @@ package com.v1per.synthx.macrobenchmark
 
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.uiautomator.UiDevice
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -53,11 +54,7 @@ class PlayerTrackChangeBenchmark {
                 track.rememberOrigin()
             },
             beforeEach = { track.restore(PlaybackDriver(it)::mediaPrevious) },
-            cleanup = {
-                val playback = PlaybackDriver(it)
-                track.restore(playback::mediaPrevious)
-                playback.ensurePaused()
-            },
+            cleanup = { restoreWithButton(it, track) },
         ) {
             PlaybackDriver(it).mediaNext()
             track.noteSkip()
@@ -75,13 +72,21 @@ class PlayerTrackChangeBenchmark {
                 track.rememberOrigin()
             },
             beforeEach = { track.restore(PlaybackDriver(it)::previous) },
-            cleanup = {
-                track.restore(PlaybackDriver(it)::previous)
-                QueueDriver(it).ensureQueueMode(on = false)
-            },
+            cleanup = { restoreWithButton(it, track) },
         ) {
             PlaybackDriver(it).next()
             track.noteSkip()
         }
+    }
+
+    /**
+     * The end-of-scenario undo. It runs on a fresh launch, paused, where no app owns the media
+     * button session, so every scenario steps back with the expanded player's Previous button.
+     */
+    private fun restoreWithButton(device: UiDevice, track: TrackRestore) {
+        val playback = PlaybackDriver(device)
+        playback.ensurePaused()
+        PlayerDriver(device).ensureExpanded()
+        track.restore(playback::previous)
     }
 }

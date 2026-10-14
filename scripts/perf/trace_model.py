@@ -16,6 +16,13 @@ SQL_DIR = Path(__file__).resolve().parent / "sql"
 NS_PER_MS = 1e6
 # Expected-frame gaps longer than this are pauses between bursts, not the vsync period.
 MAX_VSYNC_GAP_MS = 50.0
+# Shorter gaps are two timeline rows of one frame, not two vsyncs.
+MIN_VSYNC_GAP_MS = 2.0
+MIN_VSYNC_GAPS = 5
+# Gaps up to this multiple of the shortest one count as a single vsync.
+SINGLE_VSYNC_TOLERANCE = 1.25
+# doFrame spacing is trusted only when at least this share of the frames are back to back.
+MIN_CLOSE_FRAME_SHARE = 0.5
 # Animation-window detection. The gap stays under the 66 ms at which the expanded player's
 # background redraws, so that redraw cannot join two gestures into one window.
 DEFAULT_GAP_MS = 50.0
@@ -123,14 +130,30 @@ def find_windows(markers: list[tuple], gap_ms: float, min_burst_ms: float, margi
 
 
 def vsync_period(expected_starts: list[int], frame_starts: list[int]) -> tuple:
-    """(period ms, source): the median gap between expected frames, else between doFrames."""
-    for values, source in ((expected_starts, "frame timeline"), (frame_starts, "doFrame spacing")):
-        ordered = sorted(set(values))
-        gaps = [(b - a) / NS_PER_MS for a, b in zip(ordered, ordered[1:])]
-        gaps = [gap for gap in gaps if 0 < gap <= MAX_VSYNC_GAP_MS]
-        if len(gaps) >= 5:
-            return median(gaps), source
-    return None, None
+    """(period ms, source) from back-to-back frames, or (None, None) when there are too few.
+
+    The frame timeline's expected starts sit exactly on vsyncs, so the shortest gap that repeats
+    is the period even when most frames are further apart. doFrame start times include wake-up
+    latency and are only a stand-in for a trace that has no frame timeline at all; a trace whose
+    timeline is too sparse (a frame or two per second, as with the mini player idling) has no
+    measurable period, and guessing one from doFrames would report a refresh rate the panel
+    never ran at.
+    """
+    if expected_starts:
+        values, source, min_close_share = expected_starts, "frame timeline", 0.0
+    else:
+        values, source, min_close_share = frame_starts, "doFrame spacing", MIN_CLOSE_FRAME_SHARE
+    ordered = sorted(set(values))
+    gaps = [(b - a) / NS_PER_MS for a, b in zip(ordered, ordered[1:])]
+    close = sorted(gap for gap in gaps if MIN_VSYNC_GAP_MS <= gap <= MAX_VSYNC_GAP_MS)
+    if len(close) < MIN_VSYNC_GAPS or len(close) < min_close_share * len(gaps):
+        return None, None
+    # The lower end of the gaps, skipping a stray short one; longer gaps are skipped vsyncs.
+    shortest = close[len(close) // 20]
+    single = [gap for gap in close if gap <= shortest * SINGLE_VSYNC_TOLERANCE]
+    if len(single) < MIN_VSYNC_GAPS:
+        return None, None
+    return median(single), source
 
 
 def add_stat(table: dict, key, dur_ms: float, self_ms: float, category: str | None = None) -> None:

@@ -1,7 +1,9 @@
 package com.v1per.synthx.macrobenchmark
 
+import android.graphics.Point
 import android.os.SystemClock
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 
@@ -23,12 +25,15 @@ internal class QueueDriver(private val device: UiDevice) {
         /** Covers a list fling coming to rest. */
         const val ScrollPauseMs = 900L
 
-        /** About 100 ms of travel: a brisk scroll that ends in a fling. */
-        const val ScrollSteps = 20
+        /** 10 steps of 33 ms: a brisk scroll that ends in a fling. */
+        const val ScrollSteps = 10
 
-        /** Rows that must be on screen for the list to have something to scroll. */
-        const val MinScrollRows = 8
         const val SignatureRows = 3
+        const val RestTimeoutMs = 5_000L
+        const val RestPollMs = 150L
+
+        const val LongQueueHint = "In synthX bench, play the first song of a long list " +
+            "(Library > Songs) so many songs follow it, then pause."
     }
 
     /** One fixed lane for every swipe of a scenario, measured while the controls are showing. */
@@ -68,19 +73,19 @@ internal class QueueDriver(private val device: UiDevice) {
         AppReadiness.findOrFail(device, Tags.QueueButton, "Queue button")
     }
 
-    /** Fails unless the queue is long enough to scroll; call in queue mode with controls showing. */
+    /** Fails unless the upcoming songs fill the list; call in queue mode with controls showing. */
     fun requireScrollLane(): ScrollLane {
-        val rows = device.findObjects(By.res(Tags.QueueRow)).size
-        check(rows >= MinScrollRows) {
-            "Only $rows upcoming songs are on screen; the queue scroll needs at least " +
-                "$MinScrollRows. In synthX bench, play the first song of a long list (Library > " +
-                "Songs) so many songs follow it, then pause."
-        }
         val list = AppReadiness.findOrFail(device, Tags.QueueList, "Queue list").visibleBounds
         val controlsTop = AppReadiness.findOrFail(device, Tags.SeekBar, "Seek bar").visibleBounds.top
         val height = controlsTop - list.top
         check(height > device.displayHeight / 10) {
             "The queue list shows only $height px above the controls; too short to scroll safely."
+        }
+        val rows = device.findObjects(By.res(Tags.QueueRow))
+        val rowsEnd = rows.maxOfOrNull { it.visibleBounds.bottom } ?: list.top
+        check(rowsEnd >= list.bottom) {
+            "The ${rows.size} upcoming songs end at y=$rowsEnd and the list at y=${list.bottom}, " +
+                "so there is nothing to scroll. $LongQueueHint"
         }
         return ScrollLane(
             x = list.left + list.width() * 3 / 10,
@@ -89,23 +94,71 @@ internal class QueueDriver(private val device: UiDevice) {
         )
     }
 
+    /**
+     * One unmeasured pass of the measured gesture. It proves the queue is long enough for both
+     * swipes toward the end to move the list, and that two swipes back return it to its start.
+     */
+    fun rehearseScroll(lane: ScrollLane, swipesEachWay: Int) {
+        val atStart = topRowsSignature()
+        var previous = atStart
+        repeat(swipesEachWay) { index ->
+            scrollTowardEnd(lane)
+            val now = topRowsSignature()
+            check(now != previous) {
+                "Swipe ${index + 1} toward the end of the queue did not move the list (first " +
+                    "rows still $now), so the queue is too short for this scenario. $LongQueueHint"
+            }
+            previous = now
+        }
+        repeat(swipesEachWay) { scrollTowardStart(lane) }
+        showControls()
+        val back = topRowsSignature()
+        check(back == atStart) {
+            "After $swipesEachWay swipes each way the queue did not return to its start. " +
+                "First rows before: $atStart. After: $back."
+        }
+    }
+
     /** Finger moves up: the list scrolls toward its end and the controls fade out. */
     fun scrollTowardEnd(lane: ScrollLane) = swipe(lane.x, lane.bottomY, lane.topY)
 
     /** Finger moves down: the list scrolls back toward its start and the controls return. */
     fun scrollTowardStart(lane: ScrollLane) = swipe(lane.x, lane.topY, lane.bottomY)
 
-    /** Text of the first rows, to detect an accidental reorder or removal. */
-    fun topRowsSignature(): List<String> =
-        device.findObjects(By.res(Tags.QueueRow))
-            .sortedBy { it.visibleBounds.top }
-            .take(SignatureRows)
-            .map(::allText)
+    /**
+     * Text of the first rows, to detect an accidental reorder or removal. Read once the list is
+     * at rest, which is two equal reads in a row: while a fling is still recycling rows a read
+     * can fail or catch the list mid-scroll.
+     */
+    fun topRowsSignature(): List<String> {
+        val deadline = SystemClock.uptimeMillis() + RestTimeoutMs
+        var previous: List<String>? = null
+        while (true) {
+            val now = readTopRows()
+            if (now != null && now == previous) return now
+            check(SystemClock.uptimeMillis() < deadline) {
+                "The queue list did not come to rest within ${RestTimeoutMs / 1000} s, so its " +
+                    "first rows could not be read. Last read: ${now ?: "rows changed mid-read"}."
+            }
+            previous = now
+            SystemClock.sleep(RestPollMs)
+        }
+    }
+
+    /** Null when a row left the tree between being found and being read. */
+    private fun readTopRows(): List<String>? =
+        try {
+            device.findObjects(By.res(Tags.QueueRow))
+                .map { it.visibleBounds.top to allText(it) }
+                .sortedBy { it.first }
+                .take(SignatureRows)
+                .map { it.second }
+        } catch (_: StaleObjectException) {
+            null
+        }
 
     private fun swipe(x: Int, fromY: Int, toY: Int) {
-        check(device.swipe(x, fromY, x, toY, ScrollSteps)) {
-            "UiAutomator could not inject the queue scroll at x=$x from y=$fromY to y=$toY."
-        }
+        TouchInjector.swipe(Point(x, fromY), Point(x, toY), steps = ScrollSteps)
         SystemClock.sleep(ScrollPauseMs)
     }
 

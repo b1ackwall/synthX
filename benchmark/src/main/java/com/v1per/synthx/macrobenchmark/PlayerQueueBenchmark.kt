@@ -15,9 +15,10 @@ import org.junit.runner.RunWith
  * leave it. Rarely flaky: two taps with fixed pauses.
  *
  * queueExpandCollapse: queue mode is turned on once, then each iteration taps the mini player to
- * expand and presses back to collapse with queue mode still on (it survives a collapse). Queue
- * mode is turned off again after the last iteration. Rarely flaky; if the run is killed
- * mid-scenario, queue mode stays on until the next scenario's baseline check turns it off.
+ * expand and presses back to collapse with queue mode still on (it survives a collapse). Rarely
+ * flaky.
+ *
+ * Neither needs its own cleanup: the baseline check that ends every scenario turns queue mode off.
  */
 @RunWith(AndroidJUnit4::class)
 class PlayerQueueBenchmark {
@@ -36,7 +37,6 @@ class PlayerQueueBenchmark {
                 // No next song means no queue list, which would leave queue mode unreadable.
                 PlaybackDriver(it).requireNextAvailable()
             },
-            cleanup = { QueueDriver(it).ensureQueueMode(on = false) },
         ) {
             val queue = QueueDriver(it)
             queue.toggle()
@@ -56,10 +56,6 @@ class PlayerQueueBenchmark {
                 player.collapse()
             },
             beforeEach = { PlayerDriver(it).ensureCollapsed() },
-            cleanup = {
-                PlayerDriver(it).ensureExpanded()
-                QueueDriver(it).ensureQueueMode(on = false)
-            },
         ) {
             val player = PlayerDriver(it)
             player.expand()

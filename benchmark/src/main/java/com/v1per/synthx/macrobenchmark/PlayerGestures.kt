@@ -4,27 +4,28 @@ import android.graphics.Point
 import androidx.test.uiautomator.UiDevice
 
 /**
- * Vertical drags on the player sheet. Every gesture keeps one x, so it never crosses a
- * horizontal touch slop, and none starts on the status bar or the system gesture area.
+ * Vertical drags on the player sheet, in the equal steps [TouchInjector] explains. Every gesture
+ * keeps one x, so it never crosses a horizontal touch slop, and none starts on the status bar or
+ * the system gesture area.
  */
 internal class PlayerGestures(private val device: UiDevice) {
     private companion object {
-        /** UiAutomator injects one move per step and sleeps about 5 ms after each. */
-        const val StepsPerSegment = 10
+        /** 30 steps of 33 ms: one second of travel. */
+        const val SlowDragSteps = 30
 
-        /** 20 segments of 10 steps: about one second of travel. */
-        const val SlowDragSegments = 20
+        /** The finger rests this long before it lifts. */
+        const val HoldMs = 300L
 
-        /** 6 stationary segments: about 300 ms, so the release velocity is zero. */
-        const val HoldSegments = 6
-
-        /** Past the sheet's 20% positional threshold, which a zero-velocity release must clear. */
+        /** About 37% of the sheet's travel, past its 20% positional threshold. */
         const val SlowDragTravel = 0.35f
 
-        const val FlingTravel = 0.25f
-
-        /** About 60 ms of travel, far above the 125 dp/s fling threshold. */
-        const val FlingSteps = 12
+        /**
+         * 6 steps of 33 ms: half the display in 200 ms. The sheet reads the release velocity
+         * from the last 100 ms, so the swipe must outlast that with steady steps; a shorter
+         * one (3 steps) is read as a reversal and the sheet goes back.
+         */
+        const val FlingSteps = 6
+        const val FlingTravel = 0.51f
 
         /** Start height for a downward drag: on the album art, below the status bar. */
         const val CollapseStart = 0.22f
@@ -32,14 +33,14 @@ internal class PlayerGestures(private val device: UiDevice) {
 
     private val player = PlayerDriver(device)
 
-    /** Drags the mini player up slowly, holds, then releases. */
+    /** Drags the mini player up slowly, holds, then lifts. */
     fun slowDragExpand() {
         val start = miniCenter()
         slowDrag(start, travel(start, -SlowDragTravel))
         player.awaitState(expanded = true, action = "a slow upward drag with a held release")
     }
 
-    /** Drags the expanded sheet down slowly, holds, then releases. */
+    /** Drags the expanded sheet down slowly, holds, then lifts. */
     fun slowDragCollapse() {
         val start = collapseStart()
         slowDrag(start, travel(start, SlowDragTravel))
@@ -67,22 +68,9 @@ internal class PlayerGestures(private val device: UiDevice) {
     private fun travel(start: Point, displayFraction: Float): Point =
         Point(start.x, start.y + (device.displayHeight * displayFraction).toInt())
 
-    /** Evenly spaced points from [start] to [end], then [end] repeated for the hold. */
-    private fun slowDrag(start: Point, end: Point) {
-        val path = buildList {
-            for (i in 0..SlowDragSegments) {
-                add(Point(start.x, start.y + (end.y - start.y) * i / SlowDragSegments))
-            }
-            repeat(HoldSegments) { add(Point(end.x, end.y)) }
-        }
-        check(device.swipe(path.toTypedArray(), StepsPerSegment)) {
-            "UiAutomator could not inject the slow drag from $start to $end."
-        }
-    }
+    private fun slowDrag(start: Point, end: Point) =
+        TouchInjector.swipe(start, end, steps = SlowDragSteps, holdMs = HoldMs)
 
-    private fun fling(start: Point, end: Point) {
-        check(device.swipe(start.x, start.y, end.x, end.y, FlingSteps)) {
-            "UiAutomator could not inject the fling from $start to $end."
-        }
-    }
+    private fun fling(start: Point, end: Point) =
+        TouchInjector.swipe(start, end, steps = FlingSteps)
 }

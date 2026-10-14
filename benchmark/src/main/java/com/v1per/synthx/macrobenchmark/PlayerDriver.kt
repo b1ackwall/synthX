@@ -39,10 +39,14 @@ internal class PlayerDriver(private val device: UiDevice) {
         if (!isExpanded()) expand()
     }
 
-    /** The song title from the mini row, which stays in the tree while expanded; null if unreadable. */
+    /**
+     * The song title: the first text inside the sheet. That is the mini row's title while
+     * collapsed and the title row's (or the queue header's) while expanded, where the mini row
+     * exposes no text. Null if the sheet or its text is unreadable.
+     */
     fun currentTitle(): String? {
-        val mini = device.findObject(By.res(Tags.MiniPlayer)) ?: return null
-        return firstText(mini)
+        val sheet = device.findObject(By.res(Tags.PlayerSheet)) ?: return null
+        return firstText(sheet)
     }
 
     /** Waits out the fixed pause, then polls until the sheet reaches [expanded]. */
@@ -51,8 +55,11 @@ internal class PlayerDriver(private val device: UiDevice) {
         val deadline = SystemClock.uptimeMillis() + TransitionTimeoutMs
         while (isExpanded() != expanded) {
             check(SystemClock.uptimeMillis() < deadline) {
+                val bounds = device.findObject(By.res(Tags.PlayerSheet))?.visibleBounds
                 "Player sheet did not ${if (expanded) "expand" else "collapse"} within " +
-                    "${TransitionTimeoutMs / 1000} s after $action."
+                    "${TransitionTimeoutMs / 1000} s after $action. Sheet bounds: " +
+                    "${bounds?.toShortString() ?: "not on screen"} on a " +
+                    "${device.displayWidth}x${device.displayHeight} display."
             }
             SystemClock.sleep(PollMs)
         }

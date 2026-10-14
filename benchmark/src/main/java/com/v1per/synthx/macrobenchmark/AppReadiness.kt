@@ -1,6 +1,7 @@
 package com.v1per.synthx.macrobenchmark
 
 import android.os.SystemClock
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
@@ -41,6 +42,25 @@ internal object AppReadiness {
             "No mini player in synthX bench, so no song is loaded. Play any song once in the " +
                 "benchmark app and leave it in the queue. $SetupHint"
         }
+    }
+
+    /**
+     * Starts the app again after Macrobenchmark force-stopped it, and waits for its main screen.
+     * The launcher activity is resolved from [BenchmarkTarget.PACKAGE] only.
+     */
+    fun relaunch(device: UiDevice) {
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val component = context.packageManager
+            .getLaunchIntentForPackage(BenchmarkTarget.PACKAGE)?.component
+        checkNotNull(component) {
+            "${BenchmarkTarget.PACKAGE} has no launcher activity, so it cannot be reopened for " +
+                "the end-of-scenario cleanup."
+        }
+        check(component.packageName == BenchmarkTarget.PACKAGE) {
+            "Refusing to launch ${component.flattenToShortString()}: not the benchmark app."
+        }
+        device.executeShellCommand("am start -W -n ${component.flattenToShortString()}")
+        requireUiReady(device)
     }
 
     /** Selects the Library tab if the Library screen is not already showing. */

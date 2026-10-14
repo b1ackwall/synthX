@@ -26,6 +26,7 @@ from perf_common import (
     markdown_table,
     median,
     percentile,
+    recorded_iterations,
 )
 
 PERCENTILES = (("p50", 0.50), ("p90", 0.90), ("p95", 0.95), ("p99", 0.99))
@@ -102,6 +103,7 @@ def summarize_benchmark(entry: dict, device_budget_ms: float | None) -> dict:
         "method": entry.get("name"),
         "sourceFile": entry.get("sourceFile"),
         "iterations": entry.get("repeatIterations"),
+        "iterationsRecorded": recorded_iterations(entry),
         "compilationMode": entry.get("context", {}).get("compilationMode"),
         "totalRunTimeS": round(entry.get("totalRunTimeNs", 0) / 1e9, 1),
         "frameCount": None if frame_count is None else {
@@ -167,6 +169,15 @@ def render_scenario(name: str, scenario: dict, refresh_hz: float | None, top: in
     )
     lines.append(f"{scenario['iterations']} iterations, {frames} frames sampled{count_text}.")
     lines.append("")
+    recorded = scenario.get("iterationsRecorded")
+    if recorded is not None and scenario["iterations"] is not None and recorded < scenario["iterations"]:
+        lines.append(
+            f"**WARNING: only {recorded} of {scenario['iterations']} iterations have data.** The "
+            "library dropped the others because a metric reported nothing in them (no frames, or "
+            "a metric that is absent when its section does not run). Every number below covers "
+            "the recorded iterations only."
+        )
+        lines.append("")
     rows = []
     for metric in ("frameDurationCpuMs", "frameOverrunMs"):
         stats = scenario[metric]

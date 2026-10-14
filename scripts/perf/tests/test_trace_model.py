@@ -35,6 +35,29 @@ class ClassificationTest(unittest.TestCase):
         self.assertEqual(sc.classify("DrawFrames 26007598", "render"), "rt.frame")
         self.assertEqual(sc.classify("synthX.MainShell", "main"), sc.INHERIT)
 
+    def test_names_from_the_scenario_traces(self):
+        # A queue fling: rows composed ahead of the scroll, and their album art painters.
+        self.assertEqual(sc.classify("compose:lazy:prefetch:compose", "main"), "main.recomposition")
+        self.assertEqual(sc.classify("compose:lazy:prefetch:measure", "main"), "main.measure_layout")
+        self.assertEqual(sc.classify("AsyncImagePainter.onRemembered", "main"), "main.recomposition")
+        # A touch batch inside a frame, and the same VRI[ prefix on the RenderThread.
+        self.assertEqual(sc.classify("input", "main"), "main.input")
+        self.assertEqual(sc.classify("VRI[MainActivity]@bd4d1d", "main"), "main.input")
+        self.assertEqual(sc.classify("VRI[MainActivity]@bd4d1d#3(f:0,a:1,s:0)", "render"), "rt.buffer_queue")
+        # The Home background's paths and first-use pipeline creation on the RenderThread.
+        self.assertEqual(sc.classify("TriangulatingPathOp", "render"), "rt.gpu_flush")
+        self.assertEqual(sc.classify("CreateGraphicsPipeline-CacheLookup", "render"), "rt.pipeline")
+        self.assertEqual(sc.classify("prepareAndDraw 28467137", "render"), "rt.frame")
+        self.assertEqual(sc.classify("binder transaction", "main"), "other")
+
+    def test_class_descriptors_are_runtime_work(self):
+        self.assertEqual(sc.classify("Lu12;", "main"), "other")
+        self.assertEqual(sc.classify("Landroid/media/metrics/PlaybackMetrics$1;", "main"), "other")
+        self.assertEqual(sc.classify("Lock contention on a monitor lock (owner tid: 7)", "main"), "other")
+        # The regex must match the whole name, not any name that starts with L.
+        self.assertIsNone(sc.classify("LayoutSomethingNew", "main"))
+        self.assertIsNone(sc.classify("Lu12; and more", "main"))
+
     def test_unknown_name_is_not_guessed(self):
         self.assertIsNone(sc.classify("SomeFutureSlice", "main"))
         self.assertIsNone(sc.classify("postAndWait", "render"))
@@ -42,7 +65,7 @@ class ClassificationTest(unittest.TestCase):
     def test_every_rule_points_at_a_known_category(self):
         for rules in sc.RULES_BY_ROLE.values():
             for kind, _, category in rules:
-                self.assertIn(kind, (sc.EXACT, sc.PREFIX))
+                self.assertIn(kind, (sc.EXACT, sc.PREFIX, sc.REGEX))
                 self.assertTrue(category == sc.INHERIT or category in sc.CATEGORIES, category)
 
     def test_normalize(self):
@@ -77,6 +100,14 @@ class WindowTest(unittest.TestCase):
     def test_no_markers(self):
         self.assertEqual(tm.find_windows([], 50, 50, 20), [])
 
+    def test_activity_markers(self):
+        self.assertTrue(sc.is_activity_marker("synthX.QueueRow"))
+        self.assertTrue(sc.is_activity_marker("deliverInputEvent src=0x1002 eventTimeNano=1 id=0x2"))
+        self.assertTrue(sc.is_activity_marker("AndroidOwner:measureAndLayout"))
+        # Drawing alone is what a pause does (background redraws), so it is not activity.
+        self.assertFalse(sc.is_activity_marker("AndroidOwner:draw"))
+        self.assertFalse(sc.is_activity_marker("Record View#draw()"))
+
 
 class VsyncPeriodTest(unittest.TestCase):
     def test_median_gap_ignores_pauses(self):
@@ -92,6 +123,46 @@ class VsyncPeriodTest(unittest.TestCase):
 
     def test_unknown_when_too_few_frames(self):
         self.assertEqual(tm.vsync_period([], [0, MS]), (None, None))
+
+    def test_skipped_vsyncs_do_not_stretch_the_period(self):
+        # Half the frames are two vsyncs apart, as when every other frame has nothing to draw.
+        starts, now = [], 0.0
+        for i in range(40):
+            starts.append(int(now * MS))
+            now += 16.64 if i % 2 else 33.28
+        period, source = tm.vsync_period(starts, [])
+        self.assertAlmostEqual(period, 16.64, places=2)
+        self.assertEqual(source, "frame timeline")
+
+    def test_sparse_frames_are_not_measurable(self):
+        # The mini player idling: one drawn frame per 499.4 ms, and three doFrames around it
+        # whose start times include wake-up latency (gaps of 41.2, 58.2 and 400 ms).
+        expected = [int(i * 499.4 * MS) for i in range(20)]
+        frames = []
+        for i in range(20):
+            frames += [int((i * 499.4 + offset) * MS) for offset in (0.0, 41.2, 99.4)]
+        self.assertEqual(tm.vsync_period(expected, frames), (None, None))
+
+    def test_doframes_do_not_stand_in_for_a_sparse_timeline(self):
+        # Animation callbacks every second vsync next to a timeline with one frame per 500 ms.
+        expected = [int(i * 499.4 * MS) for i in range(20)]
+        frames = [int((i * 499.4 + step * 33.29) * MS) for i in range(20) for step in range(3)]
+        self.assertEqual(tm.vsync_period(expected, frames), (None, None))
+
+    def test_duplicate_timeline_rows_are_not_a_period(self):
+        # One frame can have two timeline rows a few microseconds apart.
+        starts = []
+        for i in range(30):
+            starts += [int(i * 16.64 * MS), int(i * 16.64 * MS) + 40]
+        period, _ = tm.vsync_period(starts, [])
+        self.assertAlmostEqual(period, 16.64, places=2)
+
+    def test_dense_frame_spacing_still_works_without_a_timeline(self):
+        # Mostly back-to-back frames with one long pause in the middle.
+        frames = [int(i * 8.33 * MS) for i in range(30)] + [int((2000 + i * 8.33) * MS) for i in range(30)]
+        period, source = tm.vsync_period([], frames)
+        self.assertAlmostEqual(period, 8.33, places=2)
+        self.assertEqual(source, "doFrame spacing")
 
 
 class BuildResultTest(unittest.TestCase):
@@ -155,6 +226,44 @@ class BuildResultTest(unittest.TestCase):
         result = tm.build_result("t", "S.m", 0, [], [], [])
         self.assertEqual(result.frames, [])
         self.assertTrue(result.notes)
+
+
+def plain_frame(base_id, vsync, ts_ms, child):
+    """One frame with no synthX section and no input: doFrame > [child], plus a RenderThread draw."""
+    return [
+        slice_(base_id, None, ts_ms, 3.0, 0, f"Choreographer#doFrame {vsync}", self_ms=1.0),
+        slice_(base_id + 1, base_id, ts_ms + 0.1, 2.0, 1, child),
+        slice_(base_id + 2, None, ts_ms + 3.0, 4.0, 0, f"DrawFrames {vsync}", role="render"),
+    ]
+
+
+class FlingWindowTest(unittest.TestCase):
+    """A list fling as the queue scroll traces show it: layout on every frame, nothing else."""
+
+    def build(self):
+        slices = []
+        # Twelve fling frames 16 ms apart that only re-lay out the list.
+        for i in range(12):
+            slices += plain_frame(100 * (i + 1), 700 + i, 1000 + i * 16, "AndroidOwner:measureAndLayout")
+        # Then a pause: the background redraws every 66 ms and nothing is laid out.
+        for i in range(6):
+            slices += plain_frame(5000 + 100 * i, 800 + i, 1500 + i * 66, "AndroidOwner:draw")
+        return tm.build_result("t.perfetto-trace", "S.m", 0, slices, [], [])
+
+    def test_fling_frames_are_animation_and_redraws_are_idle(self):
+        result = self.build()
+        self.assertEqual(len(result.windows), 1)
+        self.assertEqual([f.window for f in result.frames], ["animation"] * 12 + ["idle"] * 6)
+        self.assertFalse(any(f.has_sheet for f in result.frames))
+
+    def test_sparse_layout_passes_are_not_a_window(self):
+        # One layout pass every 500 ms, as the mini player's progress updates produce.
+        slices = []
+        for i in range(8):
+            slices += plain_frame(100 * (i + 1), 900 + i, 1000 + i * 500, "AndroidOwner:measureAndLayout")
+        result = tm.build_result("t.perfetto-trace", "S.m", 0, slices, [], [])
+        self.assertEqual(result.windows, [])
+        self.assertEqual({f.window for f in result.frames}, {"idle"})
 
 
 if __name__ == "__main__":

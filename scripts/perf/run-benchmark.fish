@@ -219,6 +219,13 @@ for name in $selected
         end
     end
     rmdir $staging 2>/dev/null
+    # A run can report OK while the library dropped iterations that lacked a metric.
+    if test $ok -eq 1; and command -q python3
+        if not python3 $repo/scripts/perf/check_result.py $local_dir/$name-benchmarkData.json
+            set ok 0
+            set -a failed $name
+        end
+    end
     if test $ok -eq 1
         echo "Scenario $name done."
     else

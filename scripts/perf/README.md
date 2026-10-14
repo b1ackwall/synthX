@@ -30,7 +30,8 @@ in [docs/perf/README.md](../../docs/perf/README.md).
 4. Let the first library scan finish (the scan notification disappears).
 5. Queue a long list: open Library > Songs and play the **first** song, so the rest of the list
    follows it. Answer the notification permission prompt if it appears. Then pause. The queue
-   scenarios need at least eight upcoming songs, and the track-change scenarios need a next song.
+   scroll needs a queue several screens long (it checks this itself by scrolling once before it
+   measures), and the track-change scenarios need a next song.
 6. Go back to the Library tab and leave the app.
 
 The benchmarks check this on every run and stop with a message saying which step is missing.
@@ -72,7 +73,9 @@ The script builds both APKs with assemble tasks, installs them with `adb install
 uninstalls), and runs each scenario as its own `am instrument` call. It prints which scenario is
 running, waits `--cooldown` seconds (default 30) between scenarios, and keeps going after a
 failed scenario so one flaky scenario does not waste the run; it exits non-zero at the end and
-lists the failures. Everything lands in one folder, `perf-output/<timestamp>/` (gitignored):
+lists the failures. A scenario also counts as failed when its result file has data for fewer
+iterations than it ran (`check_result.py`, see "Dropped iterations" below). Everything lands in
+one folder, `perf-output/<timestamp>/` (gitignored):
 
 - `device.json`: model, API level, build fingerprint, refresh rate (and which values could not
   be read, under `refresh.not_parsed`), brightness mode, battery level, temperature and charging
@@ -92,24 +95,49 @@ compilation mode is then not applied, and the app runs in whatever state ART lef
 
 `--scenario` takes the test method name. Each scenario launches synthX bench once, checks the
 setup, waits for launch-time background work, confirms the baseline state (player collapsed,
-queue mode off, playback paused, Library tab), and returns to that state when it ends. Durations
-assume the default iteration counts and about four seconds of tracing overhead per iteration.
+queue mode off, playback paused, Library tab), and returns to that state when it ends.
+Macrobenchmark force-stops the app before the first iteration and again after the last, so
+every scenario starts from a cold process, and the end-of-scenario cleanup opens the app once
+more and leaves it in the foreground at the baseline. Durations assume the default iteration
+counts and about four seconds of tracing overhead per iteration.
 
 | Scenario | Class | Iterations | About | What one iteration measures |
 |---|---|---|---|---|
 | `expandCollapse` | `PlayerExpandCollapseBenchmark` | 10 | 1 min | Tap the mini player to expand, system back to collapse, on Library. |
 | `miniIdlePlaying` | `PlayerMiniIdleBenchmark` | 6 | 1.5 min | Ten seconds with the mini player showing and a song playing; no interaction. |
-| `slowDrag` | `PlayerDragBenchmark` | 10 | 1.5 min | Drag up over about a second, hold 300 ms, release; then the same downward. The hold makes the release velocity zero, so the sheet settles by its 20% positional threshold. |
-| `fling` | `PlayerDragBenchmark` | 10 | 1 min | A 60 ms upward swipe, then a downward one; the sheet settles by fling velocity. |
+| `slowDrag` | `PlayerDragBenchmark` | 10 | 1.5 min | Drag up 35% of the display over one second, hold 300 ms, release; then the same downward. The sheet settles by its 20% positional threshold. |
+| `fling` | `PlayerDragBenchmark` | 10 | 1 min | Swipe up half the display in 200 ms and release while moving, then the same downward; the sheet settles by fling velocity. |
 | `queueToggle` | `PlayerQueueBenchmark` | 10 | 1 min | Expanded: tap the queue button to enter queue mode, tap again to leave. |
 | `queueExpandCollapse` | `PlayerQueueBenchmark` | 10 | 1 min | Tap to expand and back to collapse while queue mode stays on. |
-| `queueScroll` | `PlayerQueueScrollBenchmark` | 8 | 1.5 min | Expanded queue mode: two swipes toward the end of the list, two back. Includes the controls fading out and in. |
+| `queueScroll` | `PlayerQueueScrollBenchmark` | 8 | 1.5 min | Expanded queue mode: two swipes toward the end of the list, two back, each a third of a second and ending in a fling. Includes the controls fading out and in. |
 | `nextExpanded` | `PlayerTrackChangeBenchmark` | 8 | 1 min | Expanded, paused: tap next, wait for the art change. |
 | `nextQueue` | `PlayerTrackChangeBenchmark` | 8 | 1 min | The same in queue mode, where the list also loses its first row. |
 | `nextMini` | `PlayerTrackChangeBenchmark` | 8 | 1 min | Collapsed, playing: a MEDIA_NEXT key, because the mini player has no next button. |
 | `homeExpandCollapse` | `PlayerHomeBenchmark` | 10 | 1 min | `expandCollapse` on the Home tab, whose animated background keeps running under the mini player. |
 
 Every scenario records `FrameTimingMetric` and one `TraceSectionMetric` per `synthX.*` section.
+
+### How the drags are injected
+
+Drags and swipes are sent by `TouchInjector` as equal steps exactly 33 ms apart, not with
+UiAutomator's `swipe`. The reason is in the app: the player sheet measures the release velocity
+from touch positions relative to itself while it moves under the finger. Its reading is about a
+tenth of the real finger speed, and one uneven step (a shorter last step, a finger that slows
+down, or Android's own smoothing of touch samples that are less than 20 ms apart) reads as a
+reversal, which sends the sheet back where it came from. Equal steps more than 20 ms apart are
+the input that settles the same way every time.
+
+What this costs: at 60 Hz the sheet gets a new finger position on every second frame, so during
+a drag about half the frames have no sheet movement. A real finger moves it on every frame.
+`analyze_traces.py` lists those frames separately ("Frames without a PlayerSheet composition").
+
+### Dropped iterations
+
+Macrobenchmark keeps only the iterations in which every metric reported a value, and says
+nothing about the rest. An iteration with no frames at all is dropped that way. The run script
+checks each result file with `check_result.py` and fails the scenario when iterations are
+missing, and `summarize.py` prints a warning for such a scenario. The traces of dropped
+iterations are still in the run folder.
 
 ### What the scenarios touch
 
@@ -122,15 +150,19 @@ ends on the song it started on (at position zero).
 
 - `queueScroll` is the **least safe**: the list it swipes on can remove a row (horizontal swipe)
   and reorder (the handle at the right edge). The swipe is one straight vertical line on the
-  left third of the list, and the scenario compares the first three rows before and after and
-  fails loudly if they differ. It cannot undo a change. A change would affect synthX bench's
-  queue only, never a file.
+  left third of the list, and the scenario compares the first three rows before the scrolling
+  with the saved queue after a relaunch, and fails loudly if they differ. It cannot undo a
+  change. A change would affect synthX bench's queue only, never a file. Before measuring it
+  scrolls once unmeasured, and stops with a message if the queue is too short to scroll twice.
 - `nextMini` is **ROM-dependent**: a media key goes to whichever app owns the media button
   session. The scenario reads `dumpsys media_session` and sends the key only if synthX bench is
   named as the owner; on a ROM that formats that dump differently it fails without sending
   anything. Run it last or skip it if another media app must stay untouched.
-- `slowDrag`: UiAutomator's event timing varies, so the drag takes one to two seconds; a ROM
-  that drops the stationary events of the hold turns the release into a slow fling.
+- `slowDrag` and `fling` depend on how the sheet reads release velocity (see "How the drags are
+  injected"). If the sheet's gesture code changes, a drag that ends in the wrong state fails
+  with the sheet's bounds in the message; adjust the constants in `PlayerGestures.kt`.
+- `nextQueue`: the first skip after queue mode is turned on redraws the queue mask for about 25
+  frames and the later ones do not, so iteration 0 has more frames than the rest.
 - `miniIdlePlaying`: a song ending inside a ten-second window adds a track-change burst.
 - `homeExpandCollapse`: with the system animation scale at 0, or battery saver on, the Home
   background stands still and the result matches `expandCollapse`.

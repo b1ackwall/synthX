@@ -4,6 +4,7 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiObject2
 
 /**
  * Play, pause and track changes through the player's own buttons, plus media keys for the mini
@@ -20,15 +21,22 @@ internal class PlaybackDriver(private val device: UiDevice) {
 
     private val player = PlayerDriver(device)
 
-    /** Read from the play/pause button's description; null while buffering or unreadable. */
+    /**
+     * Read from the description of the icon inside the play/pause button (the tagged button
+     * node itself carries none); null while buffering or unreadable.
+     */
     fun isPlaying(): Boolean? {
         val tag = if (player.isExpanded()) Tags.PlayPause else Tags.MiniPlayPause
-        return when (device.findObject(By.res(tag))?.contentDescription) {
-            UiText.Pause -> true
-            UiText.Play -> false
+        val button = device.findObject(By.res(tag)) ?: return null
+        return when {
+            button.hasDescription(UiText.Pause) -> true
+            button.hasDescription(UiText.Play) -> false
             else -> null
         }
     }
+
+    private fun UiObject2.hasDescription(text: String): Boolean =
+        contentDescription == text || hasObject(By.desc(text))
 
     fun ensurePlaying() = ensure(playing = true)
 
@@ -118,7 +126,7 @@ internal class TrackRestore(private val device: UiDevice) {
     private var pendingSkips = 0
 
     fun rememberOrigin() {
-        origin = player.currentTitle()
+        origin = requireTitle()
     }
 
     fun noteSkip() {
@@ -127,8 +135,9 @@ internal class TrackRestore(private val device: UiDevice) {
 
     /** Presses [previous] once per pending skip, then until the starting title is back. */
     fun restore(previous: () -> Unit) {
-        val start = origin
-        if (pendingSkips > 0 && start != null && player.currentTitle() == start) {
+        // Nothing to undo when the scenario failed before it read its starting song.
+        val start = origin ?: return
+        if (pendingSkips > 0 && requireTitle() == start) {
             error(
                 "The track did not change after a skip (still '$start'). If two neighbouring " +
                     "songs share this title, start from a different song.",
@@ -137,15 +146,18 @@ internal class TrackRestore(private val device: UiDevice) {
         repeat(pendingSkips) { previous() }
         pendingSkips = 0
         var attempts = 0
-        while (start != null && titleDiffersFrom(start) && attempts++ < ExtraAttempts) previous()
-        check(start == null || !titleDiffersFrom(start)) {
-            "Could not step back to '$start'; the player is on '${player.currentTitle()}'. The " +
-                "queue itself is unchanged; pick the starting song again in synthX bench."
+        while (requireTitle() != start && attempts++ < ExtraAttempts) previous()
+        val current = requireTitle()
+        check(current == start) {
+            "Could not step back to '$start'; the player is on '$current'. The queue itself " +
+                "is unchanged; pick the starting song again in synthX bench."
         }
     }
 
-    private fun titleDiffersFrom(title: String): Boolean {
-        val current = player.currentTitle() ?: return false
-        return current != title
-    }
+    /** An unreadable title fails here, so it can never pass for "the track changed". */
+    private fun requireTitle(): String =
+        checkNotNull(player.currentTitle()) {
+            "Could not read the current song title from the player sheet (tag " +
+                "'${Tags.PlayerSheet}'), so a track change cannot be confirmed."
+        }
 }

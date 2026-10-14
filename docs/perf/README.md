@@ -49,6 +49,10 @@ One block per scenario, named `<Class>.<method>`.
   and needs no assumption about the refresh rate.
 - **frameCount**: frames produced per iteration. A count well above what the animation needs
   means something keeps drawing during the pauses.
+- **WARNING: only N of M iterations have data**: the benchmark library dropped the other
+  iterations because a metric reported nothing in them (most often no frame was drawn). The
+  numbers then cover the recorded iterations only; `summary.json` has both counts as
+  `iterations` and `iterationsRecorded`. The run script fails such a scenario.
 - **Sections**: each `synthX.*` trace section's median total time, run count and longest run
   per iteration. Sections nest, so do not add them up.
 
@@ -58,15 +62,20 @@ percentiles look better than the animation alone. `analyze_traces.py` separates 
 ## Reading analyze_traces.py
 
 - **Vsync period**: the refresh rate the trace actually ran at, from the frame timeline. If it
-  disagrees with `device.json`, the report says MISMATCH; trust the trace.
-- **Animation windows vs idle**: a window is a dense run of `synthX.*` sections or input events
-  (no gap over 50 ms, at least 50 ms long) plus a 50 ms margin. Everything else is idle. The
-  same statistics are given for both, so the pauses no longer dilute the animation.
+  disagrees with `device.json`, the report says MISMATCH; trust the trace. A scenario that
+  draws only a frame or two per second (`miniIdlePlaying`) has no back-to-back frames to read
+  it from, and the report then says "not measurable" and checks nothing.
+- **Animation windows vs idle**: a window is a dense run of `synthX.*` sections, input events or
+  layout passes (no gap over 50 ms, at least 50 ms long) plus a 50 ms margin. Layout passes are
+  what mark a list fling, which re-lays the queue out on every frame without composing a section.
+  Everything else is idle, including frames that only redraw (the expanded player's background,
+  Home's animated background). The same statistics are given for both, so the pauses no longer
+  dilute the animation.
 - **Where the time goes**: mean self time per frame by class, for the main thread
   (recomposition, measure/layout, draw recording, waiting on the RenderThread) and the
-  RenderThread (sync, draw, GPU flush, texture upload, GPU memory, buffer queue). "Waiting on
-  RenderThread" is the main thread blocked until the RenderThread takes the frame; it is long
-  when the previous frame's RenderThread work is still running.
+  RenderThread (sync, draw, GPU flush, shader/pipeline creation, texture upload, GPU memory,
+  buffer queue). "Waiting on RenderThread" is the main thread blocked until the RenderThread
+  takes the frame; it is long when the previous frame's RenderThread work is still running.
 - **Slowest animation frames**: one row per frame with both threads' breakdown and the synthX
   sections that ran in it. Use the vsync id to find the frame in the Perfetto UI.
 - **Top slices**: by total time and by longest single run, per thread, across all iterations.
@@ -75,8 +84,9 @@ percentiles look better than the animation alone. `analyze_traces.py` separates 
 - **Frames without a PlayerSheet composition**: what produced the frames in which the sheet did
   not recompose.
 - **Unclassified slice names**: names the table in `scripts/perf/slice_classes.py` does not
-  know. That table was built from the fixture trace only; add the listed names to it after
-  looking at them in a trace. Their time is reported as "unclassified", never dropped.
+  know. That table was built from the fixture trace and from the first full run of every
+  scenario on the Galaxy S25 Ultra; add the listed names to it after looking at them in a trace.
+  Their time is reported as "unclassified", never dropped.
 
 `trace-frames.csv` has one row per frame with the same columns, for a spreadsheet.
 
@@ -101,6 +111,13 @@ phone state they were taken in. `docs/perf/fixtures/` holds one real result file
 trace from the first run, which the script checks in `scripts/perf/tests/` read.
 
 ## Known limits
+
+- **Injected drags are not a finger**: `slowDrag`, `fling` and `queueScroll` send one touch
+  sample every 33 ms, so at 60 Hz the sheet moves on every second frame during a drag. The
+  reason, which is in how the sheet reads release velocity, is in
+  [scripts/perf/README.md](../../scripts/perf/README.md) under "How the drags are injected".
+  Frame times for the frames that do move the sheet are real; the share of late frames across a
+  whole drag is diluted by the frames in between.
 
 - **ROM differences**: slice names differ between Android versions, GPU drivers and vendors, so
   a new phone will list unclassified names until the table is extended. The refresh-rate and

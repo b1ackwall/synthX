@@ -58,6 +58,21 @@ def load_benchmarks(folder: Path) -> list[dict]:
     return entries
 
 
+def recorded_iterations(entry: dict) -> int | None:
+    """How many iterations a benchmark entry has data for: its shortest list of runs.
+
+    Macrobenchmark keeps only the iterations in which every metric reported a value, so this is
+    below 'repeatIterations' when some iteration lacked one (for example it drew no frame).
+    None when the entry has no metrics at all.
+    """
+    lengths = [
+        len(metric.get("runs") or [])
+        for group in ("metrics", "sampledMetrics")
+        for metric in (entry.get(group) or {}).values()
+    ]
+    return min(lengths) if lengths else None
+
+
 def load_device(folder: Path) -> dict | None:
     """device.json as run-benchmark.fish wrote it, or None when the folder has none."""
     path = folder / DEVICE_FILE
