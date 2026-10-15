@@ -37,7 +37,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
  * Edge length of a detail screen's hero art. Fixed: the size is part of the playlist art cache
- * key, so it must not change while the screen scrolls.
+ * key and the album cover's decode size, so it must not change while the screen scrolls.
  */
 val DetailHeroSize: Dp = 240.dp
 
