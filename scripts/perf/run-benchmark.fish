@@ -1,12 +1,17 @@
 #!/usr/bin/env fish
 # Builds and runs the player macrobenchmarks on ONE phone, then pulls the results.
-# Usage: scripts/perf/run-benchmark.fish <serial> [--scenario NAME[,NAME...]|all] [--none]
-#                                        [--iterations N] [--cooldown SECONDS] [--slice-frames]
-#   --scenario NAME  scenario(s) to run, by test method name (default all; see README.md)
-#   --none           measure CompilationMode.None (worst case) instead of DEFAULT
-#   --iterations N   iterations for every scenario (default: each scenario's own count)
-#   --cooldown S     pause between scenarios in seconds (default 30)
-#   --slice-frames   frame timing from the app's frame slices, not the frame timeline (README.md)
+# Usage: scripts/perf/run-benchmark.fish <serial> [--scenario NAME[,NAME...]|all] [--quick] [--none]
+#                                        [--iterations N] [--cooldown-temp C] [--cooldown-max S]
+#                                        [--cooldown-fixed S] [--slice-frames]
+#   --scenario NAME    scenario(s) to run, by test method name (default all; see README.md)
+#   --quick            one scenario per mode (quick_names below); --scenario overrides it
+#   --none             measure CompilationMode.None (worst case) instead of DEFAULT
+#   --iterations N     iterations for every scenario (default: each scenario's own count)
+#   --cooldown-temp C  between scenarios, wait until the battery is at or below C (default 33.0)
+#   --cooldown-max S   longest temperature wait in seconds, then continue with a warning (default 120)
+#   --cooldown-fixed S fixed pause between scenarios in seconds instead (--cooldown S is the same)
+#   --slice-frames     frame timing from the app's frame slices, not the frame timeline (README.md)
+# A failed temperature read falls back to a fixed 30 s pause.
 # Never uses the Gradle connected task and never uninstalls anything.
 
 set -l app_id com.v1per.synthx.benchmark
@@ -32,13 +37,17 @@ set -l all_names
 for row in $scenario_table
     set -a all_names (string split ' ' -- $row)[1]
 end
+# --quick: one scenario per player mode, in table order.
+set -l quick_names expandCollapse slowDrag queueExpandCollapse nextExpanded homeExpandCollapse
 
-set -l usage "Usage: scripts/perf/run-benchmark.fish <serial> [--scenario NAME[,NAME...]|all] [--none] [--iterations N] [--cooldown SECONDS] [--slice-frames]"
-argparse --name=run-benchmark n/none 'i/iterations=' 's/scenario=' 'c/cooldown=' slice-frames h/help -- $argv
+set -l usage "Usage: scripts/perf/run-benchmark.fish <serial> [--scenario NAME[,NAME...]|all] [--quick] [--none] [--iterations N] [--cooldown-temp C] [--cooldown-max SECONDS] [--cooldown-fixed SECONDS] [--slice-frames]"
+argparse --name=run-benchmark n/none 'i/iterations=' 's/scenario=' 'c/cooldown=' 'cooldown-fixed=' \
+    'cooldown-temp=' 'cooldown-max=' quick slice-frames h/help -- $argv
 or exit 2
 if set -q _flag_help; or test (count $argv) -ne 1
     echo $usage >&2
     echo "Scenarios: $all_names" >&2
+    echo "Quick set: $quick_names" >&2
     exit 2
 end
 set -l serial $argv[1]
@@ -56,16 +65,44 @@ if set -q _flag_iterations
     set iteration_args -e synthx.iterations $_flag_iterations
     set iterations_json $_flag_iterations
 end
+# Cooldown: by battery temperature unless a fixed pause is given. $cooldown is the fixed pause,
+# and also the fallback when the temperature cannot be read.
 set -l cooldown 30
-if set -q _flag_cooldown
-    if not string match -qr '^[0-9]+$' -- $_flag_cooldown
-        echo "--cooldown must be a whole number of seconds" >&2
+set -l cooldown_mode temperature
+set -l fixed_flag
+set -q _flag_cooldown; and set fixed_flag $_flag_cooldown
+set -q _flag_cooldown_fixed; and set fixed_flag $_flag_cooldown_fixed
+if test -n "$fixed_flag"
+    if not string match -qr '^[0-9]+$' -- $fixed_flag
+        echo "--cooldown-fixed (or --cooldown) must be a whole number of seconds" >&2
         exit 2
     end
-    set cooldown $_flag_cooldown
+    set cooldown $fixed_flag
+    set cooldown_mode fixed
+end
+set -l cooldown_temp 33.0
+if set -q _flag_cooldown_temp
+    if not string match -qr '^[0-9]+(\.[0-9]+)?$' -- $_flag_cooldown_temp
+        echo "--cooldown-temp must be degrees Celsius, for example 33 or 33.5" >&2
+        exit 2
+    end
+    set cooldown_temp $_flag_cooldown_temp
+end
+# The battery service reports tenths of a degree, so the limit is compared in tenths.
+set -l cooldown_limit (math "round($cooldown_temp * 10)")
+set -l cooldown_max 120
+if set -q _flag_cooldown_max
+    if not string match -qr '^[0-9]+$' -- $_flag_cooldown_max
+        echo "--cooldown-max must be a whole number of seconds" >&2
+        exit 2
+    end
+    set cooldown_max $_flag_cooldown_max
 end
 set -l selected $all_names
-if set -q _flag_scenario; and test "$_flag_scenario" != all
+set -q _flag_quick; and set selected $quick_names
+if set -q _flag_scenario; and test "$_flag_scenario" = all
+    set selected $all_names
+else if set -q _flag_scenario
     set selected (string split ',' -- $_flag_scenario)
     for name in $selected
         if not contains -- $name $all_names
@@ -142,6 +179,55 @@ for apk in $app_apk $test_apk
 end
 echo "Installed both APKs on $serial."
 
+# Prints the battery temperature in tenths of a degree Celsius, or nothing if it cannot be read.
+function battery_tenths --argument-names serial
+    adb -s $serial shell dumpsys battery 2>/dev/null \
+        | string match -rg '^\s*temperature:\s*(-?[0-9]+)\s*$' | head -n 1
+end
+
+function tenths_c --argument-names tenths
+    printf '%.1f' (math "$tenths / 10")
+end
+
+# Waits before a scenario: a fixed pause, or until the battery is at or below the limit (tenths)
+# for at most max seconds. A failed temperature read falls back to the fixed pause.
+function cool_down --argument-names serial mode fixed limit max
+    if test $mode = fixed
+        if test $fixed -gt 0
+            echo "Cooling down for $fixed s."
+            sleep $fixed
+        end
+        return
+    end
+    set -l temp (battery_tenths $serial)
+    if not string match -qr '^-?[0-9]+$' -- "$temp"
+        echo "Could not read the battery temperature; cooling down for $fixed s." >&2
+        sleep $fixed
+        return
+    end
+    if test $temp -le $limit
+        echo "Battery "(tenths_c $temp)" C, at or below "(tenths_c $limit)" C; no cooldown."
+        return
+    end
+    echo "Battery "(tenths_c $temp)" C, above "(tenths_c $limit)" C; waiting up to $max s."
+    set -l waited 0
+    while test $temp -gt $limit
+        if test $waited -ge $max
+            echo "Warning: battery still "(tenths_c $temp)" C after $max s; continuing." >&2
+            return
+        end
+        set -l step (math "min(5, $max - $waited)")
+        sleep $step
+        set waited (math $waited + $step)
+        set temp (battery_tenths $serial)
+        if not string match -qr '^-?[0-9]+$' -- "$temp"
+            echo "Could not read the battery temperature; cooling down for $fixed s." >&2
+            sleep $fixed
+            return
+        end
+    end
+end
+
 # 4. One output folder per invocation, with the phone's state recorded before the first scenario.
 set -l run_id (date +%Y%m%d-%H%M%S)
 set -l device_root /sdcard/Android/media/$test_id/perf/$run_id
@@ -149,6 +235,8 @@ set -l local_dir $repo/perf-output/$run_id
 mkdir -p $local_dir; or exit 1
 set -l device_members (perf_device_members $serial)
 set -l commit_members (perf_commit_members $repo)
+set -l cooldown_members "  \"cooldown_mode\": \"$cooldown_mode\"," \
+    "  \"cooldown_temp_c\": "(tenths_c $cooldown_limit)"," "  \"cooldown_max_s\": $cooldown_max,"
 set -l battery_start (perf_battery_now $serial)
 
 function write_device_json --argument-names file run_id mode frames iterations cooldown battery_start battery_end
@@ -180,7 +268,7 @@ function write_device_json --argument-names file run_id mode frames iterations c
     end >$file
 end
 write_device_json $local_dir/device.json $run_id $mode $frame_source $iterations_json $cooldown \
-    $battery_start null $commit_members $device_members -- $selected --
+    $battery_start null $cooldown_members $commit_members $device_members -- $selected --
 echo "Wrote $local_dir/device.json."
 
 # 5. Run each scenario as its own instrumentation, so each gets its own result file.
@@ -193,9 +281,8 @@ for name in $selected
         set -l parts (string split ' ' -- $row)
         test $parts[1] = $name; and set class $parts[2]
     end
-    if test $position -gt 1; and test $cooldown -gt 0
-        echo "Cooling down for $cooldown s."
-        sleep $cooldown
+    if test $position -gt 1
+        cool_down $serial $cooldown_mode $cooldown $cooldown_limit $cooldown_max
     end
     echo "Running scenario $position/"(count $selected)": $name ($class, $mode)."
     set -l device_dir $device_root/$name
@@ -241,7 +328,7 @@ end
 
 # 6. Record the end state, so thermal drift across the run is visible.
 write_device_json $local_dir/device.json $run_id $mode $frame_source $iterations_json $cooldown \
-    $battery_start (perf_battery_now $serial) $commit_members $device_members -- $selected -- $failed
+    $battery_start (perf_battery_now $serial) $cooldown_members $commit_members $device_members -- $selected -- $failed
 if test (count $failed) -gt 0
     echo "Failed scenarios: $failed. Results so far: $local_dir" >&2
     exit 1

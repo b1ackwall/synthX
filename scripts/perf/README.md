@@ -66,13 +66,20 @@ scripts/perf/run-benchmark.fish <serial> --scenario slowDrag  # one scenario
 scripts/perf/run-benchmark.fish <serial> --scenario slowDrag,fling
 scripts/perf/run-benchmark.fish <serial> --none               # CompilationMode.None (worst case)
 scripts/perf/run-benchmark.fish <serial> --iterations 20      # same count for every scenario
-scripts/perf/run-benchmark.fish <serial> --cooldown 60        # seconds between scenarios
+scripts/perf/run-benchmark.fish <serial> --quick             # one scenario per mode, see below
+scripts/perf/run-benchmark.fish <serial> --cooldown-temp 32    # wait until the battery is at or below 32 C
+scripts/perf/run-benchmark.fish <serial> --cooldown-max 300    # longest temperature wait, seconds
+scripts/perf/run-benchmark.fish <serial> --cooldown-fixed 30   # old fixed pause (--cooldown 30 is the same)
 scripts/perf/run-benchmark.fish <serial> --slice-frames        # frame timing without the frame timeline
 ```
 
+`--quick` runs `expandCollapse`, `slowDrag`, `queueExpandCollapse`, `nextExpanded` and
+`homeExpandCollapse`, one per player mode, with their usual iteration counts. An explicit
+`--scenario` (including `all`) overrides it.
+
 The script builds both APKs with assemble tasks, installs them with `adb install -r` (never
 uninstalls), and runs each scenario as its own `am instrument` call. It prints which scenario is
-running, waits `--cooldown` seconds (default 30) between scenarios, and keeps going after a
+running, cools down between scenarios (see "Cooldown and heat"), and keeps going after a
 failed scenario so one flaky scenario does not waste the run; it exits non-zero at the end and
 lists the failures. A scenario also counts as failed when its result file has data for fewer
 iterations than it ran (`check_result.py`, see "Dropped iterations" below). Everything lands in
@@ -185,8 +192,22 @@ ends on the song it started on (at position zero).
 
 ## Cooldown and heat
 
-Frame times drift as the phone warms up, and a full run is long enough to see it. Keep the
-default 30 s cooldown or raise it, keep the phone off wireless chargers and out of the sun, and
+Frame times drift as the phone warms up, and a full run is long enough to see it.
+
+Between scenarios the script reads the battery temperature (`dumpsys battery`) and prints one
+line:
+
+- At or below `--cooldown-temp` (default 33.0 C, the limit used for the Redmi A-B runs): no wait.
+- Above it: it re-reads every 5 s until the battery is at or below the limit, for at most
+  `--cooldown-max` seconds (default 120). After that it prints a warning and continues.
+- If the temperature cannot be read: a fixed 30 s pause, the old behavior.
+- `--cooldown-fixed S` (or `--cooldown S`) skips the temperature check and always pauses S
+  seconds.
+
+`device.json` records the settings as `cooldown_mode`, `cooldown_temp_c`, `cooldown_max_s` and
+`cooldown_s` (the fixed pause, also the fallback).
+
+Keep the phone off wireless chargers and out of the sun, and
 compare `battery_start` with `battery_end` in `device.json`: a rise of more than a few degrees
 means the later scenarios ran hotter than the first. When two runs disagree, re-run the single
 scenario with `--scenario` on a cool phone before trusting either number.
