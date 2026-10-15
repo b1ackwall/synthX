@@ -15,14 +15,35 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
+/**
+ * Everything the artist detail screen draws. [songs] is the list as displayed, missing songs
+ * included. [playableSongCount] and [playableDurationMs] cover only songs that are not missing —
+ * the ones Play and Shuffle would actually queue.
+ */
+data class ArtistDetailData(
+    val songs: List<Song>,
+    val playableSongCount: Int,
+    val playableDurationMs: Long,
+)
+
+internal fun artistDetailData(songs: List<Song>): ArtistDetailData {
+    val playable = songs.filterNot { it.isMissing }
+    return ArtistDetailData(
+        songs = songs,
+        playableSongCount = playable.size,
+        playableDurationMs = playable.sumOf { it.duration },
+    )
+}
+
 class ArtistDetailViewModel(
     private val repository: SongRepository,
     private val artistId: String,
     private val appContext: Context,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<UiState<List<Song>>>(UiState.Loading)
-    val uiState: StateFlow<UiState<List<Song>>> = _uiState.asStateFlow()
+    // Zero songs is Empty; an artist whose songs are all missing is Success with nothing playable.
+    private val _uiState = MutableStateFlow<UiState<ArtistDetailData>>(UiState.Loading)
+    val uiState: StateFlow<UiState<ArtistDetailData>> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -32,7 +53,7 @@ class ArtistDetailViewModel(
                 }
                 .collect { songs ->
                     _uiState.value =
-                        if (songs.isEmpty()) UiState.Empty else UiState.Success(data = songs)
+                        if (songs.isEmpty()) UiState.Empty else UiState.Success(data = artistDetailData(songs))
                 }
         }
     }
