@@ -8,10 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -19,46 +17,39 @@ import androidx.tracing.Trace
 import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.perf.PerfTestTags
 import com.v1per.synthx.perf.PerfTraceSections
-import com.v1per.synthx.ui.components.AmbientBlobBackground
-import com.v1per.synthx.ui.components.BaseSurfaceLightness
-import com.v1per.synthx.ui.components.BaseSurfaceSaturation
-import com.v1per.synthx.ui.components.ExtractedSwatchHsl
-import com.v1per.synthx.ui.components.HomeBlobDebugStateHolder
-import com.v1per.synthx.ui.components.ProductionAmbientBackgroundStyle
-import com.v1per.synthx.ui.components.productionAmbientScrim
-import com.v1per.synthx.ui.components.productionAmbientScrimColor
 import com.v1per.synthx.ui.components.rememberWordmark
-import com.v1per.synthx.ui.theme.SurfaceVariant
+import com.v1per.synthx.ui.theme.Background
 
 @Composable
 internal fun HomeScreen(
-    ambientPaused: Boolean = false,
+    // Unused: Home draws a solid background, so there is no ambient motion to pause.
+    @Suppress("UNUSED_PARAMETER") ambientPaused: Boolean = false,
 ) {
     Trace.beginSection(PerfTraceSections.HomeScreen)
-    // The Developer Settings blob sheet's state, which starts at the renderer's default blobs.
-    val debugState by HomeBlobDebugStateHolder.state
+    // DEAD CODE: Home uses a solid Background since the 150 dp blob blur saturated the Redmi
+    // (docs/perf/home-solid-background.md). Delete in a cleanup pass. Ask  before deleting.
+    // val debugState by HomeBlobDebugStateHolder.state
+    // val baseSurfaceColor = Color.hsl(
+    //     debugState.baseSurfaceHue,
+    //     BaseSurfaceSaturation,
+    //     BaseSurfaceLightness,
+    // )
 
-    val baseSurfaceColor = Color.hsl(
-        debugState.baseSurfaceHue,
-        BaseSurfaceSaturation,
-        BaseSurfaceLightness,
-    )
-
-    // MainScaffold's innerPadding already confines this screen to the safe area between
-    // the system bars; the gradient clips its blur to those bounds itself.
-    Box(Modifier.fillMaxSize().testTag(PerfTestTags.HomeScreen).background(SurfaceVariant)) {
-        AmbientBlobBackground(
-            blobs = debugState.blobs,
-            baseSurfaceColor = baseSurfaceColor,
-            blurRadiusDp = ProductionAmbientBackgroundStyle.BlurRadiusDp.dp,
-            paused = ambientPaused,
-            // The scrim takes its hue from the base surface hue, as the Developer Settings preview does.
-            modifier = Modifier.productionAmbientScrim(
-                productionAmbientScrimColor(
-                    listOf(ExtractedSwatchHsl(debugState.baseSurfaceHue, saturation = 1f, lightness = 0.5f)),
-                ),
-            ),
-        )
+    // Solid app base surface, matching the other tabs' Background.
+    Box(Modifier.fillMaxSize().testTag(PerfTestTags.HomeScreen).background(Background)) {
+        // DEAD CODE: the blob background Home drew before the solid Background above.
+        // Delete in a cleanup pass. Ask  before deleting.
+        // AmbientBlobBackground(
+        //     blobs = debugState.blobs,
+        //     baseSurfaceColor = baseSurfaceColor,
+        //     blurRadiusDp = ProductionAmbientBackgroundStyle.BlurRadiusDp.dp,
+        //     paused = ambientPaused,
+        //     modifier = Modifier.productionAmbientScrim(
+        //         productionAmbientScrimColor(
+        //             listOf(ExtractedSwatchHsl(debugState.baseSurfaceHue, saturation = 1f, lightness = 0.5f)),
+        //         ),
+        //     ),
+        // )
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
