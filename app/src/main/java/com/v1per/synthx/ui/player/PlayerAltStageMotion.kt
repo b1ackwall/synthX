@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import com.v1per.synthx.ui.components.shouldPauseAmbientMotion
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.PI
 
@@ -15,9 +17,19 @@ private const val TwoPi = (2.0 * PI).toFloat()
 /** Lets a capped update land up to this early, so vsync jitter does not push it a whole frame late. */
 private const val CapToleranceNanos = 2_000_000L
 
-/** Accumulated frame time that triggers a motion update: one 15 fps interval less the tolerance. */
+/** Accumulated frame time that triggers a motion update: one cap interval less the tolerance. */
 internal const val AltStageUpdateIntervalNanos =
     1_000_000_000L / PlayerAltStageStyle.FrameCapFps - CapToleranceNanos
+
+/** How far ahead of the next update the loop wakes, so the update's frame is not missed. */
+private const val SleepMarginNanos = 10_000_000L
+
+/** Whole milliseconds to sleep after an update: [intervalNanos] less the wake margin, never negative. */
+internal fun altStageSleepMillis(intervalNanos: Long): Long =
+    ((intervalNanos - SleepMarginNanos) / 1_000_000L).coerceAtLeast(0L)
+
+/** Sleep between motion updates at the cap rate. */
+internal val AltStageSleepMillis = altStageSleepMillis(AltStageUpdateIntervalNanos)
 
 /** Spin, orbit and base drift angles in radians, independent of the art shown. */
 internal class AltStageAngles {
@@ -65,15 +77,16 @@ internal class AltStageFrameAccumulator(private val intervalNanos: Long = AltSta
 }
 
 /**
- * Motion pauses with no song, while the sheet is collapsed (progress below 0.1%), or under the
- * system reduced-motion policy. Playing or paused music has no effect.
+ * Motion pauses with no song, while the music is not playing, while the sheet is collapsed
+ * (progress below 0.1%), or under the system reduced-motion policy.
  */
 internal fun shouldPausePlayerAltStageMotion(
     hasSong: Boolean,
+    isPlaying: Boolean,
     progress: Float,
     systemReducedMotionActive: Boolean,
 ): Boolean = shouldPauseAmbientMotion(
-    instancePaused = !hasSong || progress < 0.001f,
+    instancePaused = !hasSong || !isPlaying || progress < 0.001f,
     systemReducedMotionActive = systemReducedMotionActive,
 )
 
@@ -85,6 +98,27 @@ internal class AltStageMotion {
 }
 
 /**
+ * Advances [motion] at the cap rate until cancelled. After each update it sleeps [sleepMillis],
+ * then waits frame by frame until the accumulator releases the next update. The first frame
+ * only sets the baseline, so a restart never applies the time spent stopped.
+ */
+internal suspend fun runAltStageMotion(motion: AltStageMotion, sleepMillis: Long = AltStageSleepMillis) {
+    val accumulator = AltStageFrameAccumulator()
+    withFrameNanos { now -> accumulator.onFrame(now) }
+    while (currentCoroutineContext().isActive) {
+        delay(sleepMillis)
+        do {
+            val updated = withFrameNanos { now ->
+                accumulator.onFrame(now)?.let { dt ->
+                    advanceAltStageAngles(motion.angles, dt)
+                    motion.frame.longValue = now
+                } != null
+            }
+        } while (!updated)
+    }
+}
+
+/**
  * Frame-driven motion capped at [PlayerAltStageStyle.FrameCapFps]. While [paused] the loop ends
  * and the last drawn frame stays; the angles survive pauses and art changes.
  */
@@ -93,15 +127,7 @@ internal fun rememberAltStageMotion(paused: Boolean): AltStageMotion {
     val motion = remember { AltStageMotion() }
     LaunchedEffect(motion, paused) {
         if (paused) return@LaunchedEffect
-        val accumulator = AltStageFrameAccumulator()
-        while (isActive) {
-            withFrameNanos { now ->
-                accumulator.onFrame(now)?.let { dt ->
-                    advanceAltStageAngles(motion.angles, dt)
-                    motion.frame.longValue = now
-                }
-            }
-        }
+        runAltStageMotion(motion)
     }
     return motion
 }

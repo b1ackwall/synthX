@@ -29,13 +29,13 @@ class PlayerAltStageMotionTest {
         return Run(angles, updates, released)
     }
 
-    @Test fun updateIntervalIsOneFifteenthOfASecondLessTheTwoMillisecondAllowance() {
-        assertEquals(66_666_666L - 2_000_000L, AltStageUpdateIntervalNanos)
+    @Test fun updateIntervalIsOneTenthOfASecondLessTheTwoMillisecondAllowance() {
+        assertEquals(100_000_000L - 2_000_000L, AltStageUpdateIntervalNanos)
     }
 
-    @Test fun motionUpdatesFifteenTimesASecondAt60_90And120Hz() {
+    @Test fun motionUpdatesTenTimesASecondAt60_90And120Hz() {
         for (interval in listOf(16_666_667L, 11_111_111L, 8_333_333L)) {
-            assertEquals(30, simulate(interval, 2.0).updates, "updates at ${1e9 / interval} Hz")
+            assertEquals(20, simulate(interval, 2.0).updates, "updates at ${1e9 / interval} Hz")
         }
     }
 
@@ -48,7 +48,7 @@ class PlayerAltStageMotionTest {
             assertEquals(reference.baseRotation, run.angles.baseRotation, 1e-5f)
         }
         // Every release carries the real elapsed time, so angle / time is the locked speed at
-        // any rate, including one (144 Hz) whose updates do not land exactly on 15 per second.
+        // any rate, including one (144 Hz) whose updates do not land exactly on 10 per second.
         for (interval in listOf(16_666_667L, 11_111_111L, 8_333_333L, 6_944_444L)) {
             val run = simulate(interval, 2.0)
             assertEquals(0.05 * run.releasedSeconds, run.angles.spin[0].toDouble(), 1e-4)
@@ -66,12 +66,12 @@ class PlayerAltStageMotionTest {
         assertEquals(AltStageUpdateIntervalNanos / 1e9f, accumulator.onFrame(1_000L + AltStageUpdateIntervalNanos)!!, 1e-7f)
     }
 
-    @Test fun jitteredSixtyHertzFramesStillUpdateEveryFourthFrame() {
-        // Four 16.2 ms frames are 64.8 ms: short of 1/15 s, but inside the 2 ms allowance.
+    @Test fun jitteredSixtyHertzFramesStillUpdateEverySixthFrame() {
+        // Six 16.4 ms frames are 98.4 ms: short of 1/10 s, but inside the 2 ms allowance.
         val accumulator = AltStageFrameAccumulator()
         accumulator.onFrame(0L)
-        val updatedFrames = (1..12).filter { accumulator.onFrame(it * 16_200_000L) != null }
-        assertEquals(listOf(4, 8, 12), updatedFrames)
+        val updatedFrames = (1..18).filter { accumulator.onFrame(it * 16_400_000L) != null }
+        assertEquals(listOf(6, 12, 18), updatedFrames)
     }
 
     @Test fun firstFrameOnlySetsTheBaseline() {
@@ -81,12 +81,20 @@ class PlayerAltStageMotionTest {
     }
 
     @Test fun motionPausesWithNoSongWhileCollapsedOrUnderReducedMotion() {
-        assertTrue(shouldPausePlayerAltStageMotion(hasSong = false, progress = 1f, systemReducedMotionActive = false))
-        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, progress = 0f, systemReducedMotionActive = false))
-        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, progress = 0.0009f, systemReducedMotionActive = false))
-        assertFalse(shouldPausePlayerAltStageMotion(hasSong = true, progress = 0.001f, systemReducedMotionActive = false))
-        assertFalse(shouldPausePlayerAltStageMotion(hasSong = true, progress = 1f, systemReducedMotionActive = false))
-        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, progress = 1f, systemReducedMotionActive = true))
+        assertTrue(shouldPausePlayerAltStageMotion(hasSong = false, isPlaying = true, progress = 1f, systemReducedMotionActive = false))
+        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 0f, systemReducedMotionActive = false))
+        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 0.0009f, systemReducedMotionActive = false))
+        assertFalse(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 0.001f, systemReducedMotionActive = false))
+        assertFalse(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 1f, systemReducedMotionActive = false))
+        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 1f, systemReducedMotionActive = true))
+    }
+
+    @Test fun motionPausesWhileTheMusicIsNotPlaying() {
+        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = false, progress = 1f, systemReducedMotionActive = false))
+        assertFalse(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 1f, systemReducedMotionActive = false))
+        for (isPlaying in listOf(true, false)) {
+            assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = isPlaying, progress = 0.0009f, systemReducedMotionActive = false))
+        }
     }
 
     @Test fun twistNeedsApi33() {

@@ -91,12 +91,12 @@ Paths under `app/src/main/java/com/v1per/synthx/`.
 
 | Where | What drives it | Active when | Reaches idle shell / mini player |
 |---|---|---|---|
-| `ui/player/PlayerSkeletonMiniContent.kt:82` | `basicMarquee()` on the mini title, defaults: 3 passes, 1.2 s delays, 30 dp/s, restarts on attach and on any content or container width change | Always composed with the sheet, alpha 0 while expanded | Yes |
-| `ui/player/PlayerSkeletonExpandedContent.kt:65, 73` | `basicMarquee()` on the expanded title and artist | Always composed; alpha 0 and outside the sheet's clip while collapsed | Yes, invisible |
-| `ui/player/PlayerSkeletonQueueContent.kt:198` | `basicMarquee()` on the queue header title | Always composed; alpha 0 outside queue mode | Yes, invisible |
-| `ui/player/PlayerAltStageMotion.kt:97-104` | `withFrameNanos` loop, draws at most 15 fps (`PlayerAltStageStyle.FrameCapFps`) but asks for every frame | Sheet progress at or above 0.001, a song, no reduced motion | No (paused while collapsed) |
-| `ui/components/AmbientBlobBackground.kt:179, 337, 396` | `withFrameNanos` loops | Home tab, not covered by the sheet | Yes, on Home only; by design |
-| `ui/components/AmbientMotionPolicy.kt:48` | `delay(1 000)` poll of power saver and animation scale | Whenever the player background or Home is composed | One main-thread wakeup per second, no draw |
+| `ui/player/PlayerSkeletonMiniContent.kt:83` | `basicMarquee()` on the mini title: one pass (`Motion.MarqueeIterations`, since 038d383; 3 passes when measured here), 1.2 s delay, 30 dp/s, restarts on attach and on any content or container width change | Always composed with the sheet, alpha 0 while expanded | Yes |
+| `ui/player/PlayerSkeletonExpandedContent.kt:66, 74` | `basicMarquee()` on the expanded title and artist, one pass | Always composed; alpha 0 and outside the sheet's clip while collapsed | Yes, invisible |
+| `ui/player/PlayerSkeletonQueueContent.kt:199` | `basicMarquee()` on the queue header title, one pass | Always composed; alpha 0 outside queue mode | Yes, invisible |
+| `ui/player/PlayerAltStageMotion.kt:105-119` (`runAltStageMotion`) | Updates and redraws at 10 fps (`PlayerAltStageStyle.FrameCapFps`; 15 when measured here). Since #188 it sleeps between updates and asks only for the update's frame (one or two per update, depending on the refresh rate); it used to ask for every frame | Sheet progress at or above 0.001, a song, music playing (since #188), no reduced motion | No (paused while collapsed or not playing) |
+| `ui/components/AmbientBlobBackground.kt:179, 337, 396` | `withFrameNanos` loops | Never since 00b8878: Home draws a solid background and the call is commented out (`HomeScreen.kt:42`) | No (Home was 60 fps when measured here) |
+| `ui/components/AmbientMotionPolicy.kt:48` | `delay(1 000)` poll of power saver and animation scale | Whenever the player background is composed (Home no longer composes it) | One main-thread wakeup per second, no draw |
 | `playback/ExoPlayerEngine.kt:158-162` | 500 ms position and duration ticker | While collected | Yes: the hidden controls overlay recomposes twice a second while playing |
 | `playback/ExoPlayerEngineListener.kt:269` | Periodic checkpoint `delay` loop | While playing | No UI |
 | `ui/screens/library/RecentlyAddedSection.kt:193` | `rememberInfiniteTransition` skeleton pulse, read in composition | Only while Recently Added is loading | Not seen in any trace |
@@ -312,6 +312,8 @@ Ranked by expected saving against visual and risk impact. "Measure with" names e
    is not `PlayerSheetMotion.kt`. Saves about 45 callbacks a second (2.4-5.3% of the main
    thread) in expanded and queue modes. Visual: none expected; check the redraw stays at 15 fps.
    Measure with `idleStates`: `expandedPausedCallbackFps` 60 to about 15.
+   Implemented for #188, together with a 10 fps cap and a pause while the music is not playing
+   (not yet measured).
 4. **Hidden controls overlay ignores the position ticker while collapsed.** Read the position
    only where the overlay is visible (for example a `() -> Long` read in the slider's draw or
    layout, or stop collecting while the sheet is collapsed). Saves 2 drawn frames and about 4

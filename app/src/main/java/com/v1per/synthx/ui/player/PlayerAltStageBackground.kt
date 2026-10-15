@@ -52,16 +52,18 @@ private val CopyDrawOrder = PlayerAltStageStyle.Copies.indices
  * base layer, then the four spinning and orbiting copies, all centered on this layer, under one
  * blur, twist and saturation effect. With no [art] only the fill is drawn. The layer is drawn and
  * filtered at [PlayerAltStageStyle.FilterResolutionDivisor] times less resolution per side.
+ * While the music is not [isPlaying] the motion stops and the last drawn frame stays.
  */
 @Composable
 internal fun BoxScope.PlayerAltStageBackground(
     art: Bitmap?,
     hasSong: Boolean,
+    isPlaying: Boolean,
     fullHeight: Dp,
     progress: Float,
 ) {
     Trace.beginSection(PerfTraceSections.Background)
-    val paused = shouldPausePlayerAltStageMotion(hasSong, progress, rememberSystemReducedMotionActive())
+    val paused = shouldPausePlayerAltStageMotion(hasSong, isPlaying, progress, rememberSystemReducedMotionActive())
     val motion = rememberAltStageMotion(paused)
     val image = remember(art) { art?.asImageBitmap() }
     val hasArt = image != null

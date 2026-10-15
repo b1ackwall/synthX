@@ -62,7 +62,7 @@ internal object PlayerAltStageStyle {
     val LockedAdaptiveTextStatistic = AdaptiveTextStatistic.Median
 
     /** Motion updates and redraws at this rate. */
-    const val FrameCapFps = 15
+    const val FrameCapFps = 10
 
     /** The art, blur, twist and saturation run on a layer this many times smaller per side, then scaled up. */
     const val FilterResolutionDivisor = 4

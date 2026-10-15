@@ -392,6 +392,7 @@ internal fun PlayerSheetSkeleton(
                     art = backgroundArt,
                     // The sheet is composed only while a song is current.
                     hasSong = true,
+                    isPlaying = isPlaying,
                     fullHeight = this@BoxWithConstraints.maxHeight,
                     progress = progress,
                 )
