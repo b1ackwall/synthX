@@ -69,8 +69,12 @@ fun QueueList(
     val currentEnabled by rememberUpdatedState(enabled)
     var localQueue by remember(queue) { mutableStateOf(queue) }
     // Read through State: a drag handle keeps the closures of its first touch, which would
-    // otherwise hold an older [queue] and an older [localQueue] holder.
+    // otherwise hold an older [queue], an older [localQueue] holder and an older [onMove].
     val resetLocalQueue by rememberUpdatedState { localQueue = queue }
+    // A getter, not the value: it reads the current holder at call time, so it also sees a
+    // library swap that has not been recomposed yet.
+    val readLocalQueue by rememberUpdatedState { localQueue }
+    val currentOnMove by rememberUpdatedState(onMove)
     // The dragged row's identity — captured once at drag-start and never re-derived from a
     // position, since [moveQueueItemInternal] now resolves it fresh against the engine's own
     // live order at execution time regardless of what this UI layer believes. See the class
@@ -109,7 +113,7 @@ fun QueueList(
                     dragHandleModifier = Modifier.draggableHandle(
                         onDragStarted = {
                             dragStartSlotId = slot.slotId
-                            dragStartQueueSnapshot = localQueue
+                            dragStartQueueSnapshot = readLocalQueue()
                         },
                         onDragStopped = {
                             // The moved row's identity — never re-derived from a position.
@@ -136,13 +140,13 @@ fun QueueList(
                                 -1
                             }
                             val endIndex = startSlotId
-                                ?.let { id -> localQueue.indexOfFirst { it.slotId == id } }
+                                ?.let { id -> readLocalQueue().indexOfFirst { it.slotId == id } }
                                 ?: -1
                             // If the dragged song can no longer be found in the live list at
                             // all (e.g. removed during the drag), there is nothing valid to
                             // move — drop the reorder rather than call onMove with a -1 index.
                             if (currentEnabled && startSlotId != null && endIndex != -1 && startIndex != endIndex) {
-                                onMove(startSlotId, endIndex)
+                                currentOnMove(startSlotId, endIndex)
                             } else if (!currentEnabled) {
                                 // The engine did not take this order, so the display drops it.
                                 resetLocalQueue()
