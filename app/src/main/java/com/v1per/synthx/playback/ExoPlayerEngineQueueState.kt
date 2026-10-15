@@ -222,3 +222,14 @@ internal fun indexOfMediaId(ctrl: MediaController, mediaId: String): Int? {
     }
     return null
 }
+
+/**
+ * The pure accept/reject decision behind [seekToQueueItemInternal], split out so it is
+ * unit-testable without a real `MediaController` (P4-T8 / R3-F04) — matching the
+ * `nextIndexInOrder`/`idleRecoveryActionFor` precedent for this kind of extraction. Rejects
+ * (returns `null`) whenever there is no current slot, [slotId] resolved to nothing (the tapped
+ * row's slot no longer exists in the order at all — deleted, or already played past), or it
+ * resolved to the currently-playing slot or anything before it (not a valid Up Next target).
+ */
+internal fun resolveUpcomingSeekTarget(currentIndex: Int, slotIndex: Int): Int? =
+    if (currentIndex < 0 || slotIndex <= currentIndex) null else slotIndex

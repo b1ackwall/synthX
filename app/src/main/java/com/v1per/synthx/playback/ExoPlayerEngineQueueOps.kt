@@ -30,7 +30,7 @@ private const val TAG = "SynthXQueue"
  * built at once is [WINDOW_SIZE] of them, where it used to be one per song in the queue.
  */
 
-internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startIndex: Int) {
+internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
     if (songs.isEmpty()) return
     // Captured BEFORE the snapshot below and the artwork suspension that follows — see
     // reconcileIfRevisionChanged's kdoc (P4-T2). A remap/deletion landing in that window is
@@ -64,6 +64,9 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
         // be correct before the transition callback for the starting item can land. A fresh
         // queue always fully replaces both orders — never merges with whatever existed before.
         val baselineRecords = slots.map { QueueSlotRecord(it.slotId, it.song.id) }
+        // An explicit choice lands before the order is built, so flag, order and the one unified
+        // write below are a single step — no current slot needed, unlike setShuffleEnabled.
+        if (shuffle != null) _shuffleEnabled.value = shuffle
         if (_shuffleEnabled.value) {
             // F12: a fresh play issued while shuffle is already on must actually shuffle the
             // incoming queue rather than leaving the flag true against an unshuffled order —
@@ -497,14 +500,3 @@ internal fun ExoPlayerEngine.seekToQueueItemInternal(slotId: String) {
     val target = resolveUpcomingSeekTarget(currentIndex, orderStore.indexOfSlot(slotId)) ?: return
     seekToLiveIndex(target, play = true)
 }
-
-/**
- * The pure accept/reject decision behind [seekToQueueItemInternal], split out so it is
- * unit-testable without a real `MediaController` (P4-T8 / R3-F04) — matching the
- * `nextIndexInOrder`/`idleRecoveryActionFor` precedent for this kind of extraction. Rejects
- * (returns `null`) whenever there is no current slot, [slotId] resolved to nothing (the tapped
- * row's slot no longer exists in the order at all — deleted, or already played past), or it
- * resolved to the currently-playing slot or anything before it (not a valid Up Next target).
- */
-internal fun resolveUpcomingSeekTarget(currentIndex: Int, slotIndex: Int): Int? =
-    if (currentIndex < 0 || slotIndex <= currentIndex) null else slotIndex

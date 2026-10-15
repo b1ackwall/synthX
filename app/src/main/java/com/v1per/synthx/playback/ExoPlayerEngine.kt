@@ -440,7 +440,7 @@ class ExoPlayerEngine(
         )
     }
 
-    override suspend fun playQueue(songs: List<Song>, startIndex: Int) = playQueueInternal(songs, startIndex)
+    override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) = playQueueInternal(songs, startIndex, shuffle)
 
     override suspend fun restoreSavedQueue() = restoreSavedQueueInternal()
 

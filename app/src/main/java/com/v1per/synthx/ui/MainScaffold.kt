@@ -35,10 +35,12 @@ import com.v1per.synthx.playback.PlaybackError
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.rememberNotificationPermissionGate
 import com.v1per.synthx.playback.QueuePromptEvent
+import com.v1per.synthx.playback.QueueReplacePromptEvent
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.GroupPickerBottomSheet
 import com.v1per.synthx.ui.components.QueuePromptDialog
+import com.v1per.synthx.ui.components.QueueReplaceDialog
 import com.v1per.synthx.ui.components.hiddenFromAccessibilityWhileSheetShown
 import com.v1per.synthx.ui.components.SongActionsHost
 import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
@@ -161,6 +163,10 @@ private fun NormalShell(
     var queuePrompt by remember { mutableStateOf<QueuePromptEvent?>(null) }
     LaunchedEffect(Unit) {
         playbackViewModel.queuePrompts.collect { queuePrompt = it }
+    }
+    var queueReplacePrompt by remember { mutableStateOf<QueueReplacePromptEvent?>(null) }
+    LaunchedEffect(Unit) {
+        playbackViewModel.queueReplacePrompts.collect { queueReplacePrompt = it }
     }
 
     // isPlaying/isBuffering/currentPosition/duration are collected inside BottomChromeOverlay
@@ -358,6 +364,19 @@ private fun NormalShell(
                     queuePrompt = null
                 },
                 onDismiss = { queuePrompt = null },
+            )
+        }
+
+        // Replace plays the request exactly as decided at tap time; Cancel and dismiss do nothing.
+        queueReplacePrompt?.let { prompt ->
+            QueueReplaceDialog(
+                onReplace = {
+                    val request = prompt.request
+                    playbackViewModel.playQueue(request.songs, request.startIndex, request.shuffle)
+                    queueReplacePrompt = null
+                },
+                onCancel = { queueReplacePrompt = null },
+                onDismiss = { queueReplacePrompt = null },
             )
         }
 

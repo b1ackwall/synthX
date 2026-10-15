@@ -23,7 +23,8 @@ class PlaybackController(private val engine: PlaybackEngine) {
     val hasPrevious: Flow<Boolean> = engine.hasPrevious
     val isQueueCustomized: Flow<Boolean> = engine.isQueueCustomized
 
-    suspend fun playQueue(songs: List<Song>, startIndex: Int) = engine.playQueue(songs, startIndex)
+    suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean? = null) =
+        engine.playQueue(songs, startIndex, shuffle)
     suspend fun restoreSavedQueue() = engine.restoreSavedQueue()
     fun persistPlaybackState() = engine.persistPlaybackState()
     fun next() = engine.next()

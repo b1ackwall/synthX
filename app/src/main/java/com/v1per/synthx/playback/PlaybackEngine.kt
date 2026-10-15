@@ -95,8 +95,12 @@ interface PlaybackEngine {
      */
     val isQueueCustomized: Flow<Boolean>
 
-    /** Replaces the whole queue with [songs] and starts playing at [startIndex]. */
-    suspend fun playQueue(songs: List<Song>, startIndex: Int)
+    /**
+     * Replaces the whole queue with [songs] and starts playing at [startIndex]. A non-null
+     * [shuffle] sets the shuffle flag as part of the same replacement (shuffled: [startIndex]
+     * first, the rest shuffled after it; unshuffled: list order); null keeps the current flag.
+     */
+    suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean? = null)
 
     /**
      * Reloads the queue persisted by the previous session and prepares it *paused*, at the
