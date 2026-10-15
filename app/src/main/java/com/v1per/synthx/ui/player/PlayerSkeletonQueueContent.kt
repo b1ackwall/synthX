@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +52,7 @@ import com.v1per.synthx.ui.components.QueueList
 import com.v1per.synthx.ui.components.QueuePlaybackModeRow
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
+import kotlin.math.roundToInt
 import kotlinx.collections.immutable.toPersistentList
 
 private val ControlsMaskFadeHeight = 48.dp
@@ -245,6 +247,37 @@ fun PlayerSkeletonQueueContent(
         } else if (queueProgressValue > 0f) {
             // The live sheet height, which the list's own size no longer follows.
             val sheetHeightPx = constraints.maxHeight.toFloat()
+            // The controls sit at the sheet's bottom, and the list is offset downward: subtract
+            // the list origin to express the controls' top in list coordinates.
+            val maskFadeEndPx = with(LocalDensity.current) {
+                val overlayHeightPx = controlsOverlayHeight.toPx().coerceAtMost(sheetHeightPx)
+                val controlsTop = sheetHeightPx - overlayHeightPx + controlsOverlayOffsetY.toPx()
+                queueMaskFadeEndPx(controlsTop - (queueListOffsetY + queueContentSlideOffset).toPx())
+            }
+            val maskStrengthStep = queueMaskStrengthStep(controlsOverlayAlpha)
+            // Replaced only when a rounded input changes, so frames that move the mask by less
+            // than a pixel or one alpha step keep the layer's recorded content.
+            val queueMask = remember(maskFadeEndPx, maskStrengthStep) {
+                Modifier.drawWithCache {
+                    val fadeEnd = maskFadeEndPx.toFloat()
+                    val strength = maskStrengthStep / QueueMaskStrengthSteps.toFloat()
+                    val mask = Brush.verticalGradient(
+                        colors = listOf(Color.Black, Color.Black.copy(alpha = 1f - strength)),
+                        startY = fadeEnd - ControlsMaskFadeHeight.toPx(),
+                        endY = fadeEnd,
+                    )
+                    onDrawWithContent {
+                        trace(PerfTraceSections.QueueMaskDraw) {
+                            drawContent()
+                            // An opaque mask preserves alpha; transparent removes it.
+                            // Release only the lower region, not the whole list's opacity.
+                            if (strength > 0f) {
+                                drawRect(brush = mask, blendMode = BlendMode.DstIn)
+                            }
+                        }
+                    }
+                }
+            }
             QueueList(
                 queue = persistentUpcomingQueue,
                 onSongClick = onQueueSongClick,
@@ -274,30 +307,7 @@ fun PlayerSkeletonQueueContent(
                         // same layer.
                         compositingStrategy = queueCompositingStrategy(queueContentAlpha)
                     }
-                    .drawWithCache {
-                        // The controls sit at the sheet's bottom, and the list is offset
-                        // downward: subtract the list origin to express the controls' top in
-                        // list coordinates.
-                        val overlayHeightPx = controlsOverlayHeight.toPx().coerceAtMost(sheetHeightPx)
-                        val controlsTop = sheetHeightPx - overlayHeightPx + controlsOverlayOffsetY.toPx()
-                        val fadeEnd = controlsTop - (queueListOffsetY + queueContentSlideOffset).toPx()
-                        val strength = controlsOverlayAlpha.coerceIn(0f, 1f)
-                        val mask = Brush.verticalGradient(
-                            colors = listOf(Color.Black, Color.Black.copy(alpha = 1f - strength)),
-                            startY = fadeEnd - ControlsMaskFadeHeight.toPx(),
-                            endY = fadeEnd,
-                        )
-                        onDrawWithContent {
-                            trace(PerfTraceSections.QueueMaskDraw) {
-                                drawContent()
-                                // An opaque mask preserves alpha; transparent removes it.
-                                // Release only the lower region, not the whole list's opacity.
-                                if (strength > 0f) {
-                                    drawRect(brush = mask, blendMode = BlendMode.DstIn)
-                                }
-                            }
-                        }
-                    },
+                    .then(queueMask),
             )
         }
     }
@@ -306,3 +316,13 @@ fun PlayerSkeletonQueueContent(
 
 internal fun queueCompositingStrategy(contentAlpha: Float): CompositingStrategy =
     if (contentAlpha > 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+
+/** The queue mask's strength resolution: one step per 8-bit alpha level. */
+internal const val QueueMaskStrengthSteps = 255
+
+/** The queue mask's fade end, in list coordinates, rounded to a whole pixel. */
+internal fun queueMaskFadeEndPx(fadeEndPx: Float): Int = fadeEndPx.roundToInt()
+
+/** The queue mask's strength in steps of 1/[QueueMaskStrengthSteps]; 0 and 1 map to the ends exactly. */
+internal fun queueMaskStrengthStep(strength: Float): Int =
+    (strength.coerceIn(0f, 1f) * QueueMaskStrengthSteps).roundToInt()
