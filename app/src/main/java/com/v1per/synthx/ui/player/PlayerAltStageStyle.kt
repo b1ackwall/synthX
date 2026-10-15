@@ -64,6 +64,9 @@ internal object PlayerAltStageStyle {
     /** Motion updates and redraws at this rate. */
     const val FrameCapFps = 15
 
+    /** The art, blur, twist and saturation run on a layer this many times smaller per side, then scaled up. */
+    const val FilterResolutionDivisor = 4
+
     /** Scrim over the finished background; nothing is drawn while it is 0. */
     const val ScrimAlpha = 0f
 }

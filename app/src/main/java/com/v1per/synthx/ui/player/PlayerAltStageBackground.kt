@@ -18,12 +18,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -47,7 +50,8 @@ private val CopyDrawOrder = PlayerAltStageStyle.Copies.indices
 /**
  * The expanded player's art background: an opaque SurfaceVariant fill, the stretched and drifting
  * base layer, then the four spinning and orbiting copies, all centered on this layer, under one
- * blur, twist and saturation effect. With no [art] only the fill is drawn.
+ * blur, twist and saturation effect. With no [art] only the fill is drawn. The layer is drawn and
+ * filtered at [PlayerAltStageStyle.FilterResolutionDivisor] times less resolution per side.
  */
 @Composable
 internal fun BoxScope.PlayerAltStageBackground(
@@ -70,7 +74,9 @@ internal fun BoxScope.PlayerAltStageBackground(
     val twistEnabled = effectivePlayerBackgroundTwistEnabled(BuildConfig.DEBUG, debugState)
     val blurEdgeMode = effectivePlayerBackgroundBlurEdgeMode(BuildConfig.DEBUG, debugState)
     val effect = remember(layerSize, density, hasArt, blurDp, twistEnabled, blurEdgeMode) {
-        if (hasArt) altStageEffect(layerSize, density, blurDp, twistEnabled, blurEdgeMode) else null
+        // The reduced layer has 1/divisor of the pixels per dp.
+        val layerDensity = density / PlayerAltStageStyle.FilterResolutionDivisor
+        if (hasArt) altStageEffect(layerSize, layerDensity, blurDp, twistEnabled, blurEdgeMode) else null
     }
     // Full-height and bottom-anchored, so the layer keeps one size through the sheet's morph.
     val boundsModifier = remember(fullHeight) {
@@ -83,6 +89,7 @@ internal fun BoxScope.PlayerAltStageBackground(
     Canvas(
         boundsModifier
             .altStageScrim(altStageScrimColor(PlayerAltStageStyle.ScrimAlpha))
+            .then(ReducedResolution)
             .onSizeChanged { layerSize = it }
             .graphicsLayer {
                 renderEffect = effect
@@ -98,6 +105,33 @@ internal fun BoxScope.PlayerAltStageBackground(
         }
     }
     Trace.endSection()
+}
+
+/** [size] divided by [divisor] per side, rounded up, so the scaled-up layer covers [size]. */
+internal fun altStageReducedSize(size: IntSize, divisor: Int): IntSize =
+    IntSize((size.width + divisor - 1) / divisor, (size.height + divisor - 1) / divisor)
+
+/**
+ * Lays the rest of the chain out at the reduced size and scales it from the top-left corner to
+ * cover this node exactly, so the effect layer below it renders and filters at the reduced size.
+ * The bounds modifier fixes both sides, so the constraints are exact.
+ */
+private val ReducedResolution = Modifier.layout { measurable, constraints ->
+    val width = constraints.maxWidth
+    val height = constraints.maxHeight
+    val reduced = altStageReducedSize(IntSize(width, height), PlayerAltStageStyle.FilterResolutionDivisor)
+    val placeable = measurable.measure(Constraints.fixed(reduced.width, reduced.height))
+    layout(width, height) {
+        if (reduced.width == 0 || reduced.height == 0) {
+            placeable.place(0, 0)
+        } else {
+            placeable.placeWithLayer(0, 0) {
+                scaleX = width.toFloat() / reduced.width
+                scaleY = height.toFloat() / reduced.height
+                transformOrigin = TransformOrigin(0f, 0f)
+            }
+        }
+    }
 }
 
 /** The scrim drawn over the finished background, or null while [alpha] is 0. */
