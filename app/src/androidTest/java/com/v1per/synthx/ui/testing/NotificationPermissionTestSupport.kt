@@ -4,26 +4,23 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assert.assertNotEquals
+import org.junit.Assume.assumeTrue
 
 /**
- * P9-T5: puts the debug app in the "notifications denied" state that scan/restore must behave
- * identically under. A freshly installed test APK already starts denied on Android 13+, so this
- * normally only asserts the precondition; if an earlier run or a manual grant left it granted it
- * revokes it first. Below Android 13 the permission does not exist, so there is nothing to deny.
+ * P9-T5: skips the calling test unless the debug app already has POST_NOTIFICATIONS denied, the
+ * state scan/restore must behave identically under. It never revokes: the tests run inside the
+ * app's own process, and revoking a runtime permission makes Android kill that process, which
+ * aborts the whole instrumented run. A fresh install starts denied on Android 13+; a device where
+ * it was granted needs it revoked from outside first (see the skip message). Below Android 13 the
+ * permission does not exist, so there is nothing to deny.
  */
-internal fun ensureNotificationPermissionDenied(context: Context) {
+internal fun assumeNotificationPermissionDenied(context: Context) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-    if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-        PackageManager.PERMISSION_GRANTED
-    ) {
-        InstrumentationRegistry.getInstrumentation().uiAutomation
-            .revokeRuntimePermission(context.packageName, Manifest.permission.POST_NOTIFICATIONS)
-    }
-    assertNotEquals(
-        "POST_NOTIFICATIONS must be denied for this test to mean anything",
-        PackageManager.PERMISSION_GRANTED,
-        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS),
+    assumeTrue(
+        "This test needs POST_NOTIFICATIONS denied for ${context.packageName}, but it is granted. " +
+            "Revoke it while the app is not running: adb -s <serial> shell pm revoke " +
+            "${context.packageName} ${Manifest.permission.POST_NOTIFICATIONS}",
+        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED,
     )
 }

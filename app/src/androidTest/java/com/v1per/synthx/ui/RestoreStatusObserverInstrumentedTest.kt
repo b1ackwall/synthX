@@ -26,7 +26,7 @@ import com.v1per.synthx.data.backup.pruneFinishedWorkIfRestoreAcknowledged
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.screens.restore.RestoreAppStatus
 import com.v1per.synthx.ui.screens.restore.RestoreStatusViewModel
-import com.v1per.synthx.ui.testing.ensureNotificationPermissionDenied
+import com.v1per.synthx.ui.testing.assumeNotificationPermissionDenied
 import com.v1per.synthx.ui.theme.SynthXTheme
 import java.util.UUID
 import kotlinx.coroutines.flow.first
@@ -108,7 +108,7 @@ class RestoreStatusObserverInstrumentedTest {
      * screen, and still acknowledged.
      */
     @Test fun restoreOutcomeIsStillReportedInAppWhileNotificationPermissionIsDenied() {
-        ensureNotificationPermissionDenied(base)
+        assumeNotificationPermissionDenied(base)
         val requestId = enqueueInvalidRestore()
         val viewModel = observedViewModel()
         composeRule.setContent {
