@@ -172,7 +172,8 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
      * landing first shifts every row after it), and acting on it blind would move whatever now
      * occupies that position rather than the row the user actually dragged. If [slotId] no
      * longer exists in [live] at all (removed since the drag began), this rejects cleanly —
-     * returns `false`, moves nothing — rather than falling back to some other occurrence.
+     * returns `false`, moves nothing — rather than falling back to some other occurrence. A
+     * slot already at [toDisplayIndex] also returns `false`, with both orders untouched.
      *
      * [toDisplayIndex] is still a plain positional target, not slot-identified: unlike the
      * *source* (identity is what makes this safe), the destination is inherently "drop it at
@@ -194,6 +195,8 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
         if (from <= currentIndex) return false
         val to = currentIndex + 1 + toDisplayIndex
         if (to !in live.indices) return false
+        // Already there: report no move, so the caller skips its structural-change work.
+        if (from == to) return false
         val fromDisplayIndex = from - currentIndex - 1
         live = live.toMutableList().apply { add(to, removeAt(from)) }
         if (mirrorToBaseline) mirrorMoveIntoBaseline(fromDisplayIndex, toDisplayIndex, currentSlotId)

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasParent
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -25,7 +26,8 @@ import org.junit.runner.RunWith
 /**
  * Drag-reorder through the real reorderable handle gesture. The handle keeps the callbacks of
  * its first touch until another row is dragged, so a queue change between two touches of the
- * same handle must not leave its drop reading an outdated list.
+ * same handle must not leave its drop reading an outdated list. A queue change while the finger is
+ * down must neither drop a real move nor send one for a drag that ended where the row already is.
  *
  * [onMove] here applies the move to [queue] the way the engine's echo would, so every committed
  * drop is followed by a queue change. Drags land between swap thresholds (a row's swap fires once
@@ -107,6 +109,17 @@ class QueueReorderStaleClosureTest {
         composeRule.waitForIdle()
     }
 
+    /** Play-next or skip-previous: a row lands above every existing row. */
+    private fun insertAtHead(id: String) {
+        composeRule.runOnIdle { queue.value = (listOf(slot(id)) + queue.value).toPersistentList() }
+        composeRule.waitForIdle()
+    }
+
+    private fun append(id: String) {
+        composeRule.runOnIdle { queue.value = (queue.value + slot(id)).toPersistentList() }
+        composeRule.waitForIdle()
+    }
+
     private fun assertMoves(vararg expected: Pair<String, Int>) {
         composeRule.runOnIdle { assertEquals(expected.toList(), moves.toList()) }
     }
@@ -180,7 +193,105 @@ class QueueReorderStaleClosureTest {
         assertEquals(listOf("a", "b", "c", "d", "e"), displayedOrder())
     }
 
+    // A queue change while the finger is down swaps the list under the drag. The dragged row
+    // stays under the finger, so the next move re-places it among the new rows.
+
+    @Test fun skipMidDragStillCommitsTheMove() {
+        setUp("a", "b", "c", "d", "e")
+        handle("c").apply {
+            pressHandle()
+            moveRows(1f)
+        }
+        skip()
+        // Back up one row: "c" ends just below "d", one row further than in the new queue.
+        handle("c").apply {
+            moveRows(-1f)
+            release()
+        }
+        assertMoves("c" to 2)
+        assertEquals(listOf("b", "d", "c", "e"), displayedOrder())
+    }
+
+    @Test fun skipMidDragWithoutNetMoveSendsNothing() {
+        setUp("a", "b", "c", "d", "e")
+        handle("c").apply {
+            pressHandle()
+            moveRows(PAST_SLOP_ROWS)
+        }
+        skip()
+        handle("c").release()
+        assertMoves()
+        assertEquals(listOf("b", "c", "d", "e"), displayedOrder())
+    }
+
+    @Test fun headInsertMidDragWithoutNetMoveSendsNothing() {
+        setUp("a", "b", "c", "d", "e")
+        handle("c").apply {
+            pressHandle()
+            moveRows(PAST_SLOP_ROWS)
+        }
+        insertAtHead("z")
+        handle("c").release()
+        assertMoves()
+        assertEquals(listOf("z", "a", "b", "c", "d", "e"), displayedOrder())
+    }
+
+    @Test fun headInsertMidDragStillCommitsTheMove() {
+        setUp("a", "b", "c", "d", "e")
+        handle("c").apply {
+            pressHandle()
+            moveRows(-1f)
+        }
+        insertAtHead("z")
+        // Down one row: "c" ends just above "b", where it was dropped before the insert.
+        handle("c").apply {
+            moveRows(1f)
+            release()
+        }
+        assertMoves("c" to 2)
+        assertEquals(listOf("z", "a", "c", "b", "d", "e"), displayedOrder())
+    }
+
+    @Test fun draggedRowRemovedMidDragEndsTheDragCleanly() {
+        setUp("a", "b", "c", "d", "e")
+        handle("a").apply {
+            pressHandle()
+            moveRows(PAST_SLOP_ROWS)
+        }
+        skip()
+        // The dragged row's handle is gone; lift the pointer wherever it is.
+        composeRule.onRoot().performTouchInput { up() }
+        composeRule.waitForIdle()
+        assertMoves()
+
+        drag("b", 2f)
+        assertMoves("b" to 2)
+        assertEquals(listOf("c", "d", "b", "e"), displayedOrder())
+    }
+
+    @Test fun appendMidDragStillCommitsTheMove() {
+        setUp("a", "b", "c", "d", "e")
+        handle("c").apply {
+            pressHandle()
+            moveRows(1f)
+        }
+        append("f")
+        // The new list resets the live swaps; the next finger move re-places "c" under it.
+        handle("c").apply {
+            moveRows(NUDGE_ROWS)
+            release()
+        }
+        assertMoves("c" to 3)
+        assertEquals(listOf("a", "b", "d", "c", "e", "f"), displayedOrder())
+    }
+
     private companion object {
         const val MOVE_STEPS = 12
+
+        /** Past touch slop, short of the half-row that swaps a neighbour. */
+        const val PAST_SLOP_ROWS = 0.3f
+
+        /** A small finger move that lets the library re-place the dragged row. */
+        const val NUDGE_ROWS = 0.1f
     }
 }

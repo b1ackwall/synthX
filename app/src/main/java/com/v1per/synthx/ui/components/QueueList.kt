@@ -74,22 +74,23 @@ fun QueueList(
     // A getter, not the value: it reads the current holder at call time, so it also sees a
     // library swap that has not been recomposed yet.
     val readLocalQueue by rememberUpdatedState { localQueue }
+    // The engine order, read the same way; replaced in the same composition as the holder.
+    val readQueue by rememberUpdatedState { queue }
     val currentOnMove by rememberUpdatedState(onMove)
     // The dragged row's identity — captured once at drag-start and never re-derived from a
     // position, since [moveQueueItemInternal] now resolves it fresh against the engine's own
     // live order at execution time regardless of what this UI layer believes. See the class
     // kdoc above for why nothing index-shaped needs to survive the trip to the engine any more.
     var dragStartSlotId by remember { mutableStateOf<String?>(null) }
-    // The "before" list, snapshotted the instant the drag begins — a cheap reference copy
-    // (localQueue is a PersistentList). Used only to detect a pure no-op drag (dropped back at
-    // its own starting position) so [onMove] isn't called for nothing; it is NOT used to
-    // identify which row moved — that is [dragStartSlotId] alone, resolved by identity, never
-    // by a position read off this snapshot.
-    var dragStartQueueSnapshot by remember { mutableStateOf<ImmutableList<QueueSlot>?>(null) }
 
     val reorderableState = rememberReorderableLazyListState(state) { from, to ->
+        // Resolved by key (each item's key is its slotId): the library's indices come from the
+        // layout pass that saw the drag, which can predate a holder swapped in since.
+        val fromIndex = localQueue.indexOfFirst { it.slotId == from.key }
+        val toIndex = localQueue.indexOfFirst { it.slotId == to.key }
+        if (fromIndex == -1 || toIndex == -1) return@rememberReorderableLazyListState
         localQueue = localQueue.toMutableList().apply {
-            add(to.index, removeAt(from.index))
+            add(toIndex, removeAt(fromIndex))
         }.toPersistentList()
     }
 
@@ -111,48 +112,32 @@ fun QueueList(
                     },
                     enabled = { currentEnabled },
                     dragHandleModifier = Modifier.draggableHandle(
-                        onDragStarted = {
-                            dragStartSlotId = slot.slotId
-                            dragStartQueueSnapshot = readLocalQueue()
-                        },
+                        onDragStarted = { dragStartSlotId = slot.slotId },
                         onDragStopped = {
-                            // The moved row's identity — never re-derived from a position.
-                            // What used to be a "same slot SET, different order" guard here
-                            // (comparing beforeQueue/localQueue as sets) is no longer the
-                            // correctness backstop: it was order-blind by construction, so an
-                            // external reorder landing mid-drag (same slots, shuffled order)
-                            // would have passed it right along with a wrong from/to pair. Now
-                            // that the moved item is identified by slot id end to end, and
-                            // ExoPlayerEngineQueueOps.moveQueueItemInternal re-resolves that id
-                            // against the engine's live order at execution time (rejecting it
-                            // outright if it no longer exists), that guard would only ever be
-                            // redundant when it agreed with the engine and wrong when it
-                            // didn't — so it's dropped rather than kept as false reassurance.
-                            //
-                            // dragStartQueueSnapshot is kept only to detect a pure no-op drag
-                            // (dropped back at its own starting position), purely to avoid an
-                            // unnecessary onMove call — not for correctness.
+                            // The moved row's identity — never re-derived from a position; the
+                            // engine re-resolves it against its live order and rejects it if
+                            // it no longer exists.
                             val startSlotId = dragStartSlotId
-                            val beforeQueue = dragStartQueueSnapshot
-                            val startIndex = if (startSlotId != null && beforeQueue != null) {
-                                beforeQueue.indexOfFirst { it.slotId == startSlotId }
-                            } else {
-                                -1
-                            }
+                            // The holder is [queue] with only the dragged row relocated, so
+                            // the drop is a no-op exactly when that row sits at the same index
+                            // in both. Both are read now, so a queue change mid-drag (which
+                            // swaps the holder) cannot put the two indices in different lists.
                             val endIndex = startSlotId
                                 ?.let { id -> readLocalQueue().indexOfFirst { it.slotId == id } }
+                                ?: -1
+                            val engineIndex = startSlotId
+                                ?.let { id -> readQueue().indexOfFirst { it.slotId == id } }
                                 ?: -1
                             // If the dragged song can no longer be found in the live list at
                             // all (e.g. removed during the drag), there is nothing valid to
                             // move — drop the reorder rather than call onMove with a -1 index.
-                            if (currentEnabled && startSlotId != null && endIndex != -1 && startIndex != endIndex) {
+                            if (currentEnabled && startSlotId != null && endIndex != -1 && endIndex != engineIndex) {
                                 currentOnMove(startSlotId, endIndex)
                             } else if (!currentEnabled) {
                                 // The engine did not take this order, so the display drops it.
                                 resetLocalQueue()
                             }
                             dragStartSlotId = null
-                            dragStartQueueSnapshot = null
                         },
                     ),
                     // Same onMove the drag gesture calls on drop — accessibility-action and

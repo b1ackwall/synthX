@@ -121,6 +121,8 @@ internal fun ExoPlayerEngine.addToQueueInternal(song: Song) {
  * index would then move whatever now occupies that position instead of the row the user actually
  * dragged. If [slotId] no longer exists in the current order at all, [QueueOrderStore.moveUpcoming]
  * rejects the move outright (returns `false`) rather than falling back to some other occurrence.
+ * A move to the slot's own position is rejected the same way, so it never marks the queue
+ * customised, refreshes the window or persists.
  *
  * [toIndex] is still a plain position in `upcomingQueue` — see [QueueOrderStore.moveUpcoming]'s
  * kdoc for why only the source needs identity resolution.
