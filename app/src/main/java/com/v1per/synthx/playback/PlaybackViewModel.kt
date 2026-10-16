@@ -22,6 +22,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 /**
  * Asks the user what to do with a hand-modified queue before it gets replaced.
@@ -62,6 +63,8 @@ class PlaybackViewModel(
     private val controller: PlaybackController,
     // Decodes the player background's art. The default yields no art.
     loadBackgroundArt: suspend (PlayerBackgroundArtRequest) -> Bitmap? = { null },
+    // Picks Shuffle's starting song. Injectable so tests can pin it.
+    private val random: Random = Random.Default,
 ) : ViewModel() {
 
     // Combined optimistic/real play-pause state: a tap flips this synchronously, before the
@@ -82,6 +85,11 @@ class PlaybackViewModel(
     // Public content identity for library-row highlighting; never a QueueSlot.slotId.
     val currentSongId: StateFlow<String?> = controller.currentSongId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    // Eager twin of currentSongId for hasActivePlayback, which reads .value synchronously on
+    // screens that never collect currentSongId (playlist detail): there the lazy one stays null.
+    private val activeSongId: StateFlow<String?> = controller.currentSongId
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     // Resolved by the engine at the same source-of-truth boundary as currentSongId. Keeping
     // this a direct pass-through avoids joining independently emitted id and queue flows here.
@@ -139,6 +147,13 @@ class PlaybackViewModel(
     )
     val queuePrompts: SharedFlow<QueuePromptEvent> = _queuePrompts.asSharedFlow()
 
+    // Play/Shuffle's counterpart of queuePrompts, same one-off shape.
+    private val _queueReplacePrompts = MutableSharedFlow<QueueReplacePromptEvent>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val queueReplacePrompts: SharedFlow<QueueReplacePromptEvent> = _queueReplacePrompts.asSharedFlow()
+
     // The player background's decoded art, keyed by song id. The UI supplies each request.
     private val backgroundArt = PlayerBackgroundArtHolder(
         scope = viewModelScope,
@@ -167,11 +182,29 @@ class PlaybackViewModel(
     // Stays a plain fun so every UI call site keeps working — the engine's suspend
     // artwork work is launched into viewModelScope (Main), which is also the
     // dispatcher MediaController requires when the engine resumes.
-    fun playQueue(songs: List<Song>, startIndex: Int) {
+    // A non-null shuffle is applied by the engine as part of the same queue replacement.
+    fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean? = null) {
         // Cancel any prior tap's still-running queue build first — only the most recent
         // tap should ever be allowed to reach controller.playQueue's setMediaItems.
         playQueueJob?.cancel()
-        playQueueJob = viewModelScope.launch { controller.playQueue(songs, startIndex) }
+        playQueueJob = viewModelScope.launch { controller.playQueue(songs, startIndex, shuffle) }
+    }
+
+    /** Play button: the playable [songs] in list order from the first, shuffle ending up off. */
+    fun playAll(songs: List<Song>) = requestPlayAll(playAllRequest(songs, shuffle = false, random))
+
+    /** Shuffle button: a random first song with the rest shuffled after it, shuffle ending up on. */
+    fun shuffleAll(songs: List<Song>) = requestPlayAll(playAllRequest(songs, shuffle = true, random))
+
+    // Same customised-queue condition as requestPlayQueue, but the prompt only offers Replace:
+    // there is no single tapped song for Keep to act on.
+    private fun requestPlayAll(request: PlayAllRequest?) {
+        request ?: return
+        if (isQueueCustomized.value && hasActivePlayback()) {
+            _queueReplacePrompts.tryEmit(QueueReplacePromptEvent(request))
+        } else {
+            playQueue(request.songs, request.startIndex, request.shuffle)
+        }
     }
 
     /**
@@ -353,7 +386,7 @@ class PlaybackViewModel(
      * item count alone would now read as active.
      */
     private fun hasActivePlayback(): Boolean =
-        currentSongId.value != null && queue.value.isNotEmpty() && !isQueueEnded.value
+        activeSongId.value != null && queue.value.isNotEmpty() && !isQueueEnded.value
 
     // The bounded reconciliation check started by resume() — see its kdoc. Cancelled by any
     // later resume()/pause() so only the most recent tap's timeout can ever force-correct state.

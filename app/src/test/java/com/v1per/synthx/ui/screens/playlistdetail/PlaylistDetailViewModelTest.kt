@@ -92,6 +92,32 @@ class PlaylistDetailViewModelTest {
     }
 
     @Test
+    fun theStatsCountAndTotalOnlyThePlayableSongs() {
+        val songs = listOf(
+            song("s1", durationMs = 200_000L),
+            song("gone", durationMs = 500_000L, missing = true),
+            song("s2", durationMs = 100_000L),
+            song("silent", durationMs = 0L),
+        )
+        withViewModel(songs = flowOf(songs), allPlaylists = MutableStateFlow(listOf(withArt))) { vm ->
+            val data = assertIs<UiState.Success<PlaylistDetailData>>(vm.uiState.value).data
+            assertEquals(4, data.songs.size, "the list still shows the missing song")
+            assertEquals(3, data.playableSongCount)
+            assertEquals(300_000L, data.playableDurationMs)
+        }
+    }
+
+    @Test
+    fun anAllMissingPlaylistHasNothingPlayable() {
+        val songs = listOf(song("gone", missing = true))
+        withViewModel(songs = flowOf(songs), allPlaylists = MutableStateFlow(listOf(withArt))) { vm ->
+            val data = assertIs<UiState.Success<PlaylistDetailData>>(vm.uiState.value).data
+            assertEquals(0, data.playableSongCount)
+            assertEquals(0L, data.playableDurationMs)
+        }
+    }
+
+    @Test
     fun aFailingSongsFlowStillProducesError() {
         withViewModel(
             songs = flow { throw RuntimeException("query failed") },
@@ -138,7 +164,8 @@ class PlaylistDetailViewModelTest {
             }
         } as SongRepository
 
-    private fun song(id: String) = Song(
-        id = id, title = id, artist = "Artist", album = "Album", duration = 1_000L, filePath = "/music/$id.mp3",
+    private fun song(id: String, durationMs: Long = 1_000L, missing: Boolean = false) = Song(
+        id = id, title = id, artist = "Artist", album = "Album", duration = durationMs, filePath = "/music/$id.mp3",
+        isMissing = missing,
     )
 }

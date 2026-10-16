@@ -1,7 +1,6 @@
 plugins {
+    // Kotlin comes from AGP's built-in Kotlin support; no separate Kotlin plugin is applied.
     alias(libs.plugins.android.test)
-    // gradle.properties keeps android.builtInKotlin=false, so Kotlin is applied explicitly.
-    alias(libs.plugins.kotlin.android)
 }
 
 android {
@@ -29,12 +28,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
 

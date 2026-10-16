@@ -21,6 +21,8 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.components.DetailPlayShuffleRow
+import com.v1per.synthx.ui.components.DetailStatsLine
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.theme.Background
@@ -48,19 +50,25 @@ fun ArtistDetailScreen(
             uiState = uiState,
             currentlyPlayingSongId = currentSong?.id,
             onSongTap = playbackViewModel::requestPlayQueue,
+            onPlay = playbackViewModel::playAll,
+            onShuffle = playbackViewModel::shuffleAll,
         )
     }
 }
 
+// Split from ArtistDetailScreen so it can be composed without a PlaybackViewModel.
 @Composable
-private fun ArtistDetailContent(
-    uiState: UiState<List<Song>>,
+internal fun ArtistDetailContent(
+    uiState: UiState<ArtistDetailData>,
     currentlyPlayingSongId: String?,
     // Takes the whole artist list plus the tapped index: playback queues from there.
     onSongTap: (List<Song>, Int) -> Unit,
+    // Take the whole list as displayed; playback drops missing songs and decides the order.
+    onPlay: (List<Song>) -> Unit,
+    onShuffle: (List<Song>) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        when (uiState) {
+        when (val state = uiState) {
             is UiState.Loading -> LoadingIndicator()
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_songs),
@@ -69,23 +77,41 @@ private fun ArtistDetailContent(
                 modifier = Modifier.align(Alignment.Center),
             )
             is UiState.Error -> Text(
-                text = uiState.message,
+                text = state.message,
                 style = MaterialTheme.typography.bodyLarge,
                 color = Error,
                 modifier = Modifier.align(Alignment.Center),
             )
+            // No hero: the stats line sits under the top content padding, and the action row's
+            // own vertical padding spaces it from the stats line above and the first row below.
             is UiState.Success -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = Spacing.md),
             ) {
-                itemsIndexed(uiState.data, key = { _, song -> song.id }) { index, song ->
+                item(key = STATS_ITEM_KEY, contentType = "stats") {
+                    DetailStatsLine(
+                        songCount = state.data.playableSongCount,
+                        totalDurationMs = state.data.playableDurationMs,
+                    )
+                }
+                item(key = ACTIONS_ITEM_KEY, contentType = "actions") {
+                    DetailPlayShuffleRow(
+                        enabled = state.data.playableSongCount > 0,
+                        onPlay = { onPlay(state.data.songs) },
+                        onShuffle = { onShuffle(state.data.songs) },
+                    )
+                }
+                itemsIndexed(state.data.songs, key = { _, song -> song.id }) { index, song ->
                     SongRow(
                         song = song,
                         isCurrentlyPlaying = song.id == currentlyPlayingSongId,
-                        onClick = { onSongTap(uiState.data, index) },
+                        onClick = { onSongTap(state.data.songs, index) },
                     )
                 }
             }
         }
     }
 }
+
+private const val STATS_ITEM_KEY = "artist_stats"
+private const val ACTIONS_ITEM_KEY = "artist_actions"

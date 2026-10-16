@@ -23,11 +23,26 @@ import kotlinx.coroutines.launch
  * Everything the detail screen draws. [playlist] is null only when this id is no longer in the
  * library (deleted or restored away while the screen was open); the cover then falls back to the
  * flat placeholder, the same as a playlist that has no generated art yet.
+ *
+ * [playableSongCount] and [playableDurationMs] cover only songs that are not missing — the ones
+ * Play and Shuffle would actually queue.
  */
 data class PlaylistDetailData(
     val playlist: Playlist?,
     val songs: List<Song>,
+    val playableSongCount: Int,
+    val playableDurationMs: Long,
 )
+
+internal fun playlistDetailData(playlist: Playlist?, songs: List<Song>): PlaylistDetailData {
+    val playable = songs.filterNot { it.isMissing }
+    return PlaylistDetailData(
+        playlist = playlist,
+        songs = songs,
+        playableSongCount = playable.size,
+        playableDurationMs = playable.sumOf { it.duration },
+    )
+}
 
 class PlaylistDetailViewModel(
     private val repository: SongRepository,
@@ -46,7 +61,7 @@ class PlaylistDetailViewModel(
             combine(
                 repository.getSongsForPlaylist(playlistId),
                 playlistFlow(),
-            ) { songs, playlist -> PlaylistDetailData(playlist = playlist, songs = songs) }
+            ) { songs, playlist -> playlistDetailData(playlist, songs) }
                 .catch { e ->
                     _uiState.value = UiState.Error(LoadError.PlaylistSongs.message(stringResource))
                 }

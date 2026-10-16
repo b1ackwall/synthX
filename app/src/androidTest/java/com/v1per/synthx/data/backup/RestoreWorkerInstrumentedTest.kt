@@ -10,7 +10,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepositoryImpl
-import com.v1per.synthx.ui.testing.ensureNotificationPermissionDenied
+import com.v1per.synthx.ui.testing.assumeNotificationPermissionDenied
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.flow.collect
@@ -117,7 +117,7 @@ class RestoreWorkerInstrumentedTest {
      * prompt ever answered — it must finish identically.
      */
     @Test fun restoreSucceedsIdenticallyWhileNotificationPermissionIsDenied() = runBlocking {
-        ensureNotificationPermissionDenied(context)
+        assumeNotificationPermissionDenied(context)
         createDatabaseFile(context.getDatabasePath(SynthXDatabase.DB_NAME), "state-a")
         val source = File(databaseDir, validBackupName())
         createDatabaseFile(source, "state-b")

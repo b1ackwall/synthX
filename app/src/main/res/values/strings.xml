@@ -260,10 +260,25 @@
     <string name="action_retry">Retry</string>
     <string name="action_keep">Keep</string>
     <string name="action_clear">Clear</string>
+    <string name="action_replace">Replace</string>
 
     <!-- Queue -->
     <string name="queue_prompt_title">Keep the songs in your Up Next queue?</string>
     <string name="queue_prompt_message">Keep plays this song now and continues with the songs you queued. Clear replaces the queue with the list you tapped from.</string>
+    <string name="queue_replace_prompt_title">Replace your queue?</string>
+    <string name="queue_replace_prompt_message">You\'ve customized your Up Next queue. Playing this will replace it.</string>
+
+    <!-- Detail header -->
+    <string name="action_play">Play</string>
+    <string name="action_shuffle">Shuffle</string>
+    <plurals name="stats_song_count">
+        <item quantity="one">%d song</item>
+        <item quantity="other">%d songs</item>
+    </plurals>
+    <string name="stats_duration_minutes">%d min</string>
+    <string name="stats_duration_hours">%d hr</string>
+    <string name="stats_duration_hours_minutes">%1$d hr %2$d min</string>
+    <string name="stats_count_and_duration">%1$s · %2$s</string>
     <string name="play_next_duplicate_title">Already playing next</string>
     <string name="play_next_duplicate_message">This song is already up next in your queue. Play it next again?</string>
     <string name="add_to_queue_duplicate_title">Already at the end of the queue</string>

@@ -12,7 +12,7 @@ import java.util.UUID
 
 private const val TAG = "SynthXQueue"
 
-internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startIndex: Int) {
+internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
     if (songs.isEmpty()) return
     // Captured BEFORE the snapshot below and the artwork suspension that follows — see
     // reconcileIfRevisionChanged's kdoc (P4-T2). A remap/deletion landing in that window is
@@ -46,6 +46,9 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
         // be correct before the transition callback for the starting item can land. A fresh
         // queue always fully replaces both orders — never merges with whatever existed before.
         val baselineRecords = slots.map { QueueSlotRecord(it.slotId, it.song.id) }
+        // An explicit choice lands before the order is built, so flag, order and the one unified
+        // write below are a single step — no current slot needed, unlike setShuffleEnabled.
+        if (shuffle != null) _shuffleEnabled.value = shuffle
         if (_shuffleEnabled.value) {
             // F12: a fresh play issued while shuffle is already on must actually shuffle the
             // incoming queue rather than leaving the flag true against an unshuffled order —

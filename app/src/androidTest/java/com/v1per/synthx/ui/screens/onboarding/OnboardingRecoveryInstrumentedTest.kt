@@ -63,7 +63,6 @@ import com.v1per.synthx.ui.screens.restore.RestorePreview
 import com.v1per.synthx.ui.screens.restore.RestoreViewModel
 import com.v1per.synthx.ui.components.LocalNotificationPermissionBackend
 import com.v1per.synthx.ui.components.NotificationPermissionBackend
-import com.v1per.synthx.ui.testing.ensureNotificationPermissionDenied
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -895,12 +894,11 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
-     * P9-T5 / F19: the fresh-install first scan starts and is tracked identically with
-     * POST_NOTIFICATIONS denied — the notification gate sits in front of Done in the UI, never
-     * inside startFirstScan or the worker, so the view-model path has no notion of the permission.
+     * P9-T5 / F19: the fresh-install first scan starts and is tracked by the view-model path alone.
+     * The notification gate sits in front of Done in the UI, never inside startFirstScan or the
+     * worker (stubbed here), so this holds whatever the real POST_NOTIFICATIONS state is.
      */
-    @Test fun firstScanStartsAndIsTrackedWhileNotificationPermissionIsDenied() {
-        ensureNotificationPermissionDenied(appContext)
+    @Test fun firstScanStartsAndIsTrackedWithoutConsultingTheNotificationPermission() {
         ScanStubWorkerFactory.behavior = ScanStub.Succeed()
         saveOnboardingMusic()
         var started: UUID? = null
@@ -918,7 +916,6 @@ class OnboardingRecoveryInstrumentedTest {
 
     /** F19: nothing is asked over the Welcome screen — the ask arrives only with Done. */
     @Test fun notificationRationaleAppearsAtDoneNotOverWelcomeAndHoldsTheScanUntilContinue() {
-        ensureNotificationPermissionDenied(appContext)
         ScanStubWorkerFactory.behavior = ScanStub.Succeed()
         startWizard()
         composeRule.onNodeWithText(context.getString(R.string.onboarding_welcome_title)).assertExists()
@@ -938,7 +935,6 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     @Test fun notificationRationaleContinueStartsTheFirstScanAndRecordsTheAsk() {
-        ensureNotificationPermissionDenied(appContext)
         ScanStubWorkerFactory.behavior = ScanStub.Succeed()
         startWizard()
         composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
@@ -956,7 +952,6 @@ class OnboardingRecoveryInstrumentedTest {
 
     /** A second Done (e.g. after Change folder) must not re-ask. */
     @Test fun notificationRationaleDoesNotReappearOnceAsked() {
-        ensureNotificationPermissionDenied(appContext)
         ScanStubWorkerFactory.behavior = ScanStub.Succeed()
         check(preferences.markNotificationPermissionAskedDurably())
         startWizard()
@@ -972,7 +967,6 @@ class OnboardingRecoveryInstrumentedTest {
 
     /** F19: the recovery restore is the other early trigger — the ask comes before the enqueue. */
     @Test fun notificationRationaleAppearsAtRecoveryRestoreConfirmBeforeTheRestoreIsEnqueued() {
-        ensureNotificationPermissionDenied(appContext)
         val (candidate) = validCandidateWithMetadata()
         saveMusic()
         startWizard()

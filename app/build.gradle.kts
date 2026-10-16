@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
@@ -86,16 +85,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
-            // Pinned: Gradle's default module name ("synthX:app") contains a ':',
-            // which Windows silently truncates in compose_reports output filenames,
-            // producing empty report files.
-            moduleName.set("synthX-app")
-        }
-    }
-
     buildFeatures {
         compose = true
         resValues = true
@@ -113,6 +102,15 @@ android {
 
     sourceSets.getByName("androidTest").assets.srcDir("schemas")
     sourceSets.getByName("androidTest").assets.srcDir(productionMigrationDbAssetDir.get().asFile)
+}
+
+kotlin {
+    compilerOptions {
+        // Pinned: Gradle's default module name ("synthX:app") contains a ':',
+        // which Windows silently truncates in compose_reports output filenames,
+        // producing empty report files.
+        moduleName.set("synthX-app")
+    }
 }
 
 tasks.matching {
@@ -187,7 +185,8 @@ dependencies {
     implementation(libs.kotlinx.collections.immutable)
     implementation(libs.androidx.tracing)
 
-    testImplementation(kotlin("test"))
+    // JUnit4 variant named explicitly: built-in Kotlin doesn't infer it from kotlin("test").
+    testImplementation(kotlin("test-junit"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 
     androidTestImplementation("androidx.test:core-ktx:1.6.1")

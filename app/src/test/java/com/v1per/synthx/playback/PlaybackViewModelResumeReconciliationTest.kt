@@ -51,7 +51,7 @@ class PlaybackViewModelResumeReconciliationTest {
         override val hasNext: Flow<Boolean> = emptyFlow()
         override val hasPrevious: Flow<Boolean> = emptyFlow()
         override val isQueueCustomized: Flow<Boolean> = emptyFlow()
-        override suspend fun playQueue(songs: List<Song>, startIndex: Int) {}
+        override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {}
         override suspend fun restoreSavedQueue() {}
         override fun persistPlaybackState() {}
         override fun next() {}
