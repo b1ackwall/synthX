@@ -1,6 +1,5 @@
 package com.v1per.synthx.macrobenchmark
 
-import android.graphics.Point
 import android.os.SystemClock
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.StaleObjectException
@@ -22,12 +21,6 @@ internal class QueueDriver(private val device: UiDevice) {
         const val ToggleTimeoutMs = 3_000L
         const val PollMs = 100L
 
-        /** Covers a list fling coming to rest. */
-        const val ScrollPauseMs = 900L
-
-        /** 10 steps of 33 ms: a brisk scroll that ends in a fling. */
-        const val ScrollSteps = 10
-
         const val SignatureRows = 3
         const val RestTimeoutMs = 5_000L
         const val RestPollMs = 150L
@@ -35,9 +28,6 @@ internal class QueueDriver(private val device: UiDevice) {
         const val LongQueueHint = "In synthX bench, play the first song of a long list " +
             "(Library > Songs) so many songs follow it, then pause."
     }
-
-    /** One fixed lane for every swipe of a scenario, measured while the controls are showing. */
-    class ScrollLane(val x: Int, val topY: Int, val bottomY: Int)
 
     /** Meaningful only while the sheet is expanded. */
     fun isQueueMode(): Boolean = device.hasObject(By.res(Tags.QueueList))
@@ -69,11 +59,14 @@ internal class QueueDriver(private val device: UiDevice) {
         if (device.hasObject(By.res(Tags.QueueButton))) return
         val list = AppReadiness.findOrFail(device, Tags.QueueList, "Queue list").visibleBounds
         val x = list.left + list.width() * 3 / 10
-        swipe(x, list.top + list.height() / 4, list.top + list.height() / 2)
+        ListSwipe.vertical(x, list.top + list.height() / 4, list.top + list.height() / 2)
         AppReadiness.findOrFail(device, Tags.QueueButton, "Queue button")
     }
 
-    /** Fails unless the upcoming songs fill the list; call in queue mode with controls showing. */
+    /**
+     * Fails unless the upcoming songs fill the list; call in queue mode with controls showing.
+     * The lane is measured while the controls are showing.
+     */
     fun requireScrollLane(): ScrollLane {
         val list = AppReadiness.findOrFail(device, Tags.QueueList, "Queue list").visibleBounds
         val controlsTop = AppReadiness.findOrFail(device, Tags.SeekBar, "Seek bar").visibleBounds.top
@@ -120,10 +113,10 @@ internal class QueueDriver(private val device: UiDevice) {
     }
 
     /** Finger moves up: the list scrolls toward its end and the controls fade out. */
-    fun scrollTowardEnd(lane: ScrollLane) = swipe(lane.x, lane.bottomY, lane.topY)
+    fun scrollTowardEnd(lane: ScrollLane) = ListSwipe.towardEnd(lane)
 
     /** Finger moves down: the list scrolls back toward its start and the controls return. */
-    fun scrollTowardStart(lane: ScrollLane) = swipe(lane.x, lane.topY, lane.bottomY)
+    fun scrollTowardStart(lane: ScrollLane) = ListSwipe.towardStart(lane)
 
     /**
      * Text of the first rows, to detect an accidental reorder or removal. Read once the list is
@@ -156,11 +149,6 @@ internal class QueueDriver(private val device: UiDevice) {
         } catch (_: StaleObjectException) {
             null
         }
-
-    private fun swipe(x: Int, fromY: Int, toY: Int) {
-        TouchInjector.swipe(Point(x, fromY), Point(x, toY), steps = ScrollSteps)
-        SystemClock.sleep(ScrollPauseMs)
-    }
 
     private fun allText(node: UiObject2): String =
         (listOfNotNull(node.text) + node.children.map(::allText)).joinToString("|")

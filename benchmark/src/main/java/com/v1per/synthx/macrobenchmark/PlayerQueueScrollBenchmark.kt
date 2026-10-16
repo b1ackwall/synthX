@@ -36,7 +36,7 @@ class PlayerQueueScrollBenchmark {
 
     @Test
     fun queueScroll() {
-        lateinit var lane: QueueDriver.ScrollLane
+        lateinit var lane: ScrollLane
         lateinit var rowsBefore: List<String>
         rule.runScenario(
             defaultIterations = 8,
