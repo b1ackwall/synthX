@@ -16,15 +16,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P7-T3 / R7-F03: direct test of [shouldRunLaunchMaintenance] — the real, single condition
- * [MainActivity.runLaunchMaintenance] checks before doing any of its backup/scan/queue-restore/
- * art-sweep work (see that function's kdoc in MainActivity.kt). MainActivity itself is not
- * launched here — no harness in this codebase does (see
- * [com.v1per.synthx.ui.screens.onboarding.OnboardingRecoveryInstrumentedTest]'s own note on
- * this) — but that single early return is a structural guarantee, confirmed by reading
- * MainActivity.kt: every downstream call in `runLaunchMaintenance` is unreachable once this
- * returns `false`, which is what makes testing the condition itself a faithful proxy for "no
- * backup taken, no scan enqueued."
+ * P7-T3 / R7-F03: direct test of [shouldRunLaunchMaintenance], the condition
+ * [MainActivity.runLaunchMaintenance] checks before any of its backup/scan/queue-restore/
+ * art-sweep work. This tests the rule only, not that MainActivity calls it:
+ * [MainActivityLaunchMaintenanceInstrumentedTest] launches the real activity and checks that
+ * maintenance is held back during the wizard and runs once onboarding is complete.
  */
 @RunWith(AndroidJUnit4::class)
 class LaunchMaintenanceGatingInstrumentedTest {

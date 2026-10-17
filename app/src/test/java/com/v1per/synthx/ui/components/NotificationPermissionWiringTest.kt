@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.components
 
+import com.v1per.synthx.testing.ProductionSource
 import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.Rule
 import java.io.File
@@ -9,11 +10,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * P9-T5 / F19 wiring guards. Same technique as DatabaseStartupProductionOrderingTest: MainActivity
- * and the screens can't be launched by any harness here, so the trigger points are pinned by
- * reading the production source. The behaviour behind them (rationale, single prompt, the
- * "asked" flag, never waiting on the prompt) is covered by
- * NotificationPermissionGateInstrumentedTest.
+ * P9-T5 / F19 wiring guards, pinned by reading the production source (comments stripped). The
+ * behaviour behind them (rationale, single prompt, the "asked" flag, never waiting on the
+ * prompt) is covered by NotificationPermissionGateInstrumentedTest; the shell's second chance
+ * is also exercised on a device by NotificationSecondChanceInstrumentedTest.
  */
 class NotificationPermissionWiringTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
@@ -33,8 +33,9 @@ class NotificationPermissionWiringTest {
         "launchPermissionRequest",
     )
 
+    // Comment-free code, so a comment that names one of these is not a false failure.
     @Test fun mainActivityNoLongerRequestsNotificationsAtShellComposition() {
-        val main = source("com/v1per/synthx/MainActivity.kt")
+        val main = ProductionSource.code("com/v1per/synthx/MainActivity.kt")
         listOf(
             "NotificationPermissionEffect",
             "rememberPermissionState",
@@ -62,8 +63,9 @@ class NotificationPermissionWiringTest {
         assertTrue(enqueue > gate, "viewModel.restore(...) must run inside the gate's deferred action")
     }
 
+    // Comment-free code, found wherever it lives, so a move-only split of MainScaffold.kt keeps it green.
     @Test fun firstPlaybackSecondChanceObservesPlaybackAndUsesTheSameGate() {
-        val scaffold = source("com/v1per/synthx/ui/MainScaffold.kt")
+        val scaffold = ProductionSource.definingFile("private fun NotificationSecondChanceEffect")
         val effect = scaffold.substringAfter("private fun NotificationSecondChanceEffect")
             .substringBefore("@Composable")
         assertTrue(effect.contains("rememberNotificationPermissionGate()"))

@@ -18,6 +18,7 @@ import com.v1per.synthx.RestoreTerminalContent
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.navigation.Screen
+import com.v1per.synthx.perf.PerfTestTags
 import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.SynthXTheme
 import kotlinx.coroutines.runBlocking
@@ -123,8 +124,8 @@ class RestoreShellInstrumentedTest {
         // The deliberate attempt the discovery step found was possible: back out, then navigate
         // to Library. Nothing may compose, so LibraryViewModel is never constructed and no
         // repository Flow is ever subscribed.
-        navigateTo(Screen.Home.route)
-        navigateTo(Screen.Library.route)
+        attemptNavigateWhileTheGraphIsGone(Screen.Home.route)
+        attemptNavigateWhileTheGraphIsGone(Screen.Library.route)
         composeRule.waitForIdle()
 
         composeRule.onAllNodesWithTag(ShellTestTags.NavHost).assertCountEquals(0)
@@ -205,7 +206,21 @@ class RestoreShellInstrumentedTest {
         )
     }
 
+    /** Fails the test when the route is not registered or not reached (issue #215). */
     private fun navigateTo(route: String) {
+        composeRule.runOnUiThread { navController.navigate(route) }
+        composeRule.waitForIdle()
+        assertEquals("navigate($route) did not reach its destination", route, composeRule.runOnIdle {
+            navController.currentDestination?.route
+        })
+        if (route == Screen.Library.route) awaitTag(PerfTestTags.LibraryScreen, present = true)
+    }
+
+    /**
+     * The one deliberate attempt that may fail: the nav graph is out of composition, so whether
+     * the controller accepts the call does not matter. What matters is that nothing composes.
+     */
+    private fun attemptNavigateWhileTheGraphIsGone(route: String) {
         composeRule.runOnUiThread { runCatching { navController.navigate(route) } }
         composeRule.waitForIdle()
     }

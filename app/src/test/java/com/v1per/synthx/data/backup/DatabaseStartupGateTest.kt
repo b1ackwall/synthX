@@ -1,6 +1,7 @@
 package com.v1per.synthx.data.backup
 
 import java.io.File
+import com.v1per.synthx.testing.ProductionSource
 import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -329,8 +330,9 @@ class DatabaseStartupGateTest {
 class DatabaseStartupProductionOrderingTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
+    // Comment-free code: a comment naming the call can no longer satisfy or break these two.
     @Test fun mainActivityAwaitsGateBeforeInstallingDatabaseConsumingContent() {
-        val source = productionFile("com/v1per/synthx/MainActivity.kt").readText()
+        val source = ProductionSource.code("com/v1per/synthx/MainActivity.kt")
         val await = source.indexOf("DatabaseStartupGate.awaitReady()")
         val content = source.indexOf("setContent", startIndex = await)
         val scaffold = source.indexOf("MainScaffold(", startIndex = content)
@@ -343,7 +345,7 @@ class DatabaseStartupProductionOrderingTest {
     }
 
     @Test fun foregroundReconciliationAwaitsGateBeforeCreatingPlaybackViewModel() {
-        val source = productionFile("com/v1per/synthx/MainActivity.kt").readText()
+        val source = ProductionSource.code("com/v1per/synthx/MainActivity.kt")
         val onStart = source.substringAfter("override fun onStart()")
             .substringBefore("private fun pruneFinishedWork")
         val await = onStart.indexOf("DatabaseStartupGate.awaitReady()")
