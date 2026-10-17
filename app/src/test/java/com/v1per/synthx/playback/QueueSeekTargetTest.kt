@@ -12,9 +12,9 @@ import kotlin.test.assertNull
  * production logic, just split out so it's testable without a real `MediaController`, matching
  * the `nextIndexInOrder` precedent for this kind of extraction. `seekToQueueItemInternal` itself
  * (the `ExoPlayerEngine` extension) is not exercised here for the same reason as the rest of this
- * module's engine-layer tests — see [CursorCheckpointTest]'s header note — but it is now a thin
- * wrapper over this function plus [QueueOrderStore.indexOfSlot] (itself covered by
- * [QueueOrderStoreTest]), so nothing production-meaningful is left untested by extracting it.
+ * module's engine-layer tests — see [CursorCheckpointTest]'s header note. That the engine actually
+ * applies this decision is checked on a device by `QueueEditInstrumentedTest` (an earlier row's tap
+ * is ignored, a later row plays).
  */
 class QueueSeekTargetTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()

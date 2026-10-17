@@ -16,10 +16,11 @@ import kotlin.test.assertEquals
  * Neither [seekToLiveIndex] nor `onPlayerError` itself is exercised here: both need a real
  * `MediaController`/`Player.Listener` wired to a live media3 session, which this module has no
  * JVM-level fake or mocking library for (no Mockito/MockK dependency, no Robolectric) — matching
- * the honesty standard set by the P4-T1-4 report. Confirming the actual controller call sequence
- * (prepare-before-seek recovers playback) needs the instrumented harness noted in that report's
- * follow-up issue. What's covered here is the complete state-to-action mapping and the exact
- * content of the log message — the two pieces of pure logic the fix actually introduced.
+ * the honesty standard set by the P4-T1-4 report. What's covered here is the complete
+ * state-to-action mapping and the exact content of the log message — the two pieces of pure logic
+ * the fix actually introduced. The actual controller call sequence (prepare-before-seek recovers
+ * playback after Next and Previous) and `onPlayerError` run on a device in
+ * `PlaybackRecoveryInstrumentedTest`.
  */
 class IdleRecoveryTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()

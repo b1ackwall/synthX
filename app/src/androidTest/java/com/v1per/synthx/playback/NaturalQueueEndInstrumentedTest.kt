@@ -2,10 +2,6 @@ package com.v1per.synthx.playback
 
 import androidx.media3.common.Player
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.v1per.synthx.data.repository.AdmittedQueuePersistenceRepository
-import com.v1per.synthx.data.repository.SongRepository
-import java.lang.reflect.Proxy
-import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -27,23 +23,19 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class NaturalQueueEndInstrumentedTest : PlaybackServiceTestBase() {
 
-    /** Every cursor-carrying write the engine made, in order: slot id to position. */
-    private val cursorWrites = CopyOnWriteArrayList<Pair<String?, Long>>()
+    private val recorder = RecordingQueueRepository()
 
-    override fun createPersistence(): QueuePersistence {
-        val repository = Proxy.newProxyInstance(
-            SongRepository::class.java.classLoader,
-            arrayOf(SongRepository::class.java, AdmittedQueuePersistenceRepository::class.java),
-        ) { _, method, args ->
-            when (method.name) {
-                "setCursorAlreadyAdmitted" -> cursorWrites += (args[0] as String?) to (args[1] as Long)
-                "setQueueState" -> cursorWrites += (args[1] as String?) to (args[2] as Long)
+    override fun createPersistence(): QueuePersistence = QueuePersistence(recorder)
+
+    /** Every cursor-carrying write the engine made, in order: slot id to position. */
+    private val cursorWrites: List<Pair<String?, Long>>
+        get() = recorder.writes.mapNotNull {
+            when (it) {
+                is QueueWrite.Cursor -> it.currentSlotId to it.positionMs
+                is QueueWrite.QueueState -> it.currentSlotId to it.positionMs
+                else -> null
             }
-            // Every AdmittedQueuePersistenceRepository method returns Unit; nothing else is used.
-            Unit
-        } as SongRepository
-        return QueuePersistence(repository)
-    }
+        }
 
     @Test fun naturalEndKeepsTheLastSongPublishedPausedAndResetsTheResumeCursor() {
         playQueueAndAwait(songs(2, "end"), startIndex = 1)

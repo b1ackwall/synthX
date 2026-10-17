@@ -12,6 +12,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.util.concurrent.ListenableFuture
 import com.v1per.synthx.data.backup.DatabaseStartupGate
+import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.testing.stubSongRepository
@@ -38,7 +39,10 @@ import org.junit.Rule
  * [newEngine] is released on teardown unless the test already did so.
  */
 abstract class PlaybackServiceTestBase {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    /** Per-test limit; a class that overrides it says why. Override with a getter, not a field. */
+    protected open val timeoutSeconds: Long get() = TestTimeouts.DEVICE_SECONDS
+
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device(timeoutSeconds)
 
     protected val context: Context = ApplicationProvider.getApplicationContext()
     protected val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -246,8 +250,49 @@ abstract class PlaybackServiceTestBase {
         throw AssertionError("Timed out waiting for: $what")
     }
 
-    /** Lets already-issued asynchronous session/controller messages land before asserting a negative. */
-    protected fun settle() = Thread.sleep(1_500)
+    /**
+     * Lets already-issued asynchronous work land before asserting a negative: waits until the main
+     * looper is idle, every accepted queue write has finished (no finite restore permit is held),
+     * and what every live controller reports has not changed for [SETTLE_QUIET_MS]. Fails if that
+     * never happens within [SETTLE_LIMIT_MS].
+     */
+    protected fun settle() {
+        val deadline = SystemClock.uptimeMillis() + SETTLE_LIMIT_MS
+        var last: List<Any?>? = null
+        var quietSince = SystemClock.uptimeMillis()
+        while (SystemClock.uptimeMillis() < deadline) {
+            instrumentation.waitForIdleSync()
+            val writesInFlight =
+                RestoreCoordinator.activeOperationCountForTest() - RestoreCoordinator.activeReactiveOperationCountForTest()
+            val state = onMain { liveControllers().map(::controllerState) } + writesInFlight
+            val now = SystemClock.uptimeMillis()
+            if (state != last) {
+                last = state
+                quietSince = now
+            } else if (writesInFlight == 0 && now - quietSince >= SETTLE_QUIET_MS) {
+                return
+            }
+            Thread.sleep(25)
+        }
+        throw AssertionError("settle(): still changing after $SETTLE_LIMIT_MS ms, last state $last")
+    }
+
+    private fun liveControllers(): List<MediaController> = buildList {
+        if (::extraController.isInitialized && !extraControllerReleased) add(extraController)
+        engines.filter { it !in releasedEngines }.mapNotNullTo(this) { it.controller }
+    }
+
+    /** Everything a negative assertion could depend on, except the playing position. */
+    private fun controllerState(c: MediaController): List<Any?> = listOf(
+        c.isConnected, c.mediaItemCount, c.currentMediaItemIndex, c.currentMediaItem?.mediaId,
+        c.playbackState, c.playWhenReady, c.isPlaying, c.repeatMode, c.playerError?.errorCode,
+    )
+
+    private companion object {
+        // Never shorter than the fixed 1.5 s wait this replaced.
+        const val SETTLE_QUIET_MS = 1_500L
+        const val SETTLE_LIMIT_MS = 10_000L
+    }
 
     // --- audio fixture -------------------------------------------------------------------------
 

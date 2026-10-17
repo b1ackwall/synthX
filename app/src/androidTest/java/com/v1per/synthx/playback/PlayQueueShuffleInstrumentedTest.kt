@@ -1,12 +1,8 @@
 package com.v1per.synthx.playback
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.v1per.synthx.data.repository.AdmittedQueuePersistenceRepository
 import com.v1per.synthx.data.repository.QueueSlotRecord
 import com.v1per.synthx.data.repository.Song
-import com.v1per.synthx.data.repository.SongRepository
-import java.lang.reflect.Proxy
-import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -22,24 +18,17 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class PlayQueueShuffleInstrumentedTest : PlaybackServiceTestBase() {
 
-    /** Every queue write the engine made except cursor-only checkpoints, by repository method name. */
-    private val structuralWrites = CopyOnWriteArrayList<String>()
+    private val recorder = RecordingQueueRepository()
+
+    override fun createPersistence(): QueuePersistence = QueuePersistence(recorder)
+
+    /** Every queue write the engine made except cursor-only checkpoints. */
+    private val structuralWrites: List<QueueWrite>
+        get() = recorder.writes.filterNot { it is QueueWrite.Cursor }
 
     /** The shuffle flag carried by each unified write, in order. */
-    private val unifiedShuffleFlags = CopyOnWriteArrayList<Boolean>()
-
-    override fun createPersistence(): QueuePersistence {
-        val repository = Proxy.newProxyInstance(
-            SongRepository::class.java.classLoader,
-            arrayOf(SongRepository::class.java, AdmittedQueuePersistenceRepository::class.java),
-        ) { _, method, args ->
-            if (method.name != "setCursorAlreadyAdmitted") structuralWrites += method.name
-            if (method.name == "setUnifiedQueueState") unifiedShuffleFlags += args[4] as Boolean
-            // Every AdmittedQueuePersistenceRepository method returns Unit; nothing else is used.
-            Unit
-        } as SongRepository
-        return QueuePersistence(repository)
-    }
+    private val unifiedShuffleFlags: List<Boolean>
+        get() = recorder.writesOf<QueueWrite.Unified>().map { it.shuffleEnabled }
 
     @Test fun aColdShuffledPlayStartsOnTheChosenSongWithTheFlagOnInOneWrite() {
         assertNull("precondition: nothing loaded", onMain { engine._currentSlotId.value })
@@ -61,8 +50,7 @@ class PlayQueueShuffleInstrumentedTest : PlaybackServiceTestBase() {
         playAndAwait(songs(5, "before"), startIndex = 2, shuffle = true)
         awaitWrites(1)
         settle()
-        structuralWrites.clear()
-        unifiedShuffleFlags.clear()
+        recorder.writes.clear()
         val list = songs(5, "after")
 
         playAndAwait(list, startIndex = 0, shuffle = false)
@@ -122,8 +110,8 @@ class PlayQueueShuffleInstrumentedTest : PlaybackServiceTestBase() {
     private fun assertOneUnifiedWrite(shuffle: Boolean) {
         awaitWrites(1)
         settle()
-        assertEquals(listOf("setUnifiedQueueState"), structuralWrites.toList())
-        assertEquals(listOf(shuffle), unifiedShuffleFlags.toList())
+        assertEquals(listOf("Unified"), structuralWrites.map { it.javaClass.simpleName })
+        assertEquals(listOf(shuffle), unifiedShuffleFlags)
     }
 
     private fun List<QueueSlotRecord>.songIds() = map { it.songId }

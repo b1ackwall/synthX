@@ -62,6 +62,10 @@ class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {
     // --- P4-T1: the recorded A->B / delete-B ordering ------------------------------------------
 
     /**
+     * PINNED CURRENT BEHAVIOUR OF A KNOWN BUG (T-022; BUG LIST in docs/code-work/slice1-implementation.md).
+     * The first half asserts the buggy state on purpose; a fix for the bug turns it red, and this
+     * test must then be updated to assert the fixed behaviour.
+     *
      * The recorded failing order: a scan commits A->B; B's deletion is handled while the engine
      * still caches A (nothing to do, so ignored); the delayed A->B remap then arrives and caches
      * the already-deleted B.

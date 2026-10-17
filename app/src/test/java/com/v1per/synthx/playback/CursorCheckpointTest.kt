@@ -29,6 +29,10 @@ import kotlin.test.assertTrue
  * the actual production driver function ([periodicCheckpointDriver]) — that one needs no
  * `MediaController` at all, only an injected `isPlaying` [kotlinx.coroutines.flow.Flow], so it is
  * fully exercised here rather than only its decision logic.
+ *
+ * The call sites themselves run on a device: `PlaybackCheckpointInstrumentedTest` (pause from
+ * outside the app, same-song seek, track change), `PlaybackPeriodicCheckpointInstrumentedTest`
+ * (the engine's 30 s ticker) and `PlaybackServiceExitInstrumentedTest` (the service's `onDestroy`).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class CursorCheckpointTest {

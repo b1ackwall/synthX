@@ -189,6 +189,7 @@ class QueuePersistenceB1Test {
         assertEquals(4_321L, restored.positionMs)
         assertTrue(restored.shuffleEnabled)
         assertEquals(2, restored.repeatMode)
+        assertEquals(0, restored.droppedCount)
         queue.quiesceForRestore()
     }
 
@@ -203,6 +204,7 @@ class QueuePersistenceB1Test {
         val restored = assertNotNull(queue.loadQueue())
         assertEquals(0, restored.startIndex)
         assertEquals(0L, restored.positionMs)
+        assertEquals(0, restored.droppedCount)
         queue.quiesceForRestore()
     }
 }

@@ -151,8 +151,11 @@ class PlaybackViewModelResumeReconciliationTest {
 
             viewModel.resume()
             advanceTimeBy(1_400)
-            // A second tap restarts the window; the engine confirms shortly after it.
+            // A second tap restarts the window. The engine has not confirmed when the first tap's
+            // 1.5 s deadline passes, so a first check still running would force "paused" here.
             viewModel.resume()
+            advanceTimeBy(200)
+            assertTrue(viewModel.isPlaying.value, "the first tap's check must not fire after a second tap")
             engine._isPlaying.value = true
             advanceTimeBy(1_500)
 
