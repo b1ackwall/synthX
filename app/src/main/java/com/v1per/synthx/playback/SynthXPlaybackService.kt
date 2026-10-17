@@ -2,6 +2,7 @@ package com.v1per.synthx.playback
 
 import android.content.Intent
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
@@ -150,7 +151,7 @@ class SynthXPlaybackService : MediaLibraryService() {
             // second, independently-ordered writer racing it. Without that, a still-draining
             // write from the engine's instance (e.g. a recent updateCursor) could land after
             // this fresher save and silently overwrite it (see general 6.7).
-            QueuePersistence.create(this).updateCursor(
+            exitCheckpointPersistence().updateCursor(
                 currentSlotId = player.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() },
                 positionMs = resumePositionMs(player.playbackState, player.currentPosition),
             )
@@ -175,7 +176,7 @@ class SynthXPlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         Log.d(TAG, "onDestroy")
         if (shouldCheckpointOnDestroy(released, player.currentMediaItemIndex, player.mediaItemCount)) {
-            QueuePersistence.create(this).updateCursor(
+            exitCheckpointPersistence().updateCursor(
                 currentSlotId = player.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() },
                 positionMs = resumePositionMs(player.playbackState, player.currentPosition),
             )
@@ -183,6 +184,10 @@ class SynthXPlaybackService : MediaLibraryService() {
         releasePlayback()
         super.onDestroy()
     }
+
+    /** Where both exit checkpoints write: the app-wide singleton unless a test overrides it. */
+    private fun exitCheckpointPersistence(): QueuePersistence =
+        exitPersistenceOverride ?: QueuePersistence.create(this)
 
     private fun releasePlayback() {
         if (released) return
@@ -193,6 +198,12 @@ class SynthXPlaybackService : MediaLibraryService() {
         mediaLibrarySession.release()
     }
 
+    internal companion object {
+        /** Test seam only; always null in production. */
+        @VisibleForTesting
+        @Volatile
+        var exitPersistenceOverride: QueuePersistence? = null
+    }
 }
 
 /**
