@@ -160,6 +160,7 @@ class MigrationFullChainTest {
             val name = databaseName("populated-v$startVersion")
             migrationHelper.createDatabase(name, startVersion).use {
                 seedRepresentativeLibrary(it, startVersion)
+                seedSongOutsideEveryPlaylist(it)
             }
             migrationHelper.runMigrationsAndValidate(
                 name, SynthXDatabase.VERSION, true, *SynthXDatabase.ALL_MIGRATIONS,
@@ -170,6 +171,7 @@ class MigrationFullChainTest {
                     assertEquals(0, database.singleInt("SELECT COUNT(*) FROM playlist_songs"))
                 } else {
                     assertRepresentativeRelationships(database)
+                    assertSongOutsideEveryPlaylistStaysInInbox(database, startVersion)
                 }
                 assertEquals(0, database.query("PRAGMA foreign_key_check").use { it.count })
             }
@@ -332,6 +334,31 @@ class MigrationFullChainTest {
         assertEquals(0, database.query("PRAGMA foreign_key_check").use { it.count })
     }
 
+    /** A song in no playlist. From v8 it takes the column default in_inbox = 1. */
+    private fun seedSongOutsideEveryPlaylist(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "INSERT INTO songs (id, title, album_id, duration, file_path, date_added) VALUES (?, ?, ?, ?, ?, ?)",
+            arrayOf<Any?>(LONER_SONG_ID, "Loner title", null, 90_000L, "/music/loner.flac", 1_700_000_000_000L),
+        )
+    }
+
+    /** Up to v7, 7->8 must leave the loner at 1; from v8, later steps must keep the seeded 1. */
+    private fun assertSongOutsideEveryPlaylistStaysInInbox(database: SupportSQLiteDatabase, startVersion: Int) {
+        val rule = if (startVersion <= 7) {
+            "7->8 must keep a song outside every playlist in the inbox"
+        } else {
+            "steps after 7->8 must not change in_inbox"
+        }
+        assertEquals(
+            "$rule (start v$startVersion)",
+            1,
+            database.query("SELECT in_inbox FROM songs WHERE id = ?", arrayOf(LONER_SONG_ID)).use {
+                assertTrue("The song outside every playlist did not survive", it.moveToFirst())
+                it.getInt(0)
+            },
+        )
+    }
+
     private fun SupportSQLiteDatabase.singleInt(sql: String): Int =
         query(sql).use { it.moveToFirst(); it.getInt(0) }
 
@@ -341,5 +368,6 @@ class MigrationFullChainTest {
         const val ARTIST_ID = "artist-pre-chain"
         const val GROUP_ID = "group-pre-chain"
         const val PLAYLIST_ID = "playlist-pre-chain"
+        const val LONER_SONG_ID = "song-outside-playlists"
     }
 }
