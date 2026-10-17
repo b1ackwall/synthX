@@ -9,8 +9,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.reflect.KClass
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -18,7 +20,6 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -34,6 +35,8 @@ import org.junit.runner.RunWith
 // wording (updated below for accuracy: "backup" -> "migration" throughout).
 @RunWith(AndroidJUnit4::class)
 class DatabaseStartupGateInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val live: File get() = context.getDatabasePath(SynthXDatabase.DB_NAME)
 
@@ -60,11 +63,9 @@ class DatabaseStartupGateInstrumentedTest {
     fun tearDown() {
         SynthXDatabase.closeInstance()
         SongRepositoryImpl.resetForTest()
-        if (RestoreCoordinator.activeOperationCountForTest() == 0) {
-            RestoreCoordinator.resetForTest()
-        }
         deleteLiveSet()
         DatabaseStartupGate.resetForTest(context)
+        RestorePermitLeakCheck.assertDrainedThenReset()
     }
 
     @Test
@@ -78,7 +79,7 @@ class DatabaseStartupGateInstrumentedTest {
         )
         DatabaseStartupGate.installForTest(controller)
 
-        expectFailure { SynthXDatabase.getInstance(context) }
+        expectFailure(IllegalStateException::class, ROOM_BLOCKED) { SynthXDatabase.getInstance(context) }
         assertFalse(live.exists())
 
         controller.awaitReady()
@@ -134,7 +135,7 @@ class DatabaseStartupGateInstrumentedTest {
         assertFalse(controller.isReady())
         assertEquals(1, inspections.get())
         assertEquals(1, migrations.get())
-        expectFailure { SynthXDatabase.getInstance(context) }
+        expectFailure(IllegalStateException::class, ROOM_BLOCKED) { SynthXDatabase.getInstance(context) }
         assertEquals(
             "The live schema changed before the pre-migration snapshot succeeded",
             LiveDatabaseVersion.Present(7),
@@ -171,9 +172,9 @@ class DatabaseStartupGateInstrumentedTest {
         )
         DatabaseStartupGate.installForTest(controller)
 
-        expectSuspendFailure { controller.awaitReady() }
+        expectSuspendFailure(IllegalStateException::class, "injected pre-migration failure") { controller.awaitReady() }
         assertFalse(controller.isReady())
-        expectFailure { SynthXDatabase.getInstance(context) }
+        expectFailure(IllegalStateException::class, ROOM_BLOCKED) { SynthXDatabase.getInstance(context) }
         assertEquals(LiveDatabaseVersion.Present(7), LiveDatabaseVersionReader.read(live))
         assertEquals(1, migrationAttempts.get())
 
@@ -325,8 +326,10 @@ class DatabaseStartupGateInstrumentedTest {
             )
             DatabaseStartupGate.installForTest(controller)
 
-            expectSuspendFailure { controller.awaitReady() }
-            expectFailure { SynthXDatabase.getInstance(context) }
+            expectSuspendFailure(IllegalStateException::class, "Restore requires synthX to be closed and reopened") {
+                controller.awaitReady()
+            }
+            expectFailure(IllegalStateException::class, ROOM_BLOCKED) { SynthXDatabase.getInstance(context) }
             assertFalse(controller.isReady())
             assertEquals(0, inspections.get())
             assertEquals(0, migrations.get())
@@ -358,9 +361,12 @@ class DatabaseStartupGateInstrumentedTest {
         )
         DatabaseStartupGate.installForTest(controller)
 
-        expectSuspendFailure { controller.awaitReady() }
+        expectSuspendFailure(
+            MigrationInvariantFailedException::class,
+            "A previous migration failed its post-migration safety check",
+        ) { controller.awaitReady() }
         assertFalse(controller.isReady())
-        expectFailure { SynthXDatabase.getInstance(context) }
+        expectFailure(IllegalStateException::class, ROOM_BLOCKED) { SynthXDatabase.getInstance(context) }
         assertEquals(0, inspections.get())
     }
 
@@ -369,21 +375,17 @@ class DatabaseStartupGateInstrumentedTest {
             .forEach { it.delete() }
     }
 
-    private fun expectFailure(block: () -> Unit) {
-        try {
-            block()
-            fail("Expected failure")
-        } catch (_: Exception) {
-            // Expected.
-        }
-    }
+    private fun <T : Throwable> expectFailure(type: KClass<T>, messageContains: String, block: () -> Unit): T =
+        expectFailureOf(type, messageContains, block)
 
-    private suspend fun expectSuspendFailure(block: suspend () -> Unit) {
-        try {
-            block()
-            fail("Expected failure")
-        } catch (_: Exception) {
-            // Expected.
-        }
+    private suspend fun <T : Throwable> expectSuspendFailure(
+        type: KClass<T>,
+        messageContains: String,
+        block: suspend () -> Unit,
+    ): T = expectSuspendFailureOf(type, messageContains, block)
+
+    private companion object {
+        /** DatabaseStartupGate.requireReady's refusal while the gate is not ready. */
+        const val ROOM_BLOCKED = "Room cannot open until restore recovery and pre-migration maintenance complete"
     }
 }

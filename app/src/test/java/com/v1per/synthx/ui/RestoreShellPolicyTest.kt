@@ -2,10 +2,13 @@ package com.v1per.synthx.ui
 
 import com.v1per.synthx.data.backup.RestoreCoordinator.Mode
 import com.v1per.synthx.data.backup.RestoreCoordinator.Terminal
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class RestoreShellPolicyTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun `normal admission with no terminal renders the ordinary shell`() {

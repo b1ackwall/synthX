@@ -19,13 +19,14 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.RestoreWorker
-import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.backup.RestorePermitLeakCheck
 import com.v1per.synthx.data.backup.RestoreStartup
 import com.v1per.synthx.data.backup.TestWorkManager
 import com.v1per.synthx.data.backup.pruneFinishedWorkIfRestoreAcknowledged
 import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.screens.restore.RestoreAppStatus
 import com.v1per.synthx.ui.screens.restore.RestoreStatusViewModel
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.testing.assumeNotificationPermissionDenied
 import com.v1per.synthx.ui.theme.SynthXTheme
 import java.util.UUID
@@ -45,6 +46,8 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class RestoreStatusObserverInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createComposeRule()
 
     private val base: Context = ApplicationProvider.getApplicationContext()
@@ -61,7 +64,7 @@ class RestoreStatusObserverInstrumentedTest {
     @Before fun setUp() {
         RestoreStartup.await()
         TestWorkManager.ensureInitialized(context)
-        if (RestoreCoordinator.activeOperationCountForTest() == 0) RestoreCoordinator.resetForTest()
+        RestorePermitLeakCheck.assertDrainedThenReset()
         workManager.cancelUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).result.get()
         workManager.pruneWork().result.get()
     }
@@ -71,8 +74,8 @@ class RestoreStatusObserverInstrumentedTest {
         viewModelStores.clear()
         workManager.cancelUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).result.get()
         workManager.pruneWork().result.get()
-        if (RestoreCoordinator.activeOperationCountForTest() == 0) RestoreCoordinator.resetForTest()
         base.deleteSharedPreferences("$preferenceName-synthx_prefs")
+        RestorePermitLeakCheck.assertDrainedThenReset()
     }
 
     @Test fun terminalFailureCompletedWithoutWizardIsShownAndAcknowledged() {

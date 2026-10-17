@@ -8,6 +8,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.v1per.synthx.data.backup.BackupSchemaContracts
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
@@ -16,6 +17,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -34,6 +36,7 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ProductionV11MigrationInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val testAssets = InstrumentationRegistry.getInstrumentation().context.assets

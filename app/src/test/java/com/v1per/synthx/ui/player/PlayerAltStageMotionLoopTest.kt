@@ -1,18 +1,21 @@
 package com.v1per.synthx.ui.player
 
 import androidx.compose.runtime.MonotonicFrameClock
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerAltStageMotionLoopTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     /** Delivers frames on a fixed vsync grid in the test's virtual time and counts them. */
     private class VsyncClock(

@@ -7,6 +7,7 @@ import com.v1per.synthx.data.db.SynthXDatabase
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import java.io.InputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -55,13 +56,17 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
 
     @Test fun corruptDatabaseRejected() {
         val corrupt = ownedFile(validBackupName()).apply { writeText("not sqlite") }
-        expectFailure { BackupSnapshotValidator.validate(corrupt, true) }
+        expectFailure(BackupSnapshotException::class, "Local snapshot validation failed") {
+            BackupSnapshotValidator.validate(corrupt, true)
+        }
     }
 
     @Test fun foreignSQLiteRejected() {
         val foreign = ownedFile(validBackupName())
         SQLiteDatabase.openOrCreateDatabase(foreign, null).use { it.execSQL("CREATE TABLE foreign_data(id INTEGER)") }
-        expectFailure { BackupSnapshotValidator.validate(foreign, true) }
+        expectFailure(BackupSnapshotException::class, "Snapshot uses unknown synthX database version 0") {
+            BackupSnapshotValidator.validate(foreign, true)
+        }
     }
 
     @Test fun newerSchemaRejectedBeforeSourceOpen() = runBlocking {
@@ -115,7 +120,7 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
                 return count
             }
         }
-        expectFailure {
+        expectFailure(IllegalStateException::class, "Selected backup exceeds its declared size") {
             RestoreTransaction.copySafOnce(
                 context,
                 "content://growing",
@@ -152,7 +157,7 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
             }
         }
         var polls = 0
-        expectFailure {
+        expectFailure(CancellationException::class, "Backup copy cancelled") {
             RestoreTransaction.copySafOnce(
                 context,
                 "content://cancel-me",
@@ -206,7 +211,7 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
 
     @Test fun freeSpaceFailureLeavesLiveUntouched() {
         createLive("state-a")
-        expectFailure {
+        expectFailure(IllegalStateException::class, "Not enough internal storage to restore safely") {
             RestoreTransaction.ensureSpace(databaseDir, liveFile().length(), 4096, availableBytes = 0)
         }
         assertEquals("state-a", readMarker(liveFile()))

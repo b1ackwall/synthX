@@ -2,11 +2,14 @@ package com.v1per.synthx.data.playlistart
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.colorspace.ColorSpaces
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class PlaylistArtColorTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private val roles = mapOf("litStart" to LitStartRole, "litEnd" to LitEndRole, "diamond" to DiamondRole)
 

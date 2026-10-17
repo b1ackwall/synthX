@@ -1,7 +1,9 @@
 package com.v1per.synthx.data
 
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runTest
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -15,6 +17,7 @@ import kotlin.test.assertFailsWith
  * first call must not stop a second event from still reaching the handler.
  */
 class SafeCollectTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun aThrowingHandlerDoesNotStopSubsequentEvents() = runTest {
         val source = flow {

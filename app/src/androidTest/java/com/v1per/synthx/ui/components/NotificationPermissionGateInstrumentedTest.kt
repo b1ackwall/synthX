@@ -12,6 +12,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.R
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.SynthXTheme
 import java.util.UUID
 import org.junit.After
@@ -30,6 +31,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class NotificationPermissionGateInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createComposeRule()
 
     private val base: Context = ApplicationProvider.getApplicationContext()

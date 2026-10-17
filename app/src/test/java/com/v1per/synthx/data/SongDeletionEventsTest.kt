@@ -1,5 +1,6 @@
 package com.v1per.synthx.data
 
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -7,12 +8,14 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
+import org.junit.Rule
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SongDeletionEventsTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun everyPublishedDeletionCarriesAFreshIncreasingRevision() = runBlocking {
         val collector = async { SongDeletionEvents.events.take(2).toList() }
@@ -33,6 +36,7 @@ class SongDeletionEventsTest {
  * that was never going to show up.
  */
 class SongDeletionAcknowledgmentTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     // SongDeletionAcknowledgment is a process-wide singleton, so its live-engine count leaks
     // between test methods unless each one detaches exactly what it attached.

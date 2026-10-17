@@ -1,11 +1,13 @@
 package com.v1per.synthx.data
 
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.Rule
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -21,6 +23,8 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class FileOperationCoordinatorTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     @BeforeTest fun setUp() = FileOperationCoordinator.resetForTest()
     @AfterTest fun tearDown() = FileOperationCoordinator.resetForTest()
 

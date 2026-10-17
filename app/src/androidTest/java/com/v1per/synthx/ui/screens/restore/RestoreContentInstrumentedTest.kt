@@ -17,6 +17,7 @@ import com.v1per.synthx.data.backup.BackupListResult
 import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.SynthXTheme
 import org.junit.Rule
 import org.junit.Test
@@ -31,6 +32,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class RestoreContentInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createComposeRule()
 
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()

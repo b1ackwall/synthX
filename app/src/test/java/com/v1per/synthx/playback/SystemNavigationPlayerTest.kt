@@ -1,6 +1,8 @@
 package com.v1per.synthx.playback
 
 import androidx.media3.common.Player
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import java.lang.reflect.Proxy
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -16,6 +18,7 @@ import kotlin.test.assertTrue
  * in SystemNavigationPlayerInstrumentedTest.
  */
 class SystemNavigationPlayerTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     /** A [Player] whose every method is recorded and answers a type-appropriate default. */
     private class RecordingPlayer(var nativeCommands: Player.Commands = Player.Commands.EMPTY) {

@@ -15,6 +15,7 @@ import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.DETAIL_PLAY_BUTTON_TAG
 import com.v1per.synthx.ui.components.DETAIL_SHUFFLE_BUTTON_TAG
 import com.v1per.synthx.ui.components.DETAIL_STATS_LINE_TAG
+import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -24,6 +25,8 @@ import org.junit.runner.RunWith
 /** The artist detail header: the stats line and the Play / Shuffle action row above the songs. */
 @RunWith(AndroidJUnit4::class)
 class ArtistDetailHeaderInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createComposeRule()
 
     private val played = mutableListOf<List<Song>>()

@@ -1,5 +1,7 @@
 package com.v1per.synthx.playback
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -11,6 +13,7 @@ import kotlin.test.assertNull
  * the actual policy decision.
  */
 class ReconnectPolicyTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun retriesWithExponentialBackoffAfterASimulatedInitialFailure() {
         // Attempt 0 is the first retry after the initial connection attempt (attempt -1, in

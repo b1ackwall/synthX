@@ -2,10 +2,13 @@ package com.v1per.synthx.ui.player
 
 import com.v1per.synthx.playback.BackgroundBrightness
 import com.v1per.synthx.playback.BrightnessStats
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class PlayerBackgroundDebugStateTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun defaultIsTheLockedProductionBlur() {
         assertEquals(PlayerAltStageStyle.BlurDp, PlayerBackgroundDebugState().blurRadiusDp)

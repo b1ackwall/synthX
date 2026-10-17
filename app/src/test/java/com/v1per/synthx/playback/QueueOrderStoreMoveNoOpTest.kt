@@ -1,6 +1,8 @@
 package com.v1per.synthx.playback
 
 import com.v1per.synthx.data.repository.QueueSlotRecord
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -12,6 +14,7 @@ import kotlin.test.assertTrue
  * customised, so a no-op drop must report `false` and leave both orders untouched.
  */
 class QueueOrderStoreMoveNoOpTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private class RecordingWriter : BaselineOrderWriter {
         val writes = mutableListOf<List<String>>()

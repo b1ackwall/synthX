@@ -3,7 +3,9 @@ package com.v1per.synthx.data.scanner
 import androidx.documentfile.provider.DocumentFile
 import java.io.File
 import java.nio.file.Files
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.test.runTest
+import org.junit.Rule
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -11,6 +13,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AudioFileWalkTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private val root: File = Files.createTempDirectory("audio-walk").toFile()
 
     @AfterTest fun cleanUp() {

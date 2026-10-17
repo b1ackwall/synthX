@@ -10,6 +10,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
@@ -23,11 +24,14 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class BackupSnapshotInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val databases = mutableListOf<Pair<SynthXDatabase, String>>()
     private val temporaryFiles = mutableListOf<File>()

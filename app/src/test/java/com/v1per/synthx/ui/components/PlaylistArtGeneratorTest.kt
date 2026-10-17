@@ -1,11 +1,14 @@
 package com.v1per.synthx.ui.components
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class PlaylistArtGeneratorTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun `the grid holds one segment per cell corner, indexed in build order`() {

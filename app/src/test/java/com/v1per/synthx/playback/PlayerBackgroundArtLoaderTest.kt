@@ -1,10 +1,13 @@
 package com.v1per.synthx.playback
 
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class PlayerBackgroundArtLoaderTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun compressedCopyIsTriedBeforeTheFullResolutionOriginal() {
         val request = PlayerBackgroundArtRequest("song", compressedUri = "content://art", fullUri = "content://full")

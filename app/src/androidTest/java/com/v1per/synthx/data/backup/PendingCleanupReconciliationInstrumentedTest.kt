@@ -12,6 +12,7 @@ import com.v1per.synthx.data.db.PendingCleanupType
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.preferences.PendingCleanupReconciliationTracker
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -22,6 +23,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -40,6 +42,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class PendingCleanupReconciliationInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private lateinit var context: ReconciliationTestContext
     private lateinit var database: SynthXDatabase
 

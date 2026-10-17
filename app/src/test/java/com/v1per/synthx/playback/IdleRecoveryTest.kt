@@ -2,6 +2,8 @@ package com.v1per.synthx.playback
 
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -20,6 +22,7 @@ import kotlin.test.assertEquals
  * content of the log message — the two pieces of pure logic the fix actually introduced.
  */
 class IdleRecoveryTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun idleStateRequiresPrepare() {
         assertEquals(IdleRecoveryAction.PREPARE, idleRecoveryActionFor(Player.STATE_IDLE))

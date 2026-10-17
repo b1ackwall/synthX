@@ -1,6 +1,8 @@
 package com.v1per.synthx.ui.screens.librarymanagement
 
 import androidx.work.WorkInfo
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -14,6 +16,7 @@ import kotlin.test.assertTrue
  * the JVM) is not needed.
  */
 class FolderPickTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private class Recorder {
         val events = mutableListOf<String>()

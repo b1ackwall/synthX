@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.ui.common.UiState
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -22,6 +24,7 @@ import kotlin.test.assertNull
 /** The album detail stats and buttons follow the playable songs; the cover follows album order. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AlbumDetailViewModelTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun theStatsCountAndTotalOnlyThePlayableSongs() {

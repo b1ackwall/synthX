@@ -1,6 +1,8 @@
 package com.v1per.synthx.data.db
 
 import com.v1per.synthx.data.backup.BackupSchemaContracts
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,6 +33,8 @@ import kotlin.test.assertTrue
  *     *future* migration can ship the same way 9->10/10->11 did.
  */
 class MigrationCompletenessTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     companion object {
         private const val PER_STEP_TEST_COVERAGE_BASELINE_VERSION = 8
     }

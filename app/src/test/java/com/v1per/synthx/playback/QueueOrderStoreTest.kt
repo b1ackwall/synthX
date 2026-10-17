@@ -1,6 +1,8 @@
 package com.v1per.synthx.playback
 
 import com.v1per.synthx.data.repository.QueueSlotRecord
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -13,6 +15,7 @@ import kotlin.test.assertTrue
  * away from anything loaded has to be an ordinary, always-successful list operation.
  */
 class QueueOrderStoreTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private class RecordingWriter : BaselineOrderWriter {
         val writes = mutableListOf<List<String>>()

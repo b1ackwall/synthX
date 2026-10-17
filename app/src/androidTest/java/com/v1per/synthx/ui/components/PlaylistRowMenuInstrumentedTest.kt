@@ -12,6 +12,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.PlaylistGroup
+import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,6 +31,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistRowMenuInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createComposeRule()
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext

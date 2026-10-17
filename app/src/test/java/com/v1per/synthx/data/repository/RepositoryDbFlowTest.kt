@@ -1,6 +1,7 @@
 package com.v1per.synthx.data.repository
 
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
@@ -12,6 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
+import org.junit.Rule
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,6 +22,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RepositoryDbFlowTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     @AfterTest
     fun reset() = RestoreCoordinator.resetForTest()
 

@@ -20,6 +20,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.data.repository.SongRepository
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.testing.stubSongRepository
 import org.junit.Rule
 import org.junit.Test
@@ -45,6 +46,8 @@ import org.junit.Assert.assertEquals
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class CreatePlaylistRecreationInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext

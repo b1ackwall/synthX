@@ -11,12 +11,14 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.backup.DatabaseStartupGate
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.backup.RestorePermitLeakCheck
 import com.v1per.synthx.data.backup.RestoreStartup
 import com.v1per.synthx.data.backup.TestWorkManager
 import com.v1per.synthx.RestoreTerminalContent
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.navigation.Screen
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.SynthXTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -38,6 +40,7 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class RestoreShellInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
 
     @get:Rule
     val composeRule = createComposeRule()
@@ -56,23 +59,27 @@ class RestoreShellInstrumentedTest {
         SongRepositoryImpl.resetForTest()
         RestoreStartup.resetForTest()
         DatabaseStartupGate.markReadyForTest()
-        if (RestoreCoordinator.activeOperationCountForTest() == 0) RestoreCoordinator.resetForTest()
+        RestorePermitLeakCheck.assertDrainedThenReset()
     }
 
     @After
     fun tearDown() {
-        runBlocking {
-            // Cancel anything the shell left collecting before handing the coordinator on, and
-            // do it through the production quiescence path so a leaked permit still fails loudly.
-            if (RestoreCoordinator.currentMode() == RestoreCoordinator.Mode.NORMAL) {
-                runCatching { RestoreCoordinator.exclusive { } }
+        try {
+            // Cancel anything the shell left collecting through the production quiescence path,
+            // then fail if any permit is still held.
+            RestorePermitLeakCheck.assertDrainedThenReset {
+                if (RestoreCoordinator.currentMode() == RestoreCoordinator.Mode.NORMAL) {
+                    RestoreCoordinator.exclusive { }
+                }
+                if (RestoreCoordinator.currentMode() == RestoreCoordinator.Mode.RESTORE_PREPARING) {
+                    RestoreCoordinator.quiesceReactiveOperations()
+                }
+                RestoreCoordinator.awaitFiniteDrained()
             }
-            runCatching { RestoreCoordinator.quiesceReactiveOperations() }
-            runCatching { RestoreCoordinator.awaitFiniteDrained() }
+        } finally {
+            SynthXDatabase.closeInstance()
+            SongRepositoryImpl.resetForTest()
         }
-        runCatching { RestoreCoordinator.resetForTest() }
-        SynthXDatabase.closeInstance()
-        SongRepositoryImpl.resetForTest()
     }
 
     // ------------------------------------------------------------------ 1. admission closes

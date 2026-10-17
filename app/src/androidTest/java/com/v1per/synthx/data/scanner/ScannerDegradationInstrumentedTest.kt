@@ -11,6 +11,7 @@ import com.v1per.synthx.data.backup.PlaylistExportManager
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -19,11 +20,14 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ScannerDegradationInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var database: SynthXDatabase
     private lateinit var root: File

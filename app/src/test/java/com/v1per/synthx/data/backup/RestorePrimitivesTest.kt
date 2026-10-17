@@ -1,6 +1,8 @@
 package com.v1per.synthx.data.backup
 
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -10,6 +12,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RestorePrimitivesTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     @Test fun operationFilenamesAreSameDirectorySafeAndRoundTrip() {
         val names = RestoreArtifactNames(OP)
         assertEquals("synthx.restore-$OP.candidate.db", names.candidate)

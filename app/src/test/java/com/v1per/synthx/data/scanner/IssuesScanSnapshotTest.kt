@@ -1,5 +1,7 @@
 package com.v1per.synthx.data.scanner
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -9,6 +11,7 @@ import kotlin.test.assertEquals
  * SharedPreferences in the way.
  */
 class IssuesScanSnapshotTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private fun snapshot(
         missingArtSongIds: List<String> = emptyList(),

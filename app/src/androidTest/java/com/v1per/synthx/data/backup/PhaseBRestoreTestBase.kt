@@ -10,13 +10,14 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.io.File
 import java.util.UUID
+import kotlin.reflect.KClass
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 
@@ -33,6 +34,8 @@ import org.junit.Rule
  * is `protected`.
  */
 abstract class PhaseBRestoreTestBase {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     protected val context: Context = ApplicationProvider.getApplicationContext()
     protected val databaseDir: File get() = requireNotNull(context.getDatabasePath(SynthXDatabase.DB_NAME).parentFile)
     protected val registeredDatabaseNames = mutableSetOf<String>()
@@ -62,10 +65,10 @@ abstract class PhaseBRestoreTestBase {
     fun tearDown() {
         SynthXDatabase.closeInstance()
         SongRepositoryImpl.resetForTest()
-        if (RestoreCoordinator.activeOperationCountForTest() == 0) RestoreCoordinator.resetForTest()
         registeredDatabaseNames.forEach(context::deleteDatabase)
         cleanOwnedFiles()
         File(context.filesDir, "restore_incidents").listFiles().orEmpty().forEach(File::delete)
+        RestorePermitLeakCheck.assertDrainedThenReset()
     }
 
     // `internal`, not `protected`: BackupMetadata / RestoreFaultInjector / RestoreTransaction are
@@ -161,13 +164,14 @@ abstract class PhaseBRestoreTestBase {
     protected fun stateFile(): File = File(databaseDir, "synthx.restore-state.json")
     protected fun ownedFile(name: String): File = File(databaseDir, name)
 
-    protected fun expectFailure(block: () -> Unit) {
-        try { block(); fail("Expected failure") } catch (_: Exception) { }
-    }
+    protected fun <T : Throwable> expectFailure(type: KClass<T>, messageContains: String, block: () -> Unit): T =
+        expectFailureOf(type, messageContains, block)
 
-    protected suspend fun expectSuspendFailure(block: suspend () -> Unit) {
-        try { block(); fail("Expected failure") } catch (_: Exception) { }
-    }
+    protected suspend fun <T : Throwable> expectSuspendFailure(
+        type: KClass<T>,
+        messageContains: String,
+        block: suspend () -> Unit,
+    ): T = expectSuspendFailureOf(type, messageContains, block)
 
     protected fun cleanOwnedFiles() {
         databaseDir.listFiles().orEmpty().filter { file ->

@@ -7,6 +7,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.backup.BackupSchemaContracts
+import com.v1per.synthx.ui.testing.TestTimeouts
 import androidx.test.platform.app.InstrumentationRegistry
 import java.util.UUID
 import org.junit.After
@@ -26,6 +27,7 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class MigrationFullChainTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val createdDatabaseNames = mutableSetOf<String>()

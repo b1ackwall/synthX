@@ -14,6 +14,7 @@ import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -23,6 +24,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -35,6 +37,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class CreatePlaylistArtRaceInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private lateinit var context: Context
     private lateinit var database: SynthXDatabase
 

@@ -6,10 +6,12 @@ import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -26,6 +28,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class LaunchMaintenanceGatingInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val testId = "launch-maintenance-gate-test-${UUID.randomUUID()}"
     private val context = object : ContextWrapper(appContext) {

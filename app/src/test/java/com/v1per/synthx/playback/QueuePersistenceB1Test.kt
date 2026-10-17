@@ -20,6 +20,7 @@ import com.v1per.synthx.data.repository.ReplaceSongResult
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepository
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
@@ -27,12 +28,15 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class QueuePersistenceB1Test {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private class QueueRepo : SongRepository, AdmittedQueuePersistenceRepository {
         val persisted = mutableListOf<List<String>>()
         var gate: CompletableDeferred<Unit>? = null

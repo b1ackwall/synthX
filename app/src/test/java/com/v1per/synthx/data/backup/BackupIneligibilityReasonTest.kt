@@ -1,5 +1,7 @@
 package com.v1per.synthx.data.backup
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -12,6 +14,7 @@ import kotlin.test.assertNull
  * listing.
  */
 class BackupIneligibilityReasonTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private val validMetadata = BackupMetadata(
         timestamp = 1_000L,

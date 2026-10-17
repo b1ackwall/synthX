@@ -15,6 +15,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.components.QueueList
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -35,6 +36,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class QueueReorderStaleClosureTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createComposeRule()
 
     private val queue = mutableStateOf<ImmutableList<QueueSlot>>(persistentListOf())

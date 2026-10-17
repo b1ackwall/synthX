@@ -2,6 +2,8 @@ package com.v1per.synthx.playback
 
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -12,6 +14,7 @@ import kotlin.test.assertTrue
  * repeat-aware final-item Next rule [nextIndexInOrder] as system transport now relies on it.
  */
 class SystemNavigationRulesTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private val threshold = 3_000L
 

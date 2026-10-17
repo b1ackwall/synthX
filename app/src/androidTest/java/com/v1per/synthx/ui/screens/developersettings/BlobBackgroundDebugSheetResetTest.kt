@@ -8,6 +8,7 @@ import com.v1per.synthx.ui.components.BlobBackgroundDebugState
 import com.v1per.synthx.ui.components.DefaultInitialBlobs
 import com.v1per.synthx.ui.components.HomeBlobDebugStateHolder
 import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
+import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -22,6 +23,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class BlobBackgroundDebugSheetResetTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createComposeRule()
 
     @After

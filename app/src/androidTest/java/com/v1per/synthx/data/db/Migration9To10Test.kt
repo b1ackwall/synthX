@@ -9,6 +9,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.v1per.synthx.data.backup.BackupSnapshotValidator
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -29,6 +30,7 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class Migration9To10Test {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val createdDatabaseNames = mutableSetOf<String>()

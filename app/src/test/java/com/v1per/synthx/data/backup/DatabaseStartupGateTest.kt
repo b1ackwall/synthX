@@ -1,11 +1,13 @@
 package com.v1per.synthx.data.backup
 
 import java.io.File
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -14,6 +16,8 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class DatabaseStartupGateTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     @Test fun absentDatabaseNeedsNoMigrationBackup() {
         assertIs<DatabaseVersionDecision.FreshDatabase>(
             DatabaseVersionPolicy.decide(LiveDatabaseVersion.Missing, currentVersion = 8)
@@ -319,6 +323,8 @@ class DatabaseStartupGateTest {
 }
 
 class DatabaseStartupProductionOrderingTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     @Test fun mainActivityAwaitsGateBeforeInstallingDatabaseConsumingContent() {
         val source = productionFile("com/v1per/synthx/MainActivity.kt").readText()
         val await = source.indexOf("DatabaseStartupGate.awaitReady()")

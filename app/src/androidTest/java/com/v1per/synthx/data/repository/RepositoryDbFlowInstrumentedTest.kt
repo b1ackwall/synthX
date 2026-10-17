@@ -5,8 +5,10 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.backup.RestorePermitLeakCheck
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,11 +29,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class RepositoryDbFlowInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var database: SynthXDatabase
     private lateinit var repository: RoomGroupRepository
@@ -53,9 +58,7 @@ class RepositoryDbFlowInstrumentedTest {
         if (RestoreCoordinator.currentMode() == RestoreCoordinator.Mode.RESTORE_PREPARING) {
             RestoreCoordinator.markNormal()
         }
-        if (RestoreCoordinator.activeOperationCountForTest() == 0) {
-            RestoreCoordinator.resetForTest()
-        }
+        RestorePermitLeakCheck.assertDrainedThenReset()
     }
 
     @Test

@@ -9,10 +9,12 @@ import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.data.scanner.VerifyLibraryWorker
 import com.v1per.synthx.ui.screens.librarymanagement.FirstScanState
 import com.v1per.synthx.ui.screens.librarymanagement.firstScanStateFor
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 /**
@@ -21,6 +23,7 @@ import org.junit.Test
  * fake that renders "<resId>[args]" so assertions pin *which* resource and args were chosen.
  */
 class ScanStatusTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private val strings = ScanStatusStrings { id, args ->
         if (args.isEmpty()) "$id" else "$id${args.toList()}"

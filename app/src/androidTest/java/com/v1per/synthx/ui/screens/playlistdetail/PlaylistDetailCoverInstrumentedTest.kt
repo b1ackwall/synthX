@@ -15,6 +15,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.DetailHeroSize
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import org.junit.Rule
 import org.junit.Test
@@ -31,6 +32,8 @@ import org.junit.Assert.assertTrue
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistDetailCoverInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createComposeRule()
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext

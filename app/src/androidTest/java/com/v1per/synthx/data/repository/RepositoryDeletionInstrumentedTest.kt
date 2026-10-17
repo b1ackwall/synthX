@@ -26,6 +26,7 @@ import com.v1per.synthx.data.scanner.KnownAudioRoot
 import com.v1per.synthx.data.scanner.graduateSong
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
@@ -43,12 +44,15 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /** Exercises the public repository methods and real backup drain, not a copy of their ordering. */
 @RunWith(AndroidJUnit4::class)
 class RepositoryDeletionInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private lateinit var context: DeletionTestContext
     private lateinit var database: SynthXDatabase
     private lateinit var repository: SongRepositoryImpl

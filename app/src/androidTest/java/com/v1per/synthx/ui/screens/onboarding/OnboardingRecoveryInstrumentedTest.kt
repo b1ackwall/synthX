@@ -43,6 +43,7 @@ import com.v1per.synthx.data.backup.BackupMetadataCodec
 import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.data.backup.RestorePermitLeakCheck
 import com.v1per.synthx.data.backup.RestoreWorker
 import com.v1per.synthx.data.backup.ScanStub
 import com.v1per.synthx.data.backup.ScanStubWorkerFactory
@@ -63,6 +64,7 @@ import com.v1per.synthx.ui.screens.restore.RestorePreview
 import com.v1per.synthx.ui.screens.restore.RestoreViewModel
 import com.v1per.synthx.ui.components.LocalNotificationPermissionBackend
 import com.v1per.synthx.ui.components.NotificationPermissionBackend
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -96,6 +98,8 @@ import org.junit.runner.RunWith
 /** Uses isolated preferences and a repository stub; never restores over the app database. */
 @RunWith(AndroidJUnit4::class)
 class OnboardingRecoveryInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
     @get:Rule val testName = TestName()
 
@@ -138,7 +142,7 @@ class OnboardingRecoveryInstrumentedTest {
         ScanStubWorkerFactory.behavior = null
         workManager.cancelUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).result.get()
         workManager.pruneWork().result.get()
-        if (RestoreCoordinator.activeOperationCountForTest() == 0) RestoreCoordinator.resetForTest()
+        RestorePermitLeakCheck.assertDrainedThenReset()
         val repository = Proxy.newProxyInstance(
             SongRepository::class.java.classLoader,
             arrayOf(SongRepository::class.java),
@@ -183,6 +187,7 @@ class OnboardingRecoveryInstrumentedTest {
             file.delete()
         }
         appContext.deleteSharedPreferences("$testId-synthx_prefs")
+        RestorePermitLeakCheck.assertDrainedThenReset()
     }
 
     @Test fun recoveryAudioPicksPersistWithoutScansOrBackupAttempts() {

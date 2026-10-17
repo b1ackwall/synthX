@@ -178,7 +178,7 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
 
     @Test fun injectedFreeSpaceFailureIsDeterministic() {
         var observed = false
-        expectFailure {
+        expectFailure(IllegalStateException::class, "injected free space") {
             RestoreTransaction.ensureSpace(
                 databaseDir,
                 1,

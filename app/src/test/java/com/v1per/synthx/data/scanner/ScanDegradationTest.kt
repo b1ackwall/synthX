@@ -1,12 +1,16 @@
 package com.v1per.synthx.data.scanner
 
 import androidx.work.workDataOf
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ScanDegradationTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private val degradation = ScanDegradation(
         KnownAudioRoot.Music,
         ScanDegradationReason.WalkIncomplete,

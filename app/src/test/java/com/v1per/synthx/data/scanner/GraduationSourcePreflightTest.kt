@@ -1,12 +1,16 @@
 package com.v1per.synthx.data.scanner
 
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.test.runTest
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class GraduationSourcePreflightTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private val source = "content://provider/tree/source/document/song"
     private val music = "content://provider/tree/music"
     private val newArrivals = "content://provider/tree/new-arrivals"

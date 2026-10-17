@@ -1,5 +1,7 @@
 package com.v1per.synthx.ui.components
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -14,6 +16,8 @@ import kotlin.test.assertTrue
  * NotificationPermissionGateInstrumentedTest.
  */
 class NotificationPermissionWiringTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private fun source(relative: String): String {
         val file = listOf(File("src/main/java", relative), File("app/src/main/java", relative))
             .firstOrNull(File::isFile) ?: error("Could not locate production source $relative")

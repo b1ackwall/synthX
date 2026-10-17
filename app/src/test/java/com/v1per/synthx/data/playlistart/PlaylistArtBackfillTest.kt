@@ -5,6 +5,7 @@ import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.repository.PlaylistMembership
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -15,8 +16,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import org.junit.Rule
 
 class PlaylistArtBackfillTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun `a library with nothing missing costs one query and no writes`() = runTest {

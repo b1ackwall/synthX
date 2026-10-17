@@ -1,9 +1,12 @@
 package com.v1per.synthx.data
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class PlaybackCacheRevisionTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun nextIsStrictlyMonotonicAndNeverRepeats() {
         val first = PlaybackCacheRevision.next()

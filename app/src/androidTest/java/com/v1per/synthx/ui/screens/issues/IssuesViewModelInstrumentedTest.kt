@@ -11,6 +11,7 @@ import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.scanner.IssuesScanWorker
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.lang.reflect.Proxy
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
@@ -28,11 +29,14 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class IssuesViewModelInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private val context: Context = ApplicationProvider.getApplicationContext()
     private var viewModel: IssuesViewModel? = null
 

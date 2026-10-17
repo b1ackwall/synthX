@@ -23,6 +23,7 @@ import coil.request.SuccessResult
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.DetailHeroSize
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -45,6 +46,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class AlbumDetailCoverInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createComposeRule()
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext

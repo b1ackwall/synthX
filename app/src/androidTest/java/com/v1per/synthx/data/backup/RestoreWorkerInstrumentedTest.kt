@@ -10,6 +10,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.testing.assumeNotificationPermissionDenied
 import java.io.File
 import java.util.UUID
@@ -22,11 +23,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class RestoreWorkerInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val workManager get() = WorkManager.getInstance(context)
     private val databaseDir get() = requireNotNull(context.getDatabasePath(SynthXDatabase.DB_NAME).parentFile)
@@ -45,10 +49,10 @@ class RestoreWorkerInstrumentedTest {
     @After fun tearDown() {
         SynthXDatabase.closeInstance()
         SongRepositoryImpl.resetForTest()
-        if (RestoreCoordinator.activeOperationCountForTest() == 0) RestoreCoordinator.resetForTest()
         runBlocking { workManager.cancelAllWork().result.get(); workManager.pruneWork().result.get() }
         cleanOwnedFiles()
         DatabaseStartupGate.resetForTest(context)
+        RestorePermitLeakCheck.assertDrainedThenReset()
     }
 
     @Test fun uniqueRestoreUsesKeepSemanticsAndReturnsTheActualOwner() = runBlocking {

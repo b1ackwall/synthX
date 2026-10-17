@@ -1,5 +1,7 @@
 package com.v1per.synthx.playback
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -7,6 +9,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PlayerBackgroundLuminanceTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private val white = 0xFFFFFFFF.toInt()
     private val black = 0xFF000000.toInt()
 

@@ -9,8 +9,10 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.Random
@@ -38,6 +40,7 @@ import kotlin.math.abs
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistArtBackboneEquivalenceInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
 
     @Test fun singlePathBackboneRendersTheSameAsOneLinePerSegment() {
         val rng = Random(20260919L)

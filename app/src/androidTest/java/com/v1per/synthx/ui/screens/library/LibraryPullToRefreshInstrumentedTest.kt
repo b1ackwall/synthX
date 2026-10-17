@@ -19,6 +19,7 @@ import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.lang.reflect.Proxy
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +39,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -48,6 +50,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class LibraryPullToRefreshInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val testId = "pull-refresh-test-${UUID.randomUUID()}"
     private val context = object : ContextWrapper(appContext) {

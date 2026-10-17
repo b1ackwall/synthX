@@ -12,6 +12,7 @@ import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.delay
@@ -23,6 +24,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -33,6 +35,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class BackupsAndRestoreViewModelInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val testId = "backups-vm-test-${UUID.randomUUID()}"
     private val context = object : ContextWrapper(appContext) {

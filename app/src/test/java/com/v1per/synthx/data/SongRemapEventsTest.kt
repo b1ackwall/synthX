@@ -1,12 +1,14 @@
 package com.v1per.synthx.data
 
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -26,6 +28,7 @@ private fun testSong(id: String) = Song(
  * during a suspension.
  */
 class SongRemapEventsTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun everyPublishedRemapCarriesAFreshIncreasingRevision() = runBlocking {
         val collector = async { SongRemapEvents.events.take(2).toList() }

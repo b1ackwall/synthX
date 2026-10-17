@@ -1,5 +1,7 @@
 package com.v1per.synthx.data.playlistart
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -7,6 +9,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class PlaylistArtHueTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     // ------------------------------------------------------------------ the palette itself
 

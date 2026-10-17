@@ -3,10 +3,13 @@ package com.v1per.synthx.ui.player
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class PlayerSheetMotionTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private fun expandedContentAlpha(progress: Float) = ((progress - 0.4f) * (1f / 0.6f)).coerceIn(0f, 1f)
 

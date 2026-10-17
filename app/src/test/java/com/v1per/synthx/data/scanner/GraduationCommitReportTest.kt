@@ -1,10 +1,14 @@
 package com.v1per.synthx.data.scanner
 
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.test.runTest
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class GraduationCommitReportTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     /** The old behaviour reported Done here and left the moved file for a scan to re-import. */
     @Test fun rowGoneAtCommitIsAFailureNotSuccess() = runTest {
         val stages = mutableListOf<GraduationStage>()

@@ -29,14 +29,16 @@ class PhaseBRestoreGatingInstrumentedTest : PhaseBRestoreTestBase() {
 
     @Test fun emergencyPreventsRoomOpeningAndEmptyCreation() {
         RestoreCoordinator.markEmergency("incident-test")
-        expectFailure { SynthXDatabase.getInstance(context) }
+        expectFailure(IllegalStateException::class, "Restore requires synthX to be closed and reopened") {
+            SynthXDatabase.getInstance(context)
+        }
         assertFalse(liveFile().exists())
     }
 
     @Test fun workerDatabasePathBlockedInTerminalModes() = runBlocking {
         RestoreCoordinator.markRestartRequired(false)
         var roomTouches = 0
-        expectSuspendFailure {
+        expectSuspendFailure(IllegalStateException::class, "Database operation is unavailable during restore") {
             WorkerDatabaseAccess.run(awaitStartup = {}) { roomTouches++ }
         }
         assertEquals(0, roomTouches)
@@ -47,7 +49,7 @@ class PhaseBRestoreGatingInstrumentedTest : PhaseBRestoreTestBase() {
         val repository = SongRepositoryImpl.create(context)
         val queue = QueuePersistence(repository)
         RestoreCoordinator.markClosed()
-        expectSuspendFailure { repository.isInAnyPlaylist("missing") }
+        expectSuspendFailure(IllegalStateException::class, "Database operation is unavailable during restore") { repository.isInAnyPlaylist("missing") }
         queue.saveQueueRecords(emptyList(), null, 0L)
         queue.quiesceForRestore()
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
@@ -117,7 +119,7 @@ class PhaseBRestoreGatingInstrumentedTest : PhaseBRestoreTestBase() {
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
 
         RestoreCoordinator.markClosed()
-        expectSuspendFailure { scanner.scan(Uri.EMPTY) }
+        expectSuspendFailure(IllegalStateException::class, "Database operation is unavailable during restore") { scanner.scan(Uri.EMPTY) }
         assertEquals(2, executions)
         database.close()
     }

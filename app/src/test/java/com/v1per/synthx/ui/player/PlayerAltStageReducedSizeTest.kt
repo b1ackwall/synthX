@@ -1,11 +1,14 @@
 package com.v1per.synthx.ui.player
 
 import androidx.compose.ui.unit.IntSize
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class PlayerAltStageReducedSizeTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun divisibleSidesDivideExactly() {
         assertEquals(IntSize(270, 600), altStageReducedSize(IntSize(1080, 2400), 4))

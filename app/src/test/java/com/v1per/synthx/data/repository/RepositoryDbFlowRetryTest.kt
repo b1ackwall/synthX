@@ -1,10 +1,12 @@
 package com.v1per.synthx.data.repository
 
 import com.v1per.synthx.data.repository.RepositoryDbFlow.retryOnFailure
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runTest
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -12,6 +14,8 @@ import kotlin.test.assertFailsWith
 /** P1-T6 (R1-F10): [RepositoryDbFlow.retryOnFailure] resubscribes an upstream flow that fails
  *  instead of letting the failure terminate it — see SongRepositoryImpl's shared flows. */
 class RepositoryDbFlowRetryTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     @Test
     fun `one transient failure followed by success delivers the successful value`() = runTest {
         var attempts = 0

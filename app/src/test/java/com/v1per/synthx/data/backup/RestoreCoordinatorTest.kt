@@ -1,9 +1,11 @@
 package com.v1per.synthx.data.backup
 
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -12,6 +14,8 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /** Focused B1 proof for the admission/drain boundary, independent of Room. */
 class RestoreCoordinatorTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private fun reset() = RestoreCoordinator.resetForTest()
     private suspend fun assertRejected(block: suspend () -> Unit) {
         var rejected = false

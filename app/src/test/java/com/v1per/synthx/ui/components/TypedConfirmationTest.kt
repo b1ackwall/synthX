@@ -1,5 +1,7 @@
 package com.v1per.synthx.ui.components
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -10,6 +12,7 @@ import kotlin.test.assertTrue
  * sites to agree on informally.
  */
 class TypedConfirmationTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun matchesExactWord() {
         assertTrue(typedConfirmationMatches("Delete", "Delete"))

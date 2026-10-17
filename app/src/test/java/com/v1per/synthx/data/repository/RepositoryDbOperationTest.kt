@@ -1,11 +1,13 @@
 package com.v1per.synthx.data.repository
 
 import com.v1per.synthx.data.backup.RestoreCoordinator
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import org.junit.Rule
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -13,6 +15,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 
 class RepositoryDbOperationTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     @AfterTest fun reset() = RestoreCoordinator.resetForTest()
 
     @Test fun finiteDeveloperActionRunsNormally() = runTest {

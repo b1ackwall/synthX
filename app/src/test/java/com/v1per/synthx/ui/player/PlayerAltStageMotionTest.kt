@@ -1,5 +1,7 @@
 package com.v1per.synthx.ui.player
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.math.PI
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -8,6 +10,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PlayerAltStageMotionTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private class Run(val angles: AltStageAngles, val updates: Int, val releasedSeconds: Double)
 

@@ -1,5 +1,7 @@
 package com.v1per.synthx.playback
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -15,6 +17,7 @@ import kotlin.test.assertNull
  * [QueueOrderStoreTest]), so nothing production-meaningful is left untested by extracting it.
  */
 class QueueSeekTargetTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun ordinaryTapResolvesToTheTappedSlotsPosition() {
         assertEquals(5, resolveUpcomingSeekTarget(currentIndex = 2, slotIndex = 5))

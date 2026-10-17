@@ -5,7 +5,9 @@ import android.util.Log
 import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.Ignore
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -18,6 +20,8 @@ import org.junit.runner.RunWith
 @Ignore("Manual real-device host-parameter measurement only")
 @RunWith(AndroidJUnit4::class)
 class HostParameterLimitDiagnosticTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @Test
     fun measureEffectiveHostParameterLimit() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()

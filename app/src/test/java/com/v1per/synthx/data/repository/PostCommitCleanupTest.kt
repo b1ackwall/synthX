@@ -1,8 +1,10 @@
 package com.v1per.synthx.data.repository
 
 import com.v1per.synthx.data.AudioFileDeletion
+import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -11,6 +13,7 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class PostCommitCleanupTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun failedStepIsLoggedAndDoesNotPreventTheNextStep() = runBlocking {

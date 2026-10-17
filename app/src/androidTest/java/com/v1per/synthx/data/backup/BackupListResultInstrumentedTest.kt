@@ -6,6 +6,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.ui.testing.TestTimeouts
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -13,6 +14,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -29,6 +31,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class BackupListResultInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val preferenceName = "backup-list-result-${UUID.randomUUID()}"
     // Both PreferencesManager and BackupManager must share this same isolated context — using

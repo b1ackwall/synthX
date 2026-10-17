@@ -1,11 +1,15 @@
 package com.v1per.synthx.ui.components
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** P9-T5 / F19: the pure decision behind [NotificationPermissionGate]. */
 class NotificationPermissionPolicyTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private val android13 = 33
 
     @Test fun asksOnlyWhenDeniedNotYetAskedAndRuntimePermissionExists() {

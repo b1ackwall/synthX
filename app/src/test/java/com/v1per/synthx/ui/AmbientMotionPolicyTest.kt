@@ -7,12 +7,16 @@ import com.v1per.synthx.ui.components.shouldPauseAmbientMotion
 import com.v1per.synthx.ui.components.shouldReduceAmbientMotion
 import com.v1per.synthx.ui.player.queueCompositingStrategy
 import com.v1per.synthx.ui.player.quantizePlayerGlowSize
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AmbientMotionPolicyTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     @Test fun homePausesOnlyWhenHomeIsFullyOccluded() {
         assertFalse(isHomeAmbientFullyOccluded(Screen.Home.route, 0f))
         assertFalse(isHomeAmbientFullyOccluded(Screen.Home.route, 0.5f))

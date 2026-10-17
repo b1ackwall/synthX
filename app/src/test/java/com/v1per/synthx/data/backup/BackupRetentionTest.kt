@@ -1,11 +1,15 @@
 package com.v1per.synthx.data.backup
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class BackupRetentionTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     @Test
     fun `only coherent complete final pairs enter retention`() {
         val valid = listOf(pair("00000001", 100), pair("00000002", 200), pair("00000003", 300))

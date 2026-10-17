@@ -1,10 +1,13 @@
 package com.v1per.synthx.ui.player
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class PlayerBackgroundDebugChainTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun defaultsAreTheLockedProductionChain() {
         val state = PlayerBackgroundDebugState()

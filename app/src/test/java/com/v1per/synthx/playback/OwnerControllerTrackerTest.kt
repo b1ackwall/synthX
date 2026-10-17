@@ -1,5 +1,7 @@
 package com.v1per.synthx.playback
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -13,6 +15,7 @@ import kotlin.test.assertTrue
  * module's JVM unit test setup), see the P4 report for that descope.
  */
 class OwnerControllerTrackerTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun disconnectingTheOnlyOwnerReportsStop() {
         val tracker = OwnerControllerTracker()

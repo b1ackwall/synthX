@@ -13,6 +13,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.util.concurrent.ListenableFuture
 import com.v1per.synthx.data.backup.DatabaseStartupGate
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.testing.stubSongRepository
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -20,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 
 /**
  * Shared bootstrap for the instrumented tests that run the real [SynthXPlaybackService] with a
@@ -36,6 +38,7 @@ import org.junit.Before
  * [newEngine] is released on teardown unless the test already did so.
  */
 abstract class PlaybackServiceTestBase {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
 
     protected val context: Context = ApplicationProvider.getApplicationContext()
     protected val instrumentation = InstrumentationRegistry.getInstrumentation()

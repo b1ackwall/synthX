@@ -1,10 +1,13 @@
 package com.v1per.synthx.ui.components
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /** The detail-header stats line, with the English resource text standing in for the resources. */
 class SongStatsFormatTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private val english = object : SongStatsStrings {
         override fun songCount(count: Int) = if (count == 1) "1 song" else "$count songs"

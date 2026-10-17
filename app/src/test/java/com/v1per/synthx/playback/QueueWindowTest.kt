@@ -1,6 +1,8 @@
 package com.v1per.synthx.playback
 
 import com.v1per.synthx.data.repository.QueueSlotRecord
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -17,6 +19,7 @@ import kotlin.test.assertTrue
  * All four are pure, so every case here is exact rather than a smoke test.
  */
 class QueueWindowTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private fun order(count: Int) = (0 until count).map { QueueSlotRecord("slot-$it", "song-$it") }
 

@@ -1,10 +1,13 @@
 package com.v1per.synthx.ui.player
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 // RenderEffect does not load in the JVM stub, so only the order-selection logic is tested here.
 class PlayerAltStageChainTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private val blurPx = PlayerAltStageStyle.BlurDp * 3f
 

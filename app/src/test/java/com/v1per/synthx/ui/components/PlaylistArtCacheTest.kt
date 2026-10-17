@@ -1,5 +1,7 @@
 package com.v1per.synthx.ui.components
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
@@ -12,6 +14,7 @@ import kotlin.test.assertTrue
  * instance ([cachedPlaylistArtRenderModel]) uses exactly this class.
  */
 class PlaylistArtCacheTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     private class Built(val hue: Int, val seed: Long, val sizePx: Float)
 

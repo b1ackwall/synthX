@@ -5,9 +5,11 @@ import androidx.compose.runtime.Composition
 import androidx.compose.runtime.Recomposer
 import com.v1per.synthx.playback.BackgroundBrightness
 import com.v1per.synthx.playback.BrightnessStats
+import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextPrimary
+import org.junit.Rule
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,6 +18,8 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class PlayerContentColorsTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private fun withMedian(median: Float) = BackgroundBrightness(
         wcag = BrightnessStats(mean = 0.9f, median = median, p90 = 0.9f),
         oklab = BrightnessStats(mean = 0.9f, median = 0.9f, p90 = 0.9f),

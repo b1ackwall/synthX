@@ -1,5 +1,7 @@
 package com.v1per.synthx.data
 
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.AfterTest
@@ -10,6 +12,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SongDeletionTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private lateinit var artDir: File
 
     @BeforeTest fun setUp() {

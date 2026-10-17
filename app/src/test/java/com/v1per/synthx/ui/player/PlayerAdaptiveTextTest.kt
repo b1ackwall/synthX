@@ -2,10 +2,14 @@ package com.v1per.synthx.ui.player
 
 import com.v1per.synthx.playback.BackgroundBrightness
 import com.v1per.synthx.playback.BrightnessStats
+import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class PlayerAdaptiveTextTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+
     private fun withMedian(median: Float) = BackgroundBrightness(
         wcag = BrightnessStats(mean = 0.9f, median = median, p90 = 0.9f),
         oklab = BrightnessStats(mean = 0.9f, median = 0.9f, p90 = 0.9f),

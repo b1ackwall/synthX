@@ -15,6 +15,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.ui.components.PlaylistRow
+import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,6 +26,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistRowRenameRecreationInstrumentedTest {
+    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
