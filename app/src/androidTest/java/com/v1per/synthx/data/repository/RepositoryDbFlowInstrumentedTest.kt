@@ -17,7 +17,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -104,6 +106,44 @@ class RepositoryDbFlowInstrumentedTest {
             assertEquals(1, cached.value.size)
             assertEquals(0, RestoreCoordinator.activeReactiveOperationCountForTest())
         }
+    }
+
+    /**
+     * Sibling of the test above where a reconnect is really attempted: a WhileSubscribed cache
+     * restarts its upstream when a new subscriber arrives. During restore preparation that new
+     * Room upstream must wait for admission, then connect once the mode is back to normal.
+     */
+    @Test
+    fun aCachedUpstreamReconnectDuringRestorePreparationWaitsUntilNormal() = runBlocking {
+        insertGroup("a")
+        val attempts = AtomicInteger()
+        val cached = flow {
+            attempts.incrementAndGet()
+            emitAll(repository.groups())
+        }.stateIn(ownedScope(), SharingStarted.WhileSubscribed(), emptyList())
+        val firstSubscriber = ownedScope().launch { cached.collect() }
+        awaitReactiveCount(1)
+        withTimeout(2_000) { cached.first { it.size == 1 } }
+
+        RestoreCoordinator.exclusive {
+            RepositoryDbFlow.quiesceForRestore()
+            RestoreCoordinator.awaitDrained()
+            firstSubscriber.cancel()
+            firstSubscriber.join()
+            insertGroup("b")
+
+            ownedScope().launch { cached.collect() }
+            withTimeout(2_000) { while (attempts.get() < 2) kotlinx.coroutines.yield() }
+            // Admission is decided synchronously on subscribe; give a wrong admit time to show.
+            kotlinx.coroutines.delay(200)
+            assertEquals("no Room upstream may connect during preparation", 0, RestoreCoordinator.activeReactiveOperationCountForTest())
+            assertEquals(1, cached.value.size)
+        }
+
+        RestoreCoordinator.markNormal()
+        awaitReactiveCount(1)
+        withTimeout(2_000) { cached.first { it.size == 2 } }
+        Unit
     }
 
     @Test

@@ -27,7 +27,8 @@ import kotlin.math.abs
  * The two are visually identical but NOT bit-identical, and this test is deliberately not written
  * as if they were. Skia rasterises a stroked path with several subpaths marginally differently from
  * the same subpaths drawn one call each: measured on an x86_64 emulator over 150 covers at
- * 56-140 px, ~4% of pixels differ, by ~1/255 on average and 5/255 at worst, and every one of them
+ * 56-140 px, ~4% of pixels differ, by ~1/255 on average and 5/255 at worst (an older phone's Skia
+ * differs on ~14% of pixels, still within a pixel of the backbone), and every one of them
  * lies within a pixel of a stroke of the 10%-alpha backbone, none farther away. One subpath per
  * `drawPath` reproduces the old output exactly, so the difference is real but comes from putting
  * several in one path — which is the whole point of the change. The bounds below are set to absorb
@@ -126,9 +127,11 @@ class PlaylistArtBackboneEquivalenceInstrumentedTest {
     private companion object {
         const val SEEDS_PER_SIZE = 25
 
-        // Observed 5 and ~0.04. Roughly 1.6x and 2.5x headroom: enough for another GPU/Skia build's
-        // rounding, not enough to hide a stroke that is 10% too wide or an alpha of 0.12 vs 0.1.
+        // Measured (slice 5d): worst 5 and mean 0.040 on the x86_64 emulator (API 37), worst 1 and
+        // mean 0.138 on a Redmi Note 7 Pro (API 33). A backbone alpha of 0.11 instead of 0.1 gives a
+        // mean of 0.221 / 0.274 with a worst pixel of only 4 / 3, so the mean bound sits between the
+        // Redmi's honest 0.138 and that break. A 5% wider stroke gives worst 10 on both.
         const val MAX_CHANNEL_DIFF = 8
-        const val MAX_MEAN_DIFF = 0.10
+        const val MAX_MEAN_DIFF = 0.18
     }
 }

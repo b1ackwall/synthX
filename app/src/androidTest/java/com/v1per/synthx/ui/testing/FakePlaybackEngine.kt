@@ -29,6 +29,8 @@ internal class FakePlaybackEngine(
     val nextCalls = AtomicInteger()
     val persistCalls = AtomicInteger()
     val reconcileCalls = AtomicInteger()
+    val pauseCalls = AtomicInteger()
+    val resumeCalls = AtomicInteger()
 
     val playingState = MutableStateFlow(playing)
     val errorEvents = MutableSharedFlow<PlaybackError>(extraBufferCapacity = 4)
@@ -69,8 +71,8 @@ internal class FakePlaybackEngine(
     override fun moveQueueItem(slotId: String, toIndex: Int) {}
     override fun removeQueueItem(slotId: String) {}
     override fun seekToQueueItem(slotId: String) {}
-    override fun pause() {}
-    override fun resume() {}
+    override fun pause() { pauseCalls.incrementAndGet() }
+    override fun resume() { resumeCalls.incrementAndGet() }
     override fun stop() {}
     override fun seekTo(positionMs: Long) {}
     override fun release() {}

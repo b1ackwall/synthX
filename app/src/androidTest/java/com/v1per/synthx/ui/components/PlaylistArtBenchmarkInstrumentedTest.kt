@@ -12,6 +12,10 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.v1per.synthx.ui.testing.TestTimeouts
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -20,8 +24,9 @@ import java.util.Random
 /**
  * Informational timings for [PlaylistArt]'s per-row cost (P8-T5) — NOT a pass/fail gate. Wall-clock
  * numbers on a shared emulator or a thermally throttled phone are far too noisy to assert on, so
- * every test here only logs (tag [TAG], read with `adb logcat -d -s PlaylistArtBench`) and asserts
- * nothing beyond "it ran". Medians are used throughout because a single GC pause or scheduler
+ * the timings are only logged (tag [TAG], read with `adb logcat -d -s PlaylistArtBench`). Four tests
+ * also check that what they timed is correct (lit segments kept, cache hits and eviction, pixels
+ * drawn); none asserts a time. Medians are used throughout because a single GC pause or scheduler
  * hiccup would otherwise dominate a mean.
  *
  * What each line measures, per cover, at the real 40dp size for this device's density:
@@ -56,6 +61,12 @@ class PlaylistArtBenchmarkInstrumentedTest {
         Log.i(TAG, "build minus walk (what a pattern-only cache cannot remove): median %.1f us".format(median(build) - median(walk)))
         val lit = seeds.take(SAMPLES).map { generatePlaylistArt(it).litSegments.size }.sorted()
         Log.i(TAG, "sample lit segments: median=${lit[lit.size / 2]} mean=%.1f (each lit segment costs one Brush + one draw op)".format(lit.average()))
+        // What was timed is right: the model keeps exactly the walk's lit segments.
+        for (i in 0 until SAMPLES) {
+            val expected = generatePlaylistArt(seeds[i]).litSegments.size
+            assertTrue("seed ${seeds[i]} lights nothing", expected > 0)
+            assertEquals("seed ${seeds[i]}", expected, playlistArtRenderModel(hues[i], seeds[i], sizePx).lit.size)
+        }
     }
 
     @Test fun drawOpCountBeforeAndAfterBackboneCollapse() {
@@ -86,7 +97,8 @@ class PlaylistArtBenchmarkInstrumentedTest {
         for (it in 0 until lookups) cachedPlaylistArtRenderModel(hues[it % keys], seeds[it % keys], sizePx)
         val hitNs = (System.nanoTime() - start).toDouble() / lookups
         Log.i(TAG, "%-42s mean=%8.3f us  (n=%d bulk lookups)".format("cache hit", hitNs / 1_000.0, lookups))
-
+        // What was timed was a real hit: the held model comes back, not a rebuilt one.
+        assertSame(cachedPlaylistArtRenderModel(hues[0], seeds[0], sizePx), cachedPlaylistArtRenderModel(hues[0], seeds[0], sizePx))
     }
 
     @Test fun drawPassCost() {
@@ -111,6 +123,10 @@ class PlaylistArtBenchmarkInstrumentedTest {
         )
         report("raster, warm, single-path backbone (new)", newRaster)
         report("raster, warm, per-segment lines (old)", oldRaster)
+        // What was timed really draws: a rendered cover is not blank.
+        val image = rasterise(models[0])
+        val pixels = IntArray(image.width * image.height).also { image.readPixels(it) }
+        assertTrue("the draw pass painted nothing", pixels.any { it != 0 })
         // What a row scrolling back into view pays: before = build the model, then draw it cold;
         // after = a cache lookup, then draw it warm.
         val build = median(timeEach { playlistArtRenderModel(hues[it], seeds[it] + 5, sizePx) })
@@ -125,9 +141,19 @@ class PlaylistArtBenchmarkInstrumentedTest {
         // All three are timed after the same warmup: timing a "miss" first, on a cold JIT, once made
         // the cache look ~350us slower than it is.
         val ring = arrayOfNulls<PlaylistArtRenderModel>(PlaylistArtCache.MAX_ENTRIES)
+        val firstHeld = cachedPlaylistArtRenderModel(hues[0], seeds[0] + 1, sizePx)
         report("build, result discarded", timeEach { playlistArtRenderModel(hues[it], seeds[it] + 1, sizePx) })
         report("build, result retained in ring buffer", timeEach { ring[it % ring.size] = playlistArtRenderModel(hues[it], seeds[it] + 1, sizePx) })
         report("build via cache (build + put + evict)", timeEach { cachedPlaylistArtRenderModel(hues[it], seeds[it] + 1, sizePx) })
+        // What was timed really evicts: far more than MAX_ENTRIES newer keys pushed the first out,
+        // while the newest is still held.
+        assertTrue(SAMPLES + WARMUP > 2 * PlaylistArtCache.MAX_ENTRIES)
+        assertNotSame(firstHeld, cachedPlaylistArtRenderModel(hues[0], seeds[0] + 1, sizePx))
+        val newest = SAMPLES + WARMUP - 1
+        assertSame(
+            cachedPlaylistArtRenderModel(hues[newest], seeds[newest] + 1, sizePx),
+            cachedPlaylistArtRenderModel(hues[newest], seeds[newest] + 1, sizePx),
+        )
     }
 
     private fun recordIntoRenderNode(model: PlaylistArtRenderModel, draw: DrawScope.() -> Unit = { drawPlaylistArt(model) }) {
@@ -141,10 +167,11 @@ class PlaylistArtBenchmarkInstrumentedTest {
         }
     }
 
-    private fun rasterise(model: PlaylistArtRenderModel, draw: DrawScope.() -> Unit = { drawPlaylistArt(model) }) {
+    private fun rasterise(model: PlaylistArtRenderModel, draw: DrawScope.() -> Unit = { drawPlaylistArt(model) }): ImageBitmap {
         val side = sizePx.toInt()
         val image = ImageBitmap(side, side)
         CanvasDrawScope().draw(Density(density), LayoutDirection.Ltr, Canvas(image), Size(sizePx, sizePx), draw)
+        return image
     }
 
     /** Times [SAMPLES] calls after [WARMUP] discarded ones; result is per-call microseconds. */

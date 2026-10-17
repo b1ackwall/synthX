@@ -12,6 +12,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.R
 import com.v1per.synthx.preferences.PreferencesManager
+import com.v1per.synthx.testing.DebugPreferencesSnapshot
 import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.SynthXTheme
 import java.util.UUID
@@ -34,6 +35,10 @@ class NotificationPermissionGateInstrumentedTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
+
+    // The bare-composition test reads the real app's flag; this starts it from an empty file
+    // (flag false) every run and puts the saved file back afterwards.
+    @get:Rule val realPreferences = DebugPreferencesSnapshot()
 
     private val base: Context = ApplicationProvider.getApplicationContext()
     private val testId = "notification-gate-${UUID.randomUUID()}"
@@ -72,10 +77,12 @@ class NotificationPermissionGateInstrumentedTest {
     /** F19's core: composing the shell-level gate must not itself ask for anything. */
     @Test fun bareCompositionOfTheRealGateNeverPromptsOrRecordsAnAsk() {
         val before = PreferencesManager(base).notificationPermissionAsked
+        assertFalse("the real flag starts false, so a write is visible", before)
         composeRule.setContent { SynthXTheme { rememberNotificationPermissionGate() } }
         composeRule.waitForIdle()
         composeRule.onNodeWithText(title()).assertDoesNotExist()
         assertEquals(before, PreferencesManager(base).notificationPermissionAsked)
+        assertFalse(PreferencesManager(base).notificationPermissionAsked)
     }
 
     @Test fun bareCompositionOfTheDialogShowsNothingAndLaunchesNothing() {

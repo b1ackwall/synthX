@@ -314,6 +314,9 @@ class RepositoryDeletionInstrumentedTest {
             }
         }
         withTimeout(3_000) { graduationHolding.await() }
+        // Held open: graduation itself owns the song lock and one restore permit.
+        assertEquals("graduation holds the song lock", 1, FileOperationCoordinator.songLockRefCountForTest("song"))
+        assertEquals("graduation holds a restore permit", 1, RestoreCoordinator.activeOperationCountForTest())
 
         val deletion = async(Dispatchers.IO) { repository.deleteSong("song") }
         delay(300)

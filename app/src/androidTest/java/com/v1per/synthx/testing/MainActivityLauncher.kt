@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.v1per.synthx.MainActivity
@@ -43,6 +44,9 @@ internal class MainActivityLauncher(private val compose: ComposeTestRule) {
 
     fun tearDown() {
         try {
+            // Closing a stopped activity waits out ActivityScenario's 45 s limit before it is
+            // destroyed; resuming it first makes the close take about a second.
+            scenario?.let { if (it.state == Lifecycle.State.CREATED) it.moveToState(Lifecycle.State.RESUMED) }
             scenario?.close()
             scenario = null
             // Collectors outside the activity (the playback service's) are cancelled through the
