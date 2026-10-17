@@ -3,6 +3,7 @@ package com.v1per.synthx.data.backup
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.WorkManager
 import com.v1per.synthx.R
@@ -356,7 +357,8 @@ open class BackupManager(internal val context: Context) {
             .first { infos -> infos.all { it.state.isFinished } }
     }
 
-    private fun resolveTierDir(
+    @VisibleForTesting
+    internal open fun resolveTierDir(
         treeUri: Uri,
         tier: BackupTier,
         create: Boolean = true,

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -27,6 +28,14 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.CancellationException
 
+/** The persisted-read-grant check both folder scan workers run first. Tests may replace it. */
+internal object ScanFolderGrant {
+    @VisibleForTesting
+    internal var hasReadGrant: (Context, Uri) -> Boolean = { context, uri ->
+        context.contentResolver.persistedUriPermissions.any { it.uri == uri && it.isReadPermission }
+    }
+}
+
 /**
  * Runs the library scan outside any UI lifecycle.
  *
@@ -49,9 +58,7 @@ class LibraryScanWorker(
         // A stored URI outlives its grant (revoked access, restored backup). Scanning
         // without the grant reports a successful empty scan and flags the whole library
         // missing, so drop the stale URI and prompt for a re-pick instead.
-        val grantValid = applicationContext.contentResolver.persistedUriPermissions.any {
-            it.uri == uri && it.isReadPermission
-        }
+        val grantValid = ScanFolderGrant.hasReadGrant(applicationContext, uri)
         if (!grantValid) {
             preferences.musicFolderUri = null
             return Result.failure(workDataOf(KEY_ERROR to GRANT_REVOKED_MESSAGE))

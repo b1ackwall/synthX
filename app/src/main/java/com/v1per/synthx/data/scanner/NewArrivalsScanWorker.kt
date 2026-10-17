@@ -51,9 +51,7 @@ class NewArrivalsScanWorker(
         // A stored URI outlives its grant (revoked access, restored backup). Same handling
         // as LibraryScanWorker: drop the stale URI so the UI falls back to "No folder
         // selected" rather than silently scanning nothing forever.
-        val grantValid = applicationContext.contentResolver.persistedUriPermissions.any {
-            it.uri == uri && it.isReadPermission
-        }
+        val grantValid = ScanFolderGrant.hasReadGrant(applicationContext, uri)
         if (!grantValid) {
             preferences.newArrivalsFolderUri = null
             return Result.failure(workDataOf(KEY_ERROR to GRANT_REVOKED_MESSAGE))
