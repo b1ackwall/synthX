@@ -129,20 +129,24 @@ class DatabaseStartupGateInstrumentedTest {
                 order += "room-open"
             }
         }
-        migrationStarted.await()
+        // The worker waits inside the gate for releaseMigration; release it even when an
+        // assertion fails, so the failure reports at once instead of hanging the test.
+        try {
+            migrationStarted.await()
 
-        assertFalse(worker.isCompleted)
-        assertFalse(controller.isReady())
-        assertEquals(1, inspections.get())
-        assertEquals(1, migrations.get())
-        expectFailure(IllegalStateException::class, ROOM_BLOCKED) { SynthXDatabase.getInstance(context) }
-        assertEquals(
-            "The live schema changed before the pre-migration snapshot succeeded",
-            LiveDatabaseVersion.Present(7),
-            LiveDatabaseVersionReader.read(live),
-        )
-
-        releaseMigration.complete(Unit)
+            assertFalse(worker.isCompleted)
+            assertFalse(controller.isReady())
+            assertEquals(1, inspections.get())
+            assertEquals(1, migrations.get())
+            expectFailure(IllegalStateException::class, ROOM_BLOCKED) { SynthXDatabase.getInstance(context) }
+            assertEquals(
+                "The live schema changed before the pre-migration snapshot succeeded",
+                LiveDatabaseVersion.Present(7),
+                LiveDatabaseVersionReader.read(live),
+            )
+        } finally {
+            releaseMigration.complete(Unit)
+        }
         worker.await()
 
         assertTrue(controller.isReady())

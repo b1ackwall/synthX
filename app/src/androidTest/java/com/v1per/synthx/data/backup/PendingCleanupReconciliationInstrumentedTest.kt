@@ -3,6 +3,7 @@ package com.v1per.synthx.data.backup
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
+import androidx.core.content.FileProvider
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -46,6 +47,7 @@ class PendingCleanupReconciliationInstrumentedTest {
 
     private lateinit var context: ReconciliationTestContext
     private lateinit var database: SynthXDatabase
+    private val publishedFiles = mutableListOf<File>()
 
     @Before
     fun setUp() {
@@ -57,6 +59,7 @@ class PendingCleanupReconciliationInstrumentedTest {
 
     @After
     fun tearDown() {
+        publishedFiles.forEach(File::delete)
         database.close()
         context.cleanUp()
         PendingCleanupReconciliationTracker.resetForTest()
@@ -122,6 +125,28 @@ class PendingCleanupReconciliationInstrumentedTest {
         assertEquals("test://already-published", song.filePath)
         assertFalse("Row already matched publishedPath — must not be flagged missing", song.isMissing)
         assertTrue(database.pendingCleanupDao().getAll().isEmpty())
+
+        // A published document that really exists: a FileProvider URI to a real file.
+        val publishedUri = reachablePublishedDocument()
+        seedSong("moved", filePath = "test://deleted-source")
+        database.pendingCleanupDao().insert(
+            PendingCleanupEntity(
+                operationId = UUID.randomUUID().toString(),
+                songId = "moved",
+                operationType = PendingCleanupType.GRADUATE.name,
+                filePath = null,
+                publishedPath = publishedUri,
+                phase = PendingCleanupPhase.SourceDeleted.name,
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
+
+        PendingCleanupReconciliation.reconcile(context, database)
+
+        val moved = requireNotNull(database.songDao().getSongById("moved"))
+        assertEquals("row must point at the reachable published document", publishedUri, moved.filePath)
+        assertFalse(moved.isMissing)
+        assertTrue(database.pendingCleanupDao().getAll().isEmpty())
     }
 
     @Test
@@ -181,6 +206,15 @@ class PendingCleanupReconciliationInstrumentedTest {
         PendingCleanupReconciliation.reconcile(context, database)
 
         assertEquals(0, PendingCleanupReconciliationTracker.lastCount.value)
+        assertEquals("an empty pass must not record a reconciliation", 0L, PendingCleanupReconciliationTracker.lastTimestamp.value)
+    }
+
+    private fun reachablePublishedDocument(): String {
+        val appContext = context.baseContext
+        val file = File(File(appContext.filesDir, "restore_incidents").apply { mkdirs() }, "${UUID.randomUUID()}.published")
+        file.writeText("published")
+        publishedFiles += file
+        return FileProvider.getUriForFile(appContext, "${appContext.packageName}.fileprovider", file).toString()
     }
 
     private suspend fun seedSong(id: String, filePath: String) {

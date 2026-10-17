@@ -3,6 +3,7 @@ package com.v1per.synthx.data.backup
 import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.Rule
@@ -48,7 +49,8 @@ class RestoreCoordinatorTest {
         yield()
         val restoreEntered = CompletableDeferred<Unit>()
         val restore = launch { RestoreCoordinator.exclusive { RestoreCoordinator.awaitDrained(); restoreEntered.complete(Unit) } }
-        yield()
+        // Runs every runnable coroutine and skips virtual time, so a timed wait cannot pass for a drain.
+        advanceUntilIdle()
         assertFalse(restoreEntered.isCompleted)
         releaseOperation.complete(Unit)
         operation.join(); restore.join()
@@ -92,7 +94,9 @@ class RestoreCoordinatorTest {
         yield()
         val drained = CompletableDeferred<Unit>()
         val restore = launch { RestoreCoordinator.exclusive { RestoreCoordinator.awaitDrained(); drained.complete(Unit) } }
-        yield(); assertFalse(drained.isCompleted)
+        // Runs every runnable coroutine and skips virtual time, so a timed wait cannot pass for a drain.
+        advanceUntilIdle()
+        assertFalse(drained.isCompleted, "restore crossed the drain boundary while a backup held its permit")
         releaseBackup.complete(Unit); backup.join(); restore.join()
         assertTrue(drained.isCompleted); reset()
     }

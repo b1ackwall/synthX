@@ -5,7 +5,6 @@ import android.system.Os
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.db.SynthXDatabase
 import java.io.File
-import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,7 +18,7 @@ import org.junit.runner.RunWith
  * cold-start behaviour driven through the real [RestoreStartup] path.
  */
 @RunWith(AndroidJUnit4::class)
-class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
+class PhaseBRestoreRecoveryInstrumentedTest : RestoreScenarioTestBase() {
 
     @Test fun liveMoveIntentBeforeRenameRecoversOriginalLive() {
         val scenario = scenario(RestoreTransaction.Phase.LIVE_MOVE_INTENT, live = "original")
@@ -216,6 +215,7 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
         )
         assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
         assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+        assertEquals("the validated rolled-back live must be kept", "original", readMarker(liveFile()))
     }
 
     @Test fun malformedStateWithValidOldRecoversOld() {
@@ -486,8 +486,6 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
         assertEquals("new-request-installed", readMarker(liveFile()))
     }
 
-    private data class Scenario(val state: RestoreTransaction.State)
-
     private fun completeInstalledScenario(): Scenario {
         scenario(
             RestoreTransaction.Phase.POST_VALIDATED,
@@ -499,54 +497,6 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
         assertEquals(RestoreTransaction.Phase.COMPLETE, completed.state.phase)
         assertOperationArtifactsAbsent(completed.state)
         return completed
-    }
-
-    private fun scenario(
-        phase: RestoreTransaction.Phase,
-        live: String? = null,
-        old: String? = null,
-        installCandidate: Boolean = false,
-        outcome: RestoreTransaction.Outcome = RestoreTransaction.Outcome.INSTALLED,
-        rollbackSource: RestoreTransaction.RollbackSource? = null,
-        requestId: String? = null,
-    ): Scenario {
-        val op = newOp()
-        val names = RestoreArtifactNames(op)
-        val candidate = File(databaseDir, names.candidate)
-        val safety = File(databaseDir, names.safety)
-        val oldFile = File(databaseDir, names.old)
-        createDatabaseFile(candidate, "candidate")
-        createDatabaseFile(safety, "safety")
-        if (old != null) createDatabaseFile(oldFile, old)
-        if (live != null) createDatabaseFile(liveFile(), live)
-        val candidateDigest = BackupHashing.hash(candidate)
-        val safetyDigest = BackupHashing.hash(safety)
-        val oldDigest = oldFile.takeIf(File::isFile)?.let(BackupHashing::hash)
-        val state = RestoreTransaction.State(
-            operationId = op,
-            sourceName = validBackupName(),
-            sourceUri = "content://phase-b/source",
-            candidateName = names.candidate,
-            oldName = names.old,
-            safetyName = names.safety,
-            failedName = names.failed,
-            candidateSha256 = candidateDigest.sha256,
-            candidateSize = candidateDigest.sizeBytes,
-            candidateVersion = SynthXDatabase.VERSION,
-            safetySha256 = safetyDigest.sha256,
-            safetySize = safetyDigest.sizeBytes,
-            phase = phase,
-            createdAt = 1,
-            oldSha256 = oldDigest?.sha256,
-            oldSize = oldDigest?.sizeBytes,
-            oldVersion = oldDigest?.let { SynthXDatabase.VERSION },
-            outcome = outcome,
-            rollbackSource = rollbackSource,
-            requestId = requestId,
-        )
-        RestoreTransaction.writeStateForTest(databaseDir, state)
-        if (installCandidate) Os.rename(candidate.path, liveFile().path)
-        return Scenario(state)
     }
 
     private fun checkpointRoom(room: SynthXDatabase) {
@@ -584,16 +534,4 @@ class PhaseBRestoreRecoveryInstrumentedTest : PhaseBRestoreTestBase() {
                 cursor.getString(0)
             }
         }
-
-    private fun newOp(): String = UUID.randomUUID().toString().replace("-", "")
-
-    private fun failOnceAt(point: RestoreFaultPoint): RestoreFaultInjector {
-        var fired = false
-        return RestoreFaultInjector { actual ->
-            if (!fired && actual == point) {
-                fired = true
-                error("Injected $point")
-            }
-        }
-    }
 }

@@ -7,8 +7,6 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -139,10 +137,18 @@ class PhaseBRestoreJournalUpgradeInstrumentedTest : PhaseBRestoreTestBase() {
 
     @Test
     fun activeJournalFromOlderVersionRemainsStrictlyRejected() {
-        val complete = historicalCompleteState(priorVersion)
-        val activeJson = RestoreTransaction.encodeState(complete)
-            .replace("\"phase\":\"COMPLETE\"", "\"phase\":\"PREPARED\"")
-        assertTrue(activeJson.contains("\"phase\":\"PREPARED\""))
+        val current = RestoreJournalGoldens.read("active-post-validated.json")
+        val activeJson = RestoreJournalGoldens.replaceOnce(
+            RestoreJournalGoldens.replaceOnce(
+                current,
+                "\"candidateVersion\":${SynthXDatabase.VERSION}",
+                "\"candidateVersion\":$priorVersion",
+            ),
+            "\"oldVersion\":${SynthXDatabase.VERSION}",
+            "\"oldVersion\":$priorVersion",
+        )
+        assertTrue(activeJson.contains("\"phase\":\"POST_VALIDATED\""))
+        assertNotNull("the current active golden must decode", RestoreTransaction.decodeStateOrNull(current))
         stateFile().writeText(activeJson)
 
         assertNull(RestoreTransaction.decodeStateOrNull(activeJson))
@@ -150,6 +156,18 @@ class PhaseBRestoreJournalUpgradeInstrumentedTest : PhaseBRestoreTestBase() {
             RestoreRecovery.EMERGENCY,
             RestoreTransaction.recoverIfNeeded(context, databaseDir),
         )
+    }
+
+    @Test
+    fun v24CompleteJournalBytesStartNormally() {
+        stateFile().writeText(RestoreJournalGoldens.read("v2.4-complete.json"))
+        createLive("current")
+
+        assertEquals(RestoreRecovery.NORMAL, RestoreStartup.recoverNowForTest(context))
+        assertEquals(RestoreCoordinator.Terminal.NORMAL, RestoreCoordinator.current())
+        assertEquals("current", readMarker(liveFile()))
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+        assertEquals(14, readState().candidateVersion)
     }
 
     private fun historicalCompleteState(
@@ -180,10 +198,21 @@ class PhaseBRestoreJournalUpgradeInstrumentedTest : PhaseBRestoreTestBase() {
         )
     }
 
+    /**
+     * Writes [state] as journal text built from the fixed v2.5 golden (field names and enum values
+     * come from that file, not from today's serializer); only the values a test varies are swapped.
+     */
     private fun writeHistoricalState(state: RestoreTransaction.State) {
-        // This is deliberately serialized independently of the running app's journal writer:
-        // on a real upgrade these bytes were written by the prior app version.
-        stateFile().writeText(Json.encodeToString(RestoreTransaction.State.serializer(), state))
+        var text = RestoreJournalGoldens.read("v2.5-complete-rolled-back.json")
+            .replace(RestoreJournalGoldens.OPERATION_ID, state.operationId)
+        text = RestoreJournalGoldens.replaceOnce(text, "\"candidateVersion\":16", "\"candidateVersion\":${state.candidateVersion}")
+        text = RestoreJournalGoldens.replaceOnce(text, "\"oldVersion\":16", "\"oldVersion\":${requireNotNull(state.oldVersion)}")
+        text = RestoreJournalGoldens.replaceOnce(text, "\"safetySha256\":\"${"b".repeat(64)}\"", "\"safetySha256\":\"${state.safetySha256}\"")
+        text = RestoreJournalGoldens.replaceOnce(text, "\"safetySize\":4096", "\"safetySize\":${state.safetySize}")
+        if (state.outcome == RestoreTransaction.Outcome.INSTALLED) {
+            text = RestoreJournalGoldens.replaceOnce(text, "\"outcome\":\"ROLLED_BACK\",\"rollbackSource\":\"SAFETY\",", "")
+        }
+        stateFile().writeText(text)
     }
 
     private fun createDatabaseAtVersion(destination: File, version: Int) {

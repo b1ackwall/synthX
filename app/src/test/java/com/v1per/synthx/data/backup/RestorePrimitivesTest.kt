@@ -263,6 +263,14 @@ class RestorePrimitivesTest {
                 RestoreTransaction.Outcome.ROLLED_BACK,
             ),
         )
+        assertEquals(
+            RestoreRecoveryAction.PROMOTE_OLD,
+            decide(
+                RestoreTransaction.Phase.ROLLED_BACK,
+                facts(liveExists = true, liveValid = false, oldExists = true, oldValid = true),
+                RestoreTransaction.Outcome.ROLLED_BACK,
+            ),
+        )
     }
 
     @Test fun completeAcceptsValidCurrentLiveWithoutHistoricalCandidateIdentity() {

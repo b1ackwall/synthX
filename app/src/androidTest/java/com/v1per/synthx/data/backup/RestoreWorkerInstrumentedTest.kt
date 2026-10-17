@@ -164,14 +164,14 @@ class RestoreWorkerInstrumentedTest {
         val finished = awaitFinished(request.id)
         assertEquals(WorkInfo.State.FAILED, finished.state)
         val detail = finished.outputData.getString(RestoreWorker.KEY_ERROR).orEmpty()
-        assertTrue(detail.contains("restore failed:"))
-        assertTrue(detail.contains("caused by") || detail.lines().size > 1)
+        assertTrue(detail, detail.contains("restore failed:"))
+        assertTrue("the nested cause must be labelled: $detail", detail.contains("caused by"))
     }
 
     /**
      * P7-T7/R7-F17: the notification used to be permanently `setProgress(0, 0, true)` — this
-     * proves the worker now publishes at least one real, named [RestoreProgressStep] via
-     * [RestoreWorker.KEY_PROGRESS_STEP] over the course of a successful run.
+     * proves the worker now publishes at least two distinct, named [RestoreProgressStep]s via
+     * [RestoreWorker.KEY_PROGRESS_STEP], in step order, over the course of a successful run.
      */
     @Test fun successfulWorkerReportsDistinctProgressStepsNotPermanentlyIndeterminate() = runBlocking {
         createDatabaseFile(context.getDatabasePath(SynthXDatabase.DB_NAME), "state-a")
@@ -198,9 +198,11 @@ class RestoreWorkerInstrumentedTest {
         }
 
         assertTrue(
-            "Expected at least one distinct RestoreProgressStep, got $observedSteps",
-            observedSteps.isNotEmpty(),
+            "Expected at least two distinct RestoreProgressSteps, got $observedSteps",
+            observedSteps.distinct().size >= 2,
         )
+        val order = observedSteps.map { RestoreProgressStep.valueOf(it).ordinal }
+        assertEquals("steps must arrive in RestoreProgressStep order: $observedSteps", order.sorted(), order)
     }
 
     /**

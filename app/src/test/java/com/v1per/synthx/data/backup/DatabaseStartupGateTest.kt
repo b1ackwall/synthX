@@ -136,16 +136,20 @@ class DatabaseStartupGateTest {
                 roomOpens++
             }
         }
-        migrationStarted.await()
-        repeat(20) { yield() }
+        // The callers wait inside the gate for releaseMigration; release it even when an
+        // assertion fails, so the failure reports at once instead of hanging runTest.
+        try {
+            migrationStarted.await()
+            repeat(20) { yield() }
 
-        assertEquals(1, restoreAwaits)
-        assertEquals(1, inspections)
-        assertEquals(1, migrations)
-        assertEquals(0, roomOpens)
-        assertFalse(controller.isReady())
-
-        releaseMigration.complete(Unit)
+            assertEquals(1, restoreAwaits)
+            assertEquals(1, inspections)
+            assertEquals(1, migrations)
+            assertEquals(0, roomOpens)
+            assertFalse(controller.isReady())
+        } finally {
+            releaseMigration.complete(Unit)
+        }
         callers.awaitAll()
         assertEquals(20, roomOpens)
         assertTrue(controller.isReady())

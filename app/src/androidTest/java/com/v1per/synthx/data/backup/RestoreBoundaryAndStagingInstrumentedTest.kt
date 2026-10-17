@@ -3,6 +3,7 @@ package com.v1per.synthx.data.backup
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.v1per.synthx.data.db.SynthXDatabase
 import java.io.File
 import java.util.UUID
 import com.v1per.synthx.ui.testing.TestTimeouts
@@ -38,6 +39,24 @@ class RestoreBoundaryAndStagingInstrumentedTest {
         assertEquals(RestoreRecovery.EMERGENCY, result)
         assertEquals(RestoreCoordinator.Terminal.EMERGENCY, RestoreCoordinator.current())
         assertTrue(ready)
+    }
+
+    @Test fun unexpectedStartupThrowPersistsIncidentIdAndReport() {
+        RestoreCoordinator.resetForTest()
+        val incidentFile = File(context.getDatabasePath(SynthXDatabase.DB_NAME).parentFile, "synthx.restore-incident.id")
+        incidentFile.delete()
+        try {
+            val result = RestoreStartup.runProtectedRecovery(context, recovery = { error("unexpected boundary failure") })
+
+            assertEquals(RestoreRecovery.EMERGENCY, result)
+            val incidentId = requireNotNull(RestoreCoordinator.diagnosticOperationId.value) { "no incident id published" }
+            assertEquals(incidentId, incidentFile.readText().trim())
+            val report = RestoreIncidentReports.decode(RestoreIncidentReports.reportFile(context, incidentId))
+            assertEquals("STARTUP_BOUNDARY_EXCEPTION", report.triggerCategory)
+            assertTrue(report.exceptions.any { it.message.orEmpty().contains("unexpected boundary failure") })
+        } finally {
+            incidentFile.delete()
+        }
     }
 
     @Test fun startupScavengerRemovesRecognizedOrphansOnly() {
