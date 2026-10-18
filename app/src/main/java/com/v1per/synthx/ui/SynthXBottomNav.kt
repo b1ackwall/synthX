@@ -177,9 +177,9 @@ private val libraryTabRoutes = Screen.libraryDetailRoutes
 private fun SynthXBottomNav(
     navController: NavController,
     currentRoute: String?,
+    modifier: Modifier = Modifier,
     playerProgress: Float = 0f,
     onSearchReselected: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     Trace.beginSection(PerfTraceSections.BottomNav)
     val items = listOf(

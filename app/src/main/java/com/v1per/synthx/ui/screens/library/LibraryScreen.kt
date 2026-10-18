@@ -247,8 +247,8 @@ internal fun CategoryRow(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
-    trailingText: String? = null,
     modifier: Modifier = Modifier,
+    trailingText: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 

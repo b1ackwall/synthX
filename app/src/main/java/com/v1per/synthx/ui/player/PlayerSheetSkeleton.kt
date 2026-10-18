@@ -81,6 +81,7 @@ internal fun PlayerSheetSkeleton(
     onQueueSongClick: (slotId: String) -> Unit,
     onQueueMove: (slotId: String, toIndex: Int) -> Unit,
     onQueueRemove: (songId: String) -> Unit,
+    modifier: Modifier = Modifier,
     onProgressChanged: (Float) -> Unit = {},
     collapsePlayerSignal: Int = 0,
     // Whether the sheet is currently the visible/interactive one — false on routes outside
@@ -90,7 +91,6 @@ internal fun PlayerSheetSkeleton(
     // size alone doesn't gate BackHandler below — its registration follows composition
     // presence, not measured bounds — so it needs this separate signal.
     visible: Boolean = true,
-    modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
 

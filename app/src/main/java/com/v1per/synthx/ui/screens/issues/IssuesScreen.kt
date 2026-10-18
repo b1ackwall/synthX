@@ -209,13 +209,13 @@ internal fun IssuesContent(
     uiState: UiState<List<Issue>>,
     deleteEnabled: Boolean,
     deleteInProgress: Boolean,
+    modifier: Modifier = Modifier,
     deletePreview: DeleteSongPreviewState =
         DeleteSongPreviewState.Ready(com.v1per.synthx.data.repository.DeleteSongPreview(emptyList())),
     onLoadDeletePreview: (String) -> Unit = {},
     onDelete: (String, String) -> Unit,
     onFixMissingArt: (List<String>) -> Unit,
     onNavigateToBackups: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         when (uiState) {
