@@ -1,7 +1,9 @@
 package com.v1per.synthx.playback
 
+import androidx.annotation.OptIn
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
 
@@ -22,6 +24,7 @@ import java.lang.reflect.Proxy
  * here, so the engine calling back into the session cannot re-enter this class's interception.
  * Main thread only, like every session callback.
  */
+@OptIn(markerClass = [UnstableApi::class])
 internal class SystemNavigationPlayer(player: Player) : ForwardingPlayer(player) {
 
     private val wrappers = LinkedHashMap<Player.Listener, RewritingListener>()

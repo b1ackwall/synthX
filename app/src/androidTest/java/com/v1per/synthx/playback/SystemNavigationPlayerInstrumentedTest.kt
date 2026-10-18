@@ -1,6 +1,8 @@
 package com.v1per.synthx.playback
 
+import androidx.annotation.OptIn
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.lang.reflect.Proxy
@@ -82,6 +84,7 @@ class SystemNavigationPlayerInstrumentedTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private fun onMain(block: () -> Unit) = instrumentation.runOnMainSync(block)
 
+    @OptIn(markerClass = [UnstableApi::class])
     private fun commandsOf(vararg ids: Int) =
         Player.Commands.Builder().apply { ids.forEach { add(it) } }.build()
 

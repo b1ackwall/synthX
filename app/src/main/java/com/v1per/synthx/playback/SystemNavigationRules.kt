@@ -1,7 +1,10 @@
 package com.v1per.synthx.playback
 
+import android.annotation.SuppressLint
+import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 
 /** What a Previous press should do — the outcome of [previousAction], applied by the engine. */
 internal sealed interface PreviousAction {
@@ -73,7 +76,11 @@ internal fun navigationCommandEdit(hasNext: Boolean, hasPrevious: Boolean): Navi
     )
 }
 
+// The sets only contain Player.COMMAND_SEEK_TO_NEXT, _NEXT_MEDIA_ITEM, _PREVIOUS and
+// _PREVIOUS_MEDIA_ITEM; Lint cannot track the @Player.Command IntDef through a Set<Int>.
 /** [base] with [navigationCommandEdit] applied. */
+@SuppressLint("WrongConstant")
+@OptIn(markerClass = [UnstableApi::class])
 internal fun navigationCommandsFor(
     base: Player.Commands,
     hasNext: Boolean,

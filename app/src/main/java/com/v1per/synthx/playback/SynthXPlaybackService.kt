@@ -2,9 +2,11 @@ package com.v1per.synthx.playback
 
 import android.content.Intent
 import android.util.Log
+import androidx.annotation.OptIn
 import androidx.annotation.VisibleForTesting
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaLibraryService
@@ -53,6 +55,7 @@ class SynthXPlaybackService : MediaLibraryService() {
     // onDisconnected for the notification controller, so filtering only the connect side would
     // let its disconnect decrement the engine's count and stop playback while the engine is
     // still bound.
+    @OptIn(markerClass = [UnstableApi::class])
     private fun isOwner(session: MediaSession, controller: MediaSession.ControllerInfo): Boolean =
         isOwnerController(
             packageName = controller.packageName,
@@ -60,6 +63,7 @@ class SynthXPlaybackService : MediaLibraryService() {
             isNotificationController = session.isMediaNotificationController(controller),
         )
 
+    @OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "onCreate")

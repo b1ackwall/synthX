@@ -5,7 +5,9 @@ import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
+import androidx.annotation.OptIn
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.test.core.app.ApplicationProvider
@@ -150,6 +152,7 @@ abstract class PlaybackServiceTestBase {
     }
 
     /** A controller flagged the way media3's own media-notification controller is. */
+    @OptIn(markerClass = [UnstableApi::class])
     protected fun notificationFlagHints() = Bundle().apply {
         putBoolean(MediaController.KEY_MEDIA_NOTIFICATION_CONTROLLER_FLAG, true)
     }

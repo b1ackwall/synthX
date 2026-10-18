@@ -6,6 +6,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -88,6 +89,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
      * fresh, correct checkpoint from [onMediaItemTransition] a moment later — checkpointing
      * here too would just race it with the stale pre-seek media item.
      */
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onPositionDiscontinuity(
         oldPosition: Player.PositionInfo,
         newPosition: Player.PositionInfo,

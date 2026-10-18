@@ -1,7 +1,9 @@
 package com.v1per.synthx.playback
 
+import androidx.annotation.OptIn
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.Rule
 import kotlin.test.Test
@@ -38,6 +40,7 @@ class IdleRecoveryTest {
         assertEquals(IdleRecoveryAction.NONE, idleRecoveryActionFor(Player.STATE_BUFFERING))
     }
 
+    @OptIn(markerClass = [UnstableApi::class])
     @Test fun errorLogMessageCarriesCodeAndCauseDistinguishingDetail() {
         val fileNotFound = PlaybackException(
             "io error",
