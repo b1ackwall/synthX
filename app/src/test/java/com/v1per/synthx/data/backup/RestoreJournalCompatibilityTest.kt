@@ -12,6 +12,8 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+private val V241Json = Json { ignoreUnknownKeys = false; explicitNulls = true }
+
 /**
  * Journals written by shipped builds still decode with today's code. The bytes come from fixed
  * golden files (README.md next to them), never from today's serializer, so a renamed field or
@@ -21,8 +23,7 @@ class RestoreJournalCompatibilityTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
     @Test fun v24CompleteGoldenEqualsTheV241SerializerOutput() {
-        val historical = Json { ignoreUnknownKeys = false; explicitNulls = true }
-            .encodeToString(V241State.serializer(), V241_STATE)
+        val historical = V241Json.encodeToString(V241State.serializer(), V241_STATE)
         assertEquals(historical, RestoreJournalGoldens.read(RestoreJournalGoldens.V24_COMPLETE))
     }
 
