@@ -187,20 +187,20 @@ dependencies {
 
     // JUnit4 variant named explicitly: built-in Kotlin doesn't infer it from kotlin("test").
     testImplementation(kotlin("test-junit"))
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation(libs.kotlinx.coroutines.test)
 
-    androidTestImplementation("androidx.test:core-ktx:1.6.1")
-    androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.test.ext:junit-ktx:1.2.1")
-    androidTestImplementation("androidx.room:room-testing:2.8.4")
-    androidTestImplementation("androidx.work:work-testing:2.9.1")
+    androidTestImplementation(libs.androidx.test.core.ktx)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit.ktx)
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.work.testing)
     // Shell-level Compose assertions (RestoreShellInstrumentedTest); versioned by the BOM above.
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     // ui-test-junit4 drags in espresso-core 3.5.0 transitively, whose Espresso.onIdle() reflects on
     // InputManager.getInstance() — removed on recent platform releases (API 37 emulator: every
     // Compose UI test died with NoSuchMethodException). Pin a release that no longer does.
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+    androidTestImplementation(libs.androidx.test.espresso.core)
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
