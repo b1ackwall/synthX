@@ -1,5 +1,6 @@
 package com.v1per.synthx.playback
 
+import android.app.Instrumentation
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
@@ -47,7 +48,7 @@ abstract class PlaybackServiceTestBase {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device(timeoutSeconds)
 
     protected val context: Context = ApplicationProvider.getApplicationContext()
-    protected val instrumentation = InstrumentationRegistry.getInstrumentation()
+    protected val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
 
     /** Connection hints for [extraController]; `null` is a plain, unflagged same-package controller. */
     protected open val extraControllerHints: Bundle? = null
