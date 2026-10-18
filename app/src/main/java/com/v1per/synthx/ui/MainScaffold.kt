@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
@@ -136,6 +137,7 @@ private fun NormalShell(
     val showBottomBar = currentRoute in bottomBarRoutes
 
     val context = LocalContext.current
+    val resources = LocalResources.current
     val playbackViewModel = viewModel<PlaybackViewModel>(
         factory = PlaybackViewModel.Factory(context.applicationContext)
     )
@@ -149,15 +151,15 @@ private fun NormalShell(
         )
     }
 
-    // context.getString rather than stringResource: the collect lambda is not a composable
+    // resources.getString rather than stringResource: the collect lambda is not a composable
     // scope, and the message needs the song title formatted in at emit time.
     LaunchedEffect(Unit) {
         playbackViewModel.errors.collect { error ->
             val message = when (error) {
                 is PlaybackError.PlaybackFailed ->
-                    context.getString(R.string.playback_error_failed, error.songTitle)
+                    resources.getString(R.string.playback_error_failed, error.songTitle)
                 PlaybackError.ServiceUnavailable ->
-                    context.getString(R.string.playback_error_service_unavailable)
+                    resources.getString(R.string.playback_error_service_unavailable)
             }
             snackbarHostState.showSnackbar(message)
         }
@@ -362,8 +364,8 @@ private fun NormalShell(
                     // null: the engine refused for lack of a session connection and has
                     // already shown its own error snackbar, so there is nothing to confirm.
                     val message = when (playbackViewModel.keepQueueAndPlayNext(prompt.tappedSong)) {
-                        true -> context.getString(R.string.actions_playing_next)
-                        false -> context.getString(R.string.actions_already_playing_next)
+                        true -> resources.getString(R.string.actions_playing_next)
+                        false -> resources.getString(R.string.actions_already_playing_next)
                         null -> null
                     }
                     if (message != null) scope.launch { snackbarHostState.showSnackbar(message) }

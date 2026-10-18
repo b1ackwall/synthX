@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
@@ -49,7 +50,7 @@ fun GroupDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     val groups by viewModel.groups.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    val resources = LocalResources.current
 
     LaunchedEffect(Unit) {
         viewModel.actionErrors.collect { error ->
@@ -59,7 +60,7 @@ fun GroupDetailScreen(
                 GroupDetailViewModel.ActionError.RemoveFromGroupFailed -> R.string.error_remove_from_group
                 GroupDetailViewModel.ActionError.MoveToGroupFailed -> R.string.error_move_playlist
             }
-            snackbarHostState.showSnackbar(context.getString(messageRes))
+            snackbarHostState.showSnackbar(resources.getString(messageRes))
         }
     }
 

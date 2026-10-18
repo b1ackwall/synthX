@@ -60,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -104,7 +105,7 @@ fun PlaylistListScreen(
     val showCreateGroup by viewModel.showCreateGroup.collectAsState()
     val isCreatingGroup by viewModel.isCreatingGroup.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    val resources = LocalResources.current
 
     LaunchedEffect(Unit) {
         viewModel.actionErrors.collect { error ->
@@ -116,7 +117,7 @@ fun PlaylistListScreen(
                 PlaylistListViewModel.ActionError.DeleteGroupFailed -> R.string.error_delete_group
                 PlaylistListViewModel.ActionError.CreateGroupFailed -> R.string.error_create_group
             }
-            snackbarHostState.showSnackbar(context.getString(messageRes))
+            snackbarHostState.showSnackbar(resources.getString(messageRes))
         }
     }
 

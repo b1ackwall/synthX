@@ -26,6 +26,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,7 +54,7 @@ fun IssuesScreen(
         factory = IssuesViewModel.Factory(LocalContext.current),
     ),
 ) {
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val uiState by viewModel.uiState.collectAsState()
     val deleteSongsEnabled by viewModel.deleteSongsEnabled.collectAsState()
     val deleteInProgress by viewModel.deleteInProgress.collectAsState()
@@ -91,7 +92,7 @@ fun IssuesScreen(
                 is IssuesActionEvent.DeletedButCleanupUncertain ->
                     deleteCleanupUncertainMessage
                 IssuesActionEvent.AudioCleanupRetrySucceeded ->
-                    context.getString(R.string.audio_cleanup_retry_succeeded)
+                    resources.getString(R.string.audio_cleanup_retry_succeeded)
                 is IssuesActionEvent.DeleteBlocked -> when (val reason = event.reason) {
                     is DestructiveFilePreflightResult.GrantNotWritable -> when (reason.root) {
                         KnownAudioRoot.Music -> musicGrantMessage
@@ -109,7 +110,7 @@ fun IssuesScreen(
             }
             val result = snackbarHostState.showSnackbar(
                 message = message,
-                actionLabel = retryPath?.let { context.getString(R.string.action_retry) },
+                actionLabel = retryPath?.let { resources.getString(R.string.action_retry) },
                 duration = if (retryPath != null) SnackbarDuration.Long else SnackbarDuration.Short,
             )
             if (result == SnackbarResult.ActionPerformed && retryPath != null) {

@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
@@ -53,6 +54,7 @@ fun SongActionsHost(
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val viewModel: SongActionsViewModel = viewModel(
         factory = SongActionsViewModel.Factory(context),
     )
@@ -83,26 +85,26 @@ fun SongActionsHost(
     val rootUnknownMessage by rememberUpdatedState(
         stringResource(R.string.destructive_file_root_unknown),
     )
-    // context.getString rather than stringResource: the collect lambda is not a composable
+    // resources.getString rather than stringResource: the collect lambda is not a composable
     // scope, and the playlist name is only known at emit time.
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             val message = when (event) {
                 is SongActionEvent.AlreadyInPlaylist ->
-                    context.getString(R.string.actions_already_in_playlist, event.playlistName)
+                    resources.getString(R.string.actions_already_in_playlist, event.playlistName)
                 is SongActionEvent.AddedToPlaylist ->
-                    context.getString(R.string.actions_added_to_playlist, event.playlistName)
+                    resources.getString(R.string.actions_added_to_playlist, event.playlistName)
                 is SongActionEvent.RemovedFromPlaylist ->
-                    context.getString(R.string.actions_removed_from_playlist, event.playlistName)
+                    resources.getString(R.string.actions_removed_from_playlist, event.playlistName)
                 SongActionEvent.RemovedFromStarred ->
-                    context.getString(R.string.actions_removed_from_starred)
-                SongActionEvent.ActionFailed -> context.getString(R.string.actions_failed)
+                    resources.getString(R.string.actions_removed_from_starred)
+                SongActionEvent.ActionFailed -> resources.getString(R.string.actions_failed)
                 is SongActionEvent.DeletedButFileRemained ->
-                    context.getString(R.string.actions_delete_file_remained)
+                    resources.getString(R.string.actions_delete_file_remained)
                 is SongActionEvent.DeletedButCleanupUncertain ->
                     deleteCleanupUncertainMessage
                 SongActionEvent.AudioCleanupRetrySucceeded ->
-                    context.getString(R.string.audio_cleanup_retry_succeeded)
+                    resources.getString(R.string.audio_cleanup_retry_succeeded)
                 is SongActionEvent.DeleteBlocked -> when (val reason = event.reason) {
                     is DestructiveFilePreflightResult.GrantNotWritable -> when (reason.root) {
                         KnownAudioRoot.Music -> musicGrantMessage
@@ -120,7 +122,7 @@ fun SongActionsHost(
             }
             val result = snackbarHostState.showSnackbar(
                 message = message,
-                actionLabel = retryPath?.let { context.getString(R.string.action_retry) },
+                actionLabel = retryPath?.let { resources.getString(R.string.action_retry) },
                 duration = if (retryPath != null) SnackbarDuration.Long else SnackbarDuration.Short,
             )
             if (result == SnackbarResult.ActionPerformed && retryPath != null) {
@@ -160,7 +162,7 @@ fun SongActionsHost(
     // Called from both the immediate-success path and the duplicate-position dialog's
     // confirm path below, since QueueAddResult.Added can arrive from either.
     fun showQueueSnackbar(messageRes: Int) {
-        scope.launch { snackbarHostState.showSnackbar(context.getString(messageRes)) }
+        scope.launch { snackbarHostState.showSnackbar(resources.getString(messageRes)) }
     }
 
     val controller = remember {

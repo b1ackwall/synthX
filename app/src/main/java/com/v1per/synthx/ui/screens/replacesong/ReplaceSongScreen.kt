@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
@@ -51,7 +52,7 @@ fun ReplaceSongScreen(
         factory = ReplaceSongViewModel.Factory(LocalContext.current),
     ),
 ) {
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val step by viewModel.step.collectAsState()
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
@@ -147,7 +148,7 @@ fun ReplaceSongScreen(
     ReplaceSongSuccessAcknowledgement(
         complete = complete,
         snackbarHostState = snackbarHostState,
-        message = context.getString(R.string.replace_song_done),
+        message = resources.getString(R.string.replace_song_done),
         onExit = onExit,
     )
 

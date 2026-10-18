@@ -48,6 +48,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,7 +95,7 @@ fun SearchScreen(
     val error by viewModel.error.collectAsState()
     val currentSong by playbackViewModel.currentSong.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -111,7 +112,7 @@ fun SearchScreen(
                 SearchViewModel.ActionError.RenamePlaylistFailed -> R.string.error_rename_playlist
                 SearchViewModel.ActionError.DeletePlaylistFailed -> R.string.error_delete_playlist
             }
-            snackbarHostState.showSnackbar(context.getString(messageRes))
+            snackbarHostState.showSnackbar(resources.getString(messageRes))
         }
     }
 
