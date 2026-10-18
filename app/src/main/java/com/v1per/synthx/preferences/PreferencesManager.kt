@@ -2,6 +2,7 @@ package com.v1per.synthx.preferences
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.content.edit
 
 class PreferencesManager(context: Context) {
 
@@ -19,13 +20,13 @@ class PreferencesManager(context: Context) {
      */
     var musicFolderUri: String?
         get() = prefs.getString(KEY_MUSIC_FOLDER_URI, null)
-        set(value) = prefs.edit().putString(KEY_MUSIC_FOLDER_URI, value).apply()
+        set(value) = prefs.edit { putString(KEY_MUSIC_FOLDER_URI, value) }
 
     /** Separate tree from [musicFolderUri] — holds database snapshots, not audio. Write access,
      *  same as the music folder but for an unrelated reason. */
     var backupFolderUri: String?
         get() = prefs.getString(KEY_BACKUP_FOLDER_URI, null)
-        set(value) = prefs.edit().putString(KEY_BACKUP_FOLDER_URI, value).apply()
+        set(value) = prefs.edit { putString(KEY_BACKUP_FOLDER_URI, value) }
 
     /**
      * Second audio tree, scanned in full on every launch — where the  companion app drops
@@ -42,7 +43,7 @@ class PreferencesManager(context: Context) {
      */
     var newArrivalsFolderUri: String?
         get() = prefs.getString(KEY_NEW_ARRIVALS_FOLDER_URI, null)
-        set(value) = prefs.edit().putString(KEY_NEW_ARRIVALS_FOLDER_URI, value).apply()
+        set(value) = prefs.edit { putString(KEY_NEW_ARRIVALS_FOLDER_URI, value) }
 
     /**
      * Every tree that can hold library audio, in no particular order — currently
@@ -63,7 +64,7 @@ class PreferencesManager(context: Context) {
     /** Epoch millis of the last successful Daily backup. 0 means none taken yet. */
     var lastDailyBackupTimestamp: Long
         get() = prefs.getLong(KEY_LAST_DAILY_BACKUP, 0L)
-        set(value) = prefs.edit().putLong(KEY_LAST_DAILY_BACKUP, value).apply()
+        set(value) = prefs.edit { putLong(KEY_LAST_DAILY_BACKUP, value) }
 
     // ----------------------------------------------- backup/export/verification outcomes (see BackupOutcomeStore)
     // Raw primitives only — composing these into BackupOutcomeStore's typed outcomes is that
@@ -72,91 +73,91 @@ class PreferencesManager(context: Context) {
     /** Epoch millis of the last createBackup() attempt of any tier/reason. 0 means none yet. */
     var lastBackupAttemptTimestamp: Long
         get() = prefs.getLong(KEY_LAST_BACKUP_ATTEMPT_TIMESTAMP, 0L)
-        set(value) = prefs.edit().putLong(KEY_LAST_BACKUP_ATTEMPT_TIMESTAMP, value).apply()
+        set(value) = prefs.edit { putLong(KEY_LAST_BACKUP_ATTEMPT_TIMESTAMP, value) }
 
     var lastBackupAttemptTier: String?
         get() = prefs.getString(KEY_LAST_BACKUP_ATTEMPT_TIER, null)
-        set(value) = prefs.edit().putString(KEY_LAST_BACKUP_ATTEMPT_TIER, value).apply()
+        set(value) = prefs.edit { putString(KEY_LAST_BACKUP_ATTEMPT_TIER, value) }
 
     var lastBackupAttemptReason: String?
         get() = prefs.getString(KEY_LAST_BACKUP_ATTEMPT_REASON, null)
-        set(value) = prefs.edit().putString(KEY_LAST_BACKUP_ATTEMPT_REASON, value).apply()
+        set(value) = prefs.edit { putString(KEY_LAST_BACKUP_ATTEMPT_REASON, value) }
 
     var lastBackupAttemptSucceeded: Boolean
         get() = prefs.getBoolean(KEY_LAST_BACKUP_ATTEMPT_SUCCEEDED, false)
-        set(value) = prefs.edit().putBoolean(KEY_LAST_BACKUP_ATTEMPT_SUCCEEDED, value).apply()
+        set(value) = prefs.edit { putBoolean(KEY_LAST_BACKUP_ATTEMPT_SUCCEEDED, value) }
 
     var lastBackupAttemptFailureMessage: String?
         get() = prefs.getString(KEY_LAST_BACKUP_ATTEMPT_FAILURE_MESSAGE, null)
-        set(value) = prefs.edit().putString(KEY_LAST_BACKUP_ATTEMPT_FAILURE_MESSAGE, value).apply()
+        set(value) = prefs.edit { putString(KEY_LAST_BACKUP_ATTEMPT_FAILURE_MESSAGE, value) }
 
     /** Epoch millis of the last playlist-export attempt. 0 means none yet. */
     var lastExportAttemptTimestamp: Long
         get() = prefs.getLong(KEY_LAST_EXPORT_ATTEMPT_TIMESTAMP, 0L)
-        set(value) = prefs.edit().putLong(KEY_LAST_EXPORT_ATTEMPT_TIMESTAMP, value).apply()
+        set(value) = prefs.edit { putLong(KEY_LAST_EXPORT_ATTEMPT_TIMESTAMP, value) }
 
     var lastExportAttemptSucceeded: Boolean
         get() = prefs.getBoolean(KEY_LAST_EXPORT_ATTEMPT_SUCCEEDED, false)
-        set(value) = prefs.edit().putBoolean(KEY_LAST_EXPORT_ATTEMPT_SUCCEEDED, value).apply()
+        set(value) = prefs.edit { putBoolean(KEY_LAST_EXPORT_ATTEMPT_SUCCEEDED, value) }
 
     var lastExportAttemptFailureMessage: String?
         get() = prefs.getString(KEY_LAST_EXPORT_ATTEMPT_FAILURE_MESSAGE, null)
-        set(value) = prefs.edit().putString(KEY_LAST_EXPORT_ATTEMPT_FAILURE_MESSAGE, value).apply()
+        set(value) = prefs.edit { putString(KEY_LAST_EXPORT_ATTEMPT_FAILURE_MESSAGE, value) }
 
     /** Epoch millis of the last periodic re-validation of the most recent backup. 0 = none yet. */
     var lastVerificationAttemptTimestamp: Long
         get() = prefs.getLong(KEY_LAST_VERIFICATION_ATTEMPT_TIMESTAMP, 0L)
-        set(value) = prefs.edit().putLong(KEY_LAST_VERIFICATION_ATTEMPT_TIMESTAMP, value).apply()
+        set(value) = prefs.edit { putLong(KEY_LAST_VERIFICATION_ATTEMPT_TIMESTAMP, value) }
 
     var lastVerificationAttemptSucceeded: Boolean
         get() = prefs.getBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SUCCEEDED, false)
-        set(value) = prefs.edit().putBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SUCCEEDED, value).apply()
+        set(value) = prefs.edit { putBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SUCCEEDED, value) }
 
     var lastVerificationAttemptFailureMessage: String?
         get() = prefs.getString(KEY_LAST_VERIFICATION_ATTEMPT_FAILURE_MESSAGE, null)
-        set(value) = prefs.edit().putString(KEY_LAST_VERIFICATION_ATTEMPT_FAILURE_MESSAGE, value).apply()
+        set(value) = prefs.edit { putString(KEY_LAST_VERIFICATION_ATTEMPT_FAILURE_MESSAGE, value) }
 
     /** R8-A11/P7-T5: true when the last verification found no restore-eligible backup to check
      *  at all — distinct from an actual pass/fail, see [lastVerificationAttemptSucceeded]. */
     var lastVerificationAttemptSkippedNoEligibleBackup: Boolean
         get() = prefs.getBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SKIPPED_NO_ELIGIBLE_BACKUP, false)
-        set(value) = prefs.edit()
-            .putBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SKIPPED_NO_ELIGIBLE_BACKUP, value)
-            .apply()
+        set(value) = prefs.edit {
+            putBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SKIPPED_NO_ELIGIBLE_BACKUP, value)
+        }
 
     /** R8-A12/P7-T6: epoch millis of the last retention pass of any tier. 0 means none yet. */
     var lastRetentionAttemptTimestamp: Long
         get() = prefs.getLong(KEY_LAST_RETENTION_ATTEMPT_TIMESTAMP, 0L)
-        set(value) = prefs.edit().putLong(KEY_LAST_RETENTION_ATTEMPT_TIMESTAMP, value).apply()
+        set(value) = prefs.edit { putLong(KEY_LAST_RETENTION_ATTEMPT_TIMESTAMP, value) }
 
     var lastRetentionAttemptTier: String?
         get() = prefs.getString(KEY_LAST_RETENTION_ATTEMPT_TIER, null)
-        set(value) = prefs.edit().putString(KEY_LAST_RETENTION_ATTEMPT_TIER, value).apply()
+        set(value) = prefs.edit { putString(KEY_LAST_RETENTION_ATTEMPT_TIER, value) }
 
     var lastRetentionAttemptAttempted: Int
         get() = prefs.getInt(KEY_LAST_RETENTION_ATTEMPT_ATTEMPTED, 0)
-        set(value) = prefs.edit().putInt(KEY_LAST_RETENTION_ATTEMPT_ATTEMPTED, value).apply()
+        set(value) = prefs.edit { putInt(KEY_LAST_RETENTION_ATTEMPT_ATTEMPTED, value) }
 
     var lastRetentionAttemptSucceeded: Int
         get() = prefs.getInt(KEY_LAST_RETENTION_ATTEMPT_SUCCEEDED, 0)
-        set(value) = prefs.edit().putInt(KEY_LAST_RETENTION_ATTEMPT_SUCCEEDED, value).apply()
+        set(value) = prefs.edit { putInt(KEY_LAST_RETENTION_ATTEMPT_SUCCEEDED, value) }
 
     /** Comma-joined database filenames left as orphans (one half deleted, one survived). */
     var lastRetentionAttemptOrphanedNames: String?
         get() = prefs.getString(KEY_LAST_RETENTION_ATTEMPT_ORPHANED_NAMES, null)
-        set(value) = prefs.edit().putString(KEY_LAST_RETENTION_ATTEMPT_ORPHANED_NAMES, value).apply()
+        set(value) = prefs.edit { putString(KEY_LAST_RETENTION_ATTEMPT_ORPHANED_NAMES, value) }
 
     /** Comma-joined database filenames where neither half could be deleted. */
     var lastRetentionAttemptFailedNames: String?
         get() = prefs.getString(KEY_LAST_RETENTION_ATTEMPT_FAILED_NAMES, null)
-        set(value) = prefs.edit().putString(KEY_LAST_RETENTION_ATTEMPT_FAILED_NAMES, value).apply()
+        set(value) = prefs.edit { putString(KEY_LAST_RETENTION_ATTEMPT_FAILED_NAMES, value) }
 
     // --------------------------------------------------------------- destructive-action counter (P3.3)
 
     /** Delete-song/delete-playlist mutations since the last successful backup of any tier. */
     var destructiveActionsSinceBackup: Int
         get() = prefs.getInt(KEY_DESTRUCTIVE_ACTIONS_SINCE_BACKUP, 0)
-        set(value) = prefs.edit().putInt(KEY_DESTRUCTIVE_ACTIONS_SINCE_BACKUP, value).apply()
+        set(value) = prefs.edit { putInt(KEY_DESTRUCTIVE_ACTIONS_SINCE_BACKUP, value) }
 
     // -------------------------------------------- pending-cleanup reconciliation (P3-T1)
 
@@ -164,28 +165,28 @@ class PreferencesManager(context: Context) {
      *  startup reconciliation pass resolved. 0 means none were found. */
     var lastReconciledCleanupCount: Int
         get() = prefs.getInt(KEY_LAST_RECONCILED_CLEANUP_COUNT, 0)
-        set(value) = prefs.edit().putInt(KEY_LAST_RECONCILED_CLEANUP_COUNT, value).apply()
+        set(value) = prefs.edit { putInt(KEY_LAST_RECONCILED_CLEANUP_COUNT, value) }
 
     var lastReconciledCleanupTimestamp: Long
         get() = prefs.getLong(KEY_LAST_RECONCILED_CLEANUP_TIMESTAMP, 0L)
-        set(value) = prefs.edit().putLong(KEY_LAST_RECONCILED_CLEANUP_TIMESTAMP, value).apply()
+        set(value) = prefs.edit { putLong(KEY_LAST_RECONCILED_CLEANUP_TIMESTAMP, value) }
 
     // --------------------------------------------------- migration safety (see MigrationSnapshotStore)
 
     /** The database version the current internal pre-migration snapshot was captured from. -1 = none. */
     var migrationSnapshotFromVersion: Int
         get() = prefs.getInt(KEY_MIGRATION_SNAPSHOT_FROM_VERSION, -1)
-        set(value) = prefs.edit().putInt(KEY_MIGRATION_SNAPSHOT_FROM_VERSION, value).apply()
+        set(value) = prefs.edit { putInt(KEY_MIGRATION_SNAPSHOT_FROM_VERSION, value) }
 
     /** The database version the current internal pre-migration snapshot protects. -1 = none. */
     var migrationSnapshotForVersion: Int
         get() = prefs.getInt(KEY_MIGRATION_SNAPSHOT_FOR_VERSION, -1)
-        set(value) = prefs.edit().putInt(KEY_MIGRATION_SNAPSHOT_FOR_VERSION, value).apply()
+        set(value) = prefs.edit { putInt(KEY_MIGRATION_SNAPSHOT_FOR_VERSION, value) }
 
     /** Successful launches counted at [migrationSnapshotForVersion] since the snapshot was taken. */
     var migrationSnapshotConfirmedLaunches: Int
         get() = prefs.getInt(KEY_MIGRATION_SNAPSHOT_LAUNCHES, 0)
-        set(value) = prefs.edit().putInt(KEY_MIGRATION_SNAPSHOT_LAUNCHES, value).apply()
+        set(value) = prefs.edit { putInt(KEY_MIGRATION_SNAPSHOT_LAUNCHES, value) }
 
     /**
      * Set the moment a post-migration invariant check fails; cleared only once the internal
@@ -228,24 +229,24 @@ class PreferencesManager(context: Context) {
      */
     var artSweepPending: Boolean
         get() = prefs.getBoolean(KEY_ART_SWEEP_PENDING, false)
-        set(value) = prefs.edit().putBoolean(KEY_ART_SWEEP_PENDING, value).apply()
+        set(value) = prefs.edit { putBoolean(KEY_ART_SWEEP_PENDING, value) }
 
     // --------------------------------------------------------- durable restore observation
 
     /** WorkManager UUID for the restore whose outcome still belongs to the user. */
     var restoreRequestId: String?
         get() = prefs.getString(KEY_RESTORE_REQUEST_ID, null)
-        private set(value) = prefs.edit().putString(KEY_RESTORE_REQUEST_ID, value).apply()
+        private set(value) = prefs.edit { putString(KEY_RESTORE_REQUEST_ID, value) }
 
     /** Wall-clock submission time used only for the queued-work grace period. */
     var restoreRequestSubmittedAt: Long
         get() = prefs.getLong(KEY_RESTORE_REQUEST_SUBMITTED_AT, 0L)
-        private set(value) = prefs.edit().putLong(KEY_RESTORE_REQUEST_SUBMITTED_AT, value).apply()
+        private set(value) = prefs.edit { putLong(KEY_RESTORE_REQUEST_SUBMITTED_AT, value) }
 
     /** True only after a terminal WorkInfo has actually been put on screen. */
     var restoreOutcomeAcknowledged: Boolean
         get() = prefs.getBoolean(KEY_RESTORE_OUTCOME_ACKNOWLEDGED, false)
-        private set(value) = prefs.edit().putBoolean(KEY_RESTORE_OUTCOME_ACKNOWLEDGED, value).apply()
+        private set(value) = prefs.edit { putBoolean(KEY_RESTORE_OUTCOME_ACKNOWLEDGED, value) }
 
     /**
      * Commits the identity before enqueue returns to UI code. KEEP can resolve to an already
@@ -343,7 +344,7 @@ class PreferencesManager(context: Context) {
      */
     var firstScanRequestId: String?
         get() = prefs.getString(KEY_FIRST_SCAN_REQUEST_ID, null)
-        private set(value) = prefs.edit().putString(KEY_FIRST_SCAN_REQUEST_ID, value).apply()
+        private set(value) = prefs.edit { putString(KEY_FIRST_SCAN_REQUEST_ID, value) }
 
     /** Blocking commit, so the id is on disk before the caller lets the wizard advance. */
     fun trackFirstScanRequestDurably(requestId: String): Boolean =
@@ -385,12 +386,12 @@ class PreferencesManager(context: Context) {
     /** Epoch millis the last [IssuesScanWorker] run completed. 0 means never scanned. */
     var lastIssuesScanTimestamp: Long
         get() = prefs.getLong(KEY_LAST_ISSUES_SCAN_TIMESTAMP, 0L)
-        set(value) = prefs.edit().putLong(KEY_LAST_ISSUES_SCAN_TIMESTAMP, value).apply()
+        set(value) = prefs.edit { putLong(KEY_LAST_ISSUES_SCAN_TIMESTAMP, value) }
 
     /** Total issue rows the last scan found, across all seven categories — status-line summary only. */
     var lastIssuesScanIssueCount: Int
         get() = prefs.getInt(KEY_LAST_ISSUES_SCAN_ISSUE_COUNT, 0)
-        set(value) = prefs.edit().putInt(KEY_LAST_ISSUES_SCAN_ISSUE_COUNT, value).apply()
+        set(value) = prefs.edit { putInt(KEY_LAST_ISSUES_SCAN_ISSUE_COUNT, value) }
 
     /**
      * Ids of songs the last scan found missing an art file. A [Set] rather than an ordered list
@@ -401,7 +402,7 @@ class PreferencesManager(context: Context) {
      */
     var missingArtSongIds: Set<String>
         get() = prefs.getStringSet(KEY_MISSING_ART_SONG_IDS, null)?.toSet() ?: emptySet()
-        set(value) = prefs.edit().putStringSet(KEY_MISSING_ART_SONG_IDS, value).apply()
+        set(value) = prefs.edit { putStringSet(KEY_MISSING_ART_SONG_IDS, value) }
 
     companion object {
         private const val PREFS_NAME = "synthx_prefs"
