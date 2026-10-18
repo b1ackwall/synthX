@@ -3,6 +3,7 @@ package com.v1per.synthx.data.repository
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
+import androidx.core.net.toUri
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -305,7 +306,7 @@ class RepositoryDeletionInstrumentedTest {
         val graduation = async(Dispatchers.IO) {
             graduateSong(
                 context, database, database.songDao(), "song",
-                android.net.Uri.parse("content://com.v1per.synthx.test.nonexistent/tree/music"),
+                "content://com.v1per.synthx.test.nonexistent/tree/music".toUri(),
             ) { stage ->
                 if (stage is GraduationStage.Failed) {
                     graduationHolding.complete(Unit)

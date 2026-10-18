@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.core.graphics.createBitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import coil.Coil
@@ -122,7 +123,7 @@ class AlbumDetailCoverInstrumentedTest {
     @Test
     fun aReadableCoverDrawsTheArtAtHeroSize() {
         val file = File(context.cacheDir, "album_cover_test.png").also { artFile = it }
-        val bitmap = Bitmap.createBitmap(ART_EDGE_PX, ART_EDGE_PX, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(ART_EDGE_PX, ART_EDGE_PX, Bitmap.Config.ARGB_8888)
         bitmap.eraseColor(Color.RED)
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         show(Uri.fromFile(file).toString())

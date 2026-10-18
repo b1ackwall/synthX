@@ -1,6 +1,7 @@
 package com.v1per.synthx.data.scanner
 
 import android.content.Context
+import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.SongDeletion
@@ -229,7 +230,7 @@ class ScanClassificationInstrumentedTest {
         val id = fx.requireSongAt(file).id
 
         val unknown = File(context.cacheDir, "never-registered-${System.nanoTime()}")
-        val result = fx.scanner().scan(android.net.Uri.parse(uriOf(unknown)))
+        val result = fx.scanner().scan(uriOf(unknown).toUri())
 
         assertEquals(
             setOf(ScanDegradation(KnownAudioRoot.Music, ScanDegradationReason.RootUnreachable)),

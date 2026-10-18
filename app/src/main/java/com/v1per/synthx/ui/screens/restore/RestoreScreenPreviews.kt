@@ -6,6 +6,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.net.toUri
 import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupListResult
 import com.v1per.synthx.data.backup.BackupTier
@@ -35,7 +36,7 @@ private fun RestoreListPreview() {
                                 restoreEligible = true,
                             ),
                             BackupInfo(
-                                databaseUri = Uri.parse("content://x/2"),
+                                databaseUri = "content://x/2".toUri(),
                                 metadataUri = null,
                                 fileName = "synthx_backup_2026-08-05_090114.db",
                                 tier = BackupTier.Auto,

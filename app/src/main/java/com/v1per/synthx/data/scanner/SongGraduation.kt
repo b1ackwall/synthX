@@ -3,6 +3,7 @@ package com.v1per.synthx.data.scanner
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.room.withTransaction
 import com.v1per.synthx.data.FileOperationCoordinator
@@ -171,7 +172,7 @@ private suspend fun graduateAdmitted(
         val existing = songDao.getSongById(songId)
             ?: return fail("Song no longer exists")
 
-        val sourceUri = runCatching { Uri.parse(existing.filePath) }.getOrNull()
+        val sourceUri = runCatching { existing.filePath.toUri() }.getOrNull()
             ?: return fail("Source path is unreadable")
 
         // Registered before any provider is touched, so a folder change that starts after this

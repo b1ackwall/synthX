@@ -2,6 +2,7 @@ package com.v1per.synthx.data.scanner
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -81,9 +82,9 @@ class ScannerDegradationInstrumentedTest {
     }
 
     @Test fun verificationMarksOnlyConfirmedAbsenceAndReportsUncertainty() = runBlocking {
-        val rootUri = Uri.parse("content://scanner.test/tree/music")
-        val absentUri = Uri.parse("content://scanner.test/tree/music/document/absent")
-        val uncertainUri = Uri.parse("content://scanner.test/tree/music/document/uncertain")
+        val rootUri = "content://scanner.test/tree/music".toUri()
+        val absentUri = "content://scanner.test/tree/music/document/absent".toUri()
+        val uncertainUri = "content://scanner.test/tree/music/document/uncertain".toUri()
         database.songDao().upsertSong(song("absent", absentUri.toString()))
         database.songDao().upsertSong(song("uncertain", uncertainUri.toString()))
 

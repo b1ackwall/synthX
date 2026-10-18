@@ -20,6 +20,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -127,8 +128,8 @@ class OnboardingRecoveryInstrumentedTest {
     private val releasedGrants = mutableListOf<Uri>()
     private val createdFiles = mutableListOf<File>()
     private val workManager get() = WorkManager.getInstance(context)
-    private val music = Uri.parse("content://synthx.test.music/tree/primary%3AMusic")
-    private val arrivals = Uri.parse("content://synthx.test.arrivals/tree/primary%3AArrivals")
+    private val music = "content://synthx.test.music/tree/primary%3AMusic".toUri()
+    private val arrivals = "content://synthx.test.arrivals/tree/primary%3AArrivals".toUri()
 
     @Before fun setUp() {
         TestWorkManager.ensureInitialized(context)
@@ -206,13 +207,13 @@ class OnboardingRecoveryInstrumentedTest {
         saveMusic()
         composeRule.runOnUiThread { library.saveRecoveryNewArrivalsFolder(arrivals) }
         await(library.newArrivalsFolderUri) { it == arrivals }
-        val nested = Uri.parse("content://synthx.test.music/tree/primary%3AMusic%2FArrivals")
+        val nested = "content://synthx.test.music/tree/primary%3AMusic%2FArrivals".toUri()
         composeRule.runOnUiThread { library.saveRecoveryNewArrivalsFolder(nested) }
         await(library.newArrivalsFolderError) { it != null }
         assertEquals(arrivals, library.newArrivalsFolderUri.value)
         assertEquals(arrivals.toString(), preferences.newArrivalsFolderUri)
 
-        val containsArrivals = Uri.parse("content://synthx.test.arrivals/tree/primary%3A")
+        val containsArrivals = "content://synthx.test.arrivals/tree/primary%3A".toUri()
         composeRule.runOnUiThread { library.saveRecoveryMusicFolder(containsArrivals) }
         await(library.folderError) { it != null }
         assertEquals(music, library.musicFolderUri.value)
@@ -266,9 +267,7 @@ class OnboardingRecoveryInstrumentedTest {
 
     @Test fun rejectedOrphanGrantIsStillReleased() {
         configureAudioRoots()
-        val orphan = Uri.parse(
-            "content://synthx.test.arrivals/tree/primary%3AArrivals%2FRejected",
-        )
+        val orphan = "content://synthx.test.arrivals/tree/primary%3AArrivals%2FRejected".toUri()
         persistedGrants += orphan
 
         composeRule.runOnUiThread { library.saveRecoveryMusicFolder(orphan) }
@@ -283,9 +282,7 @@ class OnboardingRecoveryInstrumentedTest {
 
     @Test fun rejectedBackupOwnedGrantIsPreserved() {
         configureAudioRoots()
-        val backup = Uri.parse(
-            "content://synthx.test.arrivals/tree/primary%3AArrivals%2FBackups",
-        )
+        val backup = "content://synthx.test.arrivals/tree/primary%3AArrivals%2FBackups".toUri()
         preferences.backupFolderUri = backup.toString()
         persistedGrants += backup
 
@@ -304,9 +301,7 @@ class OnboardingRecoveryInstrumentedTest {
         configureAudioRoots()
         preferences.backupFolderUri = music.toString()
         persistedGrants += music
-        val replacement = Uri.parse(
-            "content://synthx.test.replacement/tree/primary%3AReplacement",
-        )
+        val replacement = "content://synthx.test.replacement/tree/primary%3AReplacement".toUri()
 
         composeRule.runOnUiThread { library.saveRecoveryMusicFolder(replacement) }
         await(library.musicFolderUri) { it == replacement }
@@ -321,9 +316,7 @@ class OnboardingRecoveryInstrumentedTest {
     @Test fun genuinelySupersededAudioRootGrantIsStillReleased() {
         configureAudioRoots()
         persistedGrants += music
-        val replacement = Uri.parse(
-            "content://synthx.test.replacement/tree/primary%3AReplacement",
-        )
+        val replacement = "content://synthx.test.replacement/tree/primary%3AReplacement".toUri()
 
         composeRule.runOnUiThread { library.saveRecoveryMusicFolder(replacement) }
         await(library.musicFolderUri) { it == replacement }

@@ -1,7 +1,7 @@
 package com.v1per.synthx.data.scanner
 
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.room.Room
 import com.v1per.synthx.data.FileOperationCoordinator
@@ -78,9 +78,9 @@ internal class ScanTestFixture(private val context: Context) {
         newArrivals: Boolean = false,
         otherRoots: List<File> = emptyList(),
     ): ScanResult = scanner().scan(
-        folderUri = Uri.parse(uriOf(root)),
+        folderUri = uriOf(root).toUri(),
         reconcileMissing = !newArrivals,
-        otherRootUris = otherRoots.map { Uri.parse(uriOf(it)) },
+        otherRootUris = otherRoots.map { uriOf(it).toUri() },
         isNewArrivalsRoot = newArrivals,
     )
 

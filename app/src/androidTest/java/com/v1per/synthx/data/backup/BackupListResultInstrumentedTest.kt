@@ -1,7 +1,7 @@
 package com.v1per.synthx.data.backup
 
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -73,7 +73,7 @@ class BackupListResultInstrumentedTest {
         // No real content provider backs this authority — simulates a revoked SAF grant, which
         // R7-F04 found indistinguishable from "no backups" before this fix.
         preferences.backupFolderUri =
-            Uri.parse("content://synthx.test.unreachable/tree/primary%3ABogus").toString()
+            "content://synthx.test.unreachable/tree/primary%3ABogus".toUri().toString()
         assertEquals(BackupListResult.FolderUnreachable, backupManager.listBackups())
     }
 

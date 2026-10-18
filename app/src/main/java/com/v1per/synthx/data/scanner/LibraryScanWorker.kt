@@ -8,6 +8,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.net.toUri
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.Data
@@ -53,7 +54,7 @@ class LibraryScanWorker(
         val preferences = PreferencesManager(applicationContext)
         val uriString = preferences.musicFolderUri
             ?: return Result.failure(workDataOf(KEY_ERROR to "No folder selected"))
-        val uri = Uri.parse(uriString)
+        val uri = uriString.toUri()
 
         // A stored URI outlives its grant (revoked access, restored backup). Scanning
         // without the grant reports a successful empty scan and flags the whole library

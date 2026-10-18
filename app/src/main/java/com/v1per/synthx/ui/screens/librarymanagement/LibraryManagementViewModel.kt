@@ -3,6 +3,7 @@ package com.v1per.synthx.ui.screens.librarymanagement
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -92,12 +93,12 @@ class LibraryManagementViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     internal val _musicFolderUri = MutableStateFlow(
-        preferencesManager.musicFolderUri?.let { Uri.parse(it) }
+        preferencesManager.musicFolderUri?.let { it.toUri() }
     )
     val musicFolderUri: StateFlow<Uri?> = _musicFolderUri.asStateFlow()
 
     internal val _newArrivalsFolderUri = MutableStateFlow(
-        preferencesManager.newArrivalsFolderUri?.let { Uri.parse(it) }
+        preferencesManager.newArrivalsFolderUri?.let { it.toUri() }
     )
     val newArrivalsFolderUri: StateFlow<Uri?> = _newArrivalsFolderUri.asStateFlow()
 
@@ -213,7 +214,7 @@ class LibraryManagementViewModel(
                 // LibraryScanWorker failure here; a NewArrivals/Verify failure has nothing to
                 // do with the main music-folder grant.
                 if (info?.state == WorkInfo.State.FAILED && LIBRARY_SCAN_TAG in info.tags) {
-                    _musicFolderUri.value = preferencesManager.musicFolderUri?.let { Uri.parse(it) }
+                    _musicFolderUri.value = preferencesManager.musicFolderUri?.let { it.toUri() }
                 }
             }
         }
@@ -225,7 +226,7 @@ class LibraryManagementViewModel(
                     }
                     if (failed) {
                         _newArrivalsFolderUri.value =
-                            preferencesManager.newArrivalsFolderUri?.let { Uri.parse(it) }
+                            preferencesManager.newArrivalsFolderUri?.let { it.toUri() }
                     }
                 }
         }

@@ -2,8 +2,8 @@ package com.v1per.synthx.data.scanner
 
 import android.content.Context
 import android.media.MediaMetadataRetriever
-import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.room.withTransaction
 import com.v1per.synthx.data.db.SongEntity
@@ -249,7 +249,7 @@ internal object ArtRecovery {
      * latter is testable against an injected fake — see [recover]'s kdoc.
      */
     private suspend fun defaultExtractArt(context: Context, song: SongEntity): Pair<String?, String?>? {
-        val uri = runCatching { Uri.parse(song.filePath) }.getOrNull() ?: return null
+        val uri = runCatching { song.filePath.toUri() }.getOrNull() ?: return null
         val file = DocumentFile.fromSingleUri(context, uri)?.takeIf { it.exists() } ?: return null
 
         val retriever = MediaMetadataRetriever()

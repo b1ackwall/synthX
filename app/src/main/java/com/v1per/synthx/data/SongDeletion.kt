@@ -1,9 +1,9 @@
 package com.v1per.synthx.data
 
 import android.content.Context
-import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.SongDao
@@ -85,7 +85,7 @@ enum class AudioFileDeletion { Deleted, ConfirmedAbsent, Unknown, Failed }
  * [Unknown] preserves an inaccessible or otherwise unverifiable state instead of claiming success.
  */
 fun deleteSongAudioFile(context: Context, filePath: String): AudioFileDeletion {
-    val uri = runCatching { Uri.parse(filePath) }.getOrNull()
+    val uri = runCatching { filePath.toUri() }.getOrNull()
         ?: return AudioFileDeletion.Failed.also { Log.w(TAG, "Unparseable song file path") }
     val document = try {
         DocumentFile.fromSingleUri(context, uri)

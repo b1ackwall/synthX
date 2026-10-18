@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.util.Log
 import androidx.core.content.FileProvider
+import androidx.core.graphics.scale
 import kotlinx.coroutines.CancellationException
 import java.io.File
 import java.io.FileOutputStream
@@ -81,11 +82,9 @@ internal object AlbumArtExtractor {
             val longestSide = maxOf(decoded.width, decoded.height)
             val bitmap = if (longestSide > MAX_ART_DIMENSION_PX) {
                 val scale = MAX_ART_DIMENSION_PX.toFloat() / longestSide
-                val scaled = Bitmap.createScaledBitmap(
-                    decoded,
+                val scaled = decoded.scale(
                     (decoded.width * scale).toInt().coerceAtLeast(1),
                     (decoded.height * scale).toInt().coerceAtLeast(1),
-                    true,
                 )
                 decoded.recycle()
                 scaled

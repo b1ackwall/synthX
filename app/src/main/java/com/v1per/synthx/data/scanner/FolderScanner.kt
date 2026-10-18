@@ -2,6 +2,7 @@ package com.v1per.synthx.data.scanner
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.v1per.synthx.data.db.AlbumDao
 import com.v1per.synthx.data.db.ArtistDao
@@ -163,7 +164,7 @@ class FolderScanner internal constructor(
             // be treated as "gone" here; that was the same unreachable-vs-deleted
             // conflation this whole pass now exists to avoid, so it's folded into the same
             // "can't tell, don't touch" handling.
-            val songUri = runCatching { Uri.parse(song.filePath) }.getOrNull() ?: continue
+            val songUri = runCatching { song.filePath.toUri() }.getOrNull() ?: continue
             val owningRoot = reachableRoots.firstOrNull { root ->
                 rootMembership(songUri, root.uri)
             } ?: continue
@@ -189,7 +190,7 @@ class FolderScanner internal constructor(
                 val current = songDao.getSongById(song.id) ?: continue
                 if (current.isMissing) continue
                 if (current.filePath != song.filePath) {
-                    val currentUri = runCatching { Uri.parse(current.filePath) }.getOrNull() ?: continue
+                    val currentUri = runCatching { current.filePath.toUri() }.getOrNull() ?: continue
                     val currentRoot = reachableRoots.firstOrNull { root ->
                         rootMembership(currentUri, root.uri)
                     } ?: continue

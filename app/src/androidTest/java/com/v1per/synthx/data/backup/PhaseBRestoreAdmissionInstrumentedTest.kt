@@ -2,6 +2,7 @@ package com.v1per.synthx.data.backup
 
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.db.SynthXDatabase
 import java.util.UUID
@@ -38,7 +39,7 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
             stage,
             sourceOpener = RestoreSourceOpener { sourceContext, uri ->
                 opens.incrementAndGet()
-                sourceContext.contentResolver.openInputStream(Uri.parse(uri))
+                sourceContext.contentResolver.openInputStream(uri.toUri())
             },
         )
         assertEquals(1, opens.get())

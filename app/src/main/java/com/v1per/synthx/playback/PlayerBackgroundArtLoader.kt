@@ -3,8 +3,9 @@ package com.v1per.synthx.playback
 import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.net.Uri
 import android.util.Log
+import androidx.core.graphics.scale
+import androidx.core.net.toUri
 import androidx.tracing.trace
 import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.data.repository.Song
@@ -67,7 +68,7 @@ internal class PlayerBackgroundArtLoader(private val contentResolver: ContentRes
 
     private fun decode(uriString: String, side: Int): Bitmap? {
         return try {
-            val uri = Uri.parse(uriString)
+            val uri = uriString.toUri()
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
@@ -85,7 +86,7 @@ internal class PlayerBackgroundArtLoader(private val contentResolver: ContentRes
             }
             val crop = centerSquareCrop(decoded.width, decoded.height)
             val square = Bitmap.createBitmap(decoded, crop.x, crop.y, crop.side, crop.side)
-            Bitmap.createScaledBitmap(square, side, side, true)
+            square.scale(side, side)
         } catch (e: Exception) {
             Log.w(TAG, "Could not read player background art from $uriString", e)
             null

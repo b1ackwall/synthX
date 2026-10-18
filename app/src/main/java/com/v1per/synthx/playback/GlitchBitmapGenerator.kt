@@ -4,17 +4,19 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.toColorInt
 import com.v1per.synthx.glitch.generateGlitchStrips
 
 object GlitchBitmapGenerator {
 
     fun generateGlitchBitmap(songId: String, sizePx: Int = 256): Bitmap {
-        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
         // Background — SurfaceVariant #0F2E12
-        canvas.drawColor(Color.parseColor("#0F2E12"))
+        canvas.drawColor("#0F2E12".toColorInt())
 
         for (strip in generateGlitchStrips(songId)) {
             // Accent #1AE62B @ 60% alpha (153), TextTertiary #D1F0D4 @ 40% (102), SurfaceVariant @ 80% (204)

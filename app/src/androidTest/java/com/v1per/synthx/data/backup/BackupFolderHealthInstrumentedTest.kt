@@ -2,7 +2,7 @@ package com.v1per.synthx.data.backup
 
 import android.content.Context
 import android.content.ContextWrapper
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.preferences.PreferencesManager
@@ -47,7 +47,7 @@ class BackupFolderHealthInstrumentedTest {
     @Test fun folderWithoutAWriteGrantIsGrantLost() {
         assertEquals(
             BackupFolderHealth.Result.GrantLost,
-            BackupFolderHealth.check(context, BackupManager(context), Uri.parse(UNGRANTED_TREE)),
+            BackupFolderHealth.check(context, BackupManager(context), UNGRANTED_TREE.toUri()),
         )
     }
 

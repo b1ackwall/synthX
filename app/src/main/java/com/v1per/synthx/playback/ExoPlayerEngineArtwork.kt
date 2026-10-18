@@ -1,6 +1,6 @@
 package com.v1per.synthx.playback
 
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -60,7 +60,7 @@ internal suspend fun ExoPlayerEngine.buildArtworkData(song: Song): ByteArray {
         song.albumArtUri?.let { uriString ->
             try {
                 appContext.contentResolver
-                    .openInputStream(Uri.parse(uriString))
+                    .openInputStream(uriString.toUri())
                     ?.use { it.readBytes() }
             } catch (e: Exception) {
                 null
@@ -91,7 +91,7 @@ internal fun buildMediaItem(slotId: String, song: Song, artworkData: ByteArray?)
 
     return MediaItem.Builder()
         .setMediaId(slotId)
-        .setUri(Uri.parse(song.filePath))
+        .setUri(song.filePath.toUri())
         .setMediaMetadata(metadata)
         .build()
 }

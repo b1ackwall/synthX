@@ -1,8 +1,8 @@
 package com.v1per.synthx.data.scanner
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -39,10 +39,10 @@ class VerifyLibraryWorker(
         val preferences = PreferencesManager(applicationContext)
         val configuredRoots = listOfNotNull(
             preferences.musicFolderUri?.let {
-                ConfiguredAudioRoot(Uri.parse(it), KnownAudioRoot.Music)
+                ConfiguredAudioRoot(it.toUri(), KnownAudioRoot.Music)
             },
             preferences.newArrivalsFolderUri?.let {
-                ConfiguredAudioRoot(Uri.parse(it), KnownAudioRoot.NewArrivals)
+                ConfiguredAudioRoot(it.toUri(), KnownAudioRoot.NewArrivals)
             },
         )
         return try {

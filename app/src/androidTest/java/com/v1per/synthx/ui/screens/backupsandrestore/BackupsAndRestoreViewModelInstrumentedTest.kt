@@ -3,6 +3,7 @@ package com.v1per.synthx.ui.screens.backupsandrestore
 import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -86,8 +87,8 @@ class BackupsAndRestoreViewModelInstrumentedTest {
     }
 
     private fun eligibleBackup(timestamp: Long, tier: BackupTier = BackupTier.Manual) = BackupInfo(
-        databaseUri = Uri.parse("content://synthx.test.fixture/tree/eligible-$timestamp"),
-        metadataUri = Uri.parse("content://synthx.test.fixture/tree/eligible-$timestamp.json"),
+        databaseUri = "content://synthx.test.fixture/tree/eligible-$timestamp".toUri(),
+        metadataUri = "content://synthx.test.fixture/tree/eligible-$timestamp.json".toUri(),
         fileName = "synthx_backup_eligible_$timestamp.db",
         tier = tier,
         timestamp = timestamp,
@@ -97,7 +98,7 @@ class BackupsAndRestoreViewModelInstrumentedTest {
     )
 
     private fun ineligibleBackup(timestamp: Long) = BackupInfo(
-        databaseUri = Uri.parse("content://synthx.test.fixture/tree/ineligible-$timestamp"),
+        databaseUri = "content://synthx.test.fixture/tree/ineligible-$timestamp".toUri(),
         metadataUri = null,
         fileName = "synthx_backup_ineligible_$timestamp.db",
         tier = BackupTier.Manual,
@@ -114,7 +115,7 @@ class BackupsAndRestoreViewModelInstrumentedTest {
 
         // No real content provider backs this authority, so ensureFolderStructure fails and
         // saveBackupFolder takes the Outcome.UNUSABLE rejection branch.
-        val bogus = Uri.parse("content://synthx.test.rejected/tree/primary%3ABogus")
+        val bogus = "content://synthx.test.rejected/tree/primary%3ABogus".toUri()
 
         runBlocking {
             viewModel.saveBackupFolder(bogus)
@@ -154,7 +155,7 @@ class BackupsAndRestoreViewModelInstrumentedTest {
 
         // Simulates picking a different, currently-empty backup folder.
         manager.result = BackupListResult.Empty
-        viewModel.saveBackupFolder(Uri.parse("content://synthx.test.fixture/tree/other-folder"))
+        viewModel.saveBackupFolder("content://synthx.test.fixture/tree/other-folder".toUri())
 
         val health = await(viewModel.backupHealth) { it !is BackupHealthState.Succeeded }
         assertEquals(BackupHealthState.Unknown, health)

@@ -1,8 +1,8 @@
 package com.v1per.synthx.data.scanner
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -46,7 +46,7 @@ class NewArrivalsScanWorker(
         val uriString = preferences.newArrivalsFolderUri
             // Expected and normal until the folder is ever picked — not an error state.
             ?: return Result.failure(workDataOf(KEY_ERROR to "No folder selected"))
-        val uri = Uri.parse(uriString)
+        val uri = uriString.toUri()
 
         // A stored URI outlives its grant (revoked access, restored backup). Same handling
         // as LibraryScanWorker: drop the stale URI so the UI falls back to "No folder

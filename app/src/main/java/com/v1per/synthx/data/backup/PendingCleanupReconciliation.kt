@@ -1,8 +1,8 @@
 package com.v1per.synthx.data.backup
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.room.withTransaction
 import com.v1per.synthx.data.db.PendingCleanupDao
@@ -104,7 +104,7 @@ internal object PendingCleanupReconciliation {
     }
 
     private fun publishedDocumentExists(context: Context, publishedPath: String): Boolean {
-        val uri = runCatching { Uri.parse(publishedPath) }.getOrNull() ?: return false
+        val uri = runCatching { publishedPath.toUri() }.getOrNull() ?: return false
         return try {
             DocumentFile.fromSingleUri(context, uri)?.exists() == true
         } catch (e: Exception) {

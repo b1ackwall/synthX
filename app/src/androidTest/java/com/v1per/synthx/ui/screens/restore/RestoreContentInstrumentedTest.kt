@@ -1,6 +1,5 @@
 package com.v1per.synthx.ui.screens.restore
 
-import android.net.Uri
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
@@ -8,6 +7,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.R
@@ -152,7 +152,7 @@ class RestoreContentInstrumentedTest {
 
     @Test
     fun aBackupWithCachedPreviewCountsShowsThemOnItsRow() {
-        val uri = Uri.parse("content://x/counted.db")
+        val uri = "content://x/counted.db".toUri()
         val backups = listOf(
             BackupInfo(
                 databaseUri = uri,
@@ -259,7 +259,7 @@ class RestoreContentInstrumentedTest {
         reason: BackupIneligibilityReason?,
         timestamp: Long = System.currentTimeMillis(),
     ) = BackupInfo(
-        databaseUri = Uri.parse("content://x/$fileName"),
+        databaseUri = "content://x/$fileName".toUri(),
         metadataUri = null,
         fileName = fileName,
         tier = BackupTier.Manual,

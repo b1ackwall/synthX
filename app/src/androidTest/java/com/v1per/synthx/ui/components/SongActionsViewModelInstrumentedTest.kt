@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.scanner.GraduationStage
 import java.util.UUID
@@ -152,7 +153,7 @@ class SongActionsViewModelInstrumentedTest {
             assertEquals(GraduationStage.Failed("recovery guidance"), subject.graduationStage.value)
             assertEquals(0, dismissDelayCalls)
             assertEquals(
-                Uri.parse("content://com.v1per.synthx.test/tree/new-arrivals"),
+                "content://com.v1per.synthx.test/tree/new-arrivals".toUri(),
                 repository.receivedNewArrivalsRoot,
             )
             subject.dismissGraduationDialog()

@@ -1,8 +1,8 @@
 package com.v1per.synthx.data.backup
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.room.withTransaction
 import com.v1per.synthx.data.db.AlbumDao
@@ -93,7 +93,7 @@ class PlaylistExportManager(
     }
 
     private suspend fun writeExport(): Unit = withContext(Dispatchers.IO) {
-        val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) } ?: return@withContext
+        val treeUri = preferences.backupFolderUri?.let { it.toUri() } ?: return@withContext
 
         // The database materialization is a finite tracked operation; SAF writing afterwards
         // no longer keeps Room alive during restore preparation.

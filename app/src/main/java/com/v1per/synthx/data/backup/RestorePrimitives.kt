@@ -1,6 +1,7 @@
 package com.v1per.synthx.data.backup
 
 import android.content.Context
+import androidx.core.net.toUri
 import java.io.InputStream
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -139,7 +140,7 @@ internal fun interface RestoreSourceOpener {
 
     companion object {
         val CONTENT_RESOLVER = RestoreSourceOpener { context, uri ->
-            context.contentResolver.openInputStream(android.net.Uri.parse(uri))
+            context.contentResolver.openInputStream(uri.toUri())
         }
     }
 }

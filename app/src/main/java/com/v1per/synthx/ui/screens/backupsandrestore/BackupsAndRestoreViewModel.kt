@@ -2,6 +2,7 @@ package com.v1per.synthx.ui.screens.backupsandrestore
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -54,7 +55,7 @@ class BackupsAndRestoreViewModel(
 ) : ViewModel() {
 
     private val _backupFolderUri = MutableStateFlow(
-        preferencesManager.backupFolderUri?.let { Uri.parse(it) }
+        preferencesManager.backupFolderUri?.let { it.toUri() }
     )
     val backupFolderUri: StateFlow<Uri?> = _backupFolderUri.asStateFlow()
 
@@ -133,7 +134,7 @@ class BackupsAndRestoreViewModel(
         // time this screen is opened, so this doubles as "check whenever the user looks."
         // Persistent (not showTemporarily): a broken folder should stay visible until the
         // user fixes it, not vanish after 4s while nothing has actually changed.
-        preferencesManager.backupFolderUri?.let { Uri.parse(it) }?.let { uri ->
+        preferencesManager.backupFolderUri?.let { it.toUri() }?.let { uri ->
             viewModelScope.launch {
                 when (BackupFolderHealth.check(context, backupManager, uri)) {
                     BackupFolderHealth.Result.Healthy -> Unit

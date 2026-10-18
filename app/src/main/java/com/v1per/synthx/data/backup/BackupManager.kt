@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.WorkManager
 import com.v1per.synthx.R
@@ -83,7 +84,7 @@ open class BackupManager(internal val context: Context) {
         reason: String?,
         cancelActiveScan: Boolean,
     ): String {
-        val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) }
+        val treeUri = preferences.backupFolderUri?.let { it.toUri() }
             ?: throw BackupNotConfiguredException()
         val sourceFile = context.getDatabasePath(SynthXDatabase.DB_NAME)
         if (!sourceFile.isFile) error("No database to back up yet")
@@ -186,7 +187,7 @@ open class BackupManager(internal val context: Context) {
         snapshot: File,
         dbVersion: Int,
     ): Result<String> = runCatching {
-        val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) }
+        val treeUri = preferences.backupFolderUri?.let { it.toUri() }
             ?: throw BackupNotConfiguredException()
         val tierDirectory = resolveTierDir(treeUri, tier)
             ?: error("Backup folder is unreachable — re-select it in Backups and Restore")
@@ -247,7 +248,7 @@ open class BackupManager(internal val context: Context) {
      * is `open` below.
      */
     open suspend fun listBackups(): BackupListResult = withContext(Dispatchers.IO) {
-        val treeUri = preferences.backupFolderUri?.let { Uri.parse(it) }
+        val treeUri = preferences.backupFolderUri?.let { it.toUri() }
             ?: return@withContext BackupListResult.NoFolderConfigured
         val root = runCatching { DocumentFile.fromTreeUri(context, treeUri) }.getOrNull()
         classifyBackupList(root)

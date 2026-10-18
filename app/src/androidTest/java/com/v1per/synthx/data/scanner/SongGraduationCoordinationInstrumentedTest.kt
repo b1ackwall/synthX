@@ -1,7 +1,7 @@
 package com.v1per.synthx.data.scanner
 
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -46,7 +46,7 @@ class SongGraduationCoordinationInstrumentedTest {
 
     private val songId = "song"
     private val oldPath = "content://com.v1per.synthx.test.nonexistent/document/old"
-    private val musicRoot = Uri.parse("content://com.v1per.synthx.test.nonexistent/tree/music")
+    private val musicRoot = "content://com.v1per.synthx.test.nonexistent/tree/music".toUri()
 
     @Before fun setUp() = runBlocking {
         RestoreCoordinator.resetForTest()
