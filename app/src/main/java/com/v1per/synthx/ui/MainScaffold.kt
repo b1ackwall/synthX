@@ -11,6 +11,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -187,7 +189,7 @@ private fun NormalShell(
 
     // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerSheetSkeleton and
     // used to slide the bottom nav down in lockstep with the sheet's expansion.
-    var playerProgress by remember { mutableStateOf(0f) }
+    var playerProgress by remember { mutableFloatStateOf(0f) }
     // DEAD CODE: Home no longer draws ambient blobs, so it has nothing to pause.
     // Delete in a cleanup pass. Ask  before deleting.
     // val homeAmbientPaused = isHomeAmbientFullyOccluded(currentRoute, playerProgress)
@@ -196,7 +198,7 @@ private fun NormalShell(
     // Artist" navigates away from underneath it. An Int counter rather than a Boolean so a
     // second collapse request while already collapsed still re-triggers the LaunchedEffect
     // that observes it (a repeated `true` wouldn't).
-    var collapsePlayerSignal by remember { mutableStateOf(0) }
+    var collapsePlayerSignal by remember { mutableIntStateOf(0) }
 
     // Bottom chrome reservation, applied per destination (never on the NavHost itself, so
     // an outgoing screen can't reflow mid-transition).

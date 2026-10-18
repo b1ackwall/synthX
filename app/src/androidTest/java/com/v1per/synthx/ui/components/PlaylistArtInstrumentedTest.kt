@@ -2,6 +2,7 @@ package com.v1per.synthx.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.Modifier
@@ -41,22 +42,22 @@ class PlaylistArtInstrumentedTest {
     @get:Rule val composeRule = createComposeRule()
 
     @Test fun outOfRangeHueFallsBackToPlaceholderInsteadOfThrowing() {
-        val hue = mutableStateOf(120)
+        val hue = mutableIntStateOf(120)
         composeRule.setContent {
             Box(Modifier.testTag("art")) {
-                PlaylistArt(hue = hue.value, structureSeed = 1L, size = 40.dp)
+                PlaylistArt(hue = hue.intValue, structureSeed = 1L, size = 40.dp)
             }
         }
         composeRule.waitForIdle()
         assertGeneratedArt()
 
         for (badHue in listOf(400, -10, 360)) {
-            composeRule.runOnIdle { hue.value = badHue }
+            composeRule.runOnIdle { hue.intValue = badHue }
             assertFlatPlaceholder()
         }
 
         // Recovers to generated art once back in range - proves the guard isn't sticky/latched.
-        composeRule.runOnIdle { hue.value = 120 }
+        composeRule.runOnIdle { hue.intValue = 120 }
         assertGeneratedArt()
     }
 
