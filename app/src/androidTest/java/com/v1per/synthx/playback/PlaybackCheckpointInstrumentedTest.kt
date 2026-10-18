@@ -3,7 +3,6 @@ package com.v1per.synthx.playback
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.repository.Song
 import kotlin.math.abs
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith

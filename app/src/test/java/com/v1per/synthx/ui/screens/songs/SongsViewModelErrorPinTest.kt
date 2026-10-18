@@ -2,7 +2,6 @@ package com.v1per.synthx.ui.screens.songs
 
 import android.app.Application
 import androidx.lifecycle.viewModelScope
-import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackController
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.common.UiState
