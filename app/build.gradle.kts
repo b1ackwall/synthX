@@ -51,6 +51,7 @@ android {
         versionCode = 12
         versionName = "2.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        resValue("string", "app_name", "synthX")
     }
 
     buildTypes {
@@ -65,7 +66,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            resValue("string", "app_name", "synthX")
         }
         // Macrobenchmark target: release code and R8, debug-signed, profileable through
         // src/benchmark/AndroidManifest.xml. Its own package, so it never replaces production.
@@ -100,8 +100,8 @@ android {
         }
     }
 
-    sourceSets.getByName("androidTest").assets.srcDir("schemas")
-    sourceSets.getByName("androidTest").assets.srcDir(productionMigrationDbAssetDir.get().asFile)
+    sourceSets.getByName("androidTest").assets.directories.add("schemas")
+    sourceSets.getByName("androidTest").assets.directories.add(productionMigrationDbAssetDir.get().asFile.path)
 }
 
 kotlin {
