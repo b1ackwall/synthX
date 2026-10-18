@@ -35,3 +35,4 @@ perf-output/
 
 # Python bytecode (scripts/perf)
 __pycache__/
+docs/code-work/*-raw/
