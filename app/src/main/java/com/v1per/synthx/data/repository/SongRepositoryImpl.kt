@@ -1,5 +1,6 @@
 package com.v1per.synthx.data.repository
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import com.v1per.synthx.data.backup.BackupManager
@@ -384,6 +385,8 @@ class SongRepositoryImpl(
         )
 
     companion object {
+        // Only applicationContext is stored here (see create).
+        @SuppressLint("StaticFieldLeak")
         @Volatile private var INSTANCE: SongRepositoryImpl? = null
 
         // Manual DI entry point — everything hangs off the SynthXDatabase singleton. A true

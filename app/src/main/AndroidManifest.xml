@@ -19,11 +19,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SynthX">
 
+        <!-- Portrait-only by design; how the lock behaves on large screens is tracked in #250. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.SynthX">
+            android:theme="@style/Theme.SynthX"
+            tools:ignore="LockedOrientationActivity,DiscouragedApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -50,10 +52,12 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
+        <!-- MediaLibraryService must be exported for system UI, Bluetooth and Android Auto controllers. -->
         <service
             android:name=".playback.SynthXPlaybackService"
             android:foregroundServiceType="mediaPlayback"
-            android:exported="true">
+            android:exported="true"
+            tools:ignore="ExportedService">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaLibraryService" />
             </intent-filter>

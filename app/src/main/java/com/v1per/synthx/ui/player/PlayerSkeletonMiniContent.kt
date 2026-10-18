@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,8 @@ import com.v1per.synthx.ui.theme.Spacing
  * Modifier.align(Alignment.TopCenter) — as sheetHeight grows the sheet's top edge rises
  * with it, carrying this row along while it fades out.
  */
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 fun BoxScope.PlayerSkeletonMiniContent(
     song: Song,

@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.home
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,8 @@ import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.rememberWordmark
 import com.v1per.synthx.ui.theme.Background
 
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 internal fun HomeScreen(
     // Unused: Home draws a solid background, so there is no ambient motion to pause.

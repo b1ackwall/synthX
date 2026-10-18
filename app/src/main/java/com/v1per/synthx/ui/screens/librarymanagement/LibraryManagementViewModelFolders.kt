@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.librarymanagement
 
+import android.annotation.SuppressLint
 import android.net.Uri
 import androidx.work.ExistingWorkPolicy
 import androidx.work.await
@@ -101,6 +102,8 @@ internal fun LibraryManagementViewModel.saveRecoveryNewArrivalsFolderInternal(ur
     }
 }
 
+// WorkManager's await is restricted API, see #243.
+@SuppressLint("RestrictedApi")
 internal fun LibraryManagementViewModel.saveNewArrivalsFolderInternal(uri: Uri) {
     launchCatching(onError = {
         _newArrivalsFolderError.showTemporarily(context.getString(R.string.error_folder_save_failed))

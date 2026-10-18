@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -84,6 +85,8 @@ import com.v1per.synthx.ui.theme.Spacing
  * behavior during the transition is unchanged; this only changes what happens once it's
  * finished.
  */
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 internal fun BoxScope.PlayerSkeletonControlsOverlay(
     height: Dp,

@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -23,6 +24,8 @@ import com.v1per.synthx.ui.theme.TextPrimary
 import kotlinx.coroutines.flow.SharedFlow
 import java.util.UUID
 
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 internal fun SynthXNavHost(
     navController: NavHostController,

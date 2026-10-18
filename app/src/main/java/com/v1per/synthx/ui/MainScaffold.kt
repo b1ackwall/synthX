@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -113,6 +114,8 @@ private fun NotificationSecondChanceEffect(playbackViewModel: PlaybackViewModel)
     }
 }
 
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 private fun NormalShell(
     navController: NavHostController,

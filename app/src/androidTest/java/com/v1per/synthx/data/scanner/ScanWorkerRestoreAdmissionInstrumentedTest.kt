@@ -1,5 +1,6 @@
 package com.v1per.synthx.data.scanner
 
+import android.annotation.SuppressLint
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker
@@ -21,6 +22,8 @@ import org.junit.runner.RunWith
  * by the restore admission gate instead of reading or writing Room. The two folder workers need
  * the [ScanFolderGrant] seam, because a test cannot hold a persisted folder grant.
  */
+// Test-only restricted API use; there is no public equality-based alternative.
+@SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class ScanWorkerRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
     private lateinit var saved: SavedPreferences

@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxScope
@@ -54,6 +55,8 @@ private val CopyDrawOrder = PlayerAltStageStyle.Copies.indices
  * filtered at [PlayerAltStageStyle.FilterResolutionDivisor] times less resolution per side.
  * While the music is not [isPlaying] the motion stops and the last drawn frame stays.
  */
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 internal fun BoxScope.PlayerAltStageBackground(
     art: Bitmap?,

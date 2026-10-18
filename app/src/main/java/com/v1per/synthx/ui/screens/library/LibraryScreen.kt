@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.library
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.ui.unit.LayoutDirection
@@ -60,6 +61,8 @@ import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.collections.immutable.ImmutableList
 
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 fun LibraryScreen(
     topBar: @Composable () -> Unit,
@@ -130,6 +133,8 @@ fun LibraryScreen(
     Trace.endSection()
 }
 
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 internal fun LibraryScreenContent(
     modifier: Modifier = Modifier,

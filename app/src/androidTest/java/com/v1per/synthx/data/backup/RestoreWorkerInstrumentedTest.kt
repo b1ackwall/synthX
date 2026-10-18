@@ -1,5 +1,6 @@
 package com.v1per.synthx.data.backup
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
@@ -27,6 +28,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+// Test-only restricted API use; there is no public equality-based alternative.
+@SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class RestoreWorkerInstrumentedTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- app_name is provided per-build-type via resValue in app/build.gradle.kts -->
 
     <!-- Navigation -->
@@ -152,18 +152,22 @@
     <string name="issues_backup_unhealthy_subtitle_generic">Tap to check Backups &amp; Restore</string>
     <string name="issues_export_unhealthy_title">Playlist export failed</string>
     <string name="issues_verification_failed_title">Backup verification failed</string>
-    <string name="issues_destructive_actions_title">%1$d change(s) since your last backup</string>
-    <string name="issues_reconciled_pending_cleanups_title">%1$d interrupted change(s) cleaned up on launch</string>
+    <!-- Hedges the plural with "(s)", see #244. -->
+    <string name="issues_destructive_actions_title" tools:ignore="PluralsCandidate">%1$d change(s) since your last backup</string>
+    <!-- Hedges the plural with "(s)", see #244. -->
+    <string name="issues_reconciled_pending_cleanups_title" tools:ignore="PluralsCandidate">%1$d interrupted change(s) cleaned up on launch</string>
     <string name="issues_backup_folder_grant_lost_title">Backup folder access lost</string>
     <string name="issues_backup_folder_grant_lost_subtitle">Reconnect it to keep backups working</string>
-    <string name="issues_missing_art_title">%1$d song(s) missing cover art</string>
+    <!-- Hedges the plural with "(s)", see #244. -->
+    <string name="issues_missing_art_title" tools:ignore="PluralsCandidate">%1$d song(s) missing cover art</string>
     <string name="issues_missing_art_subtitle">Art isn\'t included in backups — tap Fix to re-extract it from the original files</string>
     <string name="issues_fix_art">Fix</string>
     <string name="issues_scan">Scan</string>
     <string name="issues_scan_status_checking">Checking…</string>
     <string name="issues_scan_status_scanning">Scanning your library…</string>
     <string name="issues_scan_status_never">Not checked yet — tap Scan</string>
-    <string name="issues_scan_status_last">Last checked %1$s — %2$d issue(s) found</string>
+    <!-- Hedges the plural with "(s)", see #244. -->
+    <string name="issues_scan_status_last" tools:ignore="PluralsCandidate">Last checked %1$s — %2$d issue(s) found</string>
     <string name="delete_song_dialog_title">Delete this song?</string>
     <string name="delete_song_dialog_message">This permanently removes the song from your library, along with its artist and album links, and permanently deletes the audio file from your device. If it is currently playing, playback will skip to another track. This cannot be undone.</string>
     <string name="delete_song_playlists_heading">Removed from playlists (%1$d)</string>
@@ -230,7 +234,8 @@
     <string name="restore_confirm_title">Restore this backup?</string>
     <string name="restore_confirm_message">This replaces your entire library — songs, playlists, queue, and Starred state — with the contents of %1$s. A validated local safety snapshot is taken first. synthX will close when the restore finishes and must be reopened manually. This cannot be undone.</string>
     <string name="restore_confirm_action">Restore</string>
-    <string name="restore_confirm_counts">This backup contains %1$d playlists, %2$d songs, and %3$d playlist entries.</string>
+    <!-- A count of one reads as a plural, see #242. -->
+    <string name="restore_confirm_counts" tools:ignore="PluralsCandidate">This backup contains %1$d playlists, %2$d songs, and %3$d playlist entries.</string>
     <string name="restore_preview_loading">Checking backup contents…</string>
     <string name="restore_preview_error_title">Couldn\'t preview this backup</string>
     <string name="restore_preview_error_unknown">Could not read this backup\'s contents.</string>
@@ -249,7 +254,8 @@
     <string name="restore_notification_safety_backup">Backing up current library…</string>
     <string name="restore_notification_restoring">Restoring…</string>
     <string name="restore_row_most_recent">Most recent</string>
-    <string name="restore_row_counts">%1$d songs · %2$d playlists</string>
+    <!-- A count of one reads as a plural, see #242. -->
+    <string name="restore_row_counts" tools:ignore="PluralsCandidate">%1$d songs · %2$d playlists</string>
     <string name="restore_error_cancelled">Restore was interrupted before it finished.</string>
     <string name="restore_error_unknown">Restore failed for an unknown reason.</string>
     <string name="restore_error_music_folder_required">A root music folder must be selected before restoring — a restored library needs somewhere to find its songs.</string>
@@ -289,12 +295,14 @@
     <string name="scan_channel_description">Shows progress while your music folder is being scanned</string>
     <string name="scan_notification_title">Scanning library</string>
     <string name="scan_notification_preparing">Finding files…</string>
-    <string name="scan_notification_progress">%1$d of %2$d songs</string>
+    <!-- A count of one reads as a plural, see #242. -->
+    <string name="scan_notification_progress" tools:ignore="PluralsCandidate">%1$d of %2$d songs</string>
     <string name="scan_progress_preparing">Scanning…</string>
     <string name="scan_progress_counted">Scanning… %1$d of %2$d</string>
     <string name="scan_cancelled">Scan cancelled</string>
     <string name="library_refresh_already_scanning">A scan is already running, so this refresh wasn\'t started.</string>
-    <string name="scan_status_done">Done — %1$d added, %2$d updated, %3$d missing</string>
+    <!-- Reads correctly for a count of one. -->
+    <string name="scan_status_done" tools:ignore="PluralsCandidate">Done — %1$d added, %2$d updated, %3$d missing</string>
     <string name="scan_status_high_impact">This scan affected an unusually large number of items (%1$d). A safety backup was created: %2$s. Restore it from Backups &amp; Restore if needed.</string>
     <string name="scan_status_backup_filename_unknown">the most recent Auto backup</string>
     <string name="scan_status_failed">Scan failed: %1$s</string>
@@ -302,18 +310,23 @@
     <string name="scan_progress_library">Scanning library…</string>
     <string name="scan_progress_new_arrivals">Checking New Arrivals…</string>
     <string name="scan_progress_verify">Verifying library…</string>
-    <string name="scan_status_new_arrivals_found">%1$d new songs found</string>
+    <!-- A count of one reads as a plural, see #242. -->
+    <string name="scan_status_new_arrivals_found" tools:ignore="PluralsCandidate">%1$d new songs found</string>
     <string name="scan_status_new_arrivals_none">No new songs</string>
     <string name="scan_status_verify_none">No changes</string>
-    <string name="scan_status_verify_missing">%1$d songs newly missing</string>
+    <!-- A count of one reads as a plural, see #242. -->
+    <string name="scan_status_verify_missing" tools:ignore="PluralsCandidate">%1$d songs newly missing</string>
     <string name="scan_root_music">Music</string>
     <string name="scan_root_new_arrivals">New Arrivals</string>
     <string name="scan_degraded_root_unreachable">The %1$s folder could not be reached. Reconnect its storage or select the folder again.</string>
     <string name="scan_degraded_walk_incomplete">The %1$s folder could not be scanned completely. Reconnect its storage or select the folder again, then scan again.</string>
     <string name="scan_degraded_verification_incomplete">Some files in the %1$s folder could not be verified. Reconnect its storage or select the folder again, then scan again.</string>
-    <string name="scan_status_degraded_counts">Scan incomplete — %1$d added, %2$d updated. %3$s</string>
-    <string name="scan_status_new_arrivals_degraded">New Arrivals scan incomplete — %1$d new songs found. %2$s</string>
-    <string name="scan_status_verify_degraded">Verification incomplete — %1$d songs confirmed missing. %2$s</string>
+    <!-- Reads correctly for a count of one. -->
+    <string name="scan_status_degraded_counts" tools:ignore="PluralsCandidate">Scan incomplete — %1$d added, %2$d updated. %3$s</string>
+    <!-- A count of one reads as a plural, see #242. -->
+    <string name="scan_status_new_arrivals_degraded" tools:ignore="PluralsCandidate">New Arrivals scan incomplete — %1$d new songs found. %2$s</string>
+    <!-- A count of one reads as a plural, see #242. -->
+    <string name="scan_status_verify_degraded" tools:ignore="PluralsCandidate">Verification incomplete — %1$d songs confirmed missing. %2$s</string>
     <string name="backup_status_backing_up">Backing up…</string>
     <string name="backup_status_created">Backup created</string>
     <string name="backup_status_failed">Backup failed: %1$s</string>
@@ -329,7 +342,8 @@
     <string name="backup_verification_failed">Most recent backup failed a health check %1$s: %2$s</string>
     <string name="export_health_succeeded">Last playlist export: %1$s</string>
     <string name="export_health_failed">Last playlist export failed %1$s: %2$s</string>
-    <string name="destructive_action_warning">%1$d destructive action(s) since your last successful backup</string>
+    <!-- Hedges the plural with "(s)", see #244. -->
+    <string name="destructive_action_warning" tools:ignore="PluralsCandidate">%1$d destructive action(s) since your last successful backup</string>
 
     <!-- Playback -->
     <string name="playback_error_failed">Couldn\'t play %1$s</string>

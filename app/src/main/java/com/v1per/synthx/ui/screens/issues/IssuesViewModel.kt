@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.issues
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -95,6 +96,8 @@ sealed class IssuesActionEvent {
  * from a genuine all-clear — and then silently corrected itself.
  */
 class IssuesViewModel(
+    // Only applicationContext is stored here (see Factory).
+    @field:SuppressLint("StaticFieldLeak")
     private val context: Context,
     private val repository: SongRepository,
     private val preferences: PreferencesManager,

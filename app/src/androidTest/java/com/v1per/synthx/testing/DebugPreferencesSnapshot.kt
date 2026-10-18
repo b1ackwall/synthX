@@ -11,6 +11,8 @@ import org.junit.rules.ExternalResource
  * `PreferencesManager(applicationContext)` itself (MainActivity, the shell's backup notice), so
  * there is no way to hand it an isolated file.
  */
+// check() needs the Boolean from commit() that KTX edit(commit = true) would drop.
+@SuppressLint("UseKtx")
 class DebugPreferencesSnapshot : ExternalResource() {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private var saved: Map<String, *> = emptyMap<String, Any?>()

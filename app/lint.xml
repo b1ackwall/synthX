@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Diagnostic logs on rare paths (scan end, queue load, worker end); gating them would drop release diagnostics. -->
+    <issue id="LogConditional" severity="ignore" />
+
+    <!-- R8 removes these accessors in release builds; widening private members to avoid them is worse. -->
+    <issue id="SyntheticAccessor" severity="ignore" />
+
+    <!-- topBar is a named slot, like Material's Scaffold(topBar = ...). -->
+    <issue id="ComposableLambdaParameterNaming" severity="ignore" />
+
+    <!-- topBar is a named slot, like Material's Scaffold(topBar = ...). -->
+    <issue id="ComposableLambdaParameterPosition" severity="ignore" />
+
+    <!-- Separate keys per context (title, nav label, content description) are deliberate. -->
+    <issue id="DuplicateStrings" severity="ignore" />
+
+    <!-- Benchmark logs use width specifiers to align their columns. -->
+    <issue id="StringFormatTrivial" severity="ignore" />
+
+    <!-- Job.cancel() resolving to the member is intended; the extension import is needed for CoroutineScope.cancel(). -->
+    <issue id="MemberExtensionConflict" severity="ignore" />
+
+    <!-- UI copy uses straight quotes; typographic quotes are tracked in #245. -->
+    <issue id="TypographyQuotes" severity="ignore" />
+
+    <!-- Dependency and toolchain updates are tracked in #246. -->
+    <issue id="GradleDependency" severity="ignore" />
+
+    <!-- Dependency and toolchain updates are tracked in #246. -->
+    <issue id="NewerVersionAvailable" severity="ignore" />
+
+    <!-- Dependency and toolchain updates are tracked in #246. -->
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+
+    <!-- Raising targetSdk to 37 is tracked in #247. -->
+    <issue id="OldTargetApi" severity="ignore" />
+
+    <!-- Enabling isShrinkResources is tracked in #248. -->
+    <issue id="NotShrinkingResources" severity="ignore" />
+
+    <!-- A themed (monochrome) launcher icon is tracked in #249. -->
+    <issue id="MonochromeLauncherIcon" severity="ignore" />
+</lint>

@@ -1,5 +1,6 @@
 package com.v1per.synthx.data.scanner
 
+import android.annotation.SuppressLint
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
@@ -23,6 +24,8 @@ import org.junit.runner.RunWith
  * only reach the "grant check passed, root still unreachable" path through [ScanFolderGrant];
  * real file ingest through a worker is not reachable without an app change.
  */
+// Test-only restricted API use; there is no public equality-based alternative.
+@SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
     private lateinit var saved: SavedPreferences

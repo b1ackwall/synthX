@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,8 @@ import com.v1per.synthx.ui.theme.Spacing
  * expandedContentAlpha alone, so the two crossfade against each other on a queue-button
  * tap, not only across the collapse/expand drag.
  */
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 fun PlayerSkeletonExpandedContent(
     song: Song,

@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -103,6 +104,8 @@ private val ControlsMaskFadeHeight = 48.dp
  * queue-mode-entry animation (still visually mid-fade) could otherwise fire a real queue
  * action before the content is meaningfully visible.
  */
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 fun PlayerSkeletonQueueContent(
     song: Song,

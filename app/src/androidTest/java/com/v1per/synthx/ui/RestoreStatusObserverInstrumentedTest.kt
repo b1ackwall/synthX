@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
@@ -44,6 +45,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+// Test-only restricted API use; there is no public equality-based alternative.
+@SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class RestoreStatusObserverInstrumentedTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()

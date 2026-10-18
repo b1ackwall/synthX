@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.restore
 
+import android.annotation.SuppressLint
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -52,6 +53,8 @@ sealed class RestorePreview {
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RestoreViewModel(
+    // Only applicationContext is stored here (see Factory).
+    @field:SuppressLint("StaticFieldLeak")
     private val context: Context,
     private val backupManager: BackupManager,
     private val preferencesManager: PreferencesManager,

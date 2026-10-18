@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -106,6 +107,9 @@ private val SwipePositionalThreshold: (Float) -> Float = { totalDistance -> tota
  * disabled row's removal is deliberately a no-op one level up in [QueueList]. It is a lambda
  * called only there, never in composition, so a change of its result does not recompose the row.
  */
+// dragHandleModifier is applied to the drag handle, not the row root.
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("ModifierParameter", "UnclosedTrace")
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun QueueRow(

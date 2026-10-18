@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
@@ -40,6 +41,8 @@ internal fun quantizePlayerGlowSize(size: Dp): Dp {
     return (MiniPlayerGlowSize.value + stepsFromMini * GlowSizeStepDp).dp
 }
 
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 internal fun PlayerAlbumArtWithGlow(
     song: Song,

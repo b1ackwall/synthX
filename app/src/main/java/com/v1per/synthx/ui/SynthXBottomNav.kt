@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,6 +53,8 @@ import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextSecondary
 
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 internal fun BottomChromeOverlay(
     navController: NavController,
@@ -173,6 +176,8 @@ internal fun BottomChromeOverlay(
 // restore mid-stack. See Screen.libraryDetailRoutes.
 private val libraryTabRoutes = Screen.libraryDetailRoutes
 
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @Composable
 private fun SynthXBottomNav(
     navController: NavController,

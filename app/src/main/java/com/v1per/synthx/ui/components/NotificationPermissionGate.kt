@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.components
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.os.Build
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -94,6 +95,8 @@ internal val LocalNotificationPermissionBackend =
     staticCompositionLocalOf<NotificationPermissionBackend?> { null }
 
 /** Also composes the rationale dialog; hold the returned gate wherever its trigger lives. */
+// POST_NOTIFICATIONS is a compile-time constant; the request only runs when sdkInt >= TIRAMISU.
+@SuppressLint("InlinedApi")
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 internal fun rememberNotificationPermissionGate(): NotificationPermissionGate {

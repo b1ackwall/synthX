@@ -1,5 +1,6 @@
 package com.v1per.synthx.preferences
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import androidx.core.content.edit
@@ -210,6 +211,8 @@ class PreferencesManager(context: Context) {
      * caller on this critical path can react to a failed commit instead of assuming success the
      * way `apply()` would.
      */
+    // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
+    @SuppressLint("UseKtx")
     fun setMigrationInvariantFailurePendingDurably(value: Boolean): Boolean =
         prefs.edit().putBoolean(KEY_MIGRATION_INVARIANT_FAILURE_PENDING, value).commit()
 
@@ -253,6 +256,8 @@ class PreferencesManager(context: Context) {
      * active request; retain that request's original clock in that case so its wait is not reset
      * by a duplicate tap/recreated caller.
      */
+    // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
+    @SuppressLint("UseKtx")
     fun trackRestoreRequestDurably(requestId: String, submittedAt: Long): Boolean {
         val sameRequest = restoreRequestId == requestId
         return prefs.edit()
@@ -266,6 +271,8 @@ class PreferencesManager(context: Context) {
     }
 
     /** The observer calls this at composition time, not merely when it discovers terminal work. */
+    // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
+    @SuppressLint("UseKtx")
     fun acknowledgeRestoreOutcomeDurably(requestId: String): Boolean {
         if (restoreRequestId != requestId) return false
         return prefs.edit().putBoolean(KEY_RESTORE_OUTCOME_ACKNOWLEDGED, true).commit()
@@ -292,6 +299,8 @@ class PreferencesManager(context: Context) {
      * persisted wizard position in the same commit once [value] is true — that position exists
      * only to resume an in-progress wizard, and becomes stale the instant onboarding is done.
      */
+    // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
+    @SuppressLint("UseKtx")
     fun setOnboardingCompleteDurably(value: Boolean): Boolean {
         val editor = prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETE, value)
         if (value) {
@@ -328,6 +337,8 @@ class PreferencesManager(context: Context) {
     val notificationPermissionAsked: Boolean
         get() = prefs.getBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, false)
 
+    // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
+    @SuppressLint("UseKtx")
     fun markNotificationPermissionAskedDurably(): Boolean =
         prefs.edit().putBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, true).commit()
 
@@ -347,6 +358,8 @@ class PreferencesManager(context: Context) {
         private set(value) = prefs.edit { putString(KEY_FIRST_SCAN_REQUEST_ID, value) }
 
     /** Blocking commit, so the id is on disk before the caller lets the wizard advance. */
+    // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
+    @SuppressLint("UseKtx")
     fun trackFirstScanRequestDurably(requestId: String): Boolean =
         prefs.edit().putString(KEY_FIRST_SCAN_REQUEST_ID, requestId).commit()
 
@@ -354,6 +367,8 @@ class PreferencesManager(context: Context) {
      * The first scan succeeded and the wizard is handing over to Home: drops the id and the now
      * stale "Scanning" position in one commit, so neither can resurrect the wizard on next launch.
      */
+    // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
+    @SuppressLint("UseKtx")
     fun completeFirstScanDurably(): Boolean =
         prefs.edit()
             .remove(KEY_FIRST_SCAN_REQUEST_ID)
@@ -366,6 +381,8 @@ class PreferencesManager(context: Context) {
      * along with dropping the id: once they are back in FolderSetup, a process death must resume
      * the wizard there rather than land on an empty Home with no scan pending.
      */
+    // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
+    @SuppressLint("UseKtx")
     fun abandonFirstScanDurably(): Boolean =
         prefs.edit()
             .remove(KEY_FIRST_SCAN_REQUEST_ID)
@@ -373,6 +390,8 @@ class PreferencesManager(context: Context) {
             .commit()
 
     /** Commits both fields together so a reader never observes one updated without the other. */
+    // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
+    @SuppressLint("UseKtx")
     fun setOnboardingProgressDurably(stepName: String, returningFromRecovery: Boolean): Boolean =
         prefs.edit()
             .putString(KEY_ONBOARDING_STEP, stepName)

@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
@@ -58,6 +59,8 @@ import kotlin.math.roundToInt
  * The live player sheet: a single AnchoredDraggableState morph between mini/full player,
  * wired to real [PlaybackViewModel] state.
  */
+// Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
+@SuppressLint("UnclosedTrace")
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun PlayerSheetSkeleton(

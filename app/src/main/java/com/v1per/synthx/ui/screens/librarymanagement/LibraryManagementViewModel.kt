@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.librarymanagement
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -68,6 +69,8 @@ private const val StatusMessageDisplayMs = 4_000L
 private const val MissingFirstScanGraceMs = 10_000L
 
 class LibraryManagementViewModel(
+    // Only applicationContext is stored here (see Factory).
+    @field:SuppressLint("StaticFieldLeak")
     internal val context: Context,
     internal val preferencesManager: PreferencesManager,
     private val repository: SongRepository,

@@ -1,5 +1,6 @@
 package com.v1per.synthx.data.backup
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import androidx.core.net.toUri
@@ -304,6 +305,8 @@ class PlaylistExportManager(
         /** Test-only: resets the once-per-process migration guard. */
         internal fun resetMigrationGuardForTest() { legacyMigrationDone = false }
 
+        // Only applicationContext is stored here (see create).
+        @SuppressLint("StaticFieldLeak")
         @Volatile private var INSTANCE: PlaylistExportManager? = null
 
         // A true singleton (matching SongRepositoryImpl.create()'s and SynthXDatabase's own

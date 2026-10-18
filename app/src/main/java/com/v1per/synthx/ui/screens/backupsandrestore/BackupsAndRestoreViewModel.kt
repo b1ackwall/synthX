@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.backupsandrestore
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import androidx.core.net.toUri
@@ -49,6 +50,8 @@ sealed interface ExportHealthState {
 data class VerificationFailure(val timestamp: Long, val message: String?)
 
 class BackupsAndRestoreViewModel(
+    // Only applicationContext is stored here (see Factory).
+    @field:SuppressLint("StaticFieldLeak")
     private val context: Context,
     private val preferencesManager: PreferencesManager,
     private val backupManager: BackupManager,

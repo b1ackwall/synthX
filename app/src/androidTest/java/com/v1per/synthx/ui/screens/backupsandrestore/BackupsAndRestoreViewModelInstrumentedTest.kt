@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.backupsandrestore
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
@@ -34,6 +35,8 @@ import org.junit.runner.RunWith
  * set persistently, matching the existing launch-time/screen-entry health-check convention
  * (direct `.value =` assignment, no timer) instead of the old `showTemporarily` 4-second window.
  */
+// Test-only restricted API use; there is no public equality-based alternative.
+@SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class BackupsAndRestoreViewModelInstrumentedTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()

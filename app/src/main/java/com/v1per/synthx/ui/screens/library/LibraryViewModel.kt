@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.library
 
+import android.annotation.SuppressLint
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -171,6 +172,8 @@ class LibraryViewModel(
      * reported distinctly ("already scanning") from a scan that ran and failed. The outcome of a
      * scan that did start is then surfaced through [refreshMessages] using the shared status text.
      */
+    // WorkManager's await is restricted API, see #243.
+    @SuppressLint("RestrictedApi")
     fun onPullToRefresh() {
         viewModelScope.launch {
             try {

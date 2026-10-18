@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.onboarding
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
@@ -97,6 +98,8 @@ import org.junit.rules.TestName
 import org.junit.runner.RunWith
 
 /** Uses isolated preferences and a repository stub; never restores over the app database. */
+// Test-only restricted API use; there is no public equality-based alternative.
+@SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class OnboardingRecoveryInstrumentedTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()

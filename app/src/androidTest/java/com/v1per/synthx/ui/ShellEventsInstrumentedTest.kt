@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
@@ -57,6 +58,8 @@ import org.junit.runner.RunWith
  * snackbar, the backup-folder notice, the app-wide restore result dialog (and which routes own
  * that result instead), and "Go to Album" collapsing the expanded player.
  */
+// Test-only restricted API use; there is no public equality-based alternative.
+@SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class ShellEventsInstrumentedTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
