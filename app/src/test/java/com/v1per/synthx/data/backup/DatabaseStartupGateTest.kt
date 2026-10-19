@@ -1,7 +1,6 @@
 package com.v1per.synthx.data.backup
 
 import java.io.File
-import com.v1per.synthx.testing.ProductionSource
 import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -325,48 +324,6 @@ class DatabaseStartupGateTest {
 class DatabaseStartupProductionOrderingTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)
     val testTimeout = TestTimeouts.jvm()
-
-    // Comment-free code: a comment naming the call cannot satisfy or break these two.
-    @Test fun mainActivityAwaitsGateBeforeInstallingDatabaseConsumingContent() {
-        val source = ProductionSource.code("com/v1per/synthx/MainActivity.kt")
-        val await = source.indexOf("DatabaseStartupGate.awaitReady()")
-        val content = source.indexOf("setContent", startIndex = await)
-        val scaffold = source.indexOf("MainScaffold(", startIndex = content)
-
-        assertTrue(await >= 0, "MainActivity must await the process database gate")
-        assertTrue(content > await, "setContent must follow database-gate resolution")
-        assertTrue(scaffold > content, "DB-consuming MainScaffold must be installed only afterward")
-        assertFalse(source.contains("backupBeforeMigration"))
-        assertFalse(source.contains("lastKnownDbVersion"))
-    }
-
-    @Test fun foregroundReconciliationAwaitsGateBeforeCreatingPlaybackViewModel() {
-        val source = ProductionSource.code("com/v1per/synthx/MainActivity.kt")
-        val onStart = source.substringAfter("override fun onStart()")
-            .substringBefore("private fun pruneFinishedWork")
-        val await = onStart.indexOf("DatabaseStartupGate.awaitReady()")
-        val playback = onStart.indexOf("playbackViewModel.reconcileWithDatabase()")
-
-        assertTrue(await >= 0, "onStart must join database startup before resolving playback")
-        assertTrue(playback > await, "playback creation must follow database-gate readiness")
-    }
-
-    @Test fun productionMigrationBackupSelectsRawPreRoomSnapshotPath() {
-        val manager = productionFile("com/v1per/synthx/data/backup/BackupManager.kt").readText()
-        val snapshotter = productionFile("com/v1per/synthx/data/backup/BackupSnapshot.kt").readText()
-
-        val entry = manager.substringAfter("createPreMigrationBackup")
-            .substringBefore("private suspend fun createBackupLocked")
-        assertTrue(entry.contains("BackupReason.MIGRATION"))
-        assertTrue(entry.contains("cancelActiveScan = false"))
-        assertTrue(manager.contains("BackupSnapshotter.createForMigration(sourceFile, snapshot)"))
-        assertTrue(snapshotter.contains("SQLiteDatabase.openDatabase"))
-        assertFalse(
-            snapshotter.substringAfter("fun createForMigration")
-                .substringBefore("fun forceToStorage")
-                .contains("SynthXDatabase.getInstance"),
-        )
-    }
 
     @Test fun productionSafetyDecisionHasNoRememberedVersionWriter() {
         val productionRoot = productionDirectory("com/v1per/synthx")

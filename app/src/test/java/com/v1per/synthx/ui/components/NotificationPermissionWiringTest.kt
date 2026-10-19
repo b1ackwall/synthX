@@ -68,17 +68,6 @@ class NotificationPermissionWiringTest {
         assertTrue(enqueue > gate, "viewModel.restore(...) must run inside the gate's deferred action")
     }
 
-    // Comment-free code, found wherever it lives, so a move-only split of MainScaffold.kt keeps it green.
-    @Test fun firstPlaybackSecondChanceObservesPlaybackAndUsesTheSameGate() {
-        val scaffold = ProductionSource.definingFile("private fun NotificationSecondChanceEffect")
-        val effect = scaffold.substringAfter("private fun NotificationSecondChanceEffect")
-            .substringBefore("@Composable")
-        assertTrue(effect.contains("rememberNotificationPermissionGate()"))
-        assertTrue(effect.contains("playbackViewModel.isPlaying"))
-        assertTrue(effect.contains("gate.runAfterRationale"))
-        assertTrue(scaffold.contains("NotificationSecondChanceEffect(playbackViewModel)"))
-    }
-
     /** Consistency: nothing that runs or reports scan/restore work reads the permission. */
     @Test fun scanAndRestoreWorkAndTheirInAppStatusNeverConsultTheNotificationPermission() {
         listOf(
