@@ -16,7 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P7-T3 / R7-F03: direct test of [shouldRunLaunchMaintenance], the condition
+ * Direct test of [shouldRunLaunchMaintenance], the condition
  * [MainActivity.runLaunchMaintenance] checks before any of its backup/scan/queue-restore/
  * art-sweep work. This tests the rule only, not that MainActivity calls it:
  * [MainActivityLaunchMaintenanceInstrumentedTest] launches the real activity and checks that

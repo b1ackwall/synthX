@@ -24,7 +24,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 
 /**
- * P8-T6: the detail screen's hero cover ([DetailHeroSize]) is generated art for a playlist that has
+ * The detail screen's hero cover ([DetailHeroSize]) is generated art for a playlist that has
  * it and the flat [com.v1per.synthx.ui.components.ArtPlaceholder] for one that does not, at the same
  * size either way.
  * Songs are left empty (which also puts the cover above the empty message) because [SongRow] needs

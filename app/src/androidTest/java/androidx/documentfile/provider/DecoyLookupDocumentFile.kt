@@ -7,7 +7,7 @@ import java.io.File
  * Test-only real filesystem directory whose [findFile] resolves [decoyName] to a *different*
  * document ([decoy]) once a real document named [decoyName] exists in [root] — simulating a SAF
  * tree provider whose directory listing lags or diverges from the document the caller just
- * renamed (#170, same threat as graduation's R2-F13). Before that real document exists the lookup
+ * renamed (the same threat graduation's publish guards against). Before that real document exists the lookup
  * behaves normally, so a caller's up-front "is this name free?" check still sees the name as free.
  *
  * A caller that re-resolves its just-renamed document by name gets [decoy] back; a caller that

@@ -22,7 +22,7 @@ import org.junit.runner.RunWith
 import java.util.Random
 
 /**
- * Informational timings for [PlaylistArt]'s per-row cost (P8-T5) — NOT a pass/fail gate. Wall-clock
+ * Informational timings for [PlaylistArt]'s per-row cost — NOT a pass/fail gate. Wall-clock
  * numbers on a shared emulator or a thermally throttled phone are far too noisy to assert on, so
  * the timings are only logged (tag [TAG], read with `adb logcat -d -s PlaylistArtBench`). Four tests
  * also check that what they timed is correct (lit segments kept, cache hits and eviction, pixels
@@ -39,7 +39,7 @@ import java.util.Random
  *    the model asks for (it is not GPU time).
  *  - `cache hit`: [cachedPlaylistArtRenderModel] for a key already held. `record, cold` includes the
  *    one-time creation of each lit brush's gradient shader, which a cached model keeps; `record,
- *    warm` is what a scrolled-back row pays now. The `new`/`old` pairs draw the same model with the
+ *    warm` is what a scrolled-back row pays. The `new`/`old` pairs draw the same model with the
  *    single-path and per-segment backbone in the same run, so they compare like with like.
  */
 @RunWith(AndroidJUnit4::class)

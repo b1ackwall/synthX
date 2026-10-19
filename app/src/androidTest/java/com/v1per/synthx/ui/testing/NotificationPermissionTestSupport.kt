@@ -7,7 +7,7 @@ import android.os.Build
 import org.junit.Assume.assumeTrue
 
 /**
- * P9-T5: skips the calling test unless the debug app already has POST_NOTIFICATIONS denied, the
+ * Skips the calling test unless the debug app already has POST_NOTIFICATIONS denied, the
  * state scan/restore must behave identically under. It never revokes: the tests run inside the
  * app's own process, and revoking a runtime permission makes Android kill that process, which
  * aborts the whole instrumented run. A fresh install starts denied on Android 13+; a device where

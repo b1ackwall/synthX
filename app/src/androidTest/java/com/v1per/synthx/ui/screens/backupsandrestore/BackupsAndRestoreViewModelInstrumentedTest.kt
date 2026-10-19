@@ -31,9 +31,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Covers R7-F05: a rejected backup-folder pick must leave [BackupsAndRestoreViewModel.backupFolderError]
- * set persistently, matching the existing launch-time/screen-entry health-check convention
- * (direct `.value =` assignment, no timer) instead of the old `showTemporarily` 4-second window.
+ * A rejected backup-folder pick must leave [BackupsAndRestoreViewModel.backupFolderError]
+ * set persistently, matching the launch-time/screen-entry health-check convention
+ * (direct `.value =` assignment, no timer) rather than a temporary status message.
  */
 // Test-only restricted API use; there is no public equality-based alternative.
 @SuppressLint("RestrictedApi")
@@ -59,7 +59,7 @@ class BackupsAndRestoreViewModelInstrumentedTest {
     }
 
     /**
-     * R8-B02/P7-T5: `listBackups()`/`ensureFolderStructure()` are `open` specifically so tests
+     * `listBackups()`/`ensureFolderStructure()` are `open` specifically so tests
      * can substitute canned results without a genuine SAF tree grant — the same problem
      * [BackupListResultInstrumentedTest] solves for `classifyBackupList` by working against a
      * file-backed [androidx.documentfile.provider.DocumentFile] instead; a ViewModel test needs
@@ -72,7 +72,7 @@ class BackupsAndRestoreViewModelInstrumentedTest {
         override suspend fun listBackups(): BackupListResult = result
         override fun ensureFolderStructure(treeUri: Uri): Boolean = true
 
-        /** R8-B07: counts and slows down createBackup calls so a test can prove taps coalesce. */
+        /** Counts and slows down createBackup calls so a test can prove taps coalesce. */
         val createBackupCallCount = AtomicInteger(0)
         var createBackupDelayMs = 0L
 
@@ -126,7 +126,7 @@ class BackupsAndRestoreViewModelInstrumentedTest {
             val messageWhenSet = viewModel.backupFolderError.value
             assertNotNull(messageWhenSet)
 
-            // StatusMessageDisplayMs (the old showTemporarily window) is 4_000ms; wait well past
+            // StatusMessageDisplayMs (the temporary-message window) is 4_000ms; wait well past
             // it and confirm the error is still there instead of having been cleared.
             delay(5_000)
             assertNotNull(viewModel.backupFolderError.value)
@@ -189,7 +189,7 @@ class BackupsAndRestoreViewModelInstrumentedTest {
         assertEquals(BackupTier.Auto, succeeded.tier)
     }
 
-    // ---------------------------------------------------------------- R8-B07: repeated-tap guard
+    // ---------------------------------------------------------------- repeated-tap guard
 
     @Test
     fun rapidRepeatedBackupNowTapsProduceExactlyOneBackupAttempt() {

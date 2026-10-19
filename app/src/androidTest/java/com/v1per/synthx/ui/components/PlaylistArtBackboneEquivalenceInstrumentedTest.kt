@@ -19,10 +19,10 @@ import java.util.Random
 import kotlin.math.abs
 
 /**
- * P8-T5 collapsed ~100 individual `drawLine` calls for the unlit backbone into one stroked
- * `drawPath`. This proves that changed nothing visible: [drawPlaylistArt] is rendered next to a
- * reference that still draws the backbone one line per segment — exactly what the code did before —
- * from the very same model, and the two bitmaps are compared pixel by pixel.
+ * [drawPlaylistArt] draws the unlit backbone as one stroked `drawPath` rather than ~100 individual
+ * `drawLine` calls. This proves that changes nothing visible: [drawPlaylistArt] is rendered next to
+ * a reference that draws the backbone one line per segment from the very same model, and the two
+ * bitmaps are compared pixel by pixel.
  *
  * The two are visually identical but NOT bit-identical, and this test is deliberately not written
  * as if they were. Skia rasterises a stroked path with several subpaths marginally differently from
@@ -30,10 +30,10 @@ import kotlin.math.abs
  * 56-140 px, ~4% of pixels differ, by ~1/255 on average and 5/255 at worst (an older phone's Skia
  * differs on ~14% of pixels, still within a pixel of the backbone), and every one of them
  * lies within a pixel of a stroke of the 10%-alpha backbone, none farther away. One subpath per
- * `drawPath` reproduces the old output exactly, so the difference is real but comes from putting
- * several in one path — which is the whole point of the change. The bounds below are set to absorb
- * that noise and still fail on anything a person could see: a wrong alpha, width, cap, or a
- * missing segment (see the mutation results recorded in the P8-T5 report).
+ * `drawPath` reproduces the reference output exactly, so the difference is real but comes from
+ * putting several in one path — which is the whole point of the single path. The bounds below are
+ * set to absorb that noise and still fail on anything a person could see: a wrong alpha, width,
+ * cap, or a missing segment.
  *
  * The reference restates `UnlitSegmentColor` (white at alpha 0.1) and `DiamondAlpha` (0.5) rather
  * than importing them, so a change to either constant in production shows up here as a mismatch

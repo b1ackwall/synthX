@@ -28,11 +28,11 @@ import org.junit.runner.RunWith
 import org.junit.Assert.assertEquals
 
 /**
- * P8-T7 / B05: the playlist name and selected group have to survive the activity being recreated
+ * The playlist name and selected group have to survive the activity being recreated
  * (a font-scale, locale or dark-mode change; the activity is portrait-locked, so not rotation).
- * Both used to be plain `remember`, so the ViewModel came back but the form it belonged to was empty.
+ * Both are `rememberSaveable`: with plain `remember` the ViewModel comes back but its form is empty.
  *
- * This is the app's first recreation test. The pattern (see [install]): content goes onto the
+ * The recreation pattern (see [install]): content goes onto the
  * activity with `activity.setContent`, `scenario.recreate()` builds a new activity, and the same
  * `install()` puts the same content on it. Two traps, both found the hard way:
  *  - The rule's own `setContent` refuses a second call, so the new activity is populated directly.

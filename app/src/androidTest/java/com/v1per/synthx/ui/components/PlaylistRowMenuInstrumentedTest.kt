@@ -18,12 +18,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Regression coverage for R8-B01 (P1-T7): [PlaylistRow]'s grouping menu entries must be gated on
- * whether the caller actually supplied a real grouping callback, not merely on the playlist's own
- * `groupId`/the caller's `availableGroups`. Before this fix, [SearchScreen][
- * com.v1per.synthx.ui.screens.search.SearchScreen]'s omitted-callback call site still rendered
- * "Remove from group" for any grouped playlist because visibility only checked
- * `playlist.groupId != null`, and invoking it silently no-opped against the default `{}` lambda.
+ * [PlaylistRow]'s grouping menu entries must be gated on whether the caller actually supplied a
+ * real grouping callback, not merely on the playlist's own `groupId`/the caller's
+ * `availableGroups`. Gated on `playlist.groupId != null` alone, [SearchScreen][
+ * com.v1per.synthx.ui.screens.search.SearchScreen]'s omitted-callback call site would render
+ * "Remove from group" for any grouped playlist, and invoking it would silently no-op against the
+ * default `{}` lambda.
  *
  * Three scenarios below mirror the app's three actual call sites (Search, GroupDetail,
  * PlaylistList) rather than synthetic combinations, so a regression at any real site is caught
@@ -100,8 +100,8 @@ class PlaylistRowMenuInstrumentedTest {
     @Test
     fun playlistListStyleRowWithNullRemoveCallbackShowsAddButNotRemove() {
         // Mirrors PlaylistListScreen's ungrouped-section call: real onShowGroupPicker, no
-        // onRemoveFromGroup, ungrouped playlist. Proves the fix is explicit-safe here, not just
-        // accidentally safe via the "always ungrouped" invariant it relied on before this change.
+        // onRemoveFromGroup, ungrouped playlist. Proves the gating is explicitly safe here, not
+        // just safe through the "always ungrouped" invariant.
         composeRule.setContent {
             PlaylistRow(
                 playlist = ungroupedPlaylist,

@@ -108,7 +108,7 @@ class RestoreStatusObserverInstrumentedTest {
     }
 
     /**
-     * P9-T5 / F19 + P7-T1: the in-app status flow stays the source of truth for restore progress
+     * The in-app status flow stays the source of truth for restore progress
      * and outcome whatever the notification permission is. With it denied (no drawer notification
      * possible), a finished restore is still reported by [RestoreStatusViewModel], still shown on
      * screen, and still acknowledged.

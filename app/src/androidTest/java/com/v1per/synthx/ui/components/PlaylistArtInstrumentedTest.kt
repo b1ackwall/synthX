@@ -61,7 +61,7 @@ class PlaylistArtInstrumentedTest {
         assertGeneratedArt()
     }
 
-    // P8-T6: the 40dp list row and the 160dp detail cover now draw the same playlist. The process-wide
+    // The 40dp list row and the 160dp detail cover draw the same playlist. The process-wide
     // model cache is keyed on size, so neither may hand the other's model back or disturb it.
 
     @Test fun rowAndDetailSizesGetSeparateCachedModels() {

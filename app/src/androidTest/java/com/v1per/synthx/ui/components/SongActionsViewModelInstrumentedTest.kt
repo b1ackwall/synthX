@@ -79,7 +79,7 @@ class SongActionsViewModelInstrumentedTest {
         // genuinely still in flight, not merely "launched but not yet dispatched".
         subject.deleteSong("song", "content://song")
         // Second tap, while the first is still suspended inside repository.deleteSong: must be
-        // a no-op — see SongActionsViewModel.deleteInProgress (P1-T3 / R4-F-E2).
+        // a no-op — see SongActionsViewModel.deleteInProgress.
         subject.deleteSong("song", "content://song")
 
         gate.complete(Unit)
@@ -90,7 +90,7 @@ class SongActionsViewModelInstrumentedTest {
     }
 
     /**
-     * P2-T1: closing the progress dialog mid-graduation leaves the song in Starred, so the sheet
+     * Closing the progress dialog mid-graduation leaves the song in Starred, so the sheet
      * can call removeFromStarred again while the first graduation is still suspended inside the
      * repository. The second call must not start a second graduation.
      */
@@ -319,7 +319,7 @@ class SongActionsViewModelInstrumentedTest {
      * concurrent call rather than merely a call made after the first has already finished. Also
      * records a real [DestructiveActionTracker] entry per invocation, mirroring
      * SongRepositoryImpl.deleteSong's own coupling, so the same test proves both halves of the
-     * P1-T3 fix: repository.deleteSong called once, and the destructive-action count bumped once.
+     * guard: repository.deleteSong called once, and the destructive-action count bumped once.
      */
     private class DeferredDeleteRepository(
         private val context: Context,

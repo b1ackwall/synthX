@@ -25,7 +25,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Launch maintenance as the real [MainActivity] runs it (OB4): only once onboarding is complete
+ * Launch maintenance as the real [MainActivity] runs it: only once onboarding is complete
  * and no first scan is pending. Observed through its side effects: the art sweep flag it
  * consumes, the Issues scan it enqueues when due, the launch scans it enqueues with a music
  * folder. Also the two lifecycle hooks: leaving the app saves the play position, returning

@@ -21,7 +21,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * M18: the two prompts the shell shows before touching a hand-edited queue, pressed through
+ * The two prompts the shell shows before touching a hand-edited queue, pressed through
  * their real buttons. Replace plays the request; Cancel and Back play nothing. Keep plays the
  * tapped song next; Clear rebuilds from the tapped list; Back does neither.
  */

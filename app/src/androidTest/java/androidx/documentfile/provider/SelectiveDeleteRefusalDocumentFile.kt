@@ -7,7 +7,7 @@ import java.io.File
  * Test-only real filesystem directory that makes [refuseNames] report `delete()` failure — either
  * by returning `false` (a provider that declines without throwing) or, when the same name is also
  * listed in [throwNames], by throwing instead — without actually removing those files, and deletes
- * everything else normally. Used to simulate R8-A12's "provider refuses/throws on a deletion"
+ * everything else normally. Used to simulate "provider refuses/throws on a deletion"
  * scenarios against a real file tree instead of a genuine SAF grant.
  */
 internal class SelectiveDeleteRefusalDocumentFile(

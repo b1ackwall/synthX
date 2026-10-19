@@ -21,9 +21,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P4-T3 / R3-F09: a failed connection attempt is retried instead of being terminal — and, since
- * issue #175, a request made while that retry is still pending waits for it instead of being
- * silently dropped.
+ * A failed connection attempt is retried instead of being terminal, and a request made while that
+ * retry is still pending waits for it instead of being silently dropped.
  *
  * Failed attempts are injected through [ExoPlayerEngine]'s `controllerFutureFactory` test seam; a
  * "real" attempt is the real connection to the real [SynthXPlaybackService]. A retry the test needs
@@ -52,7 +51,7 @@ class ControllerReconnectInstrumentedTest : PlaybackServiceTestBase() {
             }
         }
 
-        // The wait spans the failed attempt AND its retry (issue #175): it resolves with the
+        // The wait spans the failed attempt AND its retry: it resolves with the
         // retried controller rather than reporting the first failure.
         val controller = runBlocking { withTimeout(10_000) { engine.awaitController() } }
         assertNotNull("awaitController must wait out the retry, not report the failed first attempt", controller)
@@ -79,10 +78,10 @@ class ControllerReconnectInstrumentedTest : PlaybackServiceTestBase() {
     }
 
     /**
-     * Issue #175 itself. The first attempt fails; `playQueue` is issued while the retry is still
-     * pending; the retry is then allowed to connect. Before the fix, `playQueue` returned
-     * immediately having done nothing (`awaitController()` answered null the moment the first
-     * attempt failed), so the loader thread finished early and nothing ever played.
+     * The first attempt fails; `playQueue` is issued while the retry is still pending; the retry
+     * is then allowed to connect. `playQueue` must wait and play on the retried controller: if
+     * `awaitController()` answered null the moment the first attempt failed, the loader thread
+     * would finish early and nothing would ever play.
      */
     @Test fun aPlayQueueIssuedWhileTheRetryIsPendingPlaysOnceItConnects() {
         val attempts = AtomicInteger()
@@ -97,8 +96,8 @@ class ControllerReconnectInstrumentedTest : PlaybackServiceTestBase() {
             }
         }
         // Issued after the (immediately failing) first attempt and before the held retry can
-        // land. Whether the failure callback has run yet or not, the old one-shot readiness
-        // signal dropped this request either way; both are the window #175 is about.
+        // land. The request must wait whether or not the failure callback has run yet; both
+        // orderings fall in this window.
         await("first attempt made") {
             onMain { attempts.get() == 1 && engine.controller == null && engine.connection.phase.value == ConnectionPhase.Connecting }
         }
@@ -124,8 +123,8 @@ class ControllerReconnectInstrumentedTest : PlaybackServiceTestBase() {
     }
 
     /**
-     * After a whole round of attempts fails the engine used to stay dead until the Activity was
-     * relaunched. A playback request now re-arms one fresh round.
+     * After a whole round of attempts fails, a playback request re-arms one fresh round, so the
+     * engine does not stay dead until the Activity is relaunched.
      */
     @Test fun aRequestAfterGivingUpStartsAFreshRoundAndPlays() {
         val failedAttempts = ReconnectPolicy.MAX_ATTEMPTS + 1 // the first attempt plus every retry

@@ -28,7 +28,7 @@ import org.junit.runner.RunWith
 import org.junit.Assert.assertEquals
 
 /**
- * P8-T7 / B05 + B06 through the real [PlaylistListScreen]: the inline "New Group" card must keep
+ * Through the real [PlaylistListScreen]: the inline "New Group" card must keep
  * its typed name across activity recreation, and a repeat submit — a second tap, or IME Done, while
  * the first write is in flight or while the card is animating out — must create exactly one group.
  */
@@ -132,7 +132,7 @@ class PlaylistListGroupCreationInstrumentedTest {
         composeRule.mainClock.advanceTimeBy(50)
 
         // Still composed, button enabled again (name is non-blank, write finished): exactly the
-        // window in which a second tap used to insert a duplicate group.
+        // window in which a second tap must not insert a duplicate group.
         composeRule.onNodeWithText(create).assertIsEnabled().performClick()
         composeRule.onNode(hasSetTextAction()).performImeAction()
         composeRule.mainClock.advanceTimeBy(500)

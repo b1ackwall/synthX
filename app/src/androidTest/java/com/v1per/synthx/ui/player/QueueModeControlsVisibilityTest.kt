@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
  * gesture path back to `true` runs through [QueueModeState.queueScrollConnection], which is
  * attached to QueueList's modifier — and PlayerSkeletonQueueContent swaps QueueList out of
  * composition for a gesture-less empty-state Box the moment the queue goes empty. A `false`
- * latched at that moment used to be permanent.
+ * latched at that moment must not stay permanent.
  *
  * The hide/show is driven through the real `onPreScroll` connection rather than by poking
  * `controlsVisible` directly, so these tests exercise the same entry point a drag does. The

@@ -44,7 +44,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P9-T2: LibraryViewModel.onPullToRefresh had no tests. Runs against the shared test WorkManager
+ * LibraryViewModel.onPullToRefresh. Runs against the shared test WorkManager
  * with [ScanStubWorkerFactory] deciding how the scan workers behave, so each outcome is
  * deterministic and no SAF tree or Room database is touched.
  */

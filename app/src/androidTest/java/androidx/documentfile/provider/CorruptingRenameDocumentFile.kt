@@ -7,7 +7,7 @@ import java.io.File
  * Test-only real filesystem directory that corrupts [targetName]'s bytes immediately after a
  * successful rename to it — simulating a provider that silently alters a document's content
  * during/after rename completion without the rename call itself failing or the document's
- * reported name changing (R8-A10's threat model: syntactically-valid, size-preserving damage).
+ * reported name changing (the threat model: syntactically-valid, size-preserving damage).
  */
 internal class CorruptingRenameDocumentFile(private val root: File, private val targetName: String) :
     DocumentFile(null) {

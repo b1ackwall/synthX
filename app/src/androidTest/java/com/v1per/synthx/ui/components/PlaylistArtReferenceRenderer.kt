@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 
 /**
- * The cover drawn the way [drawPlaylistArt] did before P8-T5 collapsed the backbone: one
+ * The cover drawn with a per-segment backbone rather than [drawPlaylistArt]'s single path: one
  * `drawLine` per unlit segment. Test-only; shared by the pixel-equivalence test (which checks the
  * two agree) and the benchmark (which times them side by side on the same model).
  *

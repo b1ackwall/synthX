@@ -99,7 +99,7 @@ class RestoreShellInstrumentedTest {
         awaitTag(ShellTestTags.RestoreMaintenanceSurface, present = true)
         awaitTag(ShellTestTags.NavHost, present = false)
 
-        // Already-admitted work drains through the existing C2 mechanism, unchanged by this fix.
+        // Already-admitted work drains through RestoreCoordinator's reactive-operation drain.
         runBlocking { RestoreCoordinator.quiesceReactiveOperations() }
         assertEquals(0, RestoreCoordinator.activeReactiveOperationCountForTest())
     }

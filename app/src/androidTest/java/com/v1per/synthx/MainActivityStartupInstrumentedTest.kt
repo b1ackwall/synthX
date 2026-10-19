@@ -23,7 +23,7 @@ import org.junit.runner.RunWith
 
 /**
  * Launches the real [MainActivity] and checks which screen a cold start shows: the wizard until
- * onboarding is complete and no first scan is pending, Home after that (OB3); nothing until the
+ * onboarding is complete and no first scan is pending, Home after that; nothing until the
  * database gate opens; the failure, recovery or emergency screen when start-up cannot proceed.
  * Runs against the real debug preferences, saved and put back by [DebugPreferencesSnapshot].
  */
@@ -45,7 +45,7 @@ class MainActivityStartupInstrumentedTest {
 
     private fun welcomeShown() = launcher.textCount(context.getString(R.string.onboarding_welcome_title)) > 0
 
-    // ------------------------------------------------------------ OB3: cold-start destination
+    // ------------------------------------------------------------ cold-start destination
 
     @Test fun freshInstallStartsInTheWizard() {
         launcher.launchToShell()

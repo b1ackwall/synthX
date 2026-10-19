@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P9-T3 end to end: the real [SynthXPlaybackService], a real [ExoPlayerEngine] owning the queue,
+ * System transport navigation end to end: the real [SynthXPlaybackService], a real [ExoPlayerEngine] owning the queue,
  * and a *second* in-process [MediaController] standing in for the system. That is not a
  * simplification of the notification: media3's media-notification controller is exactly such a
  * controller, and its Next/Previous buttons call `seekToNextMediaItem` / `seekToPreviousMediaItem`

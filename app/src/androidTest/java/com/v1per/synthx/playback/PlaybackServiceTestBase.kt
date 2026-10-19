@@ -29,9 +29,9 @@ import org.junit.Rule
 
 /**
  * Shared bootstrap for the instrumented tests that run the real [SynthXPlaybackService] with a
- * real [ExoPlayerEngine] and a second, in-process [MediaController]:
+ * real [ExoPlayerEngine] and a second, in-process [MediaController], for example
  * [SystemTransportNavigationInstrumentedTest], [OwnerControllerStopInstrumentedTest] and the
- * P4-T1..T4 lifecycle/cache tests.
+ * lifecycle/cache tests in [PlaybackCacheInvalidationInstrumentedTest].
  *
  * Runs in the debug app's process against the `.debug` package only. Persistence goes to a stub
  * repository (writes are rejected and logged), so no app queue data is touched.
@@ -182,7 +182,7 @@ abstract class PlaybackServiceTestBase {
 
     /**
      * Songs whose ids are given verbatim, in order — so `songsWithIds("A", "B", "B")` is a queue
-     * with two independent slots of the *same* song id (P4-T4's duplicate-occurrence case).
+     * with two independent slots of the *same* song id (the duplicate-occurrence case).
      */
     protected fun songsWithIds(vararg ids: String): List<Song> = ids.map { song(it) }
 

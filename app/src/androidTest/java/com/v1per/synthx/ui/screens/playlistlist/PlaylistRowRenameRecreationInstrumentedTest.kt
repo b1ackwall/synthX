@@ -21,7 +21,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P8-T7 / B05: a half-typed playlist rename survives activity recreation. See
+ * A half-typed playlist rename survives activity recreation. See
  * CreatePlaylistRecreationInstrumentedTest for why both installs go through [install].
  */
 @RunWith(AndroidJUnit4::class)

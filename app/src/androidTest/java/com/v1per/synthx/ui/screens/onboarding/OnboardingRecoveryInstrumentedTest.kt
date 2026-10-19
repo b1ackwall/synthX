@@ -136,7 +136,7 @@ class OnboardingRecoveryInstrumentedTest {
 
     @Before fun setUp() {
         TestWorkManager.ensureInitialized(context)
-        // P9-T5: Done and restore-confirm now put the notification rationale in front of the user
+        // Done and restore-confirm put the notification rationale in front of the user
         // once. Every test below that isn't about that rationale drives the wizard as if it had
         // already been answered; the notificationRationale* tests at the end opt out by name and
         // cover the rationale itself.
@@ -425,7 +425,7 @@ class OnboardingRecoveryInstrumentedTest {
         }
     }
 
-    /** Acceptance test for P7-T2 / R7-F02 + R7-F13. */
+    /** Acceptance test: process death mid-recovery resumes the wizard, not Home. */
     @Test fun processDeathMidRecoveryResumesWizardNotHome() {
         startWizard()
         composeRule.onNodeWithText(context.getString(R.string.onboarding_recover_backup)).performClick()
@@ -446,11 +446,11 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
-     * Mutation test for the acceptance test above: substituting the pre-P7-T2 gating condition
-     * (musicFolderUri == null) reproduces R7-F02 exactly — the wizard vanishes and Home is
-     * shown with an empty library instead. Kept as a permanent, automated guard rather than a
-     * one-off manual revert of MainActivity.kt, since this suite already mirrors that gating
-     * condition locally instead of launching the real Activity (see [gatingStartDestination]).
+     * Mutation test for the acceptance test above: substituting the older gating condition
+     * (musicFolderUri == null, see [legacyGatingStartDestination]) makes the wizard vanish and
+     * shows Home with an empty library instead. Kept as an automated guard rather than a manual
+     * revert of MainActivity.kt, since this suite picks its start destination itself (see
+     * [gatingStartDestination]) instead of launching the real Activity.
      */
     @Test fun mutationTestLegacyGatingConditionWouldHaveShownHomeInstead() {
         startWizard()
@@ -472,11 +472,11 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
-     * P9-T1 relocation of the P7-T3 completion regression guard: fresh install used to complete
-     * onboarding (and enqueue the first scan) at the folder *pick*, before the user had confirmed
-     * anything. Picking now only persists the folder; completion, the scan and the tracked request
-     * id all happen together at Done ([LibraryManagementViewModel.startFirstScan]). Also keeps
-     * P7-T3 / R7-F08's guard that a fresh install never attempts a backup that cannot exist yet.
+     * Fresh install must not complete onboarding (or enqueue the first scan) at the folder *pick*,
+     * before the user has confirmed anything. Picking only persists the folder; completion, the
+     * scan and the tracked request id all happen together at Done
+     * ([LibraryManagementViewModel.startFirstScan]). Also guards that a fresh install never
+     * attempts a backup that cannot exist yet.
      */
     @Test fun freshInstallSetsOnboardingCompleteAtDoneNotAtFolderPick() {
         ScanStubWorkerFactory.behavior = ScanStub.Hang
@@ -504,7 +504,7 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
-     * Acceptance test for R7-F08 (P7-T3): nothing has actually been backed up yet at this point
+     * Acceptance test: nothing has actually been backed up yet at this point
      * on a fresh install — the backup folder is a later, separate step — so saveMusicFolder must
      * skip the attempt entirely rather than let it fail and have BackupOutcomeStore durably
      * record a false "Failed" health warning for an operation that was never possible.
@@ -521,8 +521,8 @@ class OnboardingRecoveryInstrumentedTest {
         // merely that a thrown exception didn't propagate.
         assertEquals(123L, preferences.lastBackupAttemptTimestamp)
         assertSame(outcomeBefore, BackupOutcomeStore.lastBackupOutcome.value)
-        // P9-T1: the Library Management re-pick path no longer owns onboarding completion — that
-        // is startFirstScan's job, at Done.
+        // The Library Management re-pick path does not own onboarding completion — that is
+        // startFirstScan's job, at Done.
         assertFalse(preferences.onboardingComplete)
     }
 
@@ -530,7 +530,7 @@ class OnboardingRecoveryInstrumentedTest {
      * The onboarding path itself (pick, then Done) can never attempt or record a backup: with the
      * backup folder already configured, [saveOnboardingMusicFolder] is persist-only and
      * [startFirstScan] never snapshots. A fresh-install database is empty, so there is nothing to
-     * protect, and a snapshot of it is exactly what R7-F03's eviction concern was about.
+     * protect, and a snapshot of it would only take a retention slot from a real backup.
      */
     @Test fun onboardingPickAndDoneNeverAttemptBackupEvenWithBackupFolderConfigured() {
         ScanStubWorkerFactory.behavior = ScanStub.Hang
@@ -550,10 +550,10 @@ class OnboardingRecoveryInstrumentedTest {
     /**
      * Edge-case regression: FolderSetupStep lets the backup folder be picked before the (only
      * mandatory) music folder within the same onboarding step — nothing enforces picker order.
-     * When that happens, saveMusicFolder's Auto backup must still fire as before; the R7-F08
+     * When that happens, saveMusicFolder's Auto backup must still fire; the no-backup-folder
      * pre-check must only suppress the attempt when nothing is configured, not narrow it further.
-     * (P9-T1: this is now the Library Management re-pick path's guard — onboarding's own pick is
-     * persist-only, see [onboardingPickAndDoneNeverAttemptBackupEvenWithBackupFolderConfigured].)
+     * (This guards the Library Management re-pick path — onboarding's own pick is persist-only,
+     * see [onboardingPickAndDoneNeverAttemptBackupEvenWithBackupFolderConfigured].)
      */
     @Test fun saveMusicFolderStillAttemptsBackupWhenBackupFolderAlreadyConfigured() {
         preferences.backupFolderUri = arrivals.toString()
@@ -569,7 +569,7 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
-     * Acceptance test for the no-interruption Choice-switch variant of R7-F03 (P7-T3): explore
+     * Acceptance test for switching back to Choice without an interruption: explore
      * recovery, persist its music folder via saveRecoveryMusicFolder, back out to Choice without
      * ever completing the restore, then pick Fresh Install. Must NOT re-attempt a backup snapshot
      * of a folder whose contents haven't changed since being picked — but still must complete
@@ -590,8 +590,8 @@ class OnboardingRecoveryInstrumentedTest {
         assertEquals(123L, preferences.lastBackupAttemptTimestamp)
         assertTrue(scanIds().isEmpty())
 
-        // Switching to fresh install no longer starts anything by itself (P9-T1 folded
-        // finishFreshInstallFromAbandonedRecovery into Done): the recovered folder just shows up.
+        // Switching to fresh install starts nothing by itself (Done does): the recovered folder
+        // just shows up.
         composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
         composeRule.onNodeWithText(context.getString(R.string.onboarding_folder_setup_title)).assertExists()
         assertFalse(preferences.onboardingComplete)
@@ -601,21 +601,20 @@ class OnboardingRecoveryInstrumentedTest {
         composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled().performClick()
         composeRule.onNodeWithText(context.getString(R.string.onboarding_scanning_title)).assertExists()
 
-        // R7-F03: still no re-attempted backup on the already-persisted recovery folder.
+        // Still no re-attempted backup on the already-persisted recovery folder.
         assertEquals(123L, preferences.lastBackupAttemptTimestamp)
-        // The two genuine fresh-install side effects still land — now at Done, tracked by id.
+        // The two genuine fresh-install side effects still land — at Done, tracked by id.
         assertTrue(preferences.onboardingComplete)
         val scanId = UUID.fromString(preferences.firstScanRequestId)
         assertEquals(listOf(scanId), scanIds())
     }
 
     /**
-     * Regression guard for MainActivity.runLaunchMaintenance()'s separate, deliberately
-     * untouched `musicFolderUri != null` scan-trigger check (see MainActivity.kt) — proves the
-     * two preferences stay independent rather than getting coupled by this fix. MainActivity
-     * itself is not launched by this suite (no existing harness does so, see also
-     * [gatingStartDestination]'s local mirror), so this asserts the underlying preference
-     * invariant that check actually depends on.
+     * Regression guard for MainActivity.runLaunchMaintenance()'s separate
+     * `musicFolderUri != null` scan-trigger check (see MainActivity.kt) — proves the two
+     * preferences stay independent. MainActivity itself is not launched by this suite (see
+     * [gatingStartDestination]), so this asserts the underlying preference invariant that check
+     * actually depends on.
      */
     @Test fun musicFolderUriAndOnboardingCompleteAreIndependentPreferences() {
         saveMusic()
@@ -646,8 +645,8 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
-     * Done-time counterpart of [completingOnboardingClearsPersistedStep] (P9-T1): the fresh-install
-     * wizard's own completion point is now the moment the scan is accepted. Until then the step
+     * Done-time counterpart of [completingOnboardingClearsPersistedStep]: the fresh-install
+     * wizard's own completion point is the moment the scan is accepted. Until then the step
      * (Scanning) and request id stay persisted; accepting the scan clears both together.
      */
     @Test fun acceptingTheFirstScanClearsPersistedStepAndTrackedId() {
@@ -665,9 +664,8 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
-     * P7-T7/R7-F17: the dialog's confirm button stays disabled until the required word is typed
-     * exactly, so a bare click on it (what these tests did before P7-T7) is a silent no-op that
-     * never enqueues the restore. Once typed, the field's own text also reads the required word
+     * The dialog's confirm button stays disabled until the required word is typed exactly, so a
+     * bare click on it is a silent no-op that never enqueues the restore. Once typed, the field's own text also reads the required word
      * and is itself clickable — exclude anything with a set-text action to isolate the button.
      */
     private fun confirmRestoreWithTypedWord() {
@@ -679,7 +677,7 @@ class OnboardingRecoveryInstrumentedTest {
             .performClick()
     }
 
-    // ------------------------------------------------------------------ P9-T1: first scan
+    // ------------------------------------------------------------------ first scan
 
     @Test fun startFirstScanWithoutAFolderReturnsNullAndDoesNotCompleteOrScan() {
         ScanStubWorkerFactory.behavior = ScanStub.Hang
@@ -699,7 +697,7 @@ class OnboardingRecoveryInstrumentedTest {
         composeRule.onNodeWithText(context.getString(R.string.scan_status_failed, "disk on fire")).assertExists()
         composeRule.onNodeWithText(context.getString(R.string.action_retry)).assertExists()
         composeRule.onNodeWithText(context.getString(R.string.onboarding_scan_change_folder)).assertExists()
-        // The F10 regression: a failed scan used to complete onboarding.
+        // A failed scan must not complete onboarding.
         composeRule.onNodeWithText("Home after onboarding").assertDoesNotExist()
         composeRule.runOnIdle {
             assertEquals(Screen.Onboarding.route, navController.currentDestination?.route)
@@ -856,8 +854,8 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
-     * Mutation guard for the two tests above: the pre-P9-T1 gate (completion alone) shows Home in
-     * the middle of the first scan, because Done now flips onboardingComplete when it starts it.
+     * Mutation guard for the two tests above: a completion-only gate shows Home in the middle of
+     * the first scan, because Done flips onboardingComplete when it starts it.
      */
     @Test fun mutationTestCompletionAloneWouldShowHomeMidFirstScan() {
         ScanStubWorkerFactory.behavior = ScanStub.Hang
@@ -895,7 +893,7 @@ class OnboardingRecoveryInstrumentedTest {
     }
 
     /**
-     * P9-T5 / F19: the fresh-install first scan starts and is tracked by the view-model path alone.
+     * The fresh-install first scan starts and is tracked by the view-model path alone.
      * The notification gate sits in front of Done in the UI, never inside startFirstScan or the
      * worker (stubbed here), so this holds whatever the real POST_NOTIFICATIONS state is.
      */
@@ -911,11 +909,11 @@ class OnboardingRecoveryInstrumentedTest {
         assertEquals(WorkInfo.State.SUCCEEDED, workManager.getWorkInfoById(scanIds().single()).get()?.state)
     }
 
-    // ------------------------------------------------------------------ P9-T5: notification rationale
+    // ------------------------------------------------------------------ notification rationale
 
     private fun rationaleTitle() = context.getString(R.string.notification_permission_title)
 
-    /** F19: nothing is asked over the Welcome screen — the ask arrives only with Done. */
+    /** Nothing is asked over the Welcome screen — the ask arrives only with Done. */
     @Test fun notificationRationaleAppearsAtDoneNotOverWelcomeAndHoldsTheScanUntilContinue() {
         ScanStubWorkerFactory.behavior = ScanStub.Succeed()
         startWizard()
@@ -966,7 +964,7 @@ class OnboardingRecoveryInstrumentedTest {
         assertEquals("already asked: no second system prompt", 0, systemPromptLaunches)
     }
 
-    /** F19: the recovery restore is the other early trigger — the ask comes before the enqueue. */
+    /** The recovery restore is the other early trigger — the ask comes before the enqueue. */
     @Test fun notificationRationaleAppearsAtRecoveryRestoreConfirmBeforeTheRestoreIsEnqueued() {
         val (candidate) = validCandidateWithMetadata()
         saveMusic()
@@ -1022,7 +1020,7 @@ class OnboardingRecoveryInstrumentedTest {
         composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled().performClick()
     }
 
-    // --- P9-T4 / F18: the deferred-scan message is informational and clears with its scan ------
+    // --- the deferred-scan message is informational and clears with its scan ------
 
     /** Keeps [newArrivalsFolderNotice]'s WhileSubscribed upstream alive for the whole test. */
     private fun keepNoticeHot(): kotlinx.coroutines.Job =
@@ -1121,7 +1119,7 @@ class OnboardingRecoveryInstrumentedTest {
         }
     }
 
-    // --- P9-T4: what the real wizard screens show -----------------------------------------------
+    // --- what the real wizard screens show -----------------------------------------------
 
     private fun textColorOf(text: String): androidx.compose.ui.graphics.Color {
         val node = composeRule.onNodeWithText(text).fetchSemanticsNode()
@@ -1299,7 +1297,7 @@ class OnboardingRecoveryInstrumentedTest {
 
     @Composable
     private fun WizardContent(factory: ViewModelProvider.Factory, startDestination: String) {
-        // P9-T5: the notification gate reads this wizard's isolated preferences (so the "asked"
+        // The notification gate reads this wizard's isolated preferences (so the "asked"
         // flag the tests set/inspect is the one it sees) and counts what would have been the
         // system prompt instead of showing it.
         CompositionLocalProvider(LocalNotificationPermissionBackend provides notificationBackend) {
@@ -1339,21 +1337,21 @@ class OnboardingRecoveryInstrumentedTest {
         } as T
     }
 
-    /** MainActivity's real cold-start decision (post P7-T2 and P9-T1), not a local copy of it. */
+    /** MainActivity's real cold-start decision ([shouldShowOnboarding]), not a local copy of it. */
     private fun gatingStartDestination(): String =
         if (shouldShowOnboarding(preferences)) Screen.Onboarding.route else Screen.Home.route
 
     /**
-     * Mirrors the gate as it stood after P7-T2 but before P9-T1 — completion alone. Used only by
+     * Mirrors an older cold-start gate — completion alone. Used only by
      * [mutationTestCompletionAloneWouldShowHomeMidFirstScan].
      */
     private fun completionOnlyStartDestination(): String =
         if (preferences.onboardingComplete) Screen.Home.route else Screen.Onboarding.route
 
     /**
-     * Mirrors MainActivity's PRE-P7-T2 gating condition (R7-F02's exact bug). Used only by
-     * [mutationTestLegacyGatingConditionWouldHaveShownHomeInstead] to prove the acceptance test
-     * actually exercises the fix rather than passing vacuously.
+     * Mirrors an older MainActivity gating condition (music folder only), which shows Home
+     * mid-recovery. Used only by [mutationTestLegacyGatingConditionWouldHaveShownHomeInstead] to
+     * prove the acceptance test actually exercises the current gating rather than passing vacuously.
      */
     private fun legacyGatingStartDestination(): String =
         if (preferences.musicFolderUri == null) Screen.Onboarding.route else Screen.Home.route
@@ -1375,7 +1373,7 @@ class OnboardingRecoveryInstrumentedTest {
      * Activity with a brand new NavHostController and backstack, while [preferences]' backing
      * SharedPreferences file — the one thing that actually survives — is left untouched.
      * [gating] lets [mutationTestLegacyGatingConditionWouldHaveShownHomeInstead] substitute the
-     * pre-fix condition without needing to edit MainActivity.kt itself.
+     * older condition without needing to edit MainActivity.kt itself.
      */
     private fun relaunchWizardAfterSimulatedProcessDeath(gating: () -> String = ::gatingStartDestination) {
         val repository = Proxy.newProxyInstance(

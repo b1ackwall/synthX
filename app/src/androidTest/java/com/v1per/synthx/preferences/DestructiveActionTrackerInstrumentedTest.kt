@@ -15,7 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * #169: [DestructiveActionTracker.resetForTest] must clear the *persisted* count, not just the
+ * [DestructiveActionTracker.resetForTest] must clear the *persisted* count, not just the
  * in-memory StateFlow — [DestructiveActionTracker.recordDestructiveAction] increments the
  * persisted value, so a stale one surfaces as an off-by-N count in the next test's assertion.
  *

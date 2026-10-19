@@ -24,7 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Covers R7-F04/F07's UI requirements: each distinct [BackupListResult] renders a distinct,
+ * Each distinct [BackupListResult] renders a distinct,
  * in-wizard-appropriate message (none of them naming "Backups and Restore", the settings screen
  * a first-run user in the recovery wizard cannot reach), and an all-ineligible list surfaces a
  * clear message plus a working "Go back" affordance rather than relying only on the system back
@@ -131,7 +131,7 @@ class RestoreContentInstrumentedTest {
         composeRule.onNodeWithText(string(R.string.restore_ineligible_unsupported_schema)).assertExists()
     }
 
-    // ---------------------------------------------------------------- P7-T7/R7-F15
+    // ---------------------------------------------------------------- backup list: most-recent marker and counts
 
     @Test
     fun newestBackupShowsAMostRecentMarkerAndOlderOnesDoNot() {
@@ -191,7 +191,7 @@ class RestoreContentInstrumentedTest {
         composeRule.onNodeWithText(context.getString(R.string.restore_row_counts, 0, 0)).assertDoesNotExist()
     }
 
-    // ---------------------------------------------------------------- P7-T7/R7-F17
+    // ---------------------------------------------------------------- typed restore confirmation
 
     @Test
     fun confirmRestoreButtonIsDisabledUntilTheRequiredWordIsTypedExactly() {

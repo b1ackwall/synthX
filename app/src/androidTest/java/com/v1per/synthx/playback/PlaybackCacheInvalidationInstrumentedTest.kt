@@ -18,8 +18,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P4-T1..T4 against the real service, a real [ExoPlayerEngine], and the real process-wide event
- * buses. Songs mirror into the real `.debug` database through [RealDbSongSeed] wherever the test
+ * Song remap/deletion events, the queue-load revision guard, duplicate-occurrence deletion and
+ * session adoption, against the real service, a real [ExoPlayerEngine], and the real process-wide
+ * event buses. Songs mirror into the real `.debug` database through [RealDbSongSeed] wherever the test
  * reaches the reconcile path, because that path reads the live table, not the stubbed persistence.
  *
  * These tests document what the engine *actually* does:
@@ -38,9 +39,8 @@ import org.junit.runner.RunWith
  *    leaks. Costs delay, not correctness.
  *  - Disconnect/retry interplay: the service stops playback when its last owning controller
  *    disconnects, so a reconnect after a mid-session disconnect finds a stopped player. Not
- *    exercised. (The related drop of a `playQueue` issued between a failed connection attempt
- *    and its retry landing was issue #175, since fixed — covered by
- *    ControllerReconnectInstrumentedTest.)
+ *    exercised. (A `playQueue` issued between a failed connection attempt and its retry landing
+ *    waits for the retry; ControllerReconnectInstrumentedTest covers that.)
  */
 @RunWith(AndroidJUnit4::class)
 class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {
@@ -59,10 +59,10 @@ class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {
     // Every test builds its own engine: the suspended-load tests need one with a gated connection.
     override val createEngineInSetUp = false
 
-    // --- P4-T1: the recorded A->B / delete-B ordering ------------------------------------------
+    // --- the recorded A->B / delete-B ordering ------------------------------------------
 
     /**
-     * PINNED CURRENT BEHAVIOUR OF A KNOWN BUG (T-022; BUG LIST in docs/code-work/slice1-implementation.md).
+     * PINNED CURRENT BEHAVIOUR OF A KNOWN BUG (BUG LIST in docs/code-work/Safety-Net/slice1-implementation.md).
      * The first half asserts the buggy state on purpose; a fix for the bug turns it red, and this
      * test must then be updated to assert the fixed behaviour.
      *
@@ -70,7 +70,7 @@ class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {
      * still caches A (nothing to do, so ignored); the delayed A->B remap then arrives and caches
      * the already-deleted B.
      *
-     * Asserts the CURRENT behaviour, not the P4-T1 wording ("engine rejects an event older than
+     * Asserts the CURRENT behaviour, not the intended rule ("engine rejects an event older than
      * what it has applied"): nothing rejects the stale remap, so the cache is wrong until the
      * foregrounding reconcile repairs it against the database.
      */
@@ -104,7 +104,7 @@ class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {
         assertEquals("only C's item remains loaded", 1, onMain { engine.controller!!.mediaItemCount })
     }
 
-    // --- P4-T2: the revision guard on a suspended queue load ------------------------------------
+    // --- the revision guard on a suspended queue load ------------------------------------
 
     /**
      * A fresh play whose suspension straddles a remap. The engine's connection is gated, so
@@ -151,10 +151,10 @@ class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {
         assertEquals(1, onMain { engine.controller!!.mediaItemCount })
     }
 
-    // --- P4-T4: [A, B, B] -----------------------------------------------------------------------
+    // --- [A, B, B] -----------------------------------------------------------------------
 
     /**
-     * The audit's acceptance case: queue `[A, B, B]`, playing the last B, repeat off, B deleted.
+     * Acceptance case: queue `[A, B, B]`, playing the last B, repeat off, B deleted.
      * With no surviving successor the engine must end stopped with a null cursor — not republish
      * the older history slot Media3 resolves as current once the B items are removed.
      * In-memory engine state only: the stub repository rejects the durable cursor write.
@@ -183,7 +183,7 @@ class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {
         assertEquals("A is still queued, just not playing", listOf(a.id), onMain { liveSongIds() })
     }
 
-    // --- P4-T3: adopting an already-playing session ---------------------------------------------
+    // --- adopting an already-playing session ---------------------------------------------
 
     /**
      * A second engine attaching to a service that is already playing (what the Activity does on

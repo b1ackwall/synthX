@@ -25,7 +25,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P9-T5 / F19. The gate's decision and dialog, with the system prompt replaced by a counter: what
+ * The gate's decision and dialog, with the system prompt replaced by a counter: what
  * matters here is *when* a request is launched, that the deferred action never waits on it, and
  * that the persisted "asked" flag stops a second prompt — including from a fresh gate over the
  * same preferences, i.e. the next launch.
@@ -74,7 +74,7 @@ class NotificationPermissionGateInstrumentedTest {
 
     private fun title() = base.getString(R.string.notification_permission_title)
 
-    /** F19's core: composing the shell-level gate must not itself ask for anything. */
+    /** The core rule: composing the shell-level gate must not itself ask for anything. */
     @Test fun bareCompositionOfTheRealGateNeverPromptsOrRecordsAnAsk() {
         val before = PreferencesManager(base).notificationPermissionAsked
         assertFalse("the real flag starts false, so a write is visible", before)

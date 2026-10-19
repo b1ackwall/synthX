@@ -118,16 +118,16 @@ class IssuesViewModelInstrumentedTest {
     }
 
     /**
-     * P3-T1 / R4-F-D5: IssuesViewModel is scoped to its own NavBackStackEntry — a back-press
+     * IssuesViewModel is scoped to its own NavBackStackEntry — a back-press
      * right after confirming a delete pops the entry and cancels viewModelScope. This proves the
      * delete keeps running to completion anyway, because IssuesViewModel.deleteSong routes
      * through [SongRepository.deleteSongDetached] rather than `viewModelScope.launch { repository
      * .deleteSong(id) }` — see [DeferredDeleteRepository]'s own independent [CoroutineScope].
      *
-     * Mutation check (see the P3-T1 report): temporarily reverting IssuesViewModel.deleteSong to
-     * `viewModelScope.launch { repository.deleteSong(id) }` makes this test time out, since
-     * cancelling `subject.viewModelScope` below would then cancel the delete itself before `gate`
-     * is ever released.
+     * Fails (times out) if IssuesViewModel.deleteSong uses
+     * `viewModelScope.launch { repository.deleteSong(id) }`, since cancelling
+     * `subject.viewModelScope` below would then cancel the delete itself before `gate` is ever
+     * released.
      */
     @Test
     fun deleteSurvivesViewModelScopeCancellation() = runBlocking {
@@ -192,7 +192,7 @@ class IssuesViewModelInstrumentedTest {
         when (method.name) {
             "getMissingSongs" -> flowOf(emptyList<Any>())
             "deleteSong" -> delete()
-            // P3-T1: IssuesViewModel now calls this instead of deleteSong — see
+            // IssuesViewModel calls this instead of deleteSong — see
             // SongRepository.deleteSongDetached's kdoc. Invoked synchronously here (the fake has
             // no scope of its own to be independent of); DeferredDeleteRepository below is what
             // actually exercises the "survives the caller's scope" behavior this exists for.
@@ -213,8 +213,8 @@ class IssuesViewModelInstrumentedTest {
      * concurrent call rather than merely a call made after the first has already finished. Also
      * records a real [DestructiveActionTracker] entry per invocation, mirroring
      * SongRepositoryImpl.deleteSong's own coupling, so the same test proves both halves of the
-     * P1-T3 fix: repository.deleteSongDetached called once, and the destructive-action count
-     * bumped once.
+     * guard: repository.deleteSongDetached called once, and the destructive-action count bumped
+     * once.
      *
      * Launches on its own independent [scope] rather than suspending inline — same shape as
      * [com.v1per.synthx.data.repository.SongRepositoryImpl.repositoryScope] — so

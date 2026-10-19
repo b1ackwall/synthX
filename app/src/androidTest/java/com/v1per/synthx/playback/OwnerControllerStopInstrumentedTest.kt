@@ -11,18 +11,18 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * End to end for the owner-controller fix: the real [SynthXPlaybackService], a real
+ * End to end for owner-controller counting: the real [SynthXPlaybackService], a real
  * [ExoPlayerEngine] as the only owner, and media3's real media-notification controller (which the
  * service connects on its own, under the app's package). When the only real owner goes away the
- * service must stop playback; before the fix the notification controller was counted as a second
- * owner, the count never reached zero, and the session stayed PLAYING with the position advancing.
+ * service must stop playback; a service that counted the notification controller as a second
+ * owner would never reach zero, and the session would stay PLAYING with the position advancing.
  *
  * The observer here is deliberately connected *with the media-notification flag*. An unflagged
  * same-package controller (like the `system` controller in [SystemTransportNavigationInstrumentedTest])
  * is legitimately an owner as far as the service can tell, and would keep the count above zero and
- * mask the result whether or not the fix is present. Flagged, the fixed service excludes it exactly
- * like the real notification controller, and the unfixed service counts it — which is what makes
- * this test fail before the fix instead of passing for the wrong reason. Connecting an extra
+ * mask the result either way. Flagged, the service excludes it exactly like the real notification
+ * controller, and a service that counted it would fail this test instead of passing for the wrong
+ * reason. Connecting an extra
  * flagged controller is the documented way to configure a session's platform state
  * (`MediaController.KEY_MEDIA_NOTIFICATION_CONTROLLER_FLAG`).
  *

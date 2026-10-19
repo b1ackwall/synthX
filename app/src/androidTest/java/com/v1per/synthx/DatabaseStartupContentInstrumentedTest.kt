@@ -25,8 +25,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P9-T5 / F11. Covers the string-resource extraction of the two database-startup failure surfaces
- * (every unchanged message still reads exactly as the old hardcoded literal), the deliberately
+ * Covers the string resources of the two database-startup failure surfaces (every unchanged
+ * message keeps its exact text), the deliberately
  * changed first-run-safe generic copy, and the missing-snapshot branch that must not offer a
  * restore it cannot perform.
  */
@@ -57,7 +57,7 @@ class DatabaseStartupContentInstrumentedTest {
 
     // ------------------------------------------------------------ string-resource extraction
 
-    /** Old hardcoded literals, copied verbatim from MainActivity.kt before P9-T5. */
+    /** The earlier hardcoded literals from MainActivity.kt, copied verbatim. */
     @Test fun extractedStringsMatchTheOldHardcodedLiterals() {
         assertEquals("Database startup paused", str(R.string.startup_failure_title))
         assertEquals("Retry", str(R.string.action_retry))
