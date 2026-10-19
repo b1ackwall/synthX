@@ -30,9 +30,7 @@ internal fun NavGraphBuilder.tabRoutes(
 ) {
     composable(Screen.Home.route) {
         RouteContent(chromeBottomPadding) {
-            HomeScreen(
-                ambientPaused = homeAmbientPaused,
-            )
+            HomeScreen()
         }
     }
     composable(Screen.Library.route) {

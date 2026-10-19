@@ -24,10 +24,7 @@ import com.v1per.synthx.ui.theme.Background
 // Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
 @SuppressLint("UnclosedTrace")
 @Composable
-internal fun HomeScreen(
-    // Unused: Home draws a solid background, so there is no ambient motion to pause.
-    @Suppress("UNUSED_PARAMETER") ambientPaused: Boolean = false,
-) {
+internal fun HomeScreen() {
     Trace.beginSection(PerfTraceSections.HomeScreen)
     // Solid app base surface, matching the other tabs' Background.
     Box(Modifier.fillMaxSize().testTag(PerfTestTags.HomeScreen).background(Background)) {
