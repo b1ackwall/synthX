@@ -26,7 +26,6 @@ internal fun NavGraphBuilder.tabRoutes(
     playbackViewModel: PlaybackViewModel,
     chromeBottomPadding: Dp,
     searchReselectEvents: SharedFlow<Unit>,
-    homeAmbientPaused: Boolean = false,
 ) {
     composable(Screen.Home.route) {
         RouteContent(chromeBottomPadding) {

@@ -32,7 +32,6 @@ internal fun SynthXNavHost(
     playbackViewModel: PlaybackViewModel,
     chromeBottomPadding: Dp,
     searchReselectEvents: SharedFlow<Unit>,
-    homeAmbientPaused: Boolean = false,
     // Rendering lives at MainScaffold level (above BottomChromeOverlay) so the sheet draws
     // above the bottom nav/player as a structural sibling, not a descendant of this NavHost.
     onShowSortSheet: (currentOrder: SortOrder, onOrderSelected: (SortOrder) -> Unit) -> Unit,
@@ -80,7 +79,6 @@ internal fun SynthXNavHost(
                 playbackViewModel = playbackViewModel,
                 chromeBottomPadding = chromeBottomPadding,
                 searchReselectEvents = searchReselectEvents,
-                homeAmbientPaused = homeAmbientPaused,
             )
             libraryManagementRoutes(
                 navController = navController,
