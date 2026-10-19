@@ -29,30 +29,8 @@ internal fun HomeScreen(
     @Suppress("UNUSED_PARAMETER") ambientPaused: Boolean = false,
 ) {
     Trace.beginSection(PerfTraceSections.HomeScreen)
-    // DEAD CODE: Home uses a solid Background since the 150 dp blob blur saturated the Redmi
-    // (docs/perf/home-solid-background.md). Delete in a cleanup pass. Ask  before deleting.
-    // val debugState by HomeBlobDebugStateHolder.state
-    // val baseSurfaceColor = Color.hsl(
-    //     debugState.baseSurfaceHue,
-    //     BaseSurfaceSaturation,
-    //     BaseSurfaceLightness,
-    // )
-
     // Solid app base surface, matching the other tabs' Background.
     Box(Modifier.fillMaxSize().testTag(PerfTestTags.HomeScreen).background(Background)) {
-        // DEAD CODE: the blob background Home drew before the solid Background above.
-        // Delete in a cleanup pass. Ask  before deleting.
-        // AmbientBlobBackground(
-        //     blobs = debugState.blobs,
-        //     baseSurfaceColor = baseSurfaceColor,
-        //     blurRadiusDp = ProductionAmbientBackgroundStyle.BlurRadiusDp.dp,
-        //     paused = ambientPaused,
-        //     modifier = Modifier.productionAmbientScrim(
-        //         productionAmbientScrimColor(
-        //             listOf(ExtractedSwatchHsl(debugState.baseSurfaceHue, saturation = 1f, lightness = 0.5f)),
-        //         ),
-        //     ),
-        // )
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
