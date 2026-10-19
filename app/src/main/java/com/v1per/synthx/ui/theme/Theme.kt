@@ -32,7 +32,7 @@ private val SynthXTextSelectionColors = TextSelectionColors(
     backgroundColor = TextPrimary.copy(alpha = 0.24f),
 )
 
-// TODO: light theme — not in scope, synthX is dark-only by design
+// Dark-only by design; no light theme.
 
 @Composable
 fun SynthXTheme(content: @Composable () -> Unit) {

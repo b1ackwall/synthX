@@ -80,9 +80,8 @@ internal fun PlaylistRow(
                 .padding(horizontal = Spacing.HorizontalPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // playlist.albumArtUri (playlists.cover_art_uri) has never been written by any
-            // path in this app, so the old "image if set, placeholder otherwise" branch only
-            // ever took its placeholder arm. Generated art replaces both — it falls back to
+            // playlist.albumArtUri (playlists.cover_art_uri) is never written by any path in
+            // this app, so the cover is always generated art — it falls back to
             // ArtPlaceholder itself while artHue/artStructureSeed are still null.
             PlaylistArt(
                 hue = playlist.artHue,
@@ -147,9 +146,8 @@ internal fun PlaylistRow(
  * which gives this menu two shapes, never a third:
  * - ungrouped: "Add to group" alone. There is nothing to remove it from, and "move" would be a
  *   misnomer for a first assignment.
- * - grouped: "Move to group" and "Remove from group" as two separate items. They used to be one
- *   overloaded callback where the group picker also carried the null (ungroup) case; splitting
- *   them keeps the direct action out of a sheet whose whole content is groups to move *into*.
+ * - grouped: "Move to group" and "Remove from group" as two separate items, which keeps the
+ *   direct action out of a sheet whose whole content is groups to move *into*.
  *
  * Both group entries are gated on at least one group existing — creating one stays the main
  * Playlists screen's own "New Group" flow and is deliberately not shortcut from here.

@@ -7,9 +7,7 @@ import coil.size.Size
 
 /**
  * Wraps [uri] in a crossfading [ImageRequest] for [coil.compose.AsyncImage]. Without this,
- * art pops in abruptly the instant Coil finishes decoding — every album-art `AsyncImage` call
- * site in the app used to pass a raw URI with no `placeholder`/`crossfade`, which is the same
- * gap the audit flagged once per screen. One shared helper instead of repeating the
+ * art pops in abruptly the instant Coil finishes decoding. One shared helper instead of repeating the
  * `ImageRequest.Builder(LocalContext.current).data(uri).crossfade(true).build()` boilerplate.
  *
  * @param original when true, decodes at [Size.ORIGINAL] instead of the view's measured size —

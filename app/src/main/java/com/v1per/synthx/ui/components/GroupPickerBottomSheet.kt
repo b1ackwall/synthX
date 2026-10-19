@@ -36,10 +36,10 @@ import com.v1per.synthx.ui.theme.TextTertiary
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
 /**
- * Single-select list of playlist groups, hosted in a [RefinedBottomSheet] — the replacement for
- * the second [androidx.compose.material3.DropdownMenu] that used to be anchored inside
- * PlaylistRow's 3-dot menu, which had no scroll container of its own, no name truncation and no
- * indication of where the playlist already was.
+ * Single-select list of playlist groups, hosted in a [RefinedBottomSheet] rather than a second
+ * [androidx.compose.material3.DropdownMenu] anchored inside PlaylistRow's 3-dot menu, which
+ * would have no scroll container of its own, no name truncation and no indication of where the
+ * playlist already is.
  *
  * Deliberately a sibling of SongActionsBottomSheet's private `SubPage` rather than an extension
  * of it. `SubPage` is a *page* swapped inside an already-open multi-page sheet (see the

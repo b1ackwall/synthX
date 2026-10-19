@@ -24,14 +24,13 @@ import com.v1per.synthx.ui.theme.Spacing
  * Shuffle / Repeat row. Both tint the player's content color when active (vs. the same color
  * at Alpha.ToggleOff, [PlayerContentColors.off], when inactive) — the same "tint marks the
  * active state" convention as the queue button, rather than swapping to an "_on" icon glyph
- * that material-icons-extended doesn't ship. Accent was pulled back out of scope here (Phase E).
+ * that material-icons-extended doesn't ship. The accent color is deliberately not used here.
  *
- * There used to be a third "Autoplay" button here. It was removed rather than wired up or
- * disabled-with-a-tooltip: Apple Music's Autoplay pulls replacement tracks from a streaming
- * catalog once a queue ends, which has no equivalent against a local-only library, so there
- * was nothing real to build behind it. A dead button sitting next to two working ones read as
- * broken, not "coming soon" — removing it was the honest option until there's an actual local
- * analog (e.g. "keep playing similar songs from your library") worth shipping.
+ * No "Autoplay" button, not even a disabled one: Apple Music's Autoplay pulls replacement
+ * tracks from a streaming catalog once a queue ends, which has no equivalent against a
+ * local-only library, and a dead button next to two working ones reads as broken, not
+ * "coming soon". Worth adding only with an actual local analog (e.g. "keep playing similar
+ * songs from your library").
  */
 @Composable
 fun QueuePlaybackModeRow(

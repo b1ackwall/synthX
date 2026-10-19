@@ -37,13 +37,13 @@ val QueueHeaderRegionHeight: Dp = Spacing.xxl + Spacing.RowHeight + Spacing.xl
  * `bodyMedium` line, so the column is exactly those two `lineHeight`s summed.
  *
  * Read off [SynthXTypography]'s own `lineHeight` values through the supplied [Density], rather
- * than the fixed `44.dp` literal this used to be. Both line heights are declared in `sp`, so
+ * than a fixed `44.dp` literal. Both line heights are declared in `sp`, so
  * the rendered column genuinely grows with the user's system font-scale setting, while a dp
- * literal froze it at whatever fontScale 1.0 happens to produce — leaving the art's queue-mode
+ * literal would freeze it at whatever fontScale 1.0 happens to produce — leaving the art's queue-mode
  * position (via [QueueColumnLeadingSlack]) drifting off the text it is meant to centre against.
  * `TextUnit.toDp()` does the conversion rather than a manual `value * fontScale`, since it also
  * honours the non-linear font-scale curves Android 14+ applies to larger text. At the default
- * font scale this still resolves to exactly 44dp (24sp + 20sp), so the common case is unchanged.
+ * font scale this resolves to exactly 44dp (24sp + 20sp).
  *
  * Still a derivation, not a runtime measurement: nothing here asks Compose where the Row
  * actually landed — see [QueueColumnLeadingSlack]'s doc comment for why that stays off the table.
@@ -54,8 +54,8 @@ val QueueHeaderRegionHeight: Dp = Spacing.xxl + Spacing.RowHeight + Spacing.xl
  * out of alignment with where the header Row actually renders. One gap this deliberately does
  * not model: the 40dp MoreOptionsButton beside the text column becomes the Row's tallest child
  * once the font scale drops below roughly 0.91, so below that the real Row stops shrinking
- * while this keeps going — a bounded few-dp residual, still smaller than the frozen literal's
- * own error was at those scales.
+ * while this keeps going — a bounded few-dp residual, still smaller than a fixed literal's
+ * error would be at those scales.
  */
 val Density.QueueHeaderRowIntrinsicHeight: Dp
     get() = SynthXTypography.bodyLarge.lineHeight.toDp() +

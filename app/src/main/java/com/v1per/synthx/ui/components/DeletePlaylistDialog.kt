@@ -19,7 +19,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
 /**
  * Confirmation for deleting a playlist, matching [DeleteSongDialog]'s pattern — including
- * P3.3's destructive-action count, read the same way from [DestructiveActionTracker].
+ * the destructive-action count, read the same way from [DestructiveActionTracker].
  */
 @Composable
 fun DeletePlaylistDialog(

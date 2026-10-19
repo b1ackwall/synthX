@@ -168,7 +168,7 @@ private const val WALK_STEP_LIMIT = 60
 /**
  * Probability of taking the greediest (most centre-ward) exit rather than any of the three. The
  * "any of the three" branch includes the greedy option, so the effective greedy rate is
- * 0.4 + 0.6/3 = 60%. Measured over 200k seeds (see P8-T4): 0.7 with a forced centre exit gave
+ * 0.4 + 0.6/3 = 60%. Measured over 200k seeds: 0.7 with a forced centre exit gave
  * ~260 effectively distinct covers and diamonds on 23% of them; 0.4 with no forced exit gives
  * ~1,800 and ~54%. Going lower stops helping variety (0.0 is worse than 0.3) while covers get
  * steadily fuller, so do not push it further without re-measuring.

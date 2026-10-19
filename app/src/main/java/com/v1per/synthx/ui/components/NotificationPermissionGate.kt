@@ -23,8 +23,8 @@ import com.v1per.synthx.preferences.PreferencesManager
 import com.v1per.synthx.ui.theme.TextPrimary
 
 /**
- * P9-T5 / F19: when synthX asks for POST_NOTIFICATIONS. Replaces the old shell-composition
- * request that fired over the Welcome screen before the user had done anything.
+ * When synthX asks for POST_NOTIFICATIONS: only once the user has started work that posts a
+ * notification, never at shell composition over the Welcome screen.
  *
  * The permission is a convenience, never a precondition: scan and restore run as foreground
  * work whose progress is reported in-app (RestoreStatusViewModel / the wizard's ScanningStep),

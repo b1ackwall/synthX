@@ -43,14 +43,14 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  * [onRemove]'s index is into [queue], not [localQueue] — see its wiring below.
  *
  * [onSongClick]/[onMove] both take the tapped/dragged row's stable slot id rather than a
- * position (P4-T8 / R3-F04) — [localQueue] is Compose-local state that free-runs between
+ * position — [localQueue] is Compose-local state that free-runs between
  * `remember(queue)` resets (live-reordered mid-drag, or reset wholesale by an upstream mutation
  * landing mid-gesture), so any index captured off it here can already be stale by the time the
  * command reaches the engine. Passing identity instead of a display position closes that gap at
- * the layer that actually matters: [com.v1per.synthx.playback.ExoPlayerEngineQueueOps] resolves
- * the slot id against the order store's live position fresh at execution time and rejects the
- * command outright if it no longer exists there, so a stale/divergent [localQueue] here can no
- * longer produce a command that lands on the wrong song — only, at worst, a transiently stale
+ * the layer that actually matters: the engine's queue ops (ExoPlayerEngineQueueOps.kt) resolve
+ * the slot id against the order store's live position fresh at execution time and reject the
+ * command outright if it no longer exists there, so a stale/divergent [localQueue] here cannot
+ * produce a command that lands on the wrong song — only, at worst, a transiently stale
  * *display* until the next [queue] emission resets it, which is a cosmetic concern, not a
  * correctness one.
  */
@@ -78,9 +78,9 @@ fun QueueList(
     val readQueue by rememberUpdatedState { queue }
     val currentOnMove by rememberUpdatedState(onMove)
     // The dragged row's identity — captured once at drag-start and never re-derived from a
-    // position, since [moveQueueItemInternal] now resolves it fresh against the engine's own
+    // position, since [moveQueueItemInternal] resolves it fresh against the engine's own
     // live order at execution time regardless of what this UI layer believes. See the class
-    // kdoc above for why nothing index-shaped needs to survive the trip to the engine any more.
+    // kdoc above for why nothing index-shaped needs to survive the trip to the engine.
     var dragStartSlotId by remember { mutableStateOf<String?>(null) }
 
     val reorderableState = rememberReorderableLazyListState(state) { from, to ->

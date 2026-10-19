@@ -27,13 +27,12 @@ internal fun MoreOptionsButton(song: Song, enabled: Boolean) {
     val songActions = LocalSongActions.current
     val contentColors = LocalPlayerContentColors.current ?: PlayerContentColors.Light
 
-    // Stable-identity click handler, mirroring QueueModeState.onQueueClick's fix for the
-    // identical bug shape: DragResistantIconButton's dragResistantClickable keys its
+    // Stable-identity click handler, same pattern as QueueModeState.onQueueClick:
+    // DragResistantIconButton's dragResistantClickable keys its
     // pointerInput on (interactionSource, enabled, onClick), so a fresh inline lambda here
     // would restart the gesture coroutine every recomposition — and both call sites of this
     // composable (PlayerSkeletonExpandedContent, PlayerSkeletonQueueContent) recompose every
-    // animation frame while their respective drag/crossfade is in flight, which was the
-    // confirmed root cause for the queue button. Built once via a no-key remember, reading
+    // animation frame while their respective drag/crossfade is in flight. Built once via a no-key remember, reading
     // song/songActions through rememberUpdatedState so it still acts on whichever song/
     // songActions are current at invocation time despite being constructed only once.
     val currentSong by rememberUpdatedState(song)

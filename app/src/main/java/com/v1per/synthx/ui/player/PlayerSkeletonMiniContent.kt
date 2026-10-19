@@ -72,8 +72,8 @@ fun BoxScope.PlayerSkeletonMiniContent(
         // Reserves exactly the footprint the 44dp mini art occupies at progress
         // 0 — the real art is a separately positioned overlay (artOffsetX/Y
         // above), not a child of this Row, so this Spacer exists purely to push
-        // the text/button to the same X the old Row's art-then-content
-        // arrangement produced.
+        // the text/button to the same X an art-then-content Row
+        // arrangement would give.
         Spacer(modifier = Modifier.width(44.dp))
         Spacer(modifier = Modifier.width(Spacing.sm))
         Column(modifier = Modifier.weight(1f)) {

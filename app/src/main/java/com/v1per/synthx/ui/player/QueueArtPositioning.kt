@@ -92,8 +92,8 @@ fun computeArtPosition(
     // The queue header Column's top anchor. Reuses expandedTopMargin (32dp) rather than a new
     // constant, so it stays in sync with the expanded state's own top margin, plus the
     // half-difference between QueueHeaderRowHeight and QueueModeArtSize. That second term is a
-    // fixed 4dp nudge left over from when the art was centred directly against this anchor; it
-    // no longer positions the art at all (artOffsetYQueueTarget below does that), it just
+    // fixed 4dp nudge; it does not position the art at all (artOffsetYQueueTarget below does
+    // that), it just
     // shifts the whole header Column — and queueListOffsetY with it — down by that much.
     val artOffsetYQueue = expandedTopMargin + (QueueHeaderRowHeight - QueueModeArtSize) / 2
     // Where QueueList starts: right after the fixed-height header-region Column (header Row +
@@ -102,7 +102,7 @@ fun computeArtPosition(
     // a different purpose (see its own doc comment).
     val queueListOffsetY = artOffsetYQueue + QueueHeaderRegionHeight
     // The art is a separate element from the header Row (see PlayerSkeletonQueueContent's doc
-    // comment), so it can't just anchor at artOffsetYQueue any more: that's the Column's start
+    // comment), so it can't just anchor at artOffsetYQueue: that's the Column's start
     // offset, but the header Row itself renders QueueColumnLeadingSlack lower than that,
     // pushed down by the Column's single leading weight(1f) spacer. artCenterYQueue
     // reconstructs the header Row's actual vertical center from the same slack math the

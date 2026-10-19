@@ -166,7 +166,7 @@ class SongActionsViewModel(
      * com.v1per.synthx.ui.screens.replacesong.ReplaceSongViewModel]'s `InProgress` outcome for
      * the pattern this mirrors. A second call is inert for the row/file (Room delete is
      * idempotent), but without this it would still take a second automatic backup and record a
-     * second [com.v1per.synthx.preferences.DestructiveActionTracker] entry (P1-T3 / R4-F-E2).
+     * second [com.v1per.synthx.preferences.DestructiveActionTracker] entry.
      */
     val deleteInProgress: StateFlow<Boolean> = _deleteInProgress.asStateFlow()
 
@@ -253,14 +253,13 @@ class SongActionsViewModel(
     /**
      * Physically moves the song's file from wherever it currently lives into the configured
      * root library folder — copy, hash-verify, delete original — then updates its DB row,
-     * clearing the starred flag as a side effect of the move landing. Replaces the old
-     * dismiss-only behavior for this same button. Progress is reported via [graduationStage]
+     * clearing the starred flag as a side effect of the move landing. Progress is reported via [graduationStage]
      * for [GraduationProgressDialog] to render.
      */
     fun removeFromStarred(songId: String) {
         // Re-entry guard, same shape as deleteInProgress. The progress dialog can be closed while
         // a graduation is still running and the song stays in Starred until its DB step lands, so
-        // without this the sheet could launch a second graduation alongside the first (P2-T1).
+        // without this the sheet could launch a second graduation alongside the first.
         // FileOperationCoordinator's song lock would serialize them anyway; this keeps the second
         // from ever starting.
         if (_graduationInProgress.value) return

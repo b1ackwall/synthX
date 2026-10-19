@@ -18,11 +18,11 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 
 /**
- * Minimal, non-blocking notice for P7.2 — [BackupFolderLaunchCheck] runs once per process and
+ * Minimal, non-blocking notice — [BackupFolderLaunchCheck] runs once per process and
  * this is its only surface. Reuses the plain Text-row shape already used for backupFolderError
  * on the Backups & Restore screen itself (see BackupSection.kt) rather than introducing a new
- * banner system; tapping it clears the flag and hands off to that screen, where Fix 2's own
- * re-check and the actual repair flow (Fix 1) live.
+ * banner system; tapping it clears the flag and hands off to that screen, where the screen's own
+ * re-check and the actual repair flow live.
  */
 @Composable
 internal fun BackupFolderNotice(onClick: () -> Unit) {

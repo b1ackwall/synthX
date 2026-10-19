@@ -8,8 +8,8 @@ import com.v1per.synthx.R
  * Typed load-failure reason for the simple "one flow, one failure mode" ViewModels — resolved
  * to app-voice strings.xml copy here because these ViewModels feed [UiState.Error], which is
  * built with a resolved [String]. Shared across all of them since they differ only in *what*
- * failed to load, not in how the failure should reach the UI — one enum replaces nine
- * near-identical ones and the raw exception message they used to leak.
+ * failed to load, not in how the failure should reach the UI — one enum for all of them, and
+ * the UI never shows the raw exception message.
  */
 enum class LoadError(@StringRes private val messageRes: Int) {
     Songs(R.string.error_load_songs),

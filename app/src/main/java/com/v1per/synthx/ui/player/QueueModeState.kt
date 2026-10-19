@@ -66,14 +66,13 @@ class QueueModeState internal constructor(
     private var accumulatedScrollDelta = 0f
 
     /**
-     * Gesture-direction-based replacement for the old scroll-position-derived
-     * `controlsVisible`: a net upward drag (accumulated `available.y` past
+     * Gesture-direction-based `controlsVisible`: a net upward drag (accumulated `available.y` past
      * `-overlayToggleThresholdPx`) hides the overlay, a net downward drag past
      * `+overlayToggleThresholdPx` shows it again. Threaded down to [QueueList]'s modifier via
      * `Modifier.nestedScroll` in PlayerSkeletonQueueContent, so this fires on real drag deltas
-     * regardless of whether the list itself has room to scroll — the bug the old
-     * `isScrollInProgress`/`firstVisibleItemIndex` approach had when the queue was short enough
-     * that the list could never actually scroll away from the top, permanently hiding rows
+     * regardless of whether the list itself has room to scroll — a scroll-position signal
+     * (`isScrollInProgress`/`firstVisibleItemIndex`) fails when the queue is short enough
+     * that the list can never actually scroll away from the top, permanently hiding rows
      * underneath the controls overlay with no way to reveal them.
      *
      * `onPreScroll` (not `onPostScroll`) so this observes the raw drag delta before the child
@@ -118,8 +117,8 @@ class QueueModeState internal constructor(
     // `dragResistantClickable`'s pointerInput is keyed on (interactionSource, enabled,
     // onClick) — an inline lambda there would get a new identity every recomposition, and
     // PlayerSheetSkeleton recomposes every animation frame while `progress` is mid-spring,
-    // which was restarting the gesture coroutine repeatedly during a tap-triggered expand and
-    // eating same-frame taps on the queue button (confirmed root cause). This lambda still
+    // which would restart the gesture coroutine repeatedly during a tap-triggered expand and
+    // eat same-frame taps on the queue button. This lambda still
     // reads isQueueMode/queueProgress/scope through their stable, remembered delegate/object
     // references at invocation time, not via captured-by-value snapshots, so it always acts on
     // current state despite being constructed only once.
@@ -198,7 +197,7 @@ fun rememberQueueModeState(
     // out of composition once overlayVisibleAlpha reaches 0f, while PlayerSheetSkeleton's sheet
     // detector already declines every touch below queueListOffsetY while in queue mode — so the
     // whole lower region goes inert and the user is left with no transport controls and no
-    // gesture that can bring them back (confirmed root cause).
+    // gesture that can bring them back.
     //
     // Keyed on the emptiness boolean rather than on upcomingQueue itself so it re-runs exactly
     // when that condition flips, not on every unrelated queue edit. Because LaunchedEffect also
@@ -214,8 +213,7 @@ fun rememberQueueModeState(
     // and the two conditions are unrelated.
     //
     // Only ever writes `true` — hiding stays entirely gesture-driven, and this branch cannot run
-    // while upcomingQueue has items, so a populated queue's scroll-to-hide/show behaves exactly
-    // as it did before.
+    // while upcomingQueue has items, so a populated queue's scroll-to-hide/show is unaffected.
     LaunchedEffect(upcomingQueue.isEmpty()) {
         if (upcomingQueue.isEmpty()) {
             state.controlsVisible = true
@@ -233,8 +231,7 @@ fun rememberQueueModeState(
     // scroll-position correction — a keyed LazyListState relabels firstVisibleItemIndex to
     // wherever a stationary-viewport item's key ended up after its content reorders —
     // relocates the viewport to wherever the old top song ended up in the new order, an
-    // arbitrary position, not the top (confirmed root cause of the reported "lands somewhere
-    // odd"). Keying this effect on `upcomingQueue` itself, rather than a manual
+    // arbitrary position, not the top. Keying this effect on `upcomingQueue` itself, rather than a manual
     // counter/signal, guarantees it only runs once the queue this composable actually observes
     // has changed; LaunchedEffect cancels and restarts on every key change, so it can't
     // double-fire for the same change. `pendingShuffleScrollReset` scopes it to shuffle

@@ -77,19 +77,18 @@ internal fun BottomChromeOverlay(
     val currentPosition by playbackViewModel.currentPosition.collectAsState()
     val duration by playbackViewModel.duration.collectAsState()
 
-    // Both the nav and the sheet live in one Box sharing one navigationBarsPadding() call —
-    // previously the sheet had no inset applied at all, so it measured its available height
-    // against the raw window while the nav measured against the inset-adjusted one. On any
-    // device with a non-zero system nav bar, that mismatch let the sheet's growing bounds
+    // Both the nav and the sheet live in one Box sharing one navigationBarsPadding() call, so
+    // both measure against the same inset-adjusted bounds. A sheet measured against the raw
+    // window would, on any device with a non-zero system nav bar, let the sheet's growing bounds
     // and the nav's fixed bounds genuinely overlap instead of sitting cleanly stacked.
     // Zero-sized (not removed from composition) when hidden — see the `hiddenModifier` doc
     // comment on SynthXBottomNav's own `modifier` param and PlayerSheetSkeleton's `visible`
     // param below for why: an AnimatedVisibility here (even with None transitions) fully
-    // disposes its content on hide, which used to destroy and recreate both the nav and the
+    // disposes its content on hide, which would destroy and recreate both the nav and the
     // whole PlayerSheetSkeleton subtree — losing draggableState's expand/collapse position,
     // QueueModeState's queue-mode toggle and scroll position, etc. — every time the user
-    // crossed into/out of a non-tab route (Settings, Library Management, Backups & Restore,
-    // Restore, Developer Settings, Issues). Confirmed root cause of that state loss. A
+    // crosses into/out of a non-tab route (Settings, Library Management, Backups & Restore,
+    // Restore, Developer Settings, Issues). A
     // `Modifier.size(0.dp)` ancestor instead forces both subtrees' measured size (and
     // therefore their hit-test area) to zero while keeping every `remember` slot alive in
     // place, since neither composable is ever removed from the tree.
@@ -212,7 +211,7 @@ private fun SynthXBottomNav(
     // Slides the whole bar (divider + nav) down by its full BottomNavHeight as the player
     // expands, clearing the way for the sheet to cover the full screen at progress = 1f.
     // Shares BottomNavHeight with PlayerSheetSkeleton's bottomInset lerp rather than a separate
-    // hardcoded constant — a mismatch here previously let the sheet's bottom edge and the
+    // hardcoded constant — a mismatch here would let the sheet's bottom edge and the
     // nav's sliding top edge drift apart by up to 1dp across the drag.
     //
     // The offset alone isn't enough: this whole overlay sits inside enableEdgeToEdge()'s
@@ -221,8 +220,7 @@ private fun SynthXBottomNav(
     // Compose doesn't clip a Box/Column's children to its bounds by default, so that offset
     // content stays visible as a sliver instead of being hidden. Shrinking height to 0 and
     // clipToBounds() (so the fixed-height NavigationBar/divider inside can't paint past a
-    // zero-height container) plus a matching alpha fade are the actual fix; the offset alone
-    // was the previous, insufficient attempt.
+    // zero-height container) plus a matching alpha fade are what actually hide it.
     val collapseFraction = playerProgress.coerceIn(0f, 1f)
     Column(
         // `modifier` (the caller's hiddenModifier) goes first/outermost so a Modifier.size(0.dp)

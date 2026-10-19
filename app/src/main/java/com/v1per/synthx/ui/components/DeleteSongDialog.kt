@@ -31,11 +31,11 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
  * Confirmation for the one irreversible action in the app. Shared by the Issues screen
  * and the song actions sheet so both describe the same consequences in the same words.
  *
- * P3.3: reads [DestructiveActionTracker] directly, the same way MainScaffold reads
+ * Reads [DestructiveActionTracker] directly, the same way MainScaffold reads
  * BackupFolderLaunchCheck.grantLost — a process-wide StateFlow, not plumbed through every
  * caller's own ViewModel just to reach this dialog.
  *
- * Since complete delete, this removes the audio file from the device as well as the library row,
+ * This removes the audio file from the device as well as the library row,
  * so the confirm button is gated behind typing the word "Delete" — see [TypedConfirmationField].
  * The typed text is local to the dialog and reset by its being torn down on dismissal (both call
  * sites drop it from composition rather than hiding it), so a cancelled attempt never leaves a
@@ -47,7 +47,7 @@ fun DeleteSongDialog(
     onDismiss: () -> Unit,
     previewState: DeleteSongPreviewState = DeleteSongPreviewState.Ready(DeleteSongPreview(emptyList())),
     onRetryPreview: () -> Unit = {},
-    // P1-T3: cosmetic reinforcement of the caller's own in-flight guard (e.g.
+    // Cosmetic reinforcement of the caller's own in-flight guard (e.g.
     // SongActionsViewModel.deleteInProgress) — a double-tap is already prevented at the
     // ViewModel level regardless of whether this has a chance to take visible effect first.
     // Defaults to true so a future caller that doesn't have its own in-flight state isn't

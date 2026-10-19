@@ -97,10 +97,9 @@ internal fun SongRow(
 
                 IconButton(
                     onClick = { songActions.show(song, currentPlaylistId, source) },
-                    // Matches the alpha dimming above and the omitted row-tap clickable below:
-                    // previously this stayed fully clickable/focusable despite being visually
-                    // dimmed to Alpha.Disabled — a real TalkBack mismatch (announced as enabled,
-                    // looked disabled). The actions sheet is reachable another way for a missing
+                    // Matches the alpha dimming above and the omitted row-tap clickable below,
+                    // so TalkBack never announces a row dimmed to Alpha.Disabled as enabled.
+                    // The actions sheet is reachable another way for a missing
                     // song's own management (delete/etc.) via the Issues screen's dedicated menu.
                     enabled = !song.isMissing,
                     modifier = Modifier.padding(end = Spacing.sm),

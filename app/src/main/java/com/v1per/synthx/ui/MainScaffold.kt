@@ -93,7 +93,7 @@ fun MainScaffold(
 }
 
 /**
- * P9-T5 / F19 second chance: the first time playback actually runs, offer the notification
+ * Second chance: the first time playback actually runs, offer the notification
  * permission if neither the wizard's Done nor a restore has already done so (the shared "asked"
  * flag decides). Lives in the UI layer, observing [PlaybackViewModel.isPlaying], because a
  * permission prompt needs an Activity and [com.v1per.synthx.playback.SynthXPlaybackService]

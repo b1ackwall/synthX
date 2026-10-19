@@ -65,7 +65,7 @@ private fun degradationMessage(
  *
  * FAILED and CANCELLED deliberately produce *text* — callers that must treat them differently
  * from success (onboarding's ScanningStep) branch on [WorkInfo.State], not on this string being
- * non-null: that conflation was P9-T1's F10.
+ * non-null: treating any status line as success would let a failed scan complete onboarding.
  */
 fun scanStatusFor(info: WorkInfo?, strings: ScanStatusStrings): String? = when (info?.state) {
     null -> null

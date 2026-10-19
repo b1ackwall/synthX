@@ -47,16 +47,16 @@ internal val ContentSlideDistance: Dp = 40.dp
 
 /**
  * 20% of the full collapsed↔expanded travel, not the 0.5f used by QueueRow. Here the travel is
- * nearly the whole screen, so a larger fraction meant a slow, non-flick drag had to cover
- * ~294dp before it would snap — far more than a deliberate drag feels like it should need.
+ * nearly the whole screen, so a larger fraction would make a slow, non-flick drag cover
+ * ~294dp before it snaps — far more than a deliberate drag feels like it should need.
  * Top-level so [AnchoredDraggableDefaults.flingBehavior]'s `remember` key stays stable.
  *
- * Trial (#176): Compose Foundation 1.12.0 moved fling configuration into
+ * Compose Foundation 1.12.0 moved fling configuration into
  * [AnchoredDraggableDefaults.flingBehavior], which hardcodes a 125.dp/s velocity threshold
- * (above it, the positional test is skipped) and never decays. The previous deprecated-
- * constructor setup used `velocityThreshold = 40.dp` and
+ * (above it, the positional test is skipped) and never decays. The deprecated
+ * constructor took `velocityThreshold = 40.dp` and
  * `decayAnimationSpec = exponentialDecay(frictionMultiplier = 1.8f)` — the higher friction let a
  * fast release decelerate before the snap spring took over, reading as one continuous motion.
- * Those cannot simply be restored here; see #176 option (b), a custom fling behavior.
+ * Those cannot simply be restored here; the option is a custom fling behavior.
  */
 internal val PlayerSheetPositionalThreshold: (Float) -> Float = { totalDistance -> totalDistance * 0.2f }

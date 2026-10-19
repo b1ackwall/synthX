@@ -44,7 +44,7 @@ internal object RestoreShellPolicy {
         mode != RestoreCoordinator.Mode.NORMAL &&
             terminal == RestoreCoordinator.Terminal.NORMAL -> RestoreShellSurface.Maintenance
 
-        // Unchanged from before this policy existed: once published, Terminal owns the shell.
+        // Once published, Terminal owns the shell.
         terminal != RestoreCoordinator.Terminal.NORMAL -> RestoreShellSurface.Terminal
 
         else -> RestoreShellSurface.Normal

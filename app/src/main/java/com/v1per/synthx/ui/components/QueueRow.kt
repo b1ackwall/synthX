@@ -65,13 +65,13 @@ private enum class QueueRowSwipe { StartToEnd, Settled, EndToStart }
  * Release past half the row's own width confirms; release before it reverts. Top-level so
  * [AnchoredDraggableDefaults.flingBehavior]'s `remember` key stays stable across recompositions.
  *
- * Trial (#176): the velocity threshold is no longer ours to set. Compose Foundation 1.12.0 moved
+ * The velocity threshold is not ours to set. Compose Foundation 1.12.0 moved
  * fling configuration into [AnchoredDraggableDefaults.flingBehavior], which hardcodes a 125.dp/s
  * velocity threshold (above it, any release dismisses regardless of distance) and never decays.
- * The previous deprecated-constructor setup used `velocityThreshold = 1200.dp` ("crosses a whole
+ * The deprecated constructor took `velocityThreshold = 1200.dp` ("crosses a whole
  * row in a third of a second" — above an unhurried drag-and-lift, below a genuine flick) and
  * `decayAnimationSpec = exponentialDecay()`. If 125.dp/s causes accidental dismissals, these
- * cannot simply be restored here — see #176 option (b), a custom fling behavior.
+ * cannot simply be restored here — the option is a custom fling behavior.
  */
 private val SwipePositionalThreshold: (Float) -> Float = { totalDistance -> totalDistance * 0.5f }
 
@@ -82,7 +82,7 @@ private val SwipePositionalThreshold: (Float) -> Float = { totalDistance -> tota
  *
  * The currently-playing song is never rendered as a row here (it lives in
  * PlayerSkeletonQueueContent's Queue-mode header instead), so there is no "is this the
- * playing row" state to track any more.
+ * playing row" state to track.
  *
  * The drag handle is always enabled — queue ordering is fully app-managed, so reordering
  * is safe regardless of shuffle state, see
