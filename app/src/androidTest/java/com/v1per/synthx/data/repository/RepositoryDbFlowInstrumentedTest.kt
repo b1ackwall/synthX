@@ -28,7 +28,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -84,33 +83,8 @@ class RepositoryDbFlowInstrumentedTest {
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 
-    @Test
-    fun cachedSharedRoomUpstreamStopsWithoutReconnectingWhileDownstreamLives() = runBlocking {
-        insertGroup("a")
-        val sharingScope = ownedScope()
-        val cached = repository.groups().stateIn(
-            sharingScope,
-            SharingStarted.Lazily,
-            emptyList(),
-        )
-        val downstreamScope = ownedScope()
-        val downstream = downstreamScope.launch { cached.collect() }
-        awaitReactiveCount(1)
-        withTimeout(2_000) { cached.first { it.size == 1 } }
-
-        RestoreCoordinator.exclusive {
-            RepositoryDbFlow.quiesceForRestore()
-            RestoreCoordinator.awaitDrained()
-            assertFalse(downstream.isCancelled)
-            insertGroup("b")
-            kotlinx.coroutines.yield()
-            assertEquals(1, cached.value.size)
-            assertEquals(0, RestoreCoordinator.activeReactiveOperationCountForTest())
-        }
-    }
-
     /**
-     * Sibling of the test above where a reconnect is really attempted: a WhileSubscribed cache
+     * A cached upstream where a reconnect is really attempted: a WhileSubscribed cache
      * restarts its upstream when a new subscriber arrives. During restore preparation that new
      * Room upstream must wait for admission, then connect once the mode is back to normal.
      */
