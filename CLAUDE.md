@@ -4,9 +4,10 @@
 - On the `claude-branch` branch: Claude Code may use any git command (add, commit, push,
   fetch, pull, merge, etc.) as needed for the task. Check the current branch first
   (`git branch --show-current`); this permission applies only while on `claude-branch`.
-- On any other branch: DO NOT TOUCH. Claude Code must never run any git command (add, commit,
-  push, checkout, branch, etc.).  handles all git operations manually. Report changes
-  made; do not stage or commit them.
+- Read-only git (status, diff, log, show, ls-files, archive, `apply --check`) is fine on any branch.
+- On any other branch, git writes (add, commit, push, checkout, branch, stash, mv, etc.) are
+  's, done manually. A task prompt may grant them for that task only; the grant ends with
+  the task. Report changes made; do not stage or commit them.
 
 ## Connected Device — VERIFY BEFORE TOUCHING
 Run `adb devices -l` to see what's actually connected before running any adb command that
@@ -50,7 +51,8 @@ Check that the JDK exists, then set JAVA_HOME for this session:
 
 Verify before building:
     $JAVA_HOME/bin/java -version
-Expect OpenJDK 17.x.
+Expect OpenJDK 17.x. That is the launcher JDK; the Gradle daemon itself builds on JDK 25
+(gradle/gradle-daemon-jvm.properties, auto-provisioned).
 
 ## Build Command (verified working on cachyOS)
     set -gx JAVA_HOME /usr/lib/jvm/java-17-openjdk
@@ -84,7 +86,7 @@ Top-level packages under app/src/main/java/com/v1per/synthx/:
 - ui/screens/ - one dir per screen, each with <Name>Screen.kt + <Name>ViewModel.kt: albumdetail, albumlist, artistdetail, artistlist, backupsandrestore, createplaylist, developersettings, groupdetail, home, issues, librarymanagement, library, onboarding, playlistdetail, playlistlist, replacesong, restore, search, settings, songs, starred
 - ui/theme/ - Color, Motion, Shape, Spacing, Theme, Type (design tokens)
 
-res/: drawable/, font/, mipmap-anydpi-v26/, values/, xml/ - fully Compose, no layout/ XML.
+res/: drawable/, font/, mipmap-anydpi/, values/, xml/ - fully Compose, no layout/ XML.
 
 Single Activity (MainActivity), one foreground service (SynthXPlaybackService) for media playback. Versions centralized in gradle/libs.versions.toml.
 
@@ -173,6 +175,15 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
 - When a file crosses it, do a discovery-first refactor: plan the seams, then split it by
   move-only moves into sibling files in the same package — no behavior change, no renames.
 
+## Checks
+- After editing Kotlin, run `scripts/format.sh` (formats the changed files with the pinned ktlint 1.8.0).
+- Before finishing any task that changed code, run `scripts/check.sh`: ktlint, compile with warnings
+  as errors, Lint (`checkAllWarnings`, warnings as errors), unit tests. It stops at the first failure.
+  No device is involved.
+- No baselines and no blanket suppressions. Fix the finding, or record a narrow, commented
+  ignore (`@SuppressLint` with a reason line, or an entry in `app/lint.xml`).
+- The emulator suite stays a manual proof for risky changes; `scripts/check.sh` does not replace it.
+
 ## Gesture and Animation Rules
 - Use `rememberUpdatedState` for callbacks read inside no-key `remember` blocks — frozen
   closures are the most expensive recurring bug.
@@ -188,6 +199,8 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
 - In-code comments are short and describe current behavior only.
 
 ## Conventions
+- Files importing `androidx.annotation.OptIn` shadow Kotlin's own `OptIn`; use the fully qualified
+  `kotlin.OptIn` there.
 - Incremental, debuggable sub-tasks — do not attempt large multi-file rewrites in one pass.
 - Detailed, specific error messages preferred over generic ones.
 - Full ViewModel per screen, even if initially near-empty — no screens without one.
