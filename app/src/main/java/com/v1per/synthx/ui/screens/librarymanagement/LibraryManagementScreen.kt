@@ -41,7 +41,7 @@ fun LibraryManagementScreen(
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
-        // Take the new grant first. Releasing the old one is the ViewModel's job now,
+        // Take the new grant first. Releasing the old one is the ViewModel's job,
         // and happens only once the pick survives nesting validation — released here it
         // would be unrecoverable on rejection, since a persistable grant can only be
         // taken from a fresh activity result.

@@ -16,7 +16,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * rather than sharing [MusicFolderSection]'s: the most likely failure here is a rejected
  * nested-folder pick, and that message has to appear under the row the user tapped.
  *
- * [folderNotice] is the informational counterpart (P9-T4 / F18) — "a scan is already running,
+ * [folderNotice] is the informational counterpart — "a scan is already running,
  * this folder will follow" — shown in the neutral secondary colour rather than error red. It is
  * its own parameter, fed by its own ViewModel flow, so it can be cleared by what it describes. A
  * real error always wins the slot: it is the one the user has to act on.

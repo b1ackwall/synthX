@@ -35,7 +35,7 @@ internal fun firstScanStateFor(info: WorkInfo, strings: ScanStatusStrings): Firs
 
 /**
  * Whether a New Arrivals scan that was queued behind another scan is still waiting to start
- * (P9-T4 / F18). Once it is running or finished, "will be scanned once it finishes" is stale:
+ * Once it is running or finished, "will be scanned once it finishes" is stale:
  * running means it is no longer deferred, and finished (or failed, or cancelled) means the
  * promise has been kept or definitively broken.
  */

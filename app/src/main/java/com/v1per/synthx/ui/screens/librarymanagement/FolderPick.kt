@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 
-/** What a system folder-picker result means for the row that launched it (P9-T4 / F09). */
+/** What a system folder-picker result means for the row that launched it. */
 internal sealed interface FolderPickResult<out U> {
     /** The picker returned a folder and its grant was persisted — safe to hand to a ViewModel. */
     data class Granted<U>(val uri: U) : FolderPickResult<U>
@@ -17,7 +17,7 @@ internal sealed interface FolderPickResult<out U> {
 }
 
 /**
- * The decision every folder-picker callback used to inline: a null result is a cancel, and a
+ * The decision every folder-picker callback shares: a null result is a cancel, and a
  * [SecurityException] from taking the persistable grant is a refusal.
  *
  * Deliberately no attempt to tell "this provider structurally cannot grant persistable access"
@@ -43,7 +43,7 @@ internal fun <U : Any> classifyPickResult(picked: U?, takePermission: (U) -> Uni
  * and nothing at all for a cancel.
  *
  * [onPicked] runs outside the permission try/catch, so a failure while *saving* an accepted folder
- * can no longer be misreported as a permission problem.
+ * is never misreported as a permission problem.
  */
 internal fun <U : Any> handleFolderPick(
     picked: U?,

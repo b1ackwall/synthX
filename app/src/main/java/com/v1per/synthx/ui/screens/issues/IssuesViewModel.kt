@@ -46,7 +46,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 private const val TAG = "SynthXIssues"
 
-/** Intermediate holder for the 5-source combine() leg — see [IssuesViewModel.init]. */
+/** Intermediate holder for the 5-source combine() leg — see IssuesViewModel's init block. */
 private data class PartialSources(
     val missingSongs: List<MissingSongInfo>,
     val backupOutcome: BackupAttemptOutcome?,
@@ -90,10 +90,9 @@ sealed class IssuesActionEvent {
  * missing-art aggregate is read from a shared snapshot: [IssuesScanWorker] computes it
  * (daily, or on demand) and caches it in [PreferencesManager]; this ViewModel reads that cache.
  *
- * That split is what fixes the bug this replaced: the old init block kicked off the expensive
- * sweep on every navigation to the screen and seeded its result with an empty list, so for the
- * seconds-to-a-minute it ran the screen confidently reported "No issues found" — indistinguishable
- * from a genuine all-clear — and then silently corrected itself.
+ * The split keeps the expensive sweep off screen navigation: running it on every visit and
+ * seeding its result with an empty list would make the screen confidently report "No issues
+ * found" — indistinguishable from a genuine all-clear — for as long as the sweep runs.
  */
 class IssuesViewModel(
     // Only applicationContext is stored here (see Factory).
@@ -250,7 +249,7 @@ class IssuesViewModel(
         val safetyNetIssues = buildList {
             if (grantLost) add(Issue.BackupFolderGrantLost)
             addAll(timestampedIssues)
-            // P3-T1: reconciliation, if it ran, already happened before this ViewModel could ever
+            // Reconciliation, if it ran, already happened before this ViewModel could ever
             // be constructed (it's part of DatabaseStartupGate's own gate, ahead of every
             // repository access) — reading the tracker's current value directly is enough, the
             // same way lastIssuesScanTimestamp/missingArtSongIds are read directly below rather
@@ -287,13 +286,13 @@ class IssuesViewModel(
      * song-actions sheet, both mirroring [com.v1per.synthx.ui.screens.replacesong
      * .ReplaceSongViewModel]'s `InProgress` outcome. A second call is inert for the row/file
      * (Room delete is idempotent), but without this it would still take a second automatic
-     * backup and record a second [DestructiveActionTracker] entry (P1-T3 / R4-F-E2).
+     * backup and record a second [DestructiveActionTracker] entry.
      */
     val deleteInProgress: StateFlow<Boolean> = _deleteInProgress.asStateFlow()
 
     // The list is Flow-backed, so Room's invalidation drops the row from the UI on its own.
     //
-    // P3-T1 / R4-F-D5: this ViewModel is scoped to its own NavBackStackEntry (unlike
+    // This ViewModel is scoped to its own NavBackStackEntry (unlike
     // SongActionsViewModel, hosted above the NavHost), so a back-press right after confirming a
     // delete pops the entry and cancels viewModelScope. Routed through
     // repository.deleteSongDetached instead of viewModelScope.launch { repository.deleteSong(id) }

@@ -34,7 +34,7 @@ internal fun ConfirmRestoreDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // R7-F17: restore replaces the entire library irreversibly — a bigger-stakes action than
+    // Restore replaces the entire library irreversibly — a bigger-stakes action than
     // single-song delete, which already gates behind this same typed-confirmation mechanism
     // (see DeleteSongDialog). requiredWord is sourced from the confirm button's own label,
     // exactly like DeleteSongDialog, so the two can never drift apart.

@@ -285,7 +285,7 @@ internal fun DestructiveActionsRow(count: Int, onClick: () -> Unit) {
     )
 }
 
-/** P3-T1: informational only, no click target — the cleanup it describes already happened. */
+/** Informational only, no click target — the cleanup it describes already happened. */
 @Composable
 internal fun ReconciledPendingCleanupsRow(count: Int, timestamp: Long) {
     SafetyNetIssueRow(

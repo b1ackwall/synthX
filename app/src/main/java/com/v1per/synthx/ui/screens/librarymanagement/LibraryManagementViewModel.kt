@@ -113,8 +113,8 @@ class LibraryManagementViewModel(
     internal val _newArrivalsFolderError = MutableStateFlow<String?>(null)
     val newArrivalsFolderError: StateFlow<String?> = _newArrivalsFolderError.asStateFlow()
 
-    // The one New Arrivals scan whose start was deferred behind a scan already running (P9-T4 /
-    // F18), tracked by request id — the same pattern as the first scan — rather than by the shared
+    // The one New Arrivals scan whose start was deferred behind a scan already running,
+    // tracked by request id — the same pattern as the first scan — rather than by the shared
     // unique name, which any of the three scan workers can also occupy.
     internal val _deferredNewArrivalsScanId = MutableStateFlow<UUID?>(null)
 
@@ -281,10 +281,9 @@ class LibraryManagementViewModel(
     /**
      * Fresh-install onboarding's folder pick. Persist only — the same shape as
      * [saveRecoveryMusicFolder], and for the same reason: nothing has been confirmed yet, so there
-     * is nothing to back up, no scan to start and no completion to record. Everything that used to
-     * happen here moved to [startFirstScan], fired from Done (P9-T1 / F12). Library Management's
-     * re-pick still goes through [saveMusicFolder], whose backup-first + REPLACE behaviour is
-     * unchanged.
+     * is nothing to back up, no scan to start and no completion to record. All of that happens in
+     * [startFirstScan], fired from Done. Library Management's re-pick goes through
+     * [saveMusicFolder], with its backup-first + REPLACE behaviour.
      */
     fun saveOnboardingMusicFolder(uri: Uri) = saveRecoveryMusicFolder(uri)
 
@@ -300,7 +299,7 @@ class LibraryManagementViewModel(
     /**
      * What ScanningStep should be showing, derived from the tracked request's own WorkInfo:
      * [FirstScanState.Running] until it is terminal, then [FirstScanState.Succeeded] or
-     * [FirstScanState.Failed]. FAILED and CANCELLED are *not* success — that conflation was F10.
+     * [FirstScanState.Failed]. FAILED and CANCELLED are *not* success.
      *
      * A null WorkInfo is ambiguous: normally the short enqueue-to-publication gap, but it is also
      * what an id whose record no longer exists looks like. It is shown as Running for
@@ -332,7 +331,7 @@ class LibraryManagementViewModel(
     )
 
     /**
-     * The single "start first scan" call, fired from Done (P9-T1 / F12) and by Retry. Marks
+     * The single "start first scan" call, fired from Done and by Retry. Marks
      * onboarding complete, enqueues with REPLACE (any earlier scan is walking a folder that may
      * since have been changed) and durably records the request id — in that order, so a persisted
      * id always names a request that was actually enqueued. Returns the id, or null when there is
@@ -370,7 +369,7 @@ class LibraryManagementViewModel(
      * with [ExistingWorkPolicy.APPEND_OR_REPLACE] (see [NewArrivalsScanWorker.enqueue]'s kdoc)
      * so the freshly-picked folder still gets scanned promptly even if something else is
      * currently running under the shared unique name, rather than the request being silently
-     * discarded — general 6.4 in the final-sweep audit. When that's the case, the user is told
+     * discarded. When that's the case, the user is told
      * their scan is queued rather than left to wonder why nothing happened — via
      * [newArrivalsFolderNotice], not the error channel.
      */

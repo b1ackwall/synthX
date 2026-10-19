@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 
 /**
- * Settings is a menu screen — the folder picker and rescan it used to own now live in
+ * Settings is a menu screen — the folder picker and rescan live in
  * LibraryManagementViewModel. Kept as a shell (one ViewModel per screen) so the next
  * setting added here has a home.
  *

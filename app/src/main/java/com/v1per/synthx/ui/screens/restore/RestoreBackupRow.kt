@@ -108,7 +108,7 @@ internal fun BackupRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                // R7-F15: trivial identity signal — no new data, just the position this row
+                // Trivial identity signal — no new data, just the position this row
                 // already has in the newest-first sorted list.
                 if (isMostRecent) {
                     Spacer(modifier = Modifier.width(Spacing.sm))
@@ -146,7 +146,7 @@ internal fun BackupRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            // R7-F15: shown once known (cached from a prior preview tap-through) rather than
+            // Shown once known (cached from a prior preview tap-through) rather than
             // eagerly staged+counted for every row — see BackupManager.previewBackup's doc.
             if (counts != null) {
                 Spacer(modifier = Modifier.height(2.dp))

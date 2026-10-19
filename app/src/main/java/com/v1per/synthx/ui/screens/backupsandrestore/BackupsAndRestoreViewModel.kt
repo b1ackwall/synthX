@@ -31,21 +31,21 @@ import kotlinx.coroutines.launch
 
 private const val StatusMessageDisplayMs = 4_000L
 
-/** N13/P3.1: whichever of "last successful backup" or "a more recent failed attempt" is current. */
+/** Whichever of "last successful backup" or "a more recent failed attempt" is current. */
 sealed interface BackupHealthState {
     data object Unknown : BackupHealthState
     data class Succeeded(val timestamp: Long, val tier: BackupTier) : BackupHealthState
     data class Failed(val timestamp: Long, val message: String?) : BackupHealthState
 }
 
-/** N13/P3.1: the equivalent state for the playlist export sidecar. */
+/** The equivalent state for the playlist export sidecar. */
 sealed interface ExportHealthState {
     data object Unknown : ExportHealthState
     data class Succeeded(val timestamp: Long) : ExportHealthState
     data class Failed(val timestamp: Long, val message: String?) : ExportHealthState
 }
 
-/** P3.2: only surfaced when the most recent known-good backup fails re-validation — a distinct
+/** Only surfaced when the most recent known-good backup fails re-validation — a distinct
  * failure mode from a backup attempt itself failing, so it is not folded into [BackupHealthState]. */
 data class VerificationFailure(val timestamp: Long, val message: String?)
 
@@ -72,14 +72,14 @@ class BackupsAndRestoreViewModel(
     private val _backupStatus = MutableStateFlow<String?>(null)
     val backupStatus: StateFlow<String?> = _backupStatus.asStateFlow()
 
-    /** R8-B07/P7-T6: guards [createManualBackup] against repeated taps, matching
+    /** Guards [createManualBackup] against repeated taps, matching
      *  [com.v1per.synthx.ui.screens.createplaylist.CreatePlaylistViewModel]'s `_isCreating` shape. */
     private val _isBackingUp = MutableStateFlow(false)
     val isBackingUp: StateFlow<Boolean> = _isBackingUp.asStateFlow()
 
     private val _lastSuccessfulBackup = MutableStateFlow<BackupInfo?>(null)
 
-    /** N13/P3.1: last successful backup, unless a failed attempt happened more recently. */
+    /** Last successful backup, unless a failed attempt happened more recently. */
     val backupHealth: StateFlow<BackupHealthState> = combine(
         _lastSuccessfulBackup,
         BackupOutcomeStore.lastBackupOutcome,
@@ -92,7 +92,7 @@ class BackupsAndRestoreViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BackupHealthState.Unknown)
 
-    /** N13/P3.1: last playlist-export attempt outcome. */
+    /** Last playlist-export attempt outcome. */
     val exportHealth: StateFlow<ExportHealthState> = BackupOutcomeStore.lastExportOutcome
         .map { outcome ->
             when {
@@ -104,8 +104,8 @@ class BackupsAndRestoreViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ExportHealthState.Unknown)
 
     /**
-     * P3.2: non-null only when the most recent known-good backup failed re-validation.
-     * `skippedNoEligibleBackup` (R8-A11/P7-T5) deliberately excluded here — "nothing was
+     * Non-null only when the most recent known-good backup failed re-validation.
+     * `skippedNoEligibleBackup` deliberately excluded here — "nothing was
      * eligible to check" is not itself a validation failure and must not surface as one.
      */
     val verificationFailure: StateFlow<VerificationFailure?> = BackupOutcomeStore.lastVerificationOutcome
@@ -115,12 +115,12 @@ class BackupsAndRestoreViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** P3.3: delete-song/delete-playlist mutations since the last successful backup. */
+    /** Delete-song/delete-playlist mutations since the last successful backup. */
     val destructiveActionCount: StateFlow<Int> = DestructiveActionTracker.count
 
     init {
         viewModelScope.launch { refreshLastSuccessfulBackup() }
-        // R8-B02/P7-T5: BackupOutcomeStore.lastBackupOutcome already reflects every
+        // BackupOutcomeStore.lastBackupOutcome already reflects every
         // BackupManager.createBackup() call regardless of tier or call site — automatic/Daily
         // backups go through BackupManager directly and never touch this ViewModel otherwise.
         // Reacting to it here (rather than only refreshing from this ViewModel's own
@@ -133,7 +133,7 @@ class BackupsAndRestoreViewModel(
                 .filter { it.succeeded }
                 .collect { refreshLastSuccessfulBackup() }
         }
-        // Re-validate on every screen entry (P7.3) — a fresh ViewModel is constructed each
+        // Re-validate on every screen entry — a fresh ViewModel is constructed each
         // time this screen is opened, so this doubles as "check whenever the user looks."
         // Persistent (not showTemporarily): a broken folder should stay visible until the
         // user fixes it, not vanish after 4s while nothing has actually changed.
@@ -153,9 +153,9 @@ class BackupsAndRestoreViewModel(
     }
 
     /**
-     * R8-B02/P7-T5: filters to [BackupInfo.restoreEligible] — the same cheap, already-computed
+     * Filters to [BackupInfo.restoreEligible] — the same cheap, already-computed
      * signal [BackupManager.verifyMostRecentBackup] filters on — so an orphan or sidecar-
-     * mismatched file with a recent timestamp can no longer render as "last successful backup".
+     * mismatched file with a recent timestamp cannot render as "last successful backup".
      * Deliberately does NOT run the expensive byte-level SHA verification
      * [BackupManager.verifyMostRecentBackup] does: this is read on every screen open/composition,
      * so eligibility (structural/metadata-complete) is the right-cost bar for display, not a full
@@ -180,9 +180,9 @@ class BackupsAndRestoreViewModel(
     }
 
     /**
-     * Validates before persisting anything (data 2.5): a folder that fails nesting or
+     * Validates before persisting anything: a folder that fails nesting or
      * structure validation, or throws, must never reach [PreferencesManager.backupFolderUri].
-     * The whole body runs inside this one coroutine's own try/catch (general 7.4) — nothing
+     * The whole body runs inside this one coroutine's own try/catch — nothing
      * here is left to a scope that outlives the picker callback's own (now-closed) catch.
      */
     fun saveBackupFolder(uri: Uri) {
@@ -206,7 +206,7 @@ class BackupsAndRestoreViewModel(
                             _backupFolderUri.value = uri
                             _backupFolderError.value = null
                             _backupStatus.value = null
-                            // R8-B02/P7-T5: a folder change must not leave the OLD folder's
+                            // A folder change must not leave the OLD folder's
                             // cached success displayed against the newly-selected folder.
                             viewModelScope.launch { refreshLastSuccessfulBackup() }
                         }
@@ -236,9 +236,9 @@ class BackupsAndRestoreViewModel(
     private enum class Outcome { OK, NESTED, NESTING_UNDETERMINED, UNUSABLE }
 
     /**
-     * R8-B07/P7-T6: guarded at entry — a tap while a backup is already in flight is a no-op, not
+     * Guarded at entry — a tap while a backup is already in flight is a no-op, not
      * a second concurrent [BackupManager.createBackup] call. This also closes the status-text
-     * race the finding described ("a later tap's backup still pending" overwriting an earlier
+     * race of "a later tap's backup still pending" overwriting an earlier
      * tap's reported success): with only ever one call in flight, there is no later call left to
      * race the status text against.
      */

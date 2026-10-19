@@ -73,7 +73,7 @@ class RestoreStatusViewModel internal constructor(
                         WorkInfo.State.RUNNING, WorkInfo.State.BLOCKED ->
                             _status.value = RestoreAppStatus.Working(info.id)
                         WorkInfo.State.SUCCEEDED -> {
-                            // P7-T2 / R7-F02: this is recovery's genuine completion signal — the
+                            // This is recovery's genuine completion signal — the
                             // restore actually landed, not merely RESTORE_PREPARING being
                             // reached (RestoreViewModel.restore navigates the wizard to Home on
                             // that alone, well before this point, so the flag can't be set

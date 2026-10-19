@@ -98,7 +98,7 @@ fun RestoreScreen(
         is RestorePreview.Ready -> ConfirmRestoreDialog(
             backup = current.backup,
             counts = current.counts,
-            // P9-T5 / F19: a restore is the other early notification (its foreground progress),
+            // A restore is the other early notification (its foreground progress),
             // and the only one a recovering user reaches before any first scan. Shared by the
             // wizard's recovery step and Settings; the "asked" flag keeps it to one prompt ever.
             onConfirm = {
@@ -180,7 +180,7 @@ fun RestoreScreen(
 }
 
 /**
- * R7-F17: the shared full-screen overlay for both the preview-staging and restore-in-progress
+ * The shared full-screen overlay for both the preview-staging and restore-in-progress
  * waits — determinate once a [RestoreProgressStep] is known, indeterminate
  * otherwise, crossfading between the two exactly like [com.v1per.synthx.ui.screens.librarymanagement.ScanSection]'s
  * `ScanProgressBar`. [onCancel] is null to hide the cancel row entirely — used once a restore
@@ -294,7 +294,7 @@ internal fun RestoreContent(
                                 BackupRow(
                                     backup = backup,
                                     enabled = enabled && backup.restoreEligible,
-                                    // R7-F15: newest-first sort (see BackupManager.classifyBackupList)
+                                    // Newest-first sort (see BackupManager.classifyBackupList)
                                     // makes the first item trivially "most recent" — no new data.
                                     isMostRecent = backup === result.backups.first(),
                                     counts = previewCountsCache[backup.databaseUri],

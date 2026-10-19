@@ -8,8 +8,8 @@ import java.util.UUID
 // LibraryManagementViewModel's onboarding first-scan bookkeeping.
 
 /**
- * Idempotent no-op once onboarding is already complete. Only [startFirstScan] calls this now:
- * completion moved from the folder pick to Done (P9-T1) so that a first scan the user has not
+ * Idempotent no-op once onboarding is already complete. Only [startFirstScan] calls this:
+ * completion happens at Done, not at the folder pick, so that a first scan the user has not
  * yet confirmed can never be the thing that flips the flag.
  */
 private fun LibraryManagementViewModel.markOnboardingCompleteIfNeeded() {

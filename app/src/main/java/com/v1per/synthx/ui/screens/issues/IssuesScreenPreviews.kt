@@ -114,7 +114,7 @@ private fun IssuesEmptyPreview() {
     }
 }
 
-/** The state the old screen could not express: checking, with no claim either way yet. */
+/** Checking, with no claim either way yet. */
 @Preview(name = "Issues — Scanning", showBackground = true)
 @Composable
 private fun IssuesScanningPreview() {

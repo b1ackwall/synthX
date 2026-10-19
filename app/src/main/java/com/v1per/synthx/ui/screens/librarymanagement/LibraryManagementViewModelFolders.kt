@@ -30,7 +30,7 @@ internal fun LibraryManagementViewModel.saveMusicFolderInternal(uri: Uri) {
         )
         if (rejected) return@launchCatching
 
-        // P7-T3 / R7-F08: nothing has actually been backed up yet at this point on a fresh
+        // Nothing has actually been backed up yet at this point on a fresh
         // install — the backup folder is a later, separate step in the same wizard — so
         // attempting the snapshot here would only ever throw BackupNotConfiguredException,
         // which BackupOutcomeStore would then durably record as a genuine backup *failure*.
@@ -38,7 +38,7 @@ internal fun LibraryManagementViewModel.saveMusicFolderInternal(uri: Uri) {
         // opens Backups and Restore, for an operation that was never actually possible.
         // Skip the attempt entirely (not merely catch the exception) so no outcome is
         // recorded at all — a later re-pick from Library Management, once a backup folder
-        // is actually configured, still takes its snapshot as before.
+        // is actually configured, still takes its snapshot.
         if (preferencesManager.backupFolderUri != null) {
             backupManager.createBackup(BackupTier.Auto, BackupReason.FOLDER_CHANGE)
         }
@@ -129,7 +129,7 @@ internal fun LibraryManagementViewModel.saveNewArrivalsFolderInternal(uri: Uri) 
             .any { !it.state.isFinished }
         _newArrivalsFolderError.value = null
         val enqueued = NewArrivalsScanWorker.enqueue(context, ExistingWorkPolicy.APPEND_OR_REPLACE)
-        // Informational, on its own channel (F18): cleared when this request stops waiting.
+        // Informational, on its own channel: cleared when this request stops waiting.
         _deferredNewArrivalsScanId.value = if (anotherScanRunning) enqueued.id else null
     }
 }
@@ -198,8 +198,8 @@ private fun LibraryManagementViewModel.isGrantOwnedByConfiguredRole(
 /**
  * Every grant release goes through here — all four folder-save paths and [rejectIfNested].
  * The tree is first closed to new file operations, then any graduation still copying into or
- * deleting out of it is waited out, and only then is the grant revoked (P2-T1): revoking it
- * mid-move used to fail the move part-way, after the original could already be gone.
+ * deleting out of it is waited out, and only then is the grant revoked: revoking it
+ * mid-move would fail the move part-way, after the original could already be gone.
  */
 private suspend fun LibraryManagementViewModel.releaseGrantWhenIdle(uri: Uri) {
     FileOperationCoordinator.retireRootWhenIdle(FileOperationCoordinator.rootKey(uri)) {

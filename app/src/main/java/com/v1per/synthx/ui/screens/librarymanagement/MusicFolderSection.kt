@@ -36,7 +36,7 @@ internal fun MusicFolderSection(
 }
 
 /**
- * Why Done is disabled on the wizard's mandatory music-folder step (P9-T4). Neutral, not an error:
+ * Why Done is disabled on the wizard's mandatory music-folder step. Neutral, not an error:
  * nothing has gone wrong, a required choice just has not been made yet.
  */
 @Composable

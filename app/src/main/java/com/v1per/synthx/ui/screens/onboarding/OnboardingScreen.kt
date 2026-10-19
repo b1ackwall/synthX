@@ -86,7 +86,7 @@ fun OnboardingScreen(
             OnboardingStep.Choice -> ChoiceStep(
                 // Nothing to start here even after an abandoned recovery: the folder it already
                 // persisted shows up in FolderSetup, and Done there starts the first scan like any
-                // other fresh install (P9-T1 folded finishFreshInstallFromAbandonedRecovery into it).
+                // other fresh install.
                 onFreshInstall = viewModel::goToFolderSetup,
                 onRecoverFromBackup = viewModel::goToRecoveryFolderSetup,
             )
@@ -96,7 +96,7 @@ fun OnboardingScreen(
                 onBack = viewModel::goToChoice,
                 // Advance only if the scan really started — a null return leaves the wizard here
                 // with the error already shown under the folder row.
-                // P9-T5 / F19: the first scan is the earliest thing on a fresh install that posts a
+                // The first scan is the earliest thing on a fresh install that posts a
                 // notification, so this is where the permission is first explained and asked for —
                 // never over the Welcome screen. The scan starts as soon as the user continues,
                 // without waiting on the system prompt's answer.
@@ -153,8 +153,8 @@ private fun ResumingRecoveryNotice() {
 }
 
 /**
- * No [androidx.activity.compose.BackHandler] here, unlike the recovery steps below — deliberate
- * (P7-T2): now that wizard position is persisted (R7-F13), a back-press here that finishes the
+ * No [androidx.activity.compose.BackHandler] here, unlike the recovery steps below — deliberate:
+ * wizard position is persisted, so a back-press here that finishes the
  * Activity is harmless. No progress has been made yet at Choice, so relaunching lands right back
  * on this same screen instead of losing anything or resuming somewhere confusing.
  */

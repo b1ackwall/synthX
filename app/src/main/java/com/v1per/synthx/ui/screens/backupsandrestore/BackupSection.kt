@@ -39,7 +39,7 @@ internal fun BackupSection(
         subtitle = backupFolderPath ?: stringResource(R.string.settings_no_folder_selected),
         onClick = onPickBackupFolder,
     )
-    // Folder-health error (Issue 6.2 — "can I write here") stays its own line, distinct from
+    // Folder-health error ("can I write here") stays its own line, distinct from
     // backup-outcome status below ("did the last attempt actually succeed") — the two are
     // related but answer different questions, and folding them together would hide whichever
     // one isn't currently the problem.
@@ -47,7 +47,7 @@ internal fun BackupSection(
         StatusLine(text = error, isError = true)
     }
 
-    // R8-B07: disabled while a backup is in flight, matching RescanRow's `enabled = !isScanning`
+    // Disabled while a backup is in flight, matching RescanRow's `enabled = !isScanning`
     // pattern — the status line reports progress instead, and repeated taps can't queue up
     // multiple sequential snapshots of the same library state.
     ManagementRow(
@@ -68,7 +68,7 @@ internal fun BackupSection(
         )
     }
     ExportHealthLine(exportHealth)
-    // Only surfaced once there's actually something to warn about (N13/P3.3) — a "0 destructive
+    // Only surfaced once there's actually something to warn about — a "0 destructive
     // actions" line every time the user opens this screen would be noise, not a warning.
     if (destructiveActionCount > 0) {
         StatusLine(

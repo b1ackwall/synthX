@@ -221,7 +221,7 @@ internal fun IssuesContent(
         when (uiState) {
             // A scan is running (or its status is still resolving) — no rows at all, and
             // deliberately not the "No issues found" copy below: an in-progress check saying
-            // "no issues" is exactly the false all-clear this screen used to show.
+            // "no issues" would be a false all-clear.
             is UiState.Loading -> LoadingIndicator()
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_issues),

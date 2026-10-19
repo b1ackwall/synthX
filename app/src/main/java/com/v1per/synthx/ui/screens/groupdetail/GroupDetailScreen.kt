@@ -82,10 +82,7 @@ fun GroupDetailScreen(
                     items(state.data, key = { it.id }) { playlist ->
                         // Every playlist here is in this group, so its menu offers "Move to
                         // group" (picker, current group checked and inert) and "Remove from
-                        // group" (direct) as two separate items. Both used to collapse into one
-                        // onMoveToGroup that discarded its argument and always ungrouped, and
-                        // availableGroups was never passed at all — so the move item never even
-                        // rendered here.
+                        // group" (direct) as two separate items.
                         PlaylistRow(
                             playlist = playlist,
                             onClick = { onPlaylistClick(playlist.id, playlist.name) },

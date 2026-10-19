@@ -38,7 +38,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 /**
  * Observes the first scan by its own request id (see [LibraryManagementViewModel.firstScanState])
  * and branches on the real terminal state: SUCCEEDED hands over to Home, FAILED/CANCELLED stop
- * here with Retry / Change folder instead of dropping the user into an empty Home (P9-T1 / F10).
+ * here with Retry / Change folder instead of dropping the user into an empty Home.
  *
  * Back is swallowed while the scan runs — there is nowhere honest to go, and the scan would keep
  * running behind whatever screen we popped to — and routes to Change folder once it has failed.

@@ -30,10 +30,9 @@ import com.v1per.synthx.ui.theme.TextTertiary
 
 /**
  * Shared shape for management-settings menu rows: title, optional secondary line, optional
- * trailing text badge, trailing chevron. Unifies what were four near-identical composables
- * (the backup TwoLineRow, MusicFolderSection's MusicFolderRow, ScanSection's RescanRow,
- * IssuesRow) — as a side effect this also fixes those rows' ripple, which previously fell
- * back to the platform default instead of the design system's [ripple] with [Accent].
+ * trailing text badge, trailing chevron. One shape for the backup row, the music-folder row,
+ * the rescan row and the Issues row, all with the design system's [ripple] with [Accent]
+ * rather than the platform default.
  */
 @Composable
 internal fun ManagementRow(

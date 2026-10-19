@@ -123,7 +123,7 @@ internal fun RecoveryFolderSetupStep(
 
         // Done is disabled until a music folder is set; say so instead of leaving a dead button.
         // A cancelled picker stays silent on every row — this is the one place a cancel leaves the
-        // user stuck, and the hint is what explains why (P9-T4).
+        // user stuck, and the hint is what explains why.
         val folderStepGate = musicFolderStepGate(musicFolderSelected = musicFolderUri != null)
         if (folderStepGate.showRequiredHint) {
             MusicFolderRequiredHint()

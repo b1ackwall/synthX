@@ -43,7 +43,7 @@ sealed class RestoreOutcome {
     data class Failed(val message: String) : RestoreOutcome()
 }
 
-/** P4.3 dry-run preview shown before the destructive confirm dialog. */
+/** Dry-run preview shown before the destructive confirm dialog. */
 sealed class RestorePreview {
     object Idle : RestorePreview()
     data class Loading(val backup: BackupInfo) : RestorePreview()
@@ -126,13 +126,13 @@ class RestoreViewModel(
     private val _preview = MutableStateFlow<RestorePreview>(RestorePreview.Idle)
     val preview: StateFlow<RestorePreview> = _preview.asStateFlow()
 
-    // P7-T7/R7-F15: counts computed once (during a preview tap-through) are cached and shown
+    // Counts computed once (during a preview tap-through) are cached and shown
     // on the row from then on, rather than eagerly staging+counting every listed backup up
     // front — see BackupManager.previewBackup's doc for why per-row eager counting isn't cheap.
     private val _previewCountsCache = MutableStateFlow<Map<Uri, BackupPreviewCounts>>(emptyMap())
     val previewCountsCache: StateFlow<Map<Uri, BackupPreviewCounts>> = _previewCountsCache.asStateFlow()
 
-    // P7-T7/R7-F17: mirrors LibraryManagementViewModel.scanProgress's exact shape — a small
+    // Mirrors LibraryManagementViewModel.scanProgress's exact shape — a small
     // determinate step derived from the same WorkManager WorkInfo already driving [outcome],
     // rather than a second observation channel.
     val restoreProgress: StateFlow<RestoreProgressStep?> = workInfo

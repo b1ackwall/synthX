@@ -18,7 +18,7 @@ sealed class Issue {
     data object BackupFolderGrantLost : Issue()
 
     /**
-     * P3-T1: startup reconciliation found and resolved [count] destructive operations
+     * Startup reconciliation found and resolved [count] destructive operations
      * (delete/replace/graduate) left mid-flight by a process death, per
      * [com.v1per.synthx.data.db.PendingCleanupEntity]. Purely informational — the cleanup already
      * happened, this just makes it visible rather than silently invisible.

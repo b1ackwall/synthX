@@ -95,8 +95,8 @@ fun CreatePlaylistScreen(
                     )
                 }
                 CreateButton(
-                    // Disabled on a blank name rather than silently no-oping on tap (the old
-                    // behavior read as a broken button) — and disabled again mid-write so a
+                    // Disabled on a blank name rather than silently no-oping on tap
+                    // — and disabled again mid-write so a
                     // slow create or a double-tap can't fire it twice.
                     enabled = name.isNotBlank() && !isCreating,
                     isCreating = isCreating,

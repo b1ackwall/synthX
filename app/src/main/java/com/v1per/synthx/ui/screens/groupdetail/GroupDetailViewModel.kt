@@ -35,7 +35,7 @@ class GroupDetailViewModel(
 
     // A failed rename/delete is a transient event, not a change to what's on screen — unlike
     // the initial load failure above, it must not replace the still-healthy playlist list with
-    // UiState.Error (that used to blow away the whole group's view over one failed action).
+    // UiState.Error (which would blank the whole group's view over one failed action).
     private val _actionErrors = MutableSharedFlow<ActionError>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,

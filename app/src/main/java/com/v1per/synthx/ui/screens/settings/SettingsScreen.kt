@@ -70,9 +70,9 @@ private fun SettingsScreenContent(
             title = stringResource(R.string.settings_backups_and_restore),
             onClick = onBackupsAndRestoreClick,
         )
-        // R5-F11(a): Developer Settings exposes a process-lifetime blob-tuning testbed and
+        // Developer Settings exposes a process-lifetime blob-tuning testbed and
         // playlist-seed bootstrap tools that must never be reachable in a signed production
-        // build. Recorded decision (P5-T6): gate the entry point on BuildConfig.DEBUG rather
+        // build. Recorded decision: gate the entry point on BuildConfig.DEBUG rather
         // than relying on nobody tapping it — this is the only place the screen is reachable
         // from, so hiding the row is sufficient to keep it off production.
         if (BuildConfig.DEBUG) {

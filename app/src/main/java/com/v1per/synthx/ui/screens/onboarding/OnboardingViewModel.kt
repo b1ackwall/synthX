@@ -24,16 +24,16 @@ enum class OnboardingStep { Choice, FolderSetup, Scanning, RecoveryFolderSetup, 
  * their folder methods. Recovery uses separate audio-folder saves without scan/backup side
  * effects, so this stays a thin step-sequencer rather than a second copy of that logic.
  *
- * Position is persisted through [preferences] (P7-T2 / R7-F13) rather than a `SavedStateHandle`:
+ * Position is persisted through [preferences] rather than a `SavedStateHandle`:
  * this ViewModel is nav-backstack-scoped, so a `SavedStateHandle` would survive configuration
- * changes and normal process death, but NOT a user swiping the app away from Recents — one of
- * the two loss scenarios the finding explicitly calls out. Disk-backed state survives both.
+ * changes and normal process death, but NOT a user swiping the app away from Recents.
+ * Disk-backed state survives both.
  */
 class OnboardingViewModel(
     private val preferences: PreferencesManager,
 ) : ViewModel() {
 
-    // A pending first scan (P9-T1) always resumes at Scanning, whatever step key survived: Done
+    // A pending first scan always resumes at Scanning, whatever step key survived: Done
     // clears the step key when it completes onboarding and only re-writes it a moment later in
     // goToScanning, and a process death in that gap must still land on the scan, not on Choice.
     private val resumedStep = if (preferences.firstScanRequestId != null) {
