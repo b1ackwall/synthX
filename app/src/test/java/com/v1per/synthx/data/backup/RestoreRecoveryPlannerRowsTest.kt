@@ -93,7 +93,7 @@ class RestoreRecoveryPlannerRowsTest {
 
     /**
      * On a device this row is invisible: the stateless caller re-decides old versus safety
-     * itself and ignores the planner's answer (BUG LIST note N1). Only this JVM row guards it.
+     * itself and ignores the planner's answer (noted in the BUG LIST). Only this JVM row guards it.
      */
     @Test fun statelessRecoveryPrefersOldOverSafety() {
         assertEquals(

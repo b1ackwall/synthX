@@ -10,7 +10,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * P9-T5 / F19 wiring guards, pinned by reading the production source (comments stripped). The
+ * Notification-permission wiring guards, pinned by reading the production source (some checks
+ * strip comments first, the rest read the raw text). The
  * behaviour behind them (rationale, single prompt, the "asked" flag, never waiting on the
  * prompt) is covered by NotificationPermissionGateInstrumentedTest; the shell's second chance
  * is also exercised on a device by NotificationSecondChanceInstrumentedTest.
@@ -74,7 +75,7 @@ class NotificationPermissionWiringTest {
         assertTrue(scaffold.contains("NotificationSecondChanceEffect(playbackViewModel)"))
     }
 
-    /** F19 / P7-T1 consistency: nothing that runs or reports scan/restore work reads the permission. */
+    /** Consistency: nothing that runs or reports scan/restore work reads the permission. */
     @Test fun scanAndRestoreWorkAndTheirInAppStatusNeverConsultTheNotificationPermission() {
         listOf(
             "com/v1per/synthx/data/backup/RestoreWorker.kt",

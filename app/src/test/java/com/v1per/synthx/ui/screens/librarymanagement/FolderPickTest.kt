@@ -10,8 +10,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The picker-callback rules (P9-T4 / F09) that used to live inline in nine composable lambdas:
- * a refused persistable grant, a cancelled picker, and the mandatory-folder Done gate. The URI
+ * The picker-callback rules: a refused persistable grant, a cancelled picker, and the mandatory-folder Done gate. The URI
  * type is a plain String here — the helpers are generic precisely so `android.net.Uri` (a stub on
  * the JVM) is not needed.
  */
@@ -98,8 +97,8 @@ class FolderPickTest {
     }
 
     /**
-     * The save used to sit inside the same try/catch as the grant, so any SecurityException it
-     * threw was reported as a refused grant. It no longer is.
+     * The save runs outside the grant's try/catch, so a SecurityException it throws is not
+     * reported as a refused grant.
      */
     @Test
     fun `a SecurityException from the save is not misreported as a refused grant`() {
@@ -135,7 +134,7 @@ class FolderPickTest {
         }
     }
 
-    // --- deferred-scan pending states (F18) ------------------------------------------------
+    // --- deferred-scan pending states ------------------------------------------------
 
     @Test
     fun `a deferred scan is pending only while it is waiting to start`() {

@@ -45,7 +45,7 @@ class DatabaseStartupGateTest {
     }
 
     @Test fun emptyFileNeedsNoMigrationBackup() {
-        // R1-F05: a file that exists but never had a schema committed to it must reach the same
+        // A file that exists but never had a schema committed to it must reach the same
         // fresh-creation path as a truly absent file, not BackupBeforeMigration(0).
         assertIs<DatabaseVersionDecision.FreshDatabase>(
             DatabaseVersionPolicy.decide(LiveDatabaseVersion.EmptyFile, currentVersion = 8)
@@ -97,18 +97,12 @@ class DatabaseStartupGateTest {
         assertIs<DatabaseVersionDecision.CurrentDatabase>(decision)
     }
 
-    // NOTE (Part 1 rename): DatabaseStartupController's `createPreMigrationBackup` parameter
-    // became `performMigration` when the gate stopped requiring a successful SAF backup and
-    // started requiring an unconditional internal snapshot + best-effort SAF backup + the
-    // migration itself + a post-migration invariant check (see DatabaseStartupGate.kt's
-    // performProductionMigration). At this generic-controller level none of the tests below ever
-    // modeled SAF specifically — they exercise the controller's single-flight/retry state machine
-    // against an abstract "the thing that must succeed before Room opens" callback, so that intent
-    // is unchanged; only the callback's name (and these tests' variable/test names, updated below
-    // for accuracy) changed. Confirmed while doing this repair: none of these tests asserted the
-    // old SAF-lockout (data 2.1) as correct/desired behavior — that bug lived entirely in
-    // production wiring (BackupManager/DatabaseStartupGate.productionController) that no test here
-    // ever exercised, so no test's *intent* needed to change, only its terminology.
+    // DatabaseStartupController's `performMigration` callback stands for the whole production
+    // migration: an unconditional internal snapshot + best-effort SAF backup + the migration
+    // itself + a post-migration invariant check (see DatabaseStartupGate.kt's
+    // performProductionMigration). The tests below exercise the controller's single-flight/retry
+    // state machine against that abstract "the thing that must succeed before Room opens"
+    // callback; none of them models SAF, and a failed SAF backup alone must not block startup.
 
     @Test fun twentyConcurrentCallersShareInspectionAndMigrationAndOpenAfterSuccess() = runTest {
         val migrationStarted = CompletableDeferred<Unit>()
@@ -330,7 +324,7 @@ class DatabaseStartupGateTest {
 class DatabaseStartupProductionOrderingTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
-    // Comment-free code: a comment naming the call can no longer satisfy or break these two.
+    // Comment-free code: a comment naming the call cannot satisfy or break these two.
     @Test fun mainActivityAwaitsGateBeforeInstallingDatabaseConsumingContent() {
         val source = ProductionSource.code("com/v1per/synthx/MainActivity.kt")
         val await = source.indexOf("DatabaseStartupGate.awaitReady()")

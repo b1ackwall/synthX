@@ -14,7 +14,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import java.util.concurrent.atomic.AtomicInteger
 
-/** Focused B1 proof for the admission/drain boundary, independent of Room. */
+/** Focused proof for the admission/drain boundary, independent of Room. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RestoreCoordinatorTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()

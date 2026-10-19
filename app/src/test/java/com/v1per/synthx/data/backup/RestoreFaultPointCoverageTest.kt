@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 /**
  * Every restore fault point is injected by name in at least one device test, so a newly added
  * point cannot sit untested. Which test proves each point is listed in
- * docs/code-work/slice2-implementation.md (proof table).
+ * docs/code-work/Safety-Net/slice2-implementation.md (proof table).
  */
 class RestoreFaultPointCoverageTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()

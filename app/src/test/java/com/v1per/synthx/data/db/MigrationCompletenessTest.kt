@@ -9,28 +9,23 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Guards against the exact gap N7 found: MIGRATION_9_10 and MIGRATION_10_11 shipped with zero
- * test coverage while Migration8To9Test.kt sat as the only migration test in the repo. Two
- * independent checks, deliberately not merged into one:
+ * Guards against a migration shipping without its own test. Two independent checks,
+ * deliberately not merged into one:
  *
  *  1. [allMigrationsFormAContiguousChainWithMatchingSchemaContracts] — ALL_MIGRATIONS and
  *     BackupSchemaContracts must form a gap-free chain. This catches a missing/duplicated
  *     *migration definition or schema contract*.
  *  2. [everyMigrationStepHasADedicatedInstrumentedTest] — a dedicated androidTest file that
  *     actually exercises MigrationTestHelper must exist for every single-version step from
- *     [PER_STEP_TEST_COVERAGE_BASELINE_VERSION] onward. This is the check that would have caught
- *     the *real* historical gap: when 9->10 and 10->11 shipped untested, check (1) was already
- *     fully satisfied — Phase 5 correctly added both migrations to ALL_MIGRATIONS and both
- *     contracts to BackupSchemaContracts. A chain/contract-only completeness check would have
- *     passed silently right through the missing-test gap; only a check that inspects the test
- *     tree itself catches it.
+ *     [PER_STEP_TEST_COVERAGE_BASELINE_VERSION] onward. Check (1) is fully satisfied by a
+ *     migration that is in ALL_MIGRATIONS with its contract in BackupSchemaContracts but has no
+ *     test at all, so a chain/contract-only check passes silently through a missing-test gap;
+ *     only a check that inspects the test tree itself catches it.
  *
- *     The baseline is deliberately 8, not the oldest supported version (1): per N7's own
- *     discovery, Migration8To9Test.kt was already the *only* per-step migration test file in the
- *     repo before this fix — versions 1->2 through 7->8 never had one. Retroactively demanding
- *     six legacy test files for migrations untouched by this sweep is a separate, larger task;
- *     this check instead holds the line at the precedent Migration8To9Test.kt already set, so no
- *     *future* migration can ship the same way 9->10/10->11 did.
+ *     The baseline is deliberately 8, not the oldest supported version (1): versions 1->2
+ *     through 7->8 have no per-step test file, and Migration8To9Test.kt is the first. Demanding
+ *     six legacy test files for those migrations is a separate, larger task; this check holds
+ *     the line from Migration8To9Test.kt on, so no *future* migration can ship untested.
  */
 class MigrationCompletenessTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()

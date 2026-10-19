@@ -21,10 +21,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 /**
- * Issue #175: while the engine is between session connections it refuses queue inserts (returns
+ * While the engine is between session connections it refuses queue inserts (returns
  * false and reports [PlaybackError.ServiceUnavailable] itself). The ViewModel must pass that on
- * rather than telling the UI the song was added — which is what it did while
- * [PlaybackEngine.playNext]/[PlaybackEngine.addToQueue] were documented as always-true.
+ * rather than telling the UI the song was added.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackViewModelQueueAddUnavailableTest {
@@ -128,8 +127,7 @@ class PlaybackViewModelQueueAddUnavailableTest {
     }
 
     // A natural end leaves the last song published (the player stays up, paused), so a current
-    // song alone no longer means "active" — an ended queue must still take the fresh-play route
-    // it took back when the end cleared the current song.
+    // song alone does not mean "active" — an ended queue must still take the fresh-play route.
     @Test fun playNextAfterTheQueueEndedStartsFreshPlaybackInsteadOfInsertingIntoIt() =
         withViewModel(acceptsInserts = true, queueEnded = true) { vm, engine ->
             assertEquals(QueueAddResult.Added, vm.playNext(tapped))

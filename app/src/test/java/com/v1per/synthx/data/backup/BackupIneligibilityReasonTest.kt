@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 /**
- * Covers R7-F07: [classifyIneligibility] must distinguish missing sidecar, size mismatch,
+ * [classifyIneligibility] must distinguish missing sidecar, size mismatch,
  * duplicate display name, and unsupported schema instead of collapsing them into one
  * "Legacy backup" literal. Pure and Android-free, so no SAF/DocumentFile fixture is needed —
  * see [BackupListResultInstrumentedTest] for the same causes wired through real [BackupManager]

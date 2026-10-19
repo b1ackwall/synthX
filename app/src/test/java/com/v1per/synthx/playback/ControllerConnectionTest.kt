@@ -13,7 +13,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Issue #175: the connection rules behind [ExoPlayerEngine.awaitController]. The real
+ * The connection rules behind [ExoPlayerEngine.awaitController]. The real
  * connect/retry plumbing is covered against the real service by
  * ControllerReconnectInstrumentedTest; this pins the state machine itself.
  */
@@ -27,7 +27,7 @@ class ControllerConnectionTest {
         assertFalse(connection.isConnected)
     }
 
-    /** The heart of #175: a failed attempt with a retry pending must keep a waiter waiting. */
+    /** The core rule: a failed attempt with a retry pending must keep a waiter waiting. */
     @Test fun aWaiterIsHeldThroughAFailedAttemptAndReleasedByTheRetrysSuccess() = runTest {
         val connection = ControllerConnection()
         val waiter = async { connection.awaitSettled() }

@@ -91,7 +91,7 @@ class PlaylistArtGeneratorTest {
     @Test
     fun `a good share of covers contain at least one filled diamond`() {
         // Diamond fills are a consequence of the same short-walk tendency as the variety above.
-        // Measured ~54% after P8-T4 and ~23% before it; 45% catches a slide back without being
+        // Measured ~54% with the current walk tuning and ~23% without it; 45% catches a slide back without being
         // brittle to a small change in how the walk is tuned.
         val withDiamond = sample.count { pattern ->
             (0 until ROWS).any { r -> (0 until COLS).any { c -> PlaylistArtGeometry.isFullyLit(pattern, r, c) } }
@@ -178,11 +178,9 @@ class PlaylistArtGeneratorTest {
 
     @Test
     fun `the documented diagonal example seeds fill the frame`() {
-        // Recorded in docs/audit-round-06-playlist-art.md: before the D4 fix these lit only
-        // quadrants {1,2} (24 segments, DIAG1) and {0,3} (36 segments, DIAG2). The P8-T4 tuning
-        // changed their walks (now 84 and 64 lit segments) but both still fall short of one
-        // quadrant before the fallback runs, so they still exercise it - checked against an
-        // instrumented copy at the time of that change, and by mutation (see the test below).
+        // Two diagonal example seeds (DIAG1, DIAG2) whose walks fall short of one quadrant
+        // before the fill-the-frame fallback runs, so they exercise it - checked against an
+        // instrumented copy of the generator, and by mutation (see the test below).
         val diag1 = generatePlaylistArt(1238145679872042884L)
         assertEquals(SymmetryPlane.DIAG1, diag1.plane)
         assertEquals(setOf(0, 1, 2, 3), quadrantsLit(diag1))
@@ -207,13 +205,11 @@ class PlaylistArtGeneratorTest {
 
     @Test
     fun `axis-aligned patterns match the recorded post-tuning output`() {
-        // Captured from the generator after P8-T4 (GREEDY_EXIT_PROBABILITY 0.4, no forced centre
-        // exit): seed, plane, lit count, hash of the sorted lit-segment indices. This is the
-        // baseline going forward, NOT the pre-P8-T2 output the previous version of this test pinned
-        // - that one had to be re-recorded because the tuning changes nearly every walk. Any
-        // change to how VERTICAL/HORIZONTAL patterns come out must now be deliberate: re-record
-        // these and say so, the same as this change did. Four of these ten seeds run through the
-        // perpendicular-axis fallback and six do not, so both paths are pinned.
+        // Captured from the generator with GREEDY_EXIT_PROBABILITY 0.4 and no forced centre
+        // exit: seed, plane, lit count, hash of the sorted lit-segment indices. Any change to how
+        // VERTICAL/HORIZONTAL patterns come out must be deliberate: re-record these and say so.
+        // Four of these ten seeds run through the perpendicular-axis fallback and six do not, so
+        // both paths are pinned.
         val golden = listOf(
             Golden(-6367288518484839692L, SymmetryPlane.VERTICAL, 40, 436484065),
             Golden(-3350035376205273921L, SymmetryPlane.VERTICAL, 54, -1225228884),

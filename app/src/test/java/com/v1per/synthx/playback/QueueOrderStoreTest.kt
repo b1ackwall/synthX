@@ -9,9 +9,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * [QueueOrderStore] is the app's source of truth for the full play order now, so these cover the
+ * [QueueOrderStore] is the app's source of truth for the full play order, so these cover the
  * list algebra the whole windowed player rests on — including the cases that only matter because
- * the player no longer holds the whole queue: an edit targeting a position thousands of songs
+ * the player does not hold the whole queue: an edit targeting a position thousands of songs
  * away from anything loaded has to be an ordinary, always-successful list operation.
  */
 class QueueOrderStoreTest {
@@ -48,10 +48,10 @@ class QueueOrderStoreTest {
     }
 
     /**
-     * P4-T6 / F11: the atomic-write call sites (fresh play while shuffle is on, a shuffle
-     * toggle) pass `writeBaseline = false` so their own narrow baseline write does not land
-     * independently of the unified transaction they perform themselves — see
-     * `ExoPlayerEngineQueueOps.playQueueInternal`/`setShuffleEnabledInternal`.
+     * The atomic-write call sites (a fresh play, a shuffle toggle) pass `writeBaseline = false`
+     * so their own narrow baseline write does not land independently of the unified transaction
+     * they perform themselves — see `playQueueInternal` (ExoPlayerEngineQueueLoad.kt) and
+     * `setShuffleEnabledInternal` (ExoPlayerEngineQueueOps.kt).
      */
     @Test fun captureFreshCanSuppressItsOwnBaselineWrite() {
         val writer = RecordingWriter()
@@ -191,10 +191,10 @@ class QueueOrderStoreTest {
         assertEquals(listOf("slot-a", "slot-b"), subject.liveIds())
     }
 
-    // --- P4-T8 / R3-F04: slot-id-identified move -------------------------------------------
+    // --- slot-id-identified move -------------------------------------------
 
     /**
-     * The whole point of the fix: the moved item is resolved by identity, so it lands correctly
+     * The moved item is resolved by identity, so it lands correctly
      * no matter what stale positional information the caller believed at drag-start.
      */
     @Test fun moveByIdResolvesTheCorrectItemRegardlessOfCallerAssumedPosition() {
@@ -210,16 +210,16 @@ class QueueOrderStoreTest {
     }
 
     /**
-     * The confirmed drag-guard gap this fix closes: the slot SET is unchanged but the ORDER
-     * changed underneath the caller (e.g. a reorder or shuffle landing between drag-start and
-     * drop). A caller-trusted `fromDisplayIndex` captured before that reorder would now name a
-     * different song; resolving by slot id instead is immune to it.
+     * The drag-guard case: the slot SET is unchanged but the ORDER changed underneath the caller
+     * (e.g. a reorder or shuffle landing between drag-start and drop). A caller-trusted
+     * `fromDisplayIndex` captured before that reorder would name a different song; resolving by
+     * slot id instead is immune to it.
      */
     @Test fun moveByIdIsImmuneToAnOrderChangeThatPreservesTheSameSlotSet() {
         val subject = store()
         subject.captureFresh(records("a", "b", "c", "d"))
-        // The order changes (b and c swap) but the slot SET is identical — exactly the gap the
-        // old UI-layer set-equality guard could not detect.
+        // The order changes (b and c swap) but the slot SET is identical — exactly the gap a
+        // UI-layer set-equality guard cannot detect.
         subject.moveUpcoming(fromDisplayIndex = 0, toDisplayIndex = 1, currentSlotId = "slot-a", mirrorToBaseline = false)
         assertEquals(listOf("slot-a", "slot-c", "slot-b", "slot-d"), subject.liveIds())
 
@@ -266,12 +266,12 @@ class QueueOrderStoreTest {
     }
 
     /**
-     * This IS the mutation test for the P4-T8 move fix (mirroring
-     * `removeAllDeletesEveryDuplicateOccurrenceInExactlyOneBaselineWrite`'s pattern above): the
-     * OLD index-only shape, exercised against a store that has already been reordered exactly
-     * like [moveByIdIsImmuneToAnOrderChangeThatPreservesTheSameSlotSet], moves the WRONG song —
-     * proving the identity resolution is a genuine behavior difference, not just a different way
-     * of asking for the same result.
+     * Mutation comparison for the slot-id move (same pattern as
+     * `removeAllDeletesEveryDuplicateOccurrenceInExactlyOneBaselineWrite` below): the index-only
+     * shape, exercised against a store that has already been reordered exactly like
+     * [moveByIdIsImmuneToAnOrderChangeThatPreservesTheSameSlotSet], moves the WRONG song — so a
+     * move that resolved by position would fail that test; the identity resolution is a genuine
+     * behavior difference, not just a different way of asking for the same result.
      */
     @Test fun revertingToIndexOnlyResolutionMovesTheWrongSongAfterAReorder() {
         val subject = store()
@@ -312,17 +312,15 @@ class QueueOrderStoreTest {
     }
 
     /**
-     * P4-T4 / R3-F15: deleting N duplicate occurrences of one song used to call [remove] once per
-     * occurrence, each of which copies/filters the FULL live+baseline lists and, since every one
-     * of these occurrences changes baseline too, triggers its own whole-baseline persistence
-     * write — N writes, quadratic list work, for what should be a single edit. [removeAll] must
-     * do the same net removal in exactly one baseline write.
+     * Deleting N duplicate occurrences of one song by calling [remove] once per occurrence
+     * copies/filters the FULL live+baseline lists each time and, since every one of these
+     * occurrences changes baseline too, triggers its own whole-baseline persistence write — N writes,
+     * quadratic list work, for what should be a single edit. [removeAll] must do the same net
+     * removal in exactly one baseline write.
      *
-     * This test IS the mutation test the P4 report describes for this fix: reverting
-     * `removeDeletedSongInternal` (the production call site) back to a per-slot `remove()` loop
-     * is exactly the second assertion group below, proved directly against this same store rather
-     * than by hand-editing production code and reverting it — that keeps the regression pinned
-     * permanently rather than only checked once during implementation.
+     * A per-slot `remove()` loop in `removeDeletedSongInternal` (the production call site) is
+     * exactly the second assertion group below, run directly against this same store, so that
+     * shape stays pinned without hand-editing production code.
      */
     /** Three independently addressable occurrences of the same song, plus two other songs. */
     private fun queueWithDuplicates() = listOf(
@@ -350,9 +348,9 @@ class QueueOrderStoreTest {
             "removeAll must persist the baseline exactly once regardless of how many occurrences it removed",
         )
 
-        // The mutation-test comparison: the OLD per-slot-call shape, exercised against a fresh,
+        // The mutation-test comparison: the per-slot-call shape, exercised against a fresh,
         // otherwise-identical store, produces the same end state but one baseline write PER
-        // occurrence — proving removeAll's single-write behavior is a genuine improvement and
+        // occurrence — proving removeAll's single-write behavior is a genuine difference and
         // not just a difference in how the assertion counts writes.
         val perSlotWriter = RecordingWriter()
         val perSlotSubject = store(perSlotWriter)

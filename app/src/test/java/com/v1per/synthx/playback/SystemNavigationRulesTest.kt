@@ -9,9 +9,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The pure decisions behind P9-T3: [previousAction] (extracted from the previously-inline, untested
+ * The pure decisions behind system transport navigation: [previousAction] (used by
  * `ExoPlayerEngine.previous()`), [navigationCommandsFor] (the availability gate), and the
- * repeat-aware final-item Next rule [nextIndexInOrder] as system transport now relies on it.
+ * repeat-aware final-item Next rule [nextIndexInOrder] as system transport relies on it.
  */
 class SystemNavigationRulesTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
@@ -73,7 +73,7 @@ class SystemNavigationRulesTest {
     }
 
     /**
-     * The P9-T3 divergence: a large queue under Repeat All whose loaded window has been walked back
+     * The divergence from native media3: a large queue under Repeat All whose loaded window has been walked back
      * to its rear edge. Loaded index 0 is order index 137, not the queue start, so native media3
      * wraps within the window (a ~WINDOW_FORWARD jump forward) while the app restarts.
      */

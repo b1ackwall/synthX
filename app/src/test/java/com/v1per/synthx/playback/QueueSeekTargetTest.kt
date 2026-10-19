@@ -7,8 +7,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 /**
- * P4-T8 / R3-F04: the pure accept/reject decision behind
- * [ExoPlayerEngineQueueOps.seekToQueueItemInternal] — [resolveUpcomingSeekTarget] is exactly the
+ * The pure accept/reject decision behind
+ * seekToQueueItemInternal in ExoPlayerEngineQueueOps.kt — [resolveUpcomingSeekTarget] is exactly the
  * production logic, just split out so it's testable without a real `MediaController`, matching
  * the `nextIndexInOrder` precedent for this kind of extraction. `seekToQueueItemInternal` itself
  * (the `ExoPlayerEngine` extension) is not exercised here for the same reason as the rest of this

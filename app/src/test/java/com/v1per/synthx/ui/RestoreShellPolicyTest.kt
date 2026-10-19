@@ -20,7 +20,7 @@ class RestoreShellPolicyTest {
 
     @Test
     fun `restore preparing renders maintenance even though terminal is still normal`() {
-        // The exact state the shell used to render the live nav graph in.
+        // The exact state in which the shell must not render the live nav graph.
         assertEquals(
             RestoreShellSurface.Maintenance,
             RestoreShellPolicy.decide(Mode.RESTORE_PREPARING, Terminal.NORMAL),

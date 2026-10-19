@@ -10,7 +10,7 @@ import kotlin.test.assertFailsWith
 
 /**
  * [collectCatching] is what gives ExoPlayerEngine's remap/deletion collectors their per-event
- * exception boundary (P4-T2 / R3-F07). A plain `collect { action(it) }` loop has the whole
+ * exception boundary. A plain `collect { action(it) }` loop has the whole
  * handler inside the collector coroutine's body — an uncaught exception from handling ONE event
  * kills that coroutine permanently, silently dropping every event of that type for the rest of
  * the process. This proves the boundary actually prevents that: a handler that throws on its
@@ -50,9 +50,8 @@ class SafeCollectTest {
 }
 
 /**
- * MUTATION-TEST RECORD (P4 report): [collectCatching]'s per-event try/catch was temporarily
- * replaced with a plain `collect { action(it) }` (no boundary at all) and the test suite re-run —
- * [SafeCollectTest.aThrowingHandlerDoesNotStopSubsequentEvents] failed as expected (the thrown
- * exception from handling `2` propagated out of `collect` entirely, so `3` was never delivered).
- * The real implementation was restored immediately after confirming the failure.
+ * [SafeCollectTest.aThrowingHandlerDoesNotStopSubsequentEvents] fails if [collectCatching]'s
+ * per-event try/catch is replaced with a plain `collect { action(it) }` (no boundary at all): the
+ * exception thrown while handling `2` then propagates out of `collect` entirely, so `3` is never
+ * delivered.
  */

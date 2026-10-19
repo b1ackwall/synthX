@@ -27,7 +27,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * P8-T6: the detail screen's cover art has to arrive through the same combine as the songs, so the
+ * The detail screen's cover art has to arrive through the same combine as the songs, so the
  * screen is never "ready" with songs and a placeholder that then flips to the art.
  */
 @OptIn(ExperimentalCoroutinesApi::class)

@@ -67,7 +67,7 @@ class PlaylistListViewModelTest {
         }
     }
 
-    // ---- createGroup guard (P8-T7 / B06) --------------------------------------------------
+    // ---- createGroup guard --------------------------------------------------
 
     @Test
     fun repeatSubmitWhileTheFirstWriteIsInFlightCreatesExactlyOneGroup() {

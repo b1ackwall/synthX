@@ -23,7 +23,7 @@ private fun testSong(id: String) = Song(
 
 /**
  * Every SongRemapEvents/SongDeletionEvents emission is stamped with the shared
- * PlaybackCacheRevision at publish time (P4-T1/P4-T2) — this is what queue-loading's
+ * PlaybackCacheRevision at publish time — this is what queue-loading's
  * revision-before/revision-after check depends on to notice a cache-invalidating event landed
  * during a suspension.
  */

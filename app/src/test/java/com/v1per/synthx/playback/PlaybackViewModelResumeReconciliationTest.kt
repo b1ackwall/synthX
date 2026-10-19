@@ -25,7 +25,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * P4-T5's bounded optimistic-play-state reconciliation: [PlaybackViewModel.resume] sets
+ * The bounded optimistic-play-state reconciliation: [PlaybackViewModel.resume] sets
  * `isPlaying` optimistically before the engine confirms anything, and a legitimate failure
  * (audio focus denied, a player left dead by a prior fatal error) can mean the engine's real
  * `isPlaying` flow never emits a correcting value at all — see [PlaybackViewModel.resume]'s
@@ -168,7 +168,7 @@ class PlaybackViewModelResumeReconciliationTest {
     }
 
     /**
-     * The Activity-finish half of P4-T3 / R3-F08: when the Activity finishes for good its
+     * The Activity-finish half of the owner rule: when the Activity finishes for good its
      * [ViewModelStore] is cleared, which must release the engine (and with it the owner controller
      * whose disconnect makes the service stop — OwnerControllerStopInstrumentedTest covers that
      * half against the real service). Driven through a real [ViewModelStore] so the protected

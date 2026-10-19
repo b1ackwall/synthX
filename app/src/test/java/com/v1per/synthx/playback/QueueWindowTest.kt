@@ -209,7 +209,7 @@ class QueueWindowTest {
     /**
      * A shuffle toggle replaces almost the whole window. The point of doing it through
      * reconciliation rather than `setMediaItems` is that the playing item is never torn down —
-     * which is exactly what used to cause the audible rebuffer on a large queue.
+     * which is exactly what would cause an audible rebuffer on a large queue.
      */
     @Test fun aWholesaleShuffleKeepsThePlayingItemLoadedThroughout() {
         val store = QueueOrderStore { }

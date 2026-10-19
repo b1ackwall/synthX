@@ -18,8 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * Covers [scanStatusFor] (extracted from LibraryManagementViewModel.statusFor, whose FAILED and
- * CANCELLED branches had no coverage) and the onboarding state mapping built on it. Strings are a
+ * Covers [scanStatusFor] and the onboarding state mapping built on it. Strings are a
  * fake that renders "<resId>[args]" so assertions pin *which* resource and args were chosen.
  */
 class ScanStatusTest {
@@ -42,7 +41,7 @@ class ScanStatusTest {
         progress = progress,
     )
 
-    // ---- FAILED / CANCELLED (previously untested) ------------------------------------------
+    // ---- FAILED / CANCELLED ------------------------------------------
 
     @Test fun failedShowsWorkerErrorText() {
         val failed = info(
@@ -67,7 +66,7 @@ class ScanStatusTest {
     }
 
     @Test fun failedAndCancelledAreNeverNullSoTextExistenceCannotMeanSuccess() {
-        // The F10 trap: onboarding used `status != null` as "finished". Both terminal-failure
+        // The trap: treating `status != null` as "finished". Both terminal-failure
         // states must yield text — which is exactly why callers must branch on state instead.
         assertTrue(scanStatusFor(info(WorkInfo.State.FAILED), strings) != null)
         assertTrue(scanStatusFor(info(WorkInfo.State.CANCELLED), strings) != null)

@@ -7,12 +7,12 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The decision logic behind SynthXPlaybackService's P4-T3 fix: stop playback when the last
- * owning controller (this app's own ExoPlayerEngine) disconnects, matching the existing
+ * The decision logic behind SynthXPlaybackService's owner rule: stop playback when the last
+ * owning controller (this app's own ExoPlayerEngine) disconnects, matching the
  * onTaskRemoved precedent of stopping rather than continuing ownerless playback. Covers the
  * "Activity finishes while playing" scenario at the level of its actual decision — the real
  * Media3/MediaSession plumbing around it is not exercised here (no Robolectric/Mockito in this
- * module's JVM unit test setup), see the P4 report for that descope.
+ * module's JVM unit test setup); OwnerControllerStopInstrumentedTest covers it on a device.
  */
 class OwnerControllerTrackerTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()

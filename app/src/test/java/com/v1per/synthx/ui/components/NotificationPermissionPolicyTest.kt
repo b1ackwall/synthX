@@ -6,7 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** P9-T5 / F19: the pure decision behind [NotificationPermissionGate]. */
+/** The pure decision behind [NotificationPermissionGate]. */
 class NotificationPermissionPolicyTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 

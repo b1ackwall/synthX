@@ -18,13 +18,13 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * P4-T7 / R3-F13's missing-cursor-checkpoint fix. Each production call site
- * ([ExoPlayerEngineListener.onIsPlayingChanged], `onPositionDiscontinuity`,
- * [SynthXPlaybackService.onDestroy], and the new periodic ticker) needs a real
+ * The cursor checkpoints. Each production call site (`onIsPlayingChanged` in
+ * ExoPlayerEngineListener.kt, `onPositionDiscontinuity`,
+ * [SynthXPlaybackService.onDestroy], and the periodic ticker) needs a real
  * `MediaController`/`Player.Listener`/`Service` to exercise end to end, which — per the
  * `IdleRecoveryTest` precedent this module already established — this codebase has no
  * JVM-level fake or mocking library for (no Mockito/MockK, no Robolectric). What's covered here
- * is the complete pure decision logic each fix introduced ([handleIsPlayingChangedForCheckpoint],
+ * is the complete pure decision logic of each call site ([handleIsPlayingChangedForCheckpoint],
  * [handleSameItemSeekForCheckpoint], [shouldCheckpointOnDestroy]) and, for the periodic ticker,
  * the actual production driver function ([periodicCheckpointDriver]) — that one needs no
  * `MediaController` at all, only an injected `isPlaying` [kotlinx.coroutines.flow.Flow], so it is

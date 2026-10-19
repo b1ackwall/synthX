@@ -31,7 +31,7 @@ class SongDeletionEventsTest {
 
 /**
  * The handoff barrier behind SongRepositoryImpl.finishSongDeletion's deletion-vs-file-delete race
- * fix (P4-T4 / R3-F03): a live engine must be given a chance to react before the file is removed,
+ * guard: a live engine must be given a chance to react before the file is removed,
  * but a deletion issued with NOTHING currently playing must not be delayed waiting for an engine
  * that was never going to show up.
  */

@@ -112,9 +112,8 @@ class BackupPrimitivesTest {
         // point of this assertion is to catch an accidental hash edit/typo in
         // BackupSchemaContract.kt, which a self-referential comparison could never catch.
         // Update this to the new version's exported app/schemas/.../<N>.json identityHash on
-        // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist) — this
-        // literal going stale (previously pinned to v9's hash while VERSION had moved to 11)
-        // is exactly the bug this comment exists to prevent from recurring silently.
+        // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist), so this
+        // literal never goes stale silently.
         assertEquals("3e0e2f38ca17807335cfa847b095f2fd", current.roomIdentityHash)
         assertTrue("songs" in current.expectedTables)
         assertTrue("queue_items" in current.expectedTables)

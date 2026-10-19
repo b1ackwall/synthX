@@ -84,7 +84,7 @@ class PlaylistArtBackfillTest {
         assertEquals(20, seeds.toSet().size, "Structure seeds repeated: $seeds")
     }
 
-    // ---------------------------------------------------------------- P8-T1/R6-C1 (mutex half)
+    // ---------------------------------------------------------------- overlapping passes (mutex half)
 
     /**
      * The corruption half of the overlapping-pass problem is covered at the DAO/SQL level by

@@ -63,7 +63,7 @@ class PlaylistArtHueTest {
 
     @Test
     fun `hue distance is never negative, whatever range its inputs are in`() {
-        // (400, 4) used to give min(396, 360 - 396) = -36.
+        // (400, 4) must give 36, not the unwrapped min(396, 360 - 396) = -36.
         assertEquals(36, circularHueDistance(400, 4))
         assertEquals(8, circularHueDistance(-4, 4))
         assertEquals(0, circularHueDistance(720, 0))

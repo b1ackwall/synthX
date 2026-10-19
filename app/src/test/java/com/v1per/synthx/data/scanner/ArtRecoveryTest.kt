@@ -95,7 +95,7 @@ class ArtRecoveryTest {
         assertEquals(emptyList(), result)
     }
 
-    // mergeArtRecoveryResult: the bug-2 regression guard — a fresh extraction attempt returning
+    // mergeArtRecoveryResult: a fresh extraction attempt returning
     // null for one variant must never overwrite that field's still-good existing value, and a
     // successful variant must still apply.
 

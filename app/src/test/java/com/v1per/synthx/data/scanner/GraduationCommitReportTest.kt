@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
 class GraduationCommitReportTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
 
-    /** The old behaviour reported Done here and left the moved file for a scan to re-import. */
+    /** Must not report Done here: that would leave the moved file for a scan to re-import. */
     @Test fun rowGoneAtCommitIsAFailureNotSuccess() = runTest {
         val stages = mutableListOf<GraduationStage>()
         val result = reportGraduationCommit(
