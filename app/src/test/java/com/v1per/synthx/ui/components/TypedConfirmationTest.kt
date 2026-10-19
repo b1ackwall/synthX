@@ -12,7 +12,8 @@ import kotlin.test.assertTrue
  * sites to agree on informally.
  */
 class TypedConfirmationTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun matchesExactWord() {
         assertTrue(typedConfirmationMatches("Delete", "Delete"))

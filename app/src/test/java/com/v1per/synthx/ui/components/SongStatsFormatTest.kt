@@ -7,7 +7,8 @@ import kotlin.test.assertEquals
 
 /** The detail-header stats line, with the English resource text standing in for the resources. */
 class SongStatsFormatTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val english = object : SongStatsStrings {
         override fun songCount(count: Int) = if (count == 1) "1 song" else "$count songs"

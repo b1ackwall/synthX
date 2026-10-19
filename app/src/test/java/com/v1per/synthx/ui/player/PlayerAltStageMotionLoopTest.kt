@@ -15,7 +15,8 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerAltStageMotionLoopTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     /** Delivers frames on a fixed vsync grid in the test's virtual time and counts them. */
     private class VsyncClock(

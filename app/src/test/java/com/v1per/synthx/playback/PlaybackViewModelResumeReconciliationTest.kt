@@ -34,7 +34,8 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackViewModelResumeReconciliationTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     /** Minimal [PlaybackEngine] fake — only [isPlaying] is exercised by these tests. */
     private class FakeEngine : PlaybackEngine {
@@ -67,13 +68,16 @@ class PlaybackViewModelResumeReconciliationTest {
         override fun removeQueueItem(slotId: String) {}
         override fun seekToQueueItem(slotId: String) {}
         override fun pause() {}
+
         // Deliberately does NOT flip _isPlaying — simulates a resume() that never actually
         // starts playback (focus denied, or a player still dead from a prior fatal error).
         override fun resume() {}
         override fun stop() {}
         override fun seekTo(positionMs: Long) {}
         var releaseCount = 0
-        override fun release() { releaseCount++ }
+        override fun release() {
+            releaseCount++
+        }
         override suspend fun reconcileWithDatabase() {}
     }
 

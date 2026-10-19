@@ -16,7 +16,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class FolderScannerAdmissionTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @AfterTest fun reset() = RestoreCoordinator.resetForTest()
 

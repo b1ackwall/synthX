@@ -15,12 +15,18 @@ import kotlin.test.assertTrue
  * the JVM) is not needed.
  */
 class FolderPickTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private class Recorder {
         val events = mutableListOf<String>()
-        fun take(uri: String) { events += "take:$uri" }
-        fun refuse(uri: String) { events += "take:$uri"; throw SecurityException("no persistable grant") }
+        fun take(uri: String) {
+            events += "take:$uri"
+        }
+        fun refuse(uri: String) {
+            events += "take:$uri"
+            throw SecurityException("no persistable grant")
+        }
     }
 
     // --- classifyPickResult ----------------------------------------------------------------

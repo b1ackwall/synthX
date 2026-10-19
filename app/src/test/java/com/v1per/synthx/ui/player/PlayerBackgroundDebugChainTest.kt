@@ -7,7 +7,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class PlayerBackgroundDebugChainTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun defaultsAreTheLockedProductionChain() {
         val state = PlayerBackgroundDebugState()
@@ -30,7 +31,10 @@ class PlayerBackgroundDebugChainTest {
         PlayerBackgroundDebugStateHolder.setTwistEnabled(false)
         PlayerBackgroundDebugStateHolder.setBlurEdgeMode(AltStageBlurEdgeMode.Decal)
         PlayerBackgroundDebugStateHolder.setBlurRadiusDp(77f)
-        assertEquals(PlayerBackgroundDebugState(77f, false, AltStageBlurEdgeMode.Decal), PlayerBackgroundDebugStateHolder.state.value)
+        assertEquals(
+            PlayerBackgroundDebugState(77f, false, AltStageBlurEdgeMode.Decal),
+            PlayerBackgroundDebugStateHolder.state.value,
+        )
         PlayerBackgroundDebugStateHolder.reset()
     }
 
@@ -47,8 +51,14 @@ class PlayerBackgroundDebugChainTest {
 
     @Test fun releaseBuildsIgnoreTheDebugTwistAndEdgeMode() {
         val tuned = PlayerBackgroundDebugState(10f, twistEnabled = false, blurEdgeMode = AltStageBlurEdgeMode.Repeat)
-        assertEquals(PlayerAltStageStyle.TwistEnabled, effectivePlayerBackgroundTwistEnabled(debug = false, state = tuned))
-        assertEquals(PlayerAltStageStyle.BlurEdgeMode, effectivePlayerBackgroundBlurEdgeMode(debug = false, state = tuned))
+        assertEquals(
+            PlayerAltStageStyle.TwistEnabled,
+            effectivePlayerBackgroundTwistEnabled(debug = false, state = tuned),
+        )
+        assertEquals(
+            PlayerAltStageStyle.BlurEdgeMode,
+            effectivePlayerBackgroundBlurEdgeMode(debug = false, state = tuned),
+        )
         assertEquals(false, effectivePlayerBackgroundTwistEnabled(debug = true, state = tuned))
         assertEquals(AltStageBlurEdgeMode.Repeat, effectivePlayerBackgroundBlurEdgeMode(debug = true, state = tuned))
     }

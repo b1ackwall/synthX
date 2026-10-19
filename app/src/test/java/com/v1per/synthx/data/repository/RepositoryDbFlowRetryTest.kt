@@ -14,7 +14,8 @@ import kotlin.test.assertFailsWith
 /** [RepositoryDbFlow.retryOnFailure] resubscribes an upstream flow that fails
  *  instead of letting the failure terminate it — see SongRepositoryImpl's shared flows. */
 class RepositoryDbFlowRetryTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun `one transient failure followed by success delivers the successful value`() = runTest {

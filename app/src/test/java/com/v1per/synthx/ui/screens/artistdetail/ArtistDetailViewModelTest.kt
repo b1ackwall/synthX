@@ -23,7 +23,8 @@ import kotlin.test.assertIs
 /** The artist detail stats line and Play/Shuffle buttons are driven by the playable songs only. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ArtistDetailViewModelTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun theStatsCountAndTotalOnlyThePlayableSongs() {
@@ -86,22 +87,27 @@ class ArtistDetailViewModelTest {
         }
     }
 
-    private fun fakeRepository(songs: Flow<List<Song>>): SongRepository =
-        Proxy.newProxyInstance(
-            SongRepository::class.java.classLoader,
-            arrayOf(SongRepository::class.java),
-        ) { _, method, args ->
-            when (method.name) {
-                "getSongsForArtist" -> {
-                    assertEquals("a1", args[0])
-                    songs
-                }
-                else -> error("Unexpected repository call: ${method.name}")
+    private fun fakeRepository(songs: Flow<List<Song>>): SongRepository = Proxy.newProxyInstance(
+        SongRepository::class.java.classLoader,
+        arrayOf(SongRepository::class.java),
+    ) { _, method, args ->
+        when (method.name) {
+            "getSongsForArtist" -> {
+                assertEquals("a1", args[0])
+                songs
             }
-        } as SongRepository
+
+            else -> error("Unexpected repository call: ${method.name}")
+        }
+    } as SongRepository
 
     private fun song(id: String, durationMs: Long = 1_000L, missing: Boolean = false) = Song(
-        id = id, title = id, artist = "Artist", album = "Album", duration = durationMs, filePath = "/music/$id.mp3",
+        id = id,
+        title = id,
+        artist = "Artist",
+        album = "Album",
+        duration = durationMs,
+        filePath = "/music/$id.mp3",
         isMissing = missing,
     )
 }

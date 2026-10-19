@@ -7,7 +7,8 @@ import kotlin.test.assertEquals
 
 // RenderEffect does not load in the JVM stub, so only the order-selection logic is tested here.
 class PlayerAltStageChainTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val blurPx = PlayerAltStageStyle.BlurDp * 3f
 

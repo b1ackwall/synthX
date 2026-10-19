@@ -13,7 +13,8 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class PostCommitCleanupTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun failedStepIsLoggedAndDoesNotPreventTheNextStep() = runBlocking {

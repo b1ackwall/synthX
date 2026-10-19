@@ -22,7 +22,8 @@ import kotlin.test.assertNull
  * combined read, and what a failing read turns into. The device side is QueueColdStartInstrumentedTest.
  */
 class QueuePersistenceReadTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     /** Serves the three queue reads; any other repository call fails the test. */
     private class ReadRepo : SongRepository by unexpectedCalls() {

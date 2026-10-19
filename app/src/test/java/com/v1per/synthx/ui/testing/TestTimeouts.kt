@@ -17,6 +17,5 @@ object TestTimeouts {
     /** 30 s default; the slowest JVM test takes under 2 s. Pass a larger value only with a reason. */
     const val JVM_SECONDS = 30L
 
-    fun jvm(seconds: Long = JVM_SECONDS): Timeout =
-        Timeout.builder().withTimeout(seconds, TimeUnit.SECONDS).build()
+    fun jvm(seconds: Long = JVM_SECONDS): Timeout = Timeout.builder().withTimeout(seconds, TimeUnit.SECONDS).build()
 }

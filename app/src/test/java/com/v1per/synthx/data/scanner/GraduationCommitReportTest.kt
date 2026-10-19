@@ -7,7 +7,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class GraduationCommitReportTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     /** Must not report Done here: that would leave the moved file for a scan to re-import. */
     @Test fun rowGoneAtCommitIsAFailureNotSuccess() = runTest {

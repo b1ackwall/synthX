@@ -12,7 +12,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SongDeletionTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private lateinit var artDir: File
 

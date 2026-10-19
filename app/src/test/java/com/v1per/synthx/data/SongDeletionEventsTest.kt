@@ -15,7 +15,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SongDeletionEventsTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun everyPublishedDeletionCarriesAFreshIncreasingRevision() = runBlocking {
         val collector = async { SongDeletionEvents.events.take(2).toList() }
@@ -36,7 +37,8 @@ class SongDeletionEventsTest {
  * that was never going to show up.
  */
 class SongDeletionAcknowledgmentTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     // SongDeletionAcknowledgment is a process-wide singleton, so its live-engine count leaks
     // between test methods unless each one detaches exactly what it attached.

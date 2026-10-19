@@ -17,11 +17,12 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class DatabaseStartupGateTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun absentDatabaseNeedsNoMigrationBackup() {
         assertIs<DatabaseVersionDecision.FreshDatabase>(
-            DatabaseVersionPolicy.decide(LiveDatabaseVersion.Missing, currentVersion = 8)
+            DatabaseVersionPolicy.decide(LiveDatabaseVersion.Missing, currentVersion = 8),
         )
     }
 
@@ -30,7 +31,7 @@ class DatabaseStartupGateTest {
             DatabaseVersionPolicy.decide(
                 LiveDatabaseVersion.Present(userVersion = 8),
                 currentVersion = 8,
-            )
+            ),
         )
     }
 
@@ -48,7 +49,7 @@ class DatabaseStartupGateTest {
         // A file that exists but never had a schema committed to it must reach the same
         // fresh-creation path as a truly absent file, not BackupBeforeMigration(0).
         assertIs<DatabaseVersionDecision.FreshDatabase>(
-            DatabaseVersionPolicy.decide(LiveDatabaseVersion.EmptyFile, currentVersion = 8)
+            DatabaseVersionPolicy.decide(LiveDatabaseVersion.EmptyFile, currentVersion = 8),
         )
     }
 
@@ -322,7 +323,8 @@ class DatabaseStartupGateTest {
 }
 
 class DatabaseStartupProductionOrderingTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     // Comment-free code: a comment naming the call cannot satisfy or break these two.
     @Test fun mainActivityAwaitsGateBeforeInstallingDatabaseConsumingContent() {
@@ -362,7 +364,7 @@ class DatabaseStartupProductionOrderingTest {
         assertFalse(
             snapshotter.substringAfter("fun createForMigration")
                 .substringBefore("fun forceToStorage")
-                .contains("SynthXDatabase.getInstance")
+                .contains("SynthXDatabase.getInstance"),
         )
     }
 

@@ -15,7 +15,8 @@ import kotlin.test.assertNull
  * show. (The file URI is not checked: `Uri.parse` returns null on the JVM.)
  */
 class MediaItemBuildTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val song = Song("song-1", "A Title", "An Artist", "An Album", 1_000L, "file:///music/a.wav")
 

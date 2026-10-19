@@ -19,7 +19,8 @@ import kotlin.test.assertTrue
 import kotlin.test.assertFailsWith
 
 class BackupPrimitivesTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun `SQLite versions are parsed and compared numerically`() {
@@ -88,7 +89,9 @@ class BackupPrimitivesTest {
         assertEquals(7, decoded.dbVersion)
         assertNull(decoded.sizeBytes)
         assertNull(decoded.sha256)
-        assertNull(BackupMetadataCodec.decodeOrNull(legacy.decodeToString().replace("7", "\"bad\"").encodeToByteArray()))
+        assertNull(
+            BackupMetadataCodec.decodeOrNull(legacy.decodeToString().replace("7", "\"bad\"").encodeToByteArray()),
+        )
     }
 
     @Test

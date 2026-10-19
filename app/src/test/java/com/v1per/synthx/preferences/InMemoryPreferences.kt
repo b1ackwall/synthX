@@ -14,6 +14,7 @@ class InMemoryPreferences : SharedPreferences {
 
     override fun getAll(): Map<String, *> = raw.toMap()
     override fun getString(key: String, defValue: String?): String? = if (key in raw) raw[key] as String? else defValue
+
     @Suppress("UNCHECKED_CAST")
     override fun getStringSet(key: String, defValues: Set<String>?): Set<String>? =
         if (key in raw) raw[key] as Set<String>? else defValues
@@ -34,7 +35,8 @@ class InMemoryPreferences : SharedPreferences {
         private fun stage(key: String, value: Any?): SharedPreferences.Editor = also { puts[key] = value }
 
         override fun putString(key: String, value: String?): SharedPreferences.Editor = stage(key, value)
-        override fun putStringSet(key: String, values: Set<String>?): SharedPreferences.Editor = stage(key, values?.toSet())
+        override fun putStringSet(key: String, values: Set<String>?): SharedPreferences.Editor =
+            stage(key, values?.toSet())
         override fun putInt(key: String, value: Int): SharedPreferences.Editor = stage(key, value)
         override fun putLong(key: String, value: Long): SharedPreferences.Editor = stage(key, value)
         override fun putFloat(key: String, value: Float): SharedPreferences.Editor = stage(key, value)
@@ -64,5 +66,6 @@ class PreferencesContext(val prefs: InMemoryPreferences = InMemoryPreferences())
     }
 }
 
-fun preferencesManager(context: PreferencesContext = PreferencesContext()): Pair<PreferencesManager, InMemoryPreferences> =
-    PreferencesManager(context as Context) to context.prefs
+fun preferencesManager(
+    context: PreferencesContext = PreferencesContext(),
+): Pair<PreferencesManager, InMemoryPreferences> = PreferencesManager(context as Context) to context.prefs

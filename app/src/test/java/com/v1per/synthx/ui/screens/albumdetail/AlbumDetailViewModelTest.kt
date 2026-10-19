@@ -24,7 +24,8 @@ import kotlin.test.assertNull
 /** The album detail stats and buttons follow the playable songs; the cover follows album order. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AlbumDetailViewModelTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun theStatsCountAndTotalOnlyThePlayableSongs() {
@@ -116,22 +117,28 @@ class AlbumDetailViewModelTest {
         }
     }
 
-    private fun fakeRepository(songs: Flow<List<Song>>): SongRepository =
-        Proxy.newProxyInstance(
-            SongRepository::class.java.classLoader,
-            arrayOf(SongRepository::class.java),
-        ) { _, method, args ->
-            when (method.name) {
-                "getSongsForAlbum" -> {
-                    assertEquals("al1", args[0])
-                    songs
-                }
-                else -> error("Unexpected repository call: ${method.name}")
+    private fun fakeRepository(songs: Flow<List<Song>>): SongRepository = Proxy.newProxyInstance(
+        SongRepository::class.java.classLoader,
+        arrayOf(SongRepository::class.java),
+    ) { _, method, args ->
+        when (method.name) {
+            "getSongsForAlbum" -> {
+                assertEquals("al1", args[0])
+                songs
             }
-        } as SongRepository
+
+            else -> error("Unexpected repository call: ${method.name}")
+        }
+    } as SongRepository
 
     private fun song(id: String, durationMs: Long = 1_000L, missing: Boolean = false, art: String? = null) = Song(
-        id = id, title = id, artist = "Artist", album = "Album", duration = durationMs, filePath = "/music/$id.mp3",
-        albumArtUri = art, isMissing = missing,
+        id = id,
+        title = id,
+        artist = "Artist",
+        album = "Album",
+        duration = durationMs,
+        filePath = "/music/$id.mp3",
+        albumArtUri = art,
+        isMissing = missing,
     )
 }

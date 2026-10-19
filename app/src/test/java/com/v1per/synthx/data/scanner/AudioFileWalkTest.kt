@@ -13,7 +13,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AudioFileWalkTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val root: File = Files.createTempDirectory("audio-walk").toFile()
 

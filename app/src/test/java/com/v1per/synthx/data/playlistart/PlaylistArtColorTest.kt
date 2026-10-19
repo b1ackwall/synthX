@@ -9,7 +9,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class PlaylistArtColorTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val roles = mapOf("litStart" to LitStartRole, "litEnd" to LitEndRole, "diamond" to DiamondRole)
 

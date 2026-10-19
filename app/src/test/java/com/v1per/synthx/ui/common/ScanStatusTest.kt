@@ -22,7 +22,8 @@ import org.junit.Test
  * fake that renders "<resId>[args]" so assertions pin *which* resource and args were chosen.
  */
 class ScanStatusTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val strings = ScanStatusStrings { id, args ->
         if (args.isEmpty()) "$id" else "$id${args.toList()}"

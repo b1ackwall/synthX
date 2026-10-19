@@ -28,7 +28,8 @@ import kotlin.test.assertEquals
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackViewModelQueuePromptTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val current = song("current")
 
@@ -66,7 +67,9 @@ class PlaybackViewModelQueuePromptTest {
         override fun persistPlaybackState() {}
         override fun next() {}
         override fun previous() {}
-        override suspend fun setShuffleEnabled(enabled: Boolean) { setShuffleCalls++ }
+        override suspend fun setShuffleEnabled(enabled: Boolean) {
+            setShuffleCalls++
+        }
         override fun setRepeatMode(mode: RepeatMode) {}
         override fun playNext(song: Song): Boolean = true
         override fun addToQueue(song: Song): Boolean = true
@@ -100,18 +103,19 @@ class PlaybackViewModelQueuePromptTest {
         }
     }
 
-    @Test fun songTapPromptsForACustomizedQueueWithNoCurrentSongIdSubscriber() =
-        withViewModel { vm, engine ->
-            val prompts = mutableListOf<QueuePromptEvent>()
-            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.queuePrompts.collect { prompts += it } }
-            advanceUntilIdle()
-
-            vm.requestPlayQueue(listOf(song("a"), song("b")), 1)
-            advanceUntilIdle()
-
-            assertEquals(1, prompts.size, "a customized, playing queue must be asked about")
-            assertEquals(0, engine.playQueueCalls.size, "the hand-edited queue was silently replaced")
+    @Test fun songTapPromptsForACustomizedQueueWithNoCurrentSongIdSubscriber() = withViewModel { vm, engine ->
+        val prompts = mutableListOf<QueuePromptEvent>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.queuePrompts.collect { prompts += it }
         }
+        advanceUntilIdle()
+
+        vm.requestPlayQueue(listOf(song("a"), song("b")), 1)
+        advanceUntilIdle()
+
+        assertEquals(1, prompts.size, "a customized, playing queue must be asked about")
+        assertEquals(0, engine.playQueueCalls.size, "the hand-edited queue was silently replaced")
+    }
 
     private fun TestScope.replacePrompts(vm: PlaybackViewModel): List<QueueReplacePromptEvent> {
         val prompts = mutableListOf<QueueReplacePromptEvent>()
@@ -126,13 +130,14 @@ class PlaybackViewModelQueuePromptTest {
     private val c = song("c")
     private val gone = song("gone", missing = true)
 
-    @Test fun playAllPlaysThePlayableSongsFromTheFirstWithShuffleOff() =
-        withViewModel(customized = false) { vm, engine ->
-            vm.playAll(listOf(gone, a, b))
-            advanceUntilIdle()
-            assertEquals(listOf(PlayCall(listOf(a, b), 0, false)), engine.playQueueCalls)
-            assertEquals(0, engine.setShuffleCalls, "the flag travels with playQueue, never as its own call")
-        }
+    @Test fun playAllPlaysThePlayableSongsFromTheFirstWithShuffleOff() = withViewModel(
+        customized = false,
+    ) { vm, engine ->
+        vm.playAll(listOf(gone, a, b))
+        advanceUntilIdle()
+        assertEquals(listOf(PlayCall(listOf(a, b), 0, false)), engine.playQueueCalls)
+        assertEquals(0, engine.setShuffleCalls, "the flag travels with playQueue, never as its own call")
+    }
 
     @Test fun shuffleAllStartsOnTheRandomIndexWithShuffleOn() =
         withViewModel(customized = false, random = FixedRandom(2)) { vm, engine ->

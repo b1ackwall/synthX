@@ -10,7 +10,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PlayerAltStageMotionTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private class Run(val angles: AltStageAngles, val updates: Int, val releasedSeconds: Double)
 
@@ -66,7 +67,11 @@ class PlayerAltStageMotionTest {
         val accumulator = AltStageFrameAccumulator()
         assertNull(accumulator.onFrame(1_000L))
         assertNull(accumulator.onFrame(1_000L + AltStageUpdateIntervalNanos - 1))
-        assertEquals(AltStageUpdateIntervalNanos / 1e9f, accumulator.onFrame(1_000L + AltStageUpdateIntervalNanos)!!, 1e-7f)
+        assertEquals(
+            AltStageUpdateIntervalNanos / 1e9f,
+            accumulator.onFrame(1_000L + AltStageUpdateIntervalNanos)!!,
+            1e-7f,
+        )
     }
 
     @Test fun jitteredSixtyHertzFramesStillUpdateEverySixthFrame() {
@@ -84,19 +89,82 @@ class PlayerAltStageMotionTest {
     }
 
     @Test fun motionPausesWithNoSongWhileCollapsedOrUnderReducedMotion() {
-        assertTrue(shouldPausePlayerAltStageMotion(hasSong = false, isPlaying = true, progress = 1f, systemReducedMotionActive = false))
-        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 0f, systemReducedMotionActive = false))
-        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 0.0009f, systemReducedMotionActive = false))
-        assertFalse(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 0.001f, systemReducedMotionActive = false))
-        assertFalse(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 1f, systemReducedMotionActive = false))
-        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 1f, systemReducedMotionActive = true))
+        assertTrue(
+            shouldPausePlayerAltStageMotion(
+                hasSong = false,
+                isPlaying = true,
+                progress = 1f,
+                systemReducedMotionActive = false,
+            ),
+        )
+        assertTrue(
+            shouldPausePlayerAltStageMotion(
+                hasSong = true,
+                isPlaying = true,
+                progress = 0f,
+                systemReducedMotionActive = false,
+            ),
+        )
+        assertTrue(
+            shouldPausePlayerAltStageMotion(
+                hasSong = true,
+                isPlaying = true,
+                progress = 0.0009f,
+                systemReducedMotionActive = false,
+            ),
+        )
+        assertFalse(
+            shouldPausePlayerAltStageMotion(
+                hasSong = true,
+                isPlaying = true,
+                progress = 0.001f,
+                systemReducedMotionActive = false,
+            ),
+        )
+        assertFalse(
+            shouldPausePlayerAltStageMotion(
+                hasSong = true,
+                isPlaying = true,
+                progress = 1f,
+                systemReducedMotionActive = false,
+            ),
+        )
+        assertTrue(
+            shouldPausePlayerAltStageMotion(
+                hasSong = true,
+                isPlaying = true,
+                progress = 1f,
+                systemReducedMotionActive = true,
+            ),
+        )
     }
 
     @Test fun motionPausesWhileTheMusicIsNotPlaying() {
-        assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = false, progress = 1f, systemReducedMotionActive = false))
-        assertFalse(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = true, progress = 1f, systemReducedMotionActive = false))
+        assertTrue(
+            shouldPausePlayerAltStageMotion(
+                hasSong = true,
+                isPlaying = false,
+                progress = 1f,
+                systemReducedMotionActive = false,
+            ),
+        )
+        assertFalse(
+            shouldPausePlayerAltStageMotion(
+                hasSong = true,
+                isPlaying = true,
+                progress = 1f,
+                systemReducedMotionActive = false,
+            ),
+        )
         for (isPlaying in listOf(true, false)) {
-            assertTrue(shouldPausePlayerAltStageMotion(hasSong = true, isPlaying = isPlaying, progress = 0.0009f, systemReducedMotionActive = false))
+            assertTrue(
+                shouldPausePlayerAltStageMotion(
+                    hasSong = true,
+                    isPlaying = isPlaying,
+                    progress = 0.0009f,
+                    systemReducedMotionActive = false,
+                ),
+            )
         }
     }
 

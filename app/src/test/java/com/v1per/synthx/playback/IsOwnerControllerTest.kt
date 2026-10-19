@@ -17,7 +17,8 @@ import kotlin.test.assertTrue
  * session is OwnerControllerStopInstrumentedTest.
  */
 class IsOwnerControllerTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val app = "com.v1per.synthx.debug"
 

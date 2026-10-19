@@ -9,7 +9,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ScanDegradationTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val degradation = ScanDegradation(
         KnownAudioRoot.Music,
@@ -19,7 +20,7 @@ class ScanDegradationTest {
     @Test fun libraryOutputCarriesDegradationDistinctFromPlainSuccessAndFailure() {
         val plain = scanOutputData(ScanResult(1, 2, 0, 3))
         val degraded = scanOutputData(
-            ScanResult(1, 2, 0, 3, degradations = setOf(degradation))
+            ScanResult(1, 2, 0, 3, degradations = setOf(degradation)),
         )
         val failure = workDataOf(LibraryScanWorker.KEY_ERROR to "Scan failed")
 
@@ -36,8 +37,14 @@ class ScanDegradationTest {
             ScanDegradationReason.RootUnreachable,
         )
         val arrivals = scanOutputData(
-            ScanResult(0, 0, 0, 0, missingReconciled = false,
-                degradations = setOf(arrivalsDegradation)),
+            ScanResult(
+                0,
+                0,
+                0,
+                0,
+                missingReconciled = false,
+                degradations = setOf(arrivalsDegradation),
+            ),
             includeMissing = false,
         )
         val verify = verifyOutputData(VerifyResult(0, setOf(degradation)))

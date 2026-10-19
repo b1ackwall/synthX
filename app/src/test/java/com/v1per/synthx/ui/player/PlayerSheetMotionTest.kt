@@ -9,15 +9,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class PlayerSheetMotionTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private fun expandedContentAlpha(progress: Float) = ((progress - 0.4f) * (1f / 0.6f)).coerceIn(0f, 1f)
 
-    private fun motion(
-        progress: Float,
-        sheetOffsetPx: Float = 0f,
-        expandedAnchorPx: Float = 0f,
-    ) = playerSheetMotion(
+    private fun motion(progress: Float, sheetOffsetPx: Float = 0f, expandedAnchorPx: Float = 0f) = playerSheetMotion(
         progress = progress,
         expandedContentAlpha = expandedContentAlpha(progress),
         sheetOffsetPx = sheetOffsetPx,
@@ -51,7 +48,14 @@ class PlayerSheetMotionTest {
     @Test fun queueFadesAcrossItsLockedWindow() {
         assertEquals(0.7f, PlayerQueueFadeStart)
         assertEquals(1f, PlayerQueueFadeEnd)
-        for ((progress, alpha) in listOf(0f to 0f, 0.7f to 0f, 0.775f to 0.25f, 0.85f to 0.5f, 0.925f to 0.75f, 1f to 1f)) {
+        for ((progress, alpha) in listOf(
+            0f to 0f,
+            0.7f to 0f,
+            0.775f to 0.25f,
+            0.85f to 0.5f,
+            0.925f to 0.75f,
+            1f to 1f,
+        )) {
             assertAlpha(alpha, motion(progress).queueFadeAlpha, "queue alpha at $progress")
         }
     }

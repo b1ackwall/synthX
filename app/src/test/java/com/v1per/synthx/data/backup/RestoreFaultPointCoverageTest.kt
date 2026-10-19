@@ -13,7 +13,8 @@ import kotlin.test.assertTrue
  * docs/code-work/Safety-Net/slice2-implementation.md (proof table).
  */
 class RestoreFaultPointCoverageTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun everyFaultPointIsInjectedByNameInADeviceTest() {
         val deviceTests = File("src/androidTest/java")

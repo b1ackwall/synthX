@@ -14,7 +14,8 @@ import kotlin.test.assertTrue
  * instance ([cachedPlaylistArtRenderModel]) uses exactly this class.
  */
 class PlaylistArtCacheTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private class Built(val hue: Int, val seed: Long, val sizePx: Float)
 
@@ -98,7 +99,10 @@ class PlaylistArtCacheTest {
     @Test
     fun `the production cap comfortably holds a whole default library`() {
         // ~68 playlists ship in the default seed manifest, each with one (hue, seed) at one size.
-        assertTrue(PlaylistArtCache.MAX_ENTRIES >= 100, "Cap ${PlaylistArtCache.MAX_ENTRIES} leaves little headroom over ~68 playlists")
+        assertTrue(
+            PlaylistArtCache.MAX_ENTRIES >= 100,
+            "Cap ${PlaylistArtCache.MAX_ENTRIES} leaves little headroom over ~68 playlists",
+        )
 
         val counting = Counting(PlaylistArtCache.MAX_ENTRIES)
         (0 until 68).forEach { counting.cache.get((it * 4) % 360, it * 7919L, 105f) }

@@ -15,7 +15,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 
 class RepositoryDbOperationTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @AfterTest fun reset() = RestoreCoordinator.resetForTest()
 
@@ -28,11 +29,19 @@ class RepositoryDbOperationTest {
     @Test fun existingDeveloperActionDrainsBeforeRestore() = runTest {
         val started = CompletableDeferred<Unit>()
         val finish = CompletableDeferred<Unit>()
-        val action = launch { RepositoryDbOperation.run { started.complete(Unit); finish.await() } }
+        val action = launch {
+            RepositoryDbOperation.run {
+                started.complete(Unit)
+                finish.await()
+            }
+        }
         started.await()
         val drained = CompletableDeferred<Unit>()
         val restore = async {
-            RestoreCoordinator.exclusive { RestoreCoordinator.awaitDrained(); drained.complete(Unit) }
+            RestoreCoordinator.exclusive {
+                RestoreCoordinator.awaitDrained()
+                drained.complete(Unit)
+            }
         }
         yield()
         assertFalse(drained.isCompleted)
@@ -44,7 +53,12 @@ class RepositoryDbOperationTest {
     @Test fun preparationRejectsDeveloperActionBeforeDao() = runTest {
         val entered = CompletableDeferred<Unit>()
         val hold = CompletableDeferred<Unit>()
-        val restore = launch { RestoreCoordinator.exclusive { entered.complete(Unit); hold.await() } }
+        val restore = launch {
+            RestoreCoordinator.exclusive {
+                entered.complete(Unit)
+                hold.await()
+            }
+        }
         entered.await()
         assertFailsWith<IllegalStateException> { RepositoryDbOperation.run { error("must not run") } }
         hold.complete(Unit)

@@ -15,7 +15,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class PlaylistExportMaterializationTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @AfterTest fun reset() = RestoreCoordinator.resetForTest()
 
@@ -56,7 +57,12 @@ class PlaylistExportMaterializationTest {
     @Test fun preparationRejectsBeforeRoomQuery() = runTest {
         val hold = CompletableDeferred<Unit>()
         val entered = CompletableDeferred<Unit>()
-        val restore = launch { RestoreCoordinator.exclusive { entered.complete(Unit); hold.await() } }
+        val restore = launch {
+            RestoreCoordinator.exclusive {
+                entered.complete(Unit)
+                hold.await()
+            }
+        }
         entered.await()
         var queries = 0
         assertFailsWith<IllegalStateException> {

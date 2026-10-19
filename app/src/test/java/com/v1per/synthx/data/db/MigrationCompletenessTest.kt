@@ -28,7 +28,8 @@ import kotlin.test.assertTrue
  *     the line from Migration8To9Test.kt on, so no *future* migration can ship untested.
  */
 class MigrationCompletenessTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     companion object {
         private const val PER_STEP_TEST_COVERAGE_BASELINE_VERSION = 8

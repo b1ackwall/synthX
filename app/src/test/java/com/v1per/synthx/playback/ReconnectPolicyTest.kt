@@ -12,7 +12,8 @@ import kotlin.test.assertNull
  * the actual policy decision.
  */
 class ReconnectPolicyTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun retriesWithExponentialBackoffAfterASimulatedInitialFailure() {
         // Attempt 0 is the first retry after the initial connection attempt (attempt -1, in

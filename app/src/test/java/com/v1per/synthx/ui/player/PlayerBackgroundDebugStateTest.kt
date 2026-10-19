@@ -8,7 +8,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class PlayerBackgroundDebugStateTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun defaultIsTheLockedProductionBlur() {
         assertEquals(PlayerAltStageStyle.BlurDp, PlayerBackgroundDebugState().blurRadiusDp)

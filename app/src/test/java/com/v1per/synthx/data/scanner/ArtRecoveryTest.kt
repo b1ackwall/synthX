@@ -7,7 +7,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ArtRecoveryTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private fun song(
         id: String,

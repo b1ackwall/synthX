@@ -6,7 +6,8 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class PlaybackCacheRevisionTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun nextIsStrictlyMonotonicAndNeverRepeats() {
         val first = PlaybackCacheRevision.next()

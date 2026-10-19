@@ -12,13 +12,17 @@ import kotlin.test.assertNull
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerBackgroundArtHolderTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private fun request(id: String, uri: String? = "content://$id") = PlayerBackgroundArtRequest(id, uri, null)
 
     @Test fun previousArtStaysUntilTheNextDecodeFinishesThenSwaps() = runTest {
         val pending = mutableMapOf<String, CompletableDeferred<String?>>()
-        val holder = PlayerBackgroundArtHolder<String>(backgroundScope) { pending.getOrPut(it.songId) { CompletableDeferred() }.await() }
+        val holder =
+            PlayerBackgroundArtHolder<String>(backgroundScope) {
+                pending.getOrPut(it.songId) { CompletableDeferred() }.await()
+            }
 
         holder.request(request("a"))
         runCurrent()
@@ -36,7 +40,10 @@ class PlayerBackgroundArtHolderTest {
 
     @Test fun songChangeCancelsTheInFlightDecode() = runTest {
         val pending = mutableMapOf<String, CompletableDeferred<String?>>()
-        val holder = PlayerBackgroundArtHolder<String>(backgroundScope) { pending.getOrPut(it.songId) { CompletableDeferred() }.await() }
+        val holder =
+            PlayerBackgroundArtHolder<String>(backgroundScope) {
+                pending.getOrPut(it.songId) { CompletableDeferred() }.await()
+            }
 
         holder.request(request("a"))
         runCurrent()
@@ -52,7 +59,15 @@ class PlayerBackgroundArtHolderTest {
     }
 
     @Test fun songWithoutArtClearsAtOnceAndUndecodableArtClearsWhenDone() = runTest {
-        val holder = PlayerBackgroundArtHolder<String>(backgroundScope) { if (it.songId == "broken") null else "image-${it.songId}" }
+        val holder = PlayerBackgroundArtHolder<String>(backgroundScope) {
+            if (it.songId ==
+                "broken"
+            ) {
+                null
+            } else {
+                "image-${it.songId}"
+            }
+        }
 
         holder.request(request("a"))
         runCurrent()
@@ -69,7 +84,10 @@ class PlayerBackgroundArtHolderTest {
 
     @Test fun repeatingTheCurrentRequestDoesNotDecodeAgain() = runTest {
         var loads = 0
-        val holder = PlayerBackgroundArtHolder<String>(backgroundScope) { loads++; "image" }
+        val holder = PlayerBackgroundArtHolder<String>(backgroundScope) {
+            loads++
+            "image"
+        }
         holder.request(request("a"))
         runCurrent()
         holder.request(request("a"))

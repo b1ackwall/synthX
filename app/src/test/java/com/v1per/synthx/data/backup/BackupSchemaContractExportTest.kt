@@ -19,7 +19,8 @@ import kotlin.test.assertTrue
  * only show when a real backup of that version is restored.
  */
 class BackupSchemaContractExportTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun everySchemaContractMatchesItsExportedRoomSchema() {
         val schemas = File("schemas/com.v1per.synthx.data.db.SynthXDatabase")

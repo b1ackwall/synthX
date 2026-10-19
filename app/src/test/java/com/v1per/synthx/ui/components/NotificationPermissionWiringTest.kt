@@ -17,7 +17,8 @@ import kotlin.test.assertTrue
  * is also exercised on a device by NotificationSecondChanceInstrumentedTest.
  */
 class NotificationPermissionWiringTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private fun source(relative: String): String {
         val file = listOf(File("src/main/java", relative), File("app/src/main/java", relative))
@@ -51,7 +52,10 @@ class NotificationPermissionWiringTest {
         val gate = onboarding.indexOf("notificationGate.runAfterRationale {")
         val start = onboarding.indexOf("libraryManagementViewModel.startFirstScan()")
         assertTrue(gate >= 0, "Done must go through the notification gate")
-        assertEquals(1, Regex("startFirstScan\\(\\)").findAll(onboarding.substringAfter("OnboardingStep.FolderSetup ->")).count())
+        assertEquals(
+            1,
+            Regex("startFirstScan\\(\\)").findAll(onboarding.substringAfter("OnboardingStep.FolderSetup ->")).count(),
+        )
         assertTrue(start > gate, "startFirstScan() must run inside the gate's deferred action")
     }
 

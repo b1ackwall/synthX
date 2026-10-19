@@ -15,7 +15,8 @@ import kotlin.test.assertTrue
  * module's JVM unit test setup); OwnerControllerStopInstrumentedTest covers it on a device.
  */
 class OwnerControllerTrackerTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun disconnectingTheOnlyOwnerReportsStop() {
         val tracker = OwnerControllerTracker()

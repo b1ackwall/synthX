@@ -19,7 +19,8 @@ import kotlin.test.assertTrue
  * being COLLATE NOCASE.
  */
 class ExportedSchemaGuardTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun onlyTheKnownVersionPairsShareAnIdentityHash() {
         val hashes = (1..SynthXDatabase.VERSION).associateWith { version ->

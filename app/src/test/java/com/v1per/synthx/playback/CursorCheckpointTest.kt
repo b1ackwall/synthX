@@ -36,7 +36,8 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class CursorCheckpointTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     // --- onIsPlayingChanged(false) checkpoint --------------------------------------------
 
@@ -172,11 +173,8 @@ class CursorCheckpointTest {
     // backgroundScope.launch, not a plain launch: TestScope automatically cancels every
     // backgroundScope job when runTest's body completes, so the never-ending collector here
     // (periodicCheckpointDriver's while(true) loop) needs no explicit cancel() in each test.
-    private fun launchCollector(
-        scope: TestScope,
-        isPlaying: MutableStateFlow<Boolean>,
-        ticks: MutableList<Long>,
-    ) = scope.backgroundScope.launch {
-        periodicCheckpointDriver(isPlaying).collect { ticks += scope.testScheduler.currentTime }
-    }
+    private fun launchCollector(scope: TestScope, isPlaying: MutableStateFlow<Boolean>, ticks: MutableList<Long>) =
+        scope.backgroundScope.launch {
+            periodicCheckpointDriver(isPlaying).collect { ticks += scope.testScheduler.currentTime }
+        }
 }

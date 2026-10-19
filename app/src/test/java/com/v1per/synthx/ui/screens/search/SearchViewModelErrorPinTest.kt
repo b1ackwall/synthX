@@ -29,7 +29,8 @@ import kotlin.test.assertEquals
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelErrorPinTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun pinnedAfterOneSongsFlowErrorSearchStopsAnsweringNewQueries() = withUncaughtExceptionsCaptured {

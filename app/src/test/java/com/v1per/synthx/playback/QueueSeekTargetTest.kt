@@ -17,7 +17,8 @@ import kotlin.test.assertNull
  * is ignored, a later row plays).
  */
 class QueueSeekTargetTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun ordinaryTapResolvesToTheTappedSlotsPosition() {
         assertEquals(5, resolveUpcomingSeekTarget(currentIndex = 2, slotIndex = 5))

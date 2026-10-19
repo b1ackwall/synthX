@@ -17,7 +17,8 @@ import java.util.concurrent.atomic.AtomicInteger
 /** Focused proof for the admission/drain boundary, independent of Room. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RestoreCoordinatorTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private fun reset() = RestoreCoordinator.resetForTest()
     private suspend fun assertRejected(block: suspend () -> Unit) {
@@ -50,12 +51,19 @@ class RestoreCoordinatorTest {
         val operation = launch { RestoreCoordinator.withDbOperation { releaseOperation.await() } }
         yield()
         val restoreEntered = CompletableDeferred<Unit>()
-        val restore = launch { RestoreCoordinator.exclusive { RestoreCoordinator.awaitDrained(); restoreEntered.complete(Unit) } }
+        val restore =
+            launch {
+                RestoreCoordinator.exclusive {
+                    RestoreCoordinator.awaitDrained()
+                    restoreEntered.complete(Unit)
+                }
+            }
         // Runs every runnable coroutine and skips virtual time, so a timed wait cannot pass for a drain.
         advanceUntilIdle()
         assertFalse(restoreEntered.isCompleted)
         releaseOperation.complete(Unit)
-        operation.join(); restore.join()
+        operation.join()
+        restore.join()
         assertTrue(restoreEntered.isCompleted)
         reset()
     }
@@ -64,14 +72,22 @@ class RestoreCoordinatorTest {
         reset()
         val releaseRestore = CompletableDeferred<Unit>()
         val entered = CompletableDeferred<Unit>()
-        val restore = launch { RestoreCoordinator.exclusive { entered.complete(Unit); releaseRestore.await() } }
+        val restore = launch {
+            RestoreCoordinator.exclusive {
+                entered.complete(Unit)
+                releaseRestore.await()
+            }
+        }
         entered.await()
         assertRejected { RestoreCoordinator.withDbOperation { } }
-        releaseRestore.complete(Unit); restore.join(); reset()
+        releaseRestore.complete(Unit)
+        restore.join()
+        reset()
     }
 
     @Test fun closedRejectsOperations() = runTest {
-        reset(); RestoreCoordinator.markClosed()
+        reset()
+        RestoreCoordinator.markClosed()
         assertRejected { RestoreCoordinator.withDbOperation { } }
         reset()
     }
@@ -95,12 +111,21 @@ class RestoreCoordinatorTest {
         }
         yield()
         val drained = CompletableDeferred<Unit>()
-        val restore = launch { RestoreCoordinator.exclusive { RestoreCoordinator.awaitDrained(); drained.complete(Unit) } }
+        val restore =
+            launch {
+                RestoreCoordinator.exclusive {
+                    RestoreCoordinator.awaitDrained()
+                    drained.complete(Unit)
+                }
+            }
         // Runs every runnable coroutine and skips virtual time, so a timed wait cannot pass for a drain.
         advanceUntilIdle()
         assertFalse(drained.isCompleted, "restore crossed the drain boundary while a backup held its permit")
-        releaseBackup.complete(Unit); backup.join(); restore.join()
-        assertTrue(drained.isCompleted); reset()
+        releaseBackup.complete(Unit)
+        backup.join()
+        restore.join()
+        assertTrue(drained.isCompleted)
+        reset()
     }
 
     @Test fun preparationAndClosedRejectNormalBackupAdmission() = runTest {
@@ -109,7 +134,8 @@ class RestoreCoordinatorTest {
         val restore = launch { RestoreCoordinator.exclusive { hold.await() } }
         yield()
         assertRejected { RestoreCoordinator.withDbOperation { BackupCreationCoordinator.serialize { } } }
-        hold.complete(Unit); restore.join()
+        hold.complete(Unit)
+        restore.join()
         RestoreCoordinator.markClosed()
         assertRejected { RestoreCoordinator.withDbOperation { BackupCreationCoordinator.serialize { } } }
         reset()
@@ -148,7 +174,8 @@ class RestoreCoordinatorTest {
         yield()
         assertEquals(1, maximum.get())
         releaseFirst.complete(Unit)
-        first.join(); second.join()
+        first.join()
+        second.join()
         assertEquals(1, maximum.get())
     }
 }

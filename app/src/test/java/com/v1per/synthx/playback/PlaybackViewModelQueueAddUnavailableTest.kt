@@ -27,17 +27,15 @@ import kotlin.test.assertNull
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackViewModelQueueAddUnavailableTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val current = song("current")
     private val tapped = song("tapped")
 
     /** Active playback (so inserts reach the engine) and a configurable insert answer. */
-    private class FakeEngine(
-        current: Song,
-        var acceptsInserts: Boolean,
-        queueEnded: Boolean = false,
-    ) : PlaybackEngine {
+    private class FakeEngine(current: Song, var acceptsInserts: Boolean, queueEnded: Boolean = false) :
+        PlaybackEngine {
         var playNextCalls = 0
         var addToQueueCalls = 0
         var playQueueCalls = 0
@@ -58,15 +56,25 @@ class PlaybackViewModelQueueAddUnavailableTest {
         override val hasNext: Flow<Boolean> = emptyFlow()
         override val hasPrevious: Flow<Boolean> = emptyFlow()
         override val isQueueCustomized: Flow<Boolean> = emptyFlow()
-        override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) { playQueueCalls++ }
+        override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
+            playQueueCalls++
+        }
         override suspend fun restoreSavedQueue() {}
         override fun persistPlaybackState() {}
-        override fun next() { nextCalls++ }
+        override fun next() {
+            nextCalls++
+        }
         override fun previous() {}
         override suspend fun setShuffleEnabled(enabled: Boolean) {}
         override fun setRepeatMode(mode: RepeatMode) {}
-        override fun playNext(song: Song): Boolean { playNextCalls++; return acceptsInserts }
-        override fun addToQueue(song: Song): Boolean { addToQueueCalls++; return acceptsInserts }
+        override fun playNext(song: Song): Boolean {
+            playNextCalls++
+            return acceptsInserts
+        }
+        override fun addToQueue(song: Song): Boolean {
+            addToQueueCalls++
+            return acceptsInserts
+        }
         override fun moveQueueItem(slotId: String, toIndex: Int) {}
         override fun removeQueueItem(slotId: String) {}
         override fun seekToQueueItem(slotId: String) {}

@@ -18,7 +18,8 @@ import kotlin.test.assertTrue
  * in SystemNavigationPlayerInstrumentedTest.
  */
 class SystemNavigationPlayerTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     /** A [Player] whose every method is recorded and answers a type-appropriate default. */
     private class RecordingPlayer(var nativeCommands: Player.Commands = Player.Commands.EMPTY) {
@@ -57,8 +58,12 @@ class SystemNavigationPlayerTest {
         val calls = mutableListOf<String>()
         override fun hasNext() = next
         override fun hasPrevious() = previous
-        override fun seekToNext() { calls += "next" }
-        override fun seekToPrevious() { calls += "previous" }
+        override fun seekToNext() {
+            calls += "next"
+        }
+        override fun seekToPrevious() {
+            calls += "previous"
+        }
     }
 
     private val delegate = RecordingPlayer()
@@ -163,7 +168,9 @@ class SystemNavigationPlayerTest {
     fun `other listener events still reach the session listener`() {
         val seen = mutableListOf<Boolean>()
         wrapper.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) { seen += isPlaying }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                seen += isPlaying
+            }
         })
 
         delegate.listeners.single().onIsPlayingChanged(true)

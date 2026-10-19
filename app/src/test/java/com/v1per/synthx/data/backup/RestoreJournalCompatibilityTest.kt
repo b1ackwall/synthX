@@ -12,7 +12,10 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-private val V241Json = Json { ignoreUnknownKeys = false; explicitNulls = true }
+private val V241Json = Json {
+    ignoreUnknownKeys = false
+    explicitNulls = true
+}
 
 /**
  * Journals written by shipped builds still decode with today's code. The bytes come from fixed
@@ -20,7 +23,8 @@ private val V241Json = Json { ignoreUnknownKeys = false; explicitNulls = true }
  * enum value fails here.
  */
 class RestoreJournalCompatibilityTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun v24CompleteGoldenEqualsTheV241SerializerOutput() {
         val historical = V241Json.encodeToString(V241State.serializer(), V241_STATE)
@@ -108,8 +112,15 @@ class RestoreJournalCompatibilityTest {
     /** Test-only copy of RestoreTransaction.State, Phase and Outcome as shipped in v2.2.0 to v2.4.x. */
     @Serializable
     enum class V241Phase {
-        PREPARED, LIVE_MOVE_INTENT, LIVE_MOVED, INSTALL_INTENT, CANDIDATE_INSTALLED,
-        POST_VALIDATED, ROLLBACK_INTENT, ROLLED_BACK, COMPLETE,
+        PREPARED,
+        LIVE_MOVE_INTENT,
+        LIVE_MOVED,
+        INSTALL_INTENT,
+        CANDIDATE_INSTALLED,
+        POST_VALIDATED,
+        ROLLBACK_INTENT,
+        ROLLED_BACK,
+        COMPLETE,
     }
 
     @Serializable

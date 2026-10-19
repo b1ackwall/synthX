@@ -8,7 +8,8 @@ import kotlin.test.assertTrue
 
 /** The pure decision behind [NotificationPermissionGate]. */
 class NotificationPermissionPolicyTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val android13 = 33
 

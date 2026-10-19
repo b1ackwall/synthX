@@ -15,7 +15,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AmbientMotionPolicyTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun homePausesOnlyWhenHomeIsFullyOccluded() {
         assertFalse(isHomeAmbientFullyOccluded(Screen.Home.route, 0f))

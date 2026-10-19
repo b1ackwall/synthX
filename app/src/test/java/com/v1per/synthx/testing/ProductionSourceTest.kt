@@ -7,7 +7,8 @@ import kotlin.test.assertEquals
 
 /** The comment stripper behind the wiring tests: comments go, code and literals stay. */
 class ProductionSourceTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun lineAndBlockCommentsAreRemoved() {
         val source = "a() // b()\n/* c()\n d() */ e() /** f() */\n"

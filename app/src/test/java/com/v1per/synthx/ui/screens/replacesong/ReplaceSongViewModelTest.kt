@@ -33,7 +33,8 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReplaceSongViewModelTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun postCommitThrowProducesCompletedReplacementWithUncertainCleanupWarning() {
@@ -196,22 +197,21 @@ class ReplaceSongViewModelTest {
         return ReplaceSongPreviewState.Ready(result.preview, result.membershipSnapshot)
     }
 
-    private fun readyPreviewResult(): ReplaceSongPreviewResult.Ready =
-        ReplaceSongPreviewResult.Ready(
-            preview = ReplaceSongPreview(
-                oldSong = song("old"),
-                newSong = song("new"),
-                transferringPlaylists = listOf("Playlist"),
-                conflictingPlaylists = emptyList(),
-                newSongOnlyPlaylists = emptyList(),
+    private fun readyPreviewResult(): ReplaceSongPreviewResult.Ready = ReplaceSongPreviewResult.Ready(
+        preview = ReplaceSongPreview(
+            oldSong = song("old"),
+            newSong = song("new"),
+            transferringPlaylists = listOf("Playlist"),
+            conflictingPlaylists = emptyList(),
+            newSongOnlyPlaylists = emptyList(),
+        ),
+        membershipSnapshot = ReplaceSongMembershipSnapshot(
+            oldSongMemberships = listOf(
+                ReplaceSongMembershipFingerprint("playlist", 0, 1L),
             ),
-            membershipSnapshot = ReplaceSongMembershipSnapshot(
-                oldSongMemberships = listOf(
-                    ReplaceSongMembershipFingerprint("playlist", 0, 1L),
-                ),
-                newSongMemberships = emptyList(),
-            ),
-        )
+            newSongMemberships = emptyList(),
+        ),
+    )
 
     private fun song(id: String) = Song(id, id, "Artist", "Album", 1L, "test://$id")
 }

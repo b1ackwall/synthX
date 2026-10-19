@@ -9,7 +9,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PlayerBackgroundLuminanceTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val white = 0xFFFFFFFF.toInt()
     private val black = 0xFF000000.toInt()

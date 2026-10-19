@@ -23,9 +23,11 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class FileOperationCoordinatorTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @BeforeTest fun setUp() = FileOperationCoordinator.resetForTest()
+
     @AfterTest fun tearDown() = FileOperationCoordinator.resetForTest()
 
     @Test fun songLockEntryIsRemovedOnceNobodyHoldsOrAwaitsIt() = runTest {
@@ -89,7 +91,10 @@ class FileOperationCoordinatorTest {
         val finish = CompletableDeferred<Unit>()
         val held = CompletableDeferred<Unit>()
         val holder = launch {
-            FileOperationCoordinator.withSongLock("a") { held.complete(Unit); finish.await() }
+            FileOperationCoordinator.withSongLock("a") {
+                held.complete(Unit)
+                finish.await()
+            }
         }
         held.await()
         var ranB = false

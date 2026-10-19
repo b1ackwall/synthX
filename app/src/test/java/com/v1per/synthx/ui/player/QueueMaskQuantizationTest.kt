@@ -7,7 +7,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class QueueMaskQuantizationTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun strengthEndsMapToTheEndStepsAndBackExactly() {
         assertEquals(0, queueMaskStrengthStep(0f))

@@ -14,7 +14,8 @@ import kotlin.test.assertNull
  * listing.
  */
 class BackupIneligibilityReasonTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val validMetadata = BackupMetadata(
         timestamp = 1_000L,

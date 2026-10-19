@@ -8,7 +8,8 @@ import kotlin.test.assertTrue
 
 /** The readiness covers lift for anything past the first load: success, empty and error alike. */
 class UiStateTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun onlyLoadingIsNotReady() {
         assertFalse(UiState.Loading.isReady())

@@ -9,7 +9,8 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class GraduationSourcePreflightTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val source = "content://provider/tree/source/document/song"
     private val music = "content://provider/tree/music"
@@ -66,11 +67,9 @@ class GraduationSourcePreflightTest {
     ) : AudioDocumentPreflightProbe {
         var deleteCapabilityChecks = 0
 
-        override fun resolve(filePath: String): SourceDocumentResolution =
-            SourceDocumentResolution.Present(source)
+        override fun resolve(filePath: String): SourceDocumentResolution = SourceDocumentResolution.Present(source)
 
-        override suspend fun isUnderRoot(documentUri: String, rootUri: String): Boolean =
-            rootUri == ownerRoot
+        override suspend fun isUnderRoot(documentUri: String, rootUri: String): Boolean = rootUri == ownerRoot
 
         override fun rootWriteState(rootUri: String): RootWriteState = rootWriteState
         override fun canWrite(documentUri: String): Boolean? = true

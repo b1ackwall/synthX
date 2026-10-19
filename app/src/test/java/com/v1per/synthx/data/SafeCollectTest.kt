@@ -17,7 +17,8 @@ import kotlin.test.assertFailsWith
  * first call must not stop a second event from still reaching the handler.
  */
 class SafeCollectTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun aThrowingHandlerDoesNotStopSubsequentEvents() = runTest {
         val source = flow {

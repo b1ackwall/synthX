@@ -11,7 +11,8 @@ import kotlin.test.assertEquals
  * SharedPreferences in the way.
  */
 class IssuesScanSnapshotTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private fun snapshot(
         missingArtSongIds: List<String> = emptyList(),

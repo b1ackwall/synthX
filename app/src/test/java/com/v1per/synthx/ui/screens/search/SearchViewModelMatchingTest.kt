@@ -33,21 +33,21 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelMatchingTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val library = SearchLibrary()
 
     @Test
-    fun aQueryFindsSongsByTitleOrArtistAlbumsByTitleOrArtistAndArtistsAndPlaylistsByName() =
-        withViewModel { vm ->
-            vm.onQueryChange("night")
-            val results = awaitResults(vm) { !it.isEmpty }
+    fun aQueryFindsSongsByTitleOrArtistAlbumsByTitleOrArtistAndArtistsAndPlaylistsByName() = withViewModel { vm ->
+        vm.onQueryChange("night")
+        val results = awaitResults(vm) { !it.isEmpty }
 
-            assertEquals(listOf("s-title", "s-artist"), results.songs.map { it.id })
-            assertEquals(listOf("al-title", "al-artist"), results.albums.map { it.id })
-            assertEquals(listOf("ar-night"), results.artists.map { it.id })
-            assertEquals(listOf("p-night"), results.playlists.map { it.id })
-        }
+        assertEquals(listOf("s-title", "s-artist"), results.songs.map { it.id })
+        assertEquals(listOf("al-title", "al-artist"), results.albums.map { it.id })
+        assertEquals(listOf("ar-night"), results.artists.map { it.id })
+        assertEquals(listOf("p-night"), results.playlists.map { it.id })
+    }
 
     @Test
     fun matchingIgnoresCase() = withViewModel { vm ->
@@ -126,7 +126,7 @@ internal class SearchLibrary {
             searchSong("s-title", title = "Midnight City", artist = "M83"),
             searchSong("s-artist", title = "Fireflies", artist = "Owl City Nightly"),
             searchSong("s-none", title = "Daylight", artist = "Kavinsky"),
-        )
+        ),
     )
     val artists = MutableStateFlow(listOf(Artist("ar-night", "Nightwish"), Artist("ar-none", "Daft Punk")))
     val albums = MutableStateFlow(
@@ -134,30 +134,34 @@ internal class SearchLibrary {
             Album("al-title", title = "Night Visions", artist = "Imagine Dragons", albumArtUri = null),
             Album("al-artist", title = "Ocean Eyes", artist = "Owl City Nightly", albumArtUri = null),
             Album("al-none", title = "Discovery", artist = "Daft Punk", albumArtUri = null),
-        )
+        ),
     )
     val playlists = MutableStateFlow(
         listOf(
             Playlist("p-night", name = "Late Night", groupId = null, albumArtUri = null),
             Playlist("p-none", name = "Gym", groupId = null, albumArtUri = null),
-        )
+        ),
     )
 
-    fun repository(songsFlow: Flow<List<Song>> = songs): SongRepository =
-        Proxy.newProxyInstance(
-            SongRepository::class.java.classLoader,
-            arrayOf(SongRepository::class.java),
-        ) { _, method, _ ->
-            when (method.name) {
-                "getSongs" -> songsFlow
-                "getArtists" -> artists
-                "getAlbums" -> albums
-                "getAllPlaylists" -> playlists
-                else -> error("Unexpected repository call: ${method.name}")
-            }
-        } as SongRepository
+    fun repository(songsFlow: Flow<List<Song>> = songs): SongRepository = Proxy.newProxyInstance(
+        SongRepository::class.java.classLoader,
+        arrayOf(SongRepository::class.java),
+    ) { _, method, _ ->
+        when (method.name) {
+            "getSongs" -> songsFlow
+            "getArtists" -> artists
+            "getAlbums" -> albums
+            "getAllPlaylists" -> playlists
+            else -> error("Unexpected repository call: ${method.name}")
+        }
+    } as SongRepository
 }
 
 internal fun searchSong(id: String, title: String, artist: String) = Song(
-    id = id, title = title, artist = artist, album = "Album", duration = 1_000L, filePath = "/music/$id.mp3",
+    id = id,
+    title = title,
+    artist = artist,
+    album = "Album",
+    duration = 1_000L,
+    filePath = "/music/$id.mp3",
 )

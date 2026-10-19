@@ -7,7 +7,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class SqliteBatchingTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun largerLogicalInputIsDeduplicatedSplitAndReassembledInOrder() = runTest {

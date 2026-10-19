@@ -12,7 +12,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RestorePrimitivesTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun operationFilenamesAreSameDirectorySafeAndRoundTrip() {
         val names = RestoreArtifactNames(OP)
@@ -443,7 +444,11 @@ class RestorePrimitivesTest {
                 phase == RestoreTransaction.Phase.ROLLED_BACK ||
                 phase == RestoreTransaction.Phase.STATELESS_RECOVERY_INTENT ||
                 phase == RestoreTransaction.Phase.STATELESS_RECOVERED
-            ) RestoreTransaction.RollbackSource.OLD else null,
+            ) {
+                RestoreTransaction.RollbackSource.OLD
+            } else {
+                null
+            },
         )
     }
 

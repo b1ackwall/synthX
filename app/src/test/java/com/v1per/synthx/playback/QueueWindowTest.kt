@@ -19,7 +19,8 @@ import kotlin.test.assertTrue
  * All four are pure, so every case here is exact rather than a smoke test.
  */
 class QueueWindowTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private fun order(count: Int) = (0 until count).map { QueueSlotRecord("slot-$it", "song-$it") }
 
@@ -36,8 +37,10 @@ class QueueWindowTest {
             when (edit) {
                 is WindowEdit.Remove ->
                     repeat(edit.toIndexExclusive - edit.fromIndex) { timeline.removeAt(edit.fromIndex) }
+
                 is WindowEdit.Insert ->
                     timeline.addAll(edit.index, edit.records.map { it.slotId })
+
                 is WindowEdit.Move ->
                     timeline.add(edit.toIndex, timeline.removeAt(edit.fromIndex))
             }
@@ -46,11 +49,7 @@ class QueueWindowTest {
     }
 
     /** Runs the edits one at a time, asserting [slotId] is present after every single step. */
-    private fun assertNeverDisturbed(
-        loaded: List<String>,
-        edits: List<WindowEdit>,
-        slotId: String,
-    ) {
+    private fun assertNeverDisturbed(loaded: List<String>, edits: List<WindowEdit>, slotId: String) {
         assertTrue(slotId in loaded, "precondition: $slotId should start out loaded")
         edits.forEachIndexed { index, edit ->
             val afterStep = applyEdits(loaded, edits.take(index + 1))
@@ -236,9 +235,11 @@ class QueueWindowTest {
 
         assertEquals(desired.ids(), applyEdits(loaded, edits))
         assertNeverDisturbed(loaded, edits, "slot-900")
-        assertTrue(edits.filterIsInstance<WindowEdit.Insert>().any { insert ->
-            insert.records.any { it.slotId == "slot-inserted" }
-        })
+        assertTrue(
+            edits.filterIsInstance<WindowEdit.Insert>().any { insert ->
+                insert.records.any { it.slotId == "slot-inserted" }
+            },
+        )
     }
 
     @Test fun anEmptyTimelineIsFilledByASingleInsert() {

@@ -15,7 +15,8 @@ import kotlin.test.assertTrue
  * away from anything loaded has to be an ordinary, always-successful list operation.
  */
 class QueueOrderStoreTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private class RecordingWriter : BaselineOrderWriter {
         val writes = mutableListOf<List<String>>()
@@ -204,7 +205,9 @@ class QueueOrderStoreTest {
         // "slot-c" is genuinely 2 positions into Up Next (after current "slot-a"); moved to
         // the very front — identical net effect to moveMirrorsBaselineOnlyWhileUnshuffled's
         // (0, 2) case, but requested by identity instead of a trusted index.
-        assertTrue(subject.moveUpcoming("slot-c", toDisplayIndex = 0, currentSlotId = "slot-a", mirrorToBaseline = false))
+        assertTrue(
+            subject.moveUpcoming("slot-c", toDisplayIndex = 0, currentSlotId = "slot-a", mirrorToBaseline = false),
+        )
 
         assertEquals(listOf("slot-a", "slot-c", "slot-b", "slot-d"), subject.liveIds())
     }
@@ -220,13 +223,20 @@ class QueueOrderStoreTest {
         subject.captureFresh(records("a", "b", "c", "d"))
         // The order changes (b and c swap) but the slot SET is identical — exactly the gap a
         // UI-layer set-equality guard cannot detect.
-        subject.moveUpcoming(fromDisplayIndex = 0, toDisplayIndex = 1, currentSlotId = "slot-a", mirrorToBaseline = false)
+        subject.moveUpcoming(
+            fromDisplayIndex = 0,
+            toDisplayIndex = 1,
+            currentSlotId = "slot-a",
+            mirrorToBaseline = false,
+        )
         assertEquals(listOf("slot-a", "slot-c", "slot-b", "slot-d"), subject.liveIds())
 
         // The user actually meant to move "slot-b" (wherever it now sits) to the front. Identity
         // resolution finds it at its NEW position (index 2), not wherever a stale caller-side
         // index would have assumed.
-        assertTrue(subject.moveUpcoming("slot-b", toDisplayIndex = 0, currentSlotId = "slot-a", mirrorToBaseline = false))
+        assertTrue(
+            subject.moveUpcoming("slot-b", toDisplayIndex = 0, currentSlotId = "slot-a", mirrorToBaseline = false),
+        )
 
         assertEquals(listOf("slot-a", "slot-b", "slot-c", "slot-d"), subject.liveIds())
     }
@@ -240,7 +250,9 @@ class QueueOrderStoreTest {
         subject.captureFresh(records("a", "b", "c"))
         subject.remove("slot-b")
 
-        assertFalse(subject.moveUpcoming("slot-b", toDisplayIndex = 0, currentSlotId = "slot-a", mirrorToBaseline = false))
+        assertFalse(
+            subject.moveUpcoming("slot-b", toDisplayIndex = 0, currentSlotId = "slot-a", mirrorToBaseline = false),
+        )
         assertEquals(listOf("slot-a", "slot-c"), subject.liveIds())
     }
 
@@ -250,8 +262,12 @@ class QueueOrderStoreTest {
 
         // "slot-b" is current; "slot-a" sits before it in the full order — neither is a valid
         // Up Next move target relative to "slot-b".
-        assertFalse(subject.moveUpcoming("slot-b", toDisplayIndex = 0, currentSlotId = "slot-b", mirrorToBaseline = false))
-        assertFalse(subject.moveUpcoming("slot-a", toDisplayIndex = 0, currentSlotId = "slot-b", mirrorToBaseline = false))
+        assertFalse(
+            subject.moveUpcoming("slot-b", toDisplayIndex = 0, currentSlotId = "slot-b", mirrorToBaseline = false),
+        )
+        assertFalse(
+            subject.moveUpcoming("slot-a", toDisplayIndex = 0, currentSlotId = "slot-b", mirrorToBaseline = false),
+        )
         assertEquals(listOf("slot-a", "slot-b", "slot-c"), subject.liveIds())
     }
 
@@ -276,20 +292,34 @@ class QueueOrderStoreTest {
     @Test fun revertingToIndexOnlyResolutionMovesTheWrongSongAfterAReorder() {
         val subject = store()
         subject.captureFresh(records("a", "b", "c", "d"))
-        subject.moveUpcoming(fromDisplayIndex = 0, toDisplayIndex = 1, currentSlotId = "slot-a", mirrorToBaseline = false)
+        subject.moveUpcoming(
+            fromDisplayIndex = 0,
+            toDisplayIndex = 1,
+            currentSlotId = "slot-a",
+            mirrorToBaseline = false,
+        )
         assertEquals(listOf("slot-a", "slot-c", "slot-b", "slot-d"), subject.liveIds())
 
         // The caller still believes "slot-b" sits at display index 0 (its ORIGINAL position,
         // captured before the reorder above). Trusting that stale index moves "slot-c" — the
         // song now actually AT that position — instead of "slot-b".
         val staleFromDisplayIndex = 0
-        subject.moveUpcoming(staleFromDisplayIndex, toDisplayIndex = 2, currentSlotId = "slot-a", mirrorToBaseline = false)
+        subject.moveUpcoming(
+            staleFromDisplayIndex,
+            toDisplayIndex = 2,
+            currentSlotId = "slot-a",
+            mirrorToBaseline = false,
+        )
 
         // "slot-c" (wrong song) ended up moved to the end, while "slot-b" (the song the user
         // actually meant) never moved at all — exactly the bug the slot-id resolution prevents.
         assertEquals(listOf("slot-a", "slot-b", "slot-d", "slot-c"), subject.liveIds())
         assertTrue(subject.liveIds().contains("slot-b"), "slot-b never moved, but it's still present")
-        assertEquals(1, subject.liveIds().indexOf("slot-b"), "slot-b stayed in place — the stale index acted on slot-c instead")
+        assertEquals(
+            1,
+            subject.liveIds().indexOf("slot-b"),
+            "slot-b stayed in place — the stale index acted on slot-c instead",
+        )
     }
 
     @Test fun removeStripsBothOrdersRegardlessOfShuffleState() {
@@ -322,6 +352,7 @@ class QueueOrderStoreTest {
      * exactly the second assertion group below, run directly against this same store, so that
      * shape stays pinned without hand-editing production code.
      */
+
     /** Three independently addressable occurrences of the same song, plus two other songs. */
     private fun queueWithDuplicates() = listOf(
         QueueSlotRecord("slot-a", "song-a"),
@@ -399,7 +430,7 @@ class QueueOrderStoreTest {
                 QueueSlotRecord("slot-1", "song-dup"),
                 QueueSlotRecord("slot-2", "song-dup"),
                 QueueSlotRecord("slot-3", "song-other"),
-            )
+            ),
         )
 
         assertTrue(subject.remove("slot-2"))
@@ -461,7 +492,7 @@ class QueueOrderStoreTest {
                 QueueSlotRecord("slot-1", "song-old"),
                 QueueSlotRecord("slot-2", "song-old"),
                 QueueSlotRecord("slot-3", "song-keep"),
-            )
+            ),
         )
 
         assertTrue(subject.remapSong("song-old", "song-new"))
@@ -488,7 +519,7 @@ class QueueOrderStoreTest {
                 QueueSlotRecord("slot-1", "song-same"),
                 QueueSlotRecord("slot-2", "song-same"),
                 QueueSlotRecord("slot-3", "song-other"),
-            )
+            ),
         )
         val writesAfterCapture = writer.writes.size
 

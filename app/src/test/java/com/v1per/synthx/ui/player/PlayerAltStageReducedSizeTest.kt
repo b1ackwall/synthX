@@ -8,7 +8,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class PlayerAltStageReducedSizeTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun divisibleSidesDivideExactly() {
         assertEquals(IntSize(270, 600), altStageReducedSize(IntSize(1080, 2400), 4))

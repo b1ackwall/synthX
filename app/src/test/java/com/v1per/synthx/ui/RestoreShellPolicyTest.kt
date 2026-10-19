@@ -8,7 +8,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class RestoreShellPolicyTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun `normal admission with no terminal renders the ordinary shell`() {

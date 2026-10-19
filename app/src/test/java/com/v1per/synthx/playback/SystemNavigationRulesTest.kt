@@ -14,7 +14,8 @@ import kotlin.test.assertTrue
  * repeat-aware final-item Next rule [nextIndexInOrder] as system transport relies on it.
  */
 class SystemNavigationRulesTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val threshold = 3_000L
 
@@ -58,8 +59,11 @@ class SystemNavigationRulesTest {
         assertEquals(
             PreviousAction.RestartCurrent,
             action(
-                positionMs = 5_000L, loadedIndex = 0, repeatMode = RepeatMode.All,
-                currentOrderIndex = 0, orderSize = 200,
+                positionMs = 5_000L,
+                loadedIndex = 0,
+                repeatMode = RepeatMode.All,
+                currentOrderIndex = 0,
+                orderSize = 200,
             ),
         )
     }
@@ -113,8 +117,10 @@ class SystemNavigationRulesTest {
         assertEquals(
             PreviousAction.SeekOrder(9),
             action(
-                loadedIndex = C.INDEX_UNSET, repeatMode = RepeatMode.All,
-                currentOrderIndex = 0, orderSize = 10,
+                loadedIndex = C.INDEX_UNSET,
+                repeatMode = RepeatMode.All,
+                currentOrderIndex = 0,
+                orderSize = 10,
             ),
         )
     }
@@ -165,14 +171,16 @@ class SystemNavigationRulesTest {
 
     @Test
     fun `only ever touches the four skip commands`() {
-        for (next in listOf(true, false)) for (previous in listOf(true, false)) {
-            val edit = navigationCommandEdit(next, previous)
-            assertEquals(
-                nextCommands + previousCommands,
-                edit.add + edit.remove,
-                "next=$next previous=$previous",
-            )
-            assertTrue(edit.add.intersect(edit.remove).isEmpty())
+        for (next in listOf(true, false)) {
+            for (previous in listOf(true, false)) {
+                val edit = navigationCommandEdit(next, previous)
+                assertEquals(
+                    nextCommands + previousCommands,
+                    edit.add + edit.remove,
+                    "next=$next previous=$previous",
+                )
+                assertTrue(edit.add.intersect(edit.remove).isEmpty())
+            }
         }
     }
 }

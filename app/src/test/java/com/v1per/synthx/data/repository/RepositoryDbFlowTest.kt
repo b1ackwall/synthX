@@ -22,7 +22,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RepositoryDbFlowTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @AfterTest
     fun reset() = RestoreCoordinator.resetForTest()
@@ -183,7 +184,10 @@ class RepositoryDbFlowTest {
         val started = CompletableDeferred<Unit>()
         val collector = launch {
             RepositoryDbFlow.observe {
-                flow<Int> { started.complete(Unit); awaitCancellation() }
+                flow<Int> {
+                    started.complete(Unit)
+                    awaitCancellation()
+                }
             }.collect()
         }
         started.await()

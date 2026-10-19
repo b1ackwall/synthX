@@ -39,16 +39,17 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class StarredViewModelTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     // Deliberately not in title, artist or date order: the list must keep it as given.
-    private val starred = listOf(starredSong("m", dateAdded = 1L), starredSong("c", dateAdded = 3L), starredSong("t", dateAdded = 2L))
+    private val starred =
+        listOf(starredSong("m", dateAdded = 1L), starredSong("c", dateAdded = 3L), starredSong("t", dateAdded = 2L))
 
     @Test
-    fun theListIsLoadingUntilTheRepositoryAnswers() =
-        withViewModel(flow { awaitCancellation() }) { vm, _ ->
-            assertIs<UiState.Loading>(vm.uiState.value)
-        }
+    fun theListIsLoadingUntilTheRepositoryAnswers() = withViewModel(flow { awaitCancellation() }) { vm, _ ->
+        assertIs<UiState.Loading>(vm.uiState.value)
+    }
 
     @Test
     fun noStarredSongsIsEmpty() = withViewModel(flowOf(emptyList())) { vm, _ ->
@@ -105,10 +106,7 @@ class StarredViewModelTest {
     private fun awaitLoaded(vm: StarredViewModel): UiState<ImmutableList<Song>> =
         runBlocking { withTimeout(2_000) { vm.uiState.first { it !is UiState.Loading } } }
 
-    private fun withViewModel(
-        songs: Flow<List<Song>>,
-        block: (StarredViewModel, RecordingPlaybackEngine) -> Unit,
-    ) {
+    private fun withViewModel(songs: Flow<List<Song>>, block: (StarredViewModel, RecordingPlaybackEngine) -> Unit) {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         try {
             val engine = RecordingPlaybackEngine()
@@ -125,19 +123,23 @@ class StarredViewModelTest {
         }
     }
 
-    private fun starredRepository(songs: Flow<List<Song>>): SongRepository =
-        Proxy.newProxyInstance(
-            SongRepository::class.java.classLoader,
-            arrayOf(SongRepository::class.java),
-        ) { _, method, _ ->
-            when (method.name) {
-                "getStarredSongs" -> songs
-                else -> error("Unexpected repository call: ${method.name}")
-            }
-        } as SongRepository
+    private fun starredRepository(songs: Flow<List<Song>>): SongRepository = Proxy.newProxyInstance(
+        SongRepository::class.java.classLoader,
+        arrayOf(SongRepository::class.java),
+    ) { _, method, _ ->
+        when (method.name) {
+            "getStarredSongs" -> songs
+            else -> error("Unexpected repository call: ${method.name}")
+        }
+    } as SongRepository
 
     private fun starredSong(id: String, dateAdded: Long) = Song(
-        id = id, title = id, artist = "Artist", album = "Album", duration = 1_000L,
-        filePath = "/music/$id.mp3", dateAdded = dateAdded,
+        id = id,
+        title = id,
+        artist = "Artist",
+        album = "Album",
+        duration = 1_000L,
+        filePath = "/music/$id.mp3",
+        dateAdded = dateAdded,
     )
 }

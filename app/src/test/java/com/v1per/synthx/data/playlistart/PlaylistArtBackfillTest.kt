@@ -19,7 +19,8 @@ import kotlinx.coroutines.yield
 import org.junit.Rule
 
 class PlaylistArtBackfillTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun `a library with nothing missing costs one query and no writes`() = runTest {
@@ -100,7 +101,10 @@ class PlaylistArtBackfillTest {
         val releaseA = CompletableDeferred<Unit>()
         val daoA = FakePlaylistDao(
             missing = listOf("only"),
-            onGetMissingArtIds = { order += "A:start"; releaseA.await() },
+            onGetMissingArtIds = {
+                order += "A:start"
+                releaseA.await()
+            },
         )
         val daoB = FakePlaylistDao(
             missing = emptyList(),
@@ -168,14 +172,15 @@ class PlaylistArtBackfillTest {
         override suspend fun getSongIdsForPlaylist(playlistId: String): List<String> = unused()
         override suspend fun getPlaylistIdsForSong(songId: String): List<String> = unused()
         override suspend fun getPlaylistMembershipsForSong(songId: String): List<PlaylistMembership> = unused()
-        override suspend fun getPlaylistMemberCounts(ids: List<String>): List<com.v1per.synthx.data.db.PlaylistMemberCount> = unused()
+        override suspend fun getPlaylistMemberCounts(
+            ids: List<String>,
+        ): List<com.v1per.synthx.data.db.PlaylistMemberCount> = unused()
         override suspend fun getPlaylistsByIds(ids: List<String>): List<PlaylistEntity> = unused()
         override suspend fun insertPlaylistSong(playlistSong: PlaylistSongEntity) = unused()
         override suspend fun removePlaylistSong(playlistId: String, songId: String) = unused()
         override suspend fun getMaxPosition(playlistId: String): Int? = unused()
         override suspend fun containsSong(playlistId: String, songId: String): Boolean = unused()
 
-        private fun unused(): Nothing =
-            error("PlaylistArtBackfill must only touch the playlist art queries")
+        private fun unused(): Nothing = error("PlaylistArtBackfill must only touch the playlist art queries")
     }
 }

@@ -6,7 +6,8 @@ import kotlin.test.Test
 import kotlin.test.assertContains
 
 class RestoreFailureFormatterTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun workerFailureIncludesCauseSuppressedAndIncidentReference() {
         val root = IllegalArgumentException("deepest reason")

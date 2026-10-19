@@ -14,14 +14,16 @@ import kotlin.test.assertEquals
  * source, and the stateless order (old before safety).
  */
 class RestoreRecoveryPlannerRowsTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun rolledBackWithValidLiveCompletesTheRollback() {
         listOf(Phase.ROLLED_BACK, Phase.STATELESS_RECOVERED).forEach { phase ->
             assertEquals(
                 RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL,
                 RestoreRecoveryPlanner.decide(
-                    phase, Outcome.ROLLED_BACK,
+                    phase,
+                    Outcome.ROLLED_BACK,
                     facts(liveExists = true, liveValid = true, oldExists = true, oldValid = true),
                     RollbackSource.OLD,
                 ),
@@ -36,13 +38,21 @@ class RestoreRecoveryPlannerRowsTest {
             assertEquals(
                 RestoreRecoveryAction.PROMOTE_OLD,
                 RestoreRecoveryPlanner.decide(
-                    phase, Outcome.ROLLED_BACK, invalidLive.copy(oldExists = true, oldValid = true), RollbackSource.OLD,
+                    phase,
+                    Outcome.ROLLED_BACK,
+                    invalidLive.copy(oldExists = true, oldValid = true),
+                    RollbackSource.OLD,
                 ),
                 "$phase, invalid live, valid old",
             )
             assertEquals(
                 RestoreRecoveryAction.PROMOTE_SAFETY,
-                RestoreRecoveryPlanner.decide(phase, Outcome.ROLLED_BACK, invalidLive.copy(safetyValid = true), RollbackSource.OLD),
+                RestoreRecoveryPlanner.decide(
+                    phase,
+                    Outcome.ROLLED_BACK,
+                    invalidLive.copy(safetyValid = true),
+                    RollbackSource.OLD,
+                ),
                 "$phase, invalid live, valid safety only",
             )
             assertEquals(
@@ -74,7 +84,10 @@ class RestoreRecoveryPlannerRowsTest {
             assertEquals(
                 RestoreRecoveryAction.PROMOTE_OLD,
                 RestoreRecoveryPlanner.decide(
-                    phase, Outcome.ROLLED_BACK, facts(oldExists = true, oldValid = true, safetyValid = true), null,
+                    phase,
+                    Outcome.ROLLED_BACK,
+                    facts(oldExists = true, oldValid = true, safetyValid = true),
+                    null,
                 ),
                 "$phase, null source, old and safety valid",
             )

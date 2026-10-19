@@ -32,10 +32,16 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaylistDetailViewModelTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val withArt = Playlist(
-        id = "p1", name = "One", groupId = null, albumArtUri = null, artHue = 120, artStructureSeed = 42L,
+        id = "p1",
+        name = "One",
+        groupId = null,
+        albumArtUri = null,
+        artHue = 120,
+        artStructureSeed = 42L,
     )
 
     @Test
@@ -125,7 +131,7 @@ class PlaylistDetailViewModelTest {
         withViewModel(
             songs = flow { throw RuntimeException("query failed") },
             allPlaylists = MutableStateFlow(listOf(withArt)),
-                    ) { vm ->
+        ) { vm ->
             assertEquals("Couldn't load this playlist.", assertIs<UiState.Error>(vm.uiState.value).message)
         }
     }
@@ -142,7 +148,13 @@ class PlaylistDetailViewModelTest {
                 playlistId = "p1",
                 appContext = Application(),
                 stringResource = { id ->
-                    if (id == R.string.error_load_playlist) "Couldn't load this playlist." else error("Unexpected string resource: $id")
+                    if (id ==
+                        R.string.error_load_playlist
+                    ) {
+                        "Couldn't load this playlist."
+                    } else {
+                        error("Unexpected string resource: $id")
+                    }
                 },
             )
             try {
@@ -168,7 +180,12 @@ class PlaylistDetailViewModelTest {
         } as SongRepository
 
     private fun song(id: String, durationMs: Long = 1_000L, missing: Boolean = false) = Song(
-        id = id, title = id, artist = "Artist", album = "Album", duration = durationMs, filePath = "/music/$id.mp3",
+        id = id,
+        title = id,
+        artist = "Artist",
+        album = "Album",
+        duration = durationMs,
+        filePath = "/music/$id.mp3",
         isMissing = missing,
     )
 }

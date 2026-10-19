@@ -26,7 +26,8 @@ import kotlin.test.assertEquals
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun defaultFilterIsAllAndManualSelectionSurvivesSearchActivity() = runBlocking {
@@ -49,7 +50,7 @@ class SearchViewModelTest {
                         album = "Album",
                         duration = 1L,
                         filePath = "song.mp3",
-                    )
+                    ),
                 )
                 withTimeout(2_000) {
                     viewModel.results.first { results -> results.songs.isNotEmpty() }

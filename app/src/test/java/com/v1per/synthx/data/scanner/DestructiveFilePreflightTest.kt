@@ -7,7 +7,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class DestructiveFilePreflightTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private val uri = "content://provider/tree/music/document/song"
 

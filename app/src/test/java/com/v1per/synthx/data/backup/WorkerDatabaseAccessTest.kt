@@ -15,7 +15,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class WorkerDatabaseAccessTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @AfterTest fun reset() = RestoreCoordinator.resetForTest()
 
@@ -34,7 +35,12 @@ class WorkerDatabaseAccessTest {
     @Test fun newArrivalsWorkerProductionGateRejectsPreparation() = runTest {
         val entered = CompletableDeferred<Unit>()
         val hold = CompletableDeferred<Unit>()
-        val restore = launch { RestoreCoordinator.exclusive { entered.complete(Unit); hold.await() } }
+        val restore = launch {
+            RestoreCoordinator.exclusive {
+                entered.complete(Unit)
+                hold.await()
+            }
+        }
         entered.await()
         assertFailsWith<IllegalStateException> {
             WorkerDatabaseAccess.run(awaitStartup = {}) { error("must not scan") }
@@ -53,7 +59,12 @@ class WorkerDatabaseAccessTest {
     @Test fun preparationRejectsBeforeRoomFactory() = runTest {
         val hold = CompletableDeferred<Unit>()
         val entered = CompletableDeferred<Unit>()
-        val restore = launch { RestoreCoordinator.exclusive { entered.complete(Unit); hold.await() } }
+        val restore = launch {
+            RestoreCoordinator.exclusive {
+                entered.complete(Unit)
+                hold.await()
+            }
+        }
         entered.await()
         var roomFactories = 0
         assertFailsWith<IllegalStateException> {

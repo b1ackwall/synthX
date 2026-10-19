@@ -8,7 +8,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class PlaylistArtGeneratorTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun `the grid holds one segment per cell corner, indexed in build order`() {
@@ -68,7 +69,10 @@ class PlaylistArtGeneratorTest {
         // Measured 190 of 200 after P8-T4 (169 before it), so 180 leaves room for noise while
         // still failing on a return to the old concentration. The old `> 20` bar would have
         // passed a generator four times more concentrated than the one it replaced.
-        assertTrue(patterns.toSet().size >= 180, "Seeds produced only ${patterns.toSet().size} distinct patterns of 200")
+        assertTrue(
+            patterns.toSet().size >= 180,
+            "Seeds produced only ${patterns.toSet().size} distinct patterns of 200",
+        )
         // Every plane should turn up across 200 draws of a uniform 1-in-4 choice.
         assertEquals(SymmetryPlane.entries.toSet(), patterns.mapTo(mutableSetOf()) { it.plane })
     }
@@ -85,7 +89,10 @@ class PlaylistArtGeneratorTest {
 
         // The audit's most common pattern took 3.55% of seeds; now ~0.7%.
         val topShare = counts.max().toDouble() / SAMPLE_SIZE
-        assertTrue(topShare <= 0.015, "One pattern accounts for ${"%.2f".format(topShare * 100)}% of seeds (expected <= 1.5%)")
+        assertTrue(
+            topShare <= 0.015,
+            "One pattern accounts for ${"%.2f".format(topShare * 100)}% of seeds (expected <= 1.5%)",
+        )
     }
 
     @Test
@@ -123,10 +130,13 @@ class PlaylistArtGeneratorTest {
                 when (pattern.plane) {
                     SymmetryPlane.VERTICAL ->
                         PlaylistArtGeometry.segmentIndex(r, MAX_INDEX - c, dr, 1 - dc)
+
                     SymmetryPlane.HORIZONTAL ->
                         PlaylistArtGeometry.segmentIndex(MAX_INDEX - r, c, 1 - dr, dc)
+
                     SymmetryPlane.DIAG1 ->
                         PlaylistArtGeometry.segmentIndex(c, r, dc, dr)
+
                     SymmetryPlane.DIAG2 ->
                         PlaylistArtGeometry.segmentIndex(MAX_INDEX - c, MAX_INDEX - r, 1 - dc, 1 - dr)
                 }

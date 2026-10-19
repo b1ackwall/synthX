@@ -33,7 +33,8 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SongsViewModelErrorPinTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun pinnedAfterOneSongsFlowErrorTheListStopsUpdating() = withUncaughtExceptionsCaptured {

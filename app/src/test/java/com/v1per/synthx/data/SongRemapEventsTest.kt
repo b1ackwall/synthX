@@ -28,7 +28,8 @@ private fun testSong(id: String) = Song(
  * during a suspension.
  */
 class SongRemapEventsTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun everyPublishedRemapCarriesAFreshIncreasingRevision() = runBlocking {
         val collector = async { SongRemapEvents.events.take(2).toList() }

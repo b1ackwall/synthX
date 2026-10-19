@@ -24,7 +24,8 @@ import kotlin.test.assertEquals
  * `PlaybackRecoveryInstrumentedTest`.
  */
 class IdleRecoveryTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun idleStateRequiresPrepare() {
         assertEquals(IdleRecoveryAction.PREPARE, idleRecoveryActionFor(Player.STATE_IDLE))
@@ -40,7 +41,8 @@ class IdleRecoveryTest {
     }
 
     @OptIn(markerClass = [UnstableApi::class])
-    @Test fun errorLogMessageCarriesCodeAndCauseDistinguishingDetail() {
+    @Test
+    fun errorLogMessageCarriesCodeAndCauseDistinguishingDetail() {
         val fileNotFound = PlaybackException(
             "io error",
             java.io.FileNotFoundException("missing.mp3"),

@@ -8,7 +8,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class BackupRetentionTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun `only coherent complete final pairs enter retention`() {
@@ -22,8 +23,14 @@ class BackupRetentionTest {
         val mismatchedDb = db("00000009")
         val mismatchedMetadata = json("00000009")
         val artifacts = valid.flatMap { it.artifacts } + listOf(
-            orphanDb, orphanMetadata, malformedDb, malformedMetadata,
-            partialDb, partialMetadata, mismatchedDb, mismatchedMetadata,
+            orphanDb,
+            orphanMetadata,
+            malformedDb,
+            malformedMetadata,
+            partialDb,
+            partialMetadata,
+            mismatchedDb,
+            mismatchedMetadata,
         )
         val metadata = buildMap<String, BackupMetadata?> {
             valid.forEach { put(it.metadataDocument.document, it.metadata) }
@@ -45,7 +52,10 @@ class BackupRetentionTest {
         val completed = enumerate(valid.flatMap { it.artifacts } + db("00000004"), metadataOf(valid))
         val deleted = mutableListOf<String>()
 
-        BackupRetention.prune(completed, 3, name("00000003")) { deleted += it.databaseName; complete() }
+        BackupRetention.prune(completed, 3, name("00000003")) {
+            deleted += it.databaseName
+            complete()
+        }
 
         assertTrue(deleted.isEmpty())
     }
@@ -58,7 +68,10 @@ class BackupRetentionTest {
         val completed = enumerate(all.flatMap { it.artifacts }, metadataOf(all))
         val deleted = mutableListOf<String>()
 
-        BackupRetention.prune(completed, 3, current.database.name) { deleted += it.databaseName; complete() }
+        BackupRetention.prune(completed, 3, current.database.name) {
+            deleted += it.databaseName
+            complete()
+        }
 
         assertEquals(listOf(future[0].database.name), deleted)
         assertFalse(current.database.name in deleted)
@@ -170,8 +183,18 @@ class BackupRetentionTest {
         val artifacts = manual.artifacts + daily.artifacts
         val metadata = metadataOf(listOf(manual, daily))
 
-        assertEquals(listOf(manual.database.name), enumerate(artifacts, metadata, BackupTier.Manual).map { it.databaseName })
-        assertEquals(listOf(daily.database.name), enumerate(artifacts, metadata, BackupTier.Daily).map { it.databaseName })
+        assertEquals(
+            listOf(manual.database.name),
+            enumerate(artifacts, metadata, BackupTier.Manual).map {
+                it.databaseName
+            },
+        )
+        assertEquals(
+            listOf(daily.database.name),
+            enumerate(artifacts, metadata, BackupTier.Daily).map {
+                it.databaseName
+            },
+        )
     }
 
     @Test
@@ -209,11 +232,7 @@ class BackupRetentionTest {
         val artifacts get() = listOf(database, metadataDocument)
     }
 
-    private fun pair(
-        id: String,
-        timestamp: Long,
-        tier: BackupTier = BackupTier.Manual,
-    ): PairFixture {
+    private fun pair(id: String, timestamp: Long, tier: BackupTier = BackupTier.Manual): PairFixture {
         val database = db(id)
         val metadataDocument = json(id)
         return PairFixture(
@@ -243,11 +262,7 @@ class BackupRetentionTest {
 
     private fun name(id: String) = "synthx_backup_2026-08-27_120000_000_$id.db"
 
-    private fun completeMetadata(
-        file: String,
-        timestamp: Long,
-        tier: BackupTier = BackupTier.Manual,
-    ) = BackupMetadata(
+    private fun completeMetadata(file: String, timestamp: Long, tier: BackupTier = BackupTier.Manual) = BackupMetadata(
         timestamp = timestamp.coerceAtLeast(1),
         tier = tier.name,
         dbVersion = 8,

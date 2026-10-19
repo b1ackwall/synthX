@@ -14,7 +14,8 @@ import kotlin.test.assertTrue
  * customised, so a no-op drop must report `false` and leave both orders untouched.
  */
 class QueueOrderStoreMoveNoOpTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     private class RecordingWriter : BaselineOrderWriter {
         val writes = mutableListOf<List<String>>()
@@ -36,7 +37,9 @@ class QueueOrderStoreMoveNoOpTest {
         val writesBefore = writer.writes.size
 
         // "slot-c" is Up Next row 1 after current "slot-a".
-        assertFalse(subject.moveUpcoming("slot-c", toDisplayIndex = 1, currentSlotId = "slot-a", mirrorToBaseline = true))
+        assertFalse(
+            subject.moveUpcoming("slot-c", toDisplayIndex = 1, currentSlotId = "slot-a", mirrorToBaseline = true),
+        )
 
         assertEquals(listOf("slot-a", "slot-b", "slot-c", "slot-d"), subject.liveIds())
         assertEquals(listOf("slot-a", "slot-b", "slot-c", "slot-d"), subject.baselineIds())
@@ -50,7 +53,14 @@ class QueueOrderStoreMoveNoOpTest {
         val liveBefore = subject.liveIds()
         val ownIndex = liveBefore.indexOf("slot-b") - liveBefore.indexOf("slot-a") - 1
 
-        assertFalse(subject.moveUpcoming("slot-b", toDisplayIndex = ownIndex, currentSlotId = "slot-a", mirrorToBaseline = false))
+        assertFalse(
+            subject.moveUpcoming(
+                "slot-b",
+                toDisplayIndex = ownIndex,
+                currentSlotId = "slot-a",
+                mirrorToBaseline = false,
+            ),
+        )
 
         assertEquals(liveBefore, subject.liveIds())
     }
@@ -61,7 +71,9 @@ class QueueOrderStoreMoveNoOpTest {
         subject.captureFresh(records("a", "b", "c", "d"))
         val writesBefore = writer.writes.size
 
-        assertTrue(subject.moveUpcoming("slot-c", toDisplayIndex = 2, currentSlotId = "slot-a", mirrorToBaseline = true))
+        assertTrue(
+            subject.moveUpcoming("slot-c", toDisplayIndex = 2, currentSlotId = "slot-a", mirrorToBaseline = true),
+        )
 
         assertEquals(listOf("slot-a", "slot-b", "slot-d", "slot-c"), subject.liveIds())
         assertEquals(listOf("slot-a", "slot-b", "slot-d", "slot-c"), subject.baselineIds())

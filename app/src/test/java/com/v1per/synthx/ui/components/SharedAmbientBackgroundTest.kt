@@ -8,7 +8,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 
 class SharedAmbientBackgroundTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun `production Home and player style is locked to one non-debug policy`() {
         assertEquals(150f, ProductionAmbientBackgroundStyle.BlurRadiusDp)

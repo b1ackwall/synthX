@@ -33,7 +33,8 @@ import kotlin.test.assertIs
 /** The Songs list: Loading, Empty and Success, the four sort orders, and what a tap plays. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SongsViewModelTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     // Each of the four orders puts these three in a different sequence, and TITLE differs from a
     // case-sensitive sort ("Banana" would sort before "apple").
@@ -44,10 +45,9 @@ class SongsViewModelTest {
     )
 
     @Test
-    fun theListIsLoadingUntilTheRepositoryAnswers() =
-        withViewModel(flow { awaitCancellation() }) { vm, _ ->
-            assertIs<UiState.Loading>(vm.uiState.value)
-        }
+    fun theListIsLoadingUntilTheRepositoryAnswers() = withViewModel(flow { awaitCancellation() }) { vm, _ ->
+        assertIs<UiState.Loading>(vm.uiState.value)
+    }
 
     @Test
     fun anEmptyLibraryIsEmpty() = withViewModel(flowOf(emptyList())) { vm, _ ->
@@ -91,18 +91,17 @@ class SongsViewModelTest {
     }
 
     @Test
-    fun aTapPlaysTheWholeListAsSortedFromTheTappedSong() =
-        withViewModel(flowOf(library)) { vm, engine ->
-            vm.setSortOrder(SortOrder.TITLE)
-            awaitOrder(vm, listOf("y", "z", "x"))
+    fun aTapPlaysTheWholeListAsSortedFromTheTappedSong() = withViewModel(flowOf(library)) { vm, engine ->
+        vm.setSortOrder(SortOrder.TITLE)
+        awaitOrder(vm, listOf("y", "z", "x"))
 
-            vm.onSongTap(library.first { it.id == "z" })
+        vm.onSongTap(library.first { it.id == "z" })
 
-            assertEquals(
-                listOf(RecordingPlaybackEngine.PlayCall(listOf("y", "z", "x"), 1, null)),
-                engine.playQueueCalls,
-            )
-        }
+        assertEquals(
+            listOf(RecordingPlaybackEngine.PlayCall(listOf("y", "z", "x"), 1, null)),
+            engine.playQueueCalls,
+        )
+    }
 
     private fun ids(state: UiState<ImmutableList<Song>>): List<String> =
         assertIs<UiState.Success<ImmutableList<Song>>>(state).data.map { it.id }
@@ -125,10 +124,7 @@ class SongsViewModelTest {
         return ids(vm.uiState.value)
     }
 
-    private fun withViewModel(
-        songs: Flow<List<Song>>,
-        block: (SongsViewModel, RecordingPlaybackEngine) -> Unit,
-    ) {
+    private fun withViewModel(songs: Flow<List<Song>>, block: (SongsViewModel, RecordingPlaybackEngine) -> Unit) {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         try {
             val engine = RecordingPlaybackEngine()
@@ -146,18 +142,22 @@ class SongsViewModelTest {
     }
 }
 
-internal fun songsRepository(songs: Flow<List<Song>>): SongRepository =
-    Proxy.newProxyInstance(
-        SongRepository::class.java.classLoader,
-        arrayOf(SongRepository::class.java),
-    ) { _, method, _ ->
-        when (method.name) {
-            "getSongs" -> songs
-            else -> error("Unexpected repository call: ${method.name}")
-        }
-    } as SongRepository
+internal fun songsRepository(songs: Flow<List<Song>>): SongRepository = Proxy.newProxyInstance(
+    SongRepository::class.java.classLoader,
+    arrayOf(SongRepository::class.java),
+) { _, method, _ ->
+    when (method.name) {
+        "getSongs" -> songs
+        else -> error("Unexpected repository call: ${method.name}")
+    }
+} as SongRepository
 
 internal fun listSong(id: String, title: String, artist: String, album: String, dateAdded: Long) = Song(
-    id = id, title = title, artist = artist, album = album, duration = 1_000L,
-    filePath = "/music/$id.mp3", dateAdded = dateAdded,
+    id = id,
+    title = title,
+    artist = artist,
+    album = album,
+    duration = 1_000L,
+    filePath = "/music/$id.mp3",
+    dateAdded = dateAdded,
 )

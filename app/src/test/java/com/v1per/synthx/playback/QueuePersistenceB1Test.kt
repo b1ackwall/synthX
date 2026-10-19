@@ -35,24 +35,27 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class QueuePersistenceB1Test {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
-    private class QueueRepo : SongRepository, AdmittedQueuePersistenceRepository {
+    private class QueueRepo :
+        SongRepository,
+        AdmittedQueuePersistenceRepository {
         val persisted = mutableListOf<List<String>>()
         var gate: CompletableDeferred<Unit>? = null
         var failWrites = false
         var snapshot = QueueSnapshot(emptyList(), 0, null)
         val started = CompletableDeferred<Unit>()
-        override suspend fun setQueueState(
-            slots: List<QueueSlotRecord>,
-            currentSlotId: String?,
-            positionMs: Long,
-        ) {
-            started.complete(Unit); gate?.await(); persisted += slots.map { it.slotId }
+        override suspend fun setQueueState(slots: List<QueueSlotRecord>, currentSlotId: String?, positionMs: Long) {
+            started.complete(Unit)
+            gate?.await()
+            persisted += slots.map { it.slotId }
             if (failWrites) error("database failure")
         }
         override suspend fun setBaselineQueueSlots(slots: List<QueueSlotRecord>) {
-            started.complete(Unit); gate?.await(); persisted += slots.map { it.slotId }
+            started.complete(Unit)
+            gate?.await()
+            persisted += slots.map { it.slotId }
             if (failWrites) error("database failure")
         }
         override suspend fun setCursorAlreadyAdmitted(currentSlotId: String?, positionMs: Long) {}
@@ -66,13 +69,18 @@ class QueuePersistenceB1Test {
             shuffleEnabled: Boolean,
             repeatMode: Int,
         ) {
-            started.complete(Unit); gate?.await(); persisted += activeSlots.map { it.slotId }
+            started.complete(Unit)
+            gate?.await()
+            persisted += activeSlots.map { it.slotId }
             if (failWrites) error("database failure")
         }
-        override fun getSongs(): Flow<List<Song>> = emptyFlow(); override fun getArtists(): Flow<List<Artist>> = emptyFlow()
-        override fun getSongsForArtist(artistId: String): Flow<List<Song>> = emptyFlow(); override fun getAlbums(): Flow<List<Album>> = emptyFlow()
+        override fun getSongs(): Flow<List<Song>> = emptyFlow()
+        override fun getArtists(): Flow<List<Artist>> = emptyFlow()
+        override fun getSongsForArtist(artistId: String): Flow<List<Song>> = emptyFlow()
+        override fun getAlbums(): Flow<List<Album>> = emptyFlow()
         override fun getSongsForAlbum(albumId: String): Flow<List<Song>> = emptyFlow()
-        override fun getMissingSongs(): Flow<List<MissingSongInfo>> = emptyFlow(); override fun getMissingSongCount(): Flow<Int> = emptyFlow()
+        override fun getMissingSongs(): Flow<List<MissingSongInfo>> = emptyFlow()
+        override fun getMissingSongCount(): Flow<Int> = emptyFlow()
         override suspend fun findMissingArtSongIds(): List<String> = emptyList()
         override suspend fun recoverMissingArt(songIds: List<String>?) =
             com.v1per.synthx.data.scanner.ArtRecoveryResult(checked = 0, recovered = 0, skipped = 0)
@@ -82,21 +90,40 @@ class QueuePersistenceB1Test {
         override fun deleteSongDetached(id: String, onResult: (Result<SongDeletionOutcome>) -> Unit) {
             onResult(Result.success(SongDeletionOutcome.Deleted))
         }
-        override suspend fun previewReplaceSong(oldSongId: String, newSongId: String): ReplaceSongPreviewResult = ReplaceSongPreviewResult.OldSongMissing
+        override suspend fun previewReplaceSong(oldSongId: String, newSongId: String): ReplaceSongPreviewResult =
+            ReplaceSongPreviewResult.OldSongMissing
         override suspend fun replaceSong(
             oldSongId: String,
             newSongId: String,
             conflictResolution: PlaylistConflictResolution,
             expectedMemberships: ReplaceSongMembershipSnapshot,
         ): ReplaceSongResult = ReplaceSongResult.SameSong
-        override fun getStarredSongs(): Flow<List<Song>> = emptyFlow(); override fun getStarredSongCount(): Flow<Int> = emptyFlow()
+        override fun getStarredSongs(): Flow<List<Song>> = emptyFlow()
+        override fun getStarredSongCount(): Flow<Int> = emptyFlow()
         override fun getRecentSongs(limit: Int): Flow<List<Song>> = emptyFlow()
-        override suspend fun dismissFromStarred(songId: String) {}; override suspend fun isInAnyPlaylist(songId: String) = false; override suspend fun checkRootLibraryOrganization(musicFolderUri: Uri) = null
-        override fun graduateSong(songId: String, rootMusicFolderUri: Uri, rootNewArrivalsFolderUri: Uri?): Flow<com.v1per.synthx.data.scanner.GraduationStage> = emptyFlow()
-        override fun getAllGroups(): Flow<List<PlaylistGroup>> = emptyFlow(); override suspend fun createGroup(name: String) {}; override suspend fun renameGroup(id: String,name: String) {}; override suspend fun deleteGroup(id: String) {}
-        override fun getAllPlaylists(): Flow<List<Playlist>> = emptyFlow(); override fun getUngroupedPlaylists(): Flow<List<Playlist>> = emptyFlow(); override fun getPlaylistsForGroup(groupId: String): Flow<List<Playlist>> = emptyFlow()
-        override suspend fun createPlaylist(name: String, groupId: String?) = ""; override suspend fun renamePlaylist(id: String,name: String) {}; override suspend fun movePlaylistToGroup(id: String,groupId: String?) {}; override suspend fun deletePlaylist(id: String) {}
-        override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> = emptyFlow(); override suspend fun getPlaylistIdsForSong(songId: String) = emptyList<String>(); override suspend fun addSongToPlaylist(playlistId: String,songId: String) = false; override suspend fun removeSongFromPlaylist(playlistId: String,songId: String) {}
+        override suspend fun dismissFromStarred(songId: String) {}
+        override suspend fun isInAnyPlaylist(songId: String) = false
+        override suspend fun checkRootLibraryOrganization(musicFolderUri: Uri) = null
+        override fun graduateSong(
+            songId: String,
+            rootMusicFolderUri: Uri,
+            rootNewArrivalsFolderUri: Uri?,
+        ): Flow<com.v1per.synthx.data.scanner.GraduationStage> = emptyFlow()
+        override fun getAllGroups(): Flow<List<PlaylistGroup>> = emptyFlow()
+        override suspend fun createGroup(name: String) {}
+        override suspend fun renameGroup(id: String, name: String) {}
+        override suspend fun deleteGroup(id: String) {}
+        override fun getAllPlaylists(): Flow<List<Playlist>> = emptyFlow()
+        override fun getUngroupedPlaylists(): Flow<List<Playlist>> = emptyFlow()
+        override fun getPlaylistsForGroup(groupId: String): Flow<List<Playlist>> = emptyFlow()
+        override suspend fun createPlaylist(name: String, groupId: String?) = ""
+        override suspend fun renamePlaylist(id: String, name: String) {}
+        override suspend fun movePlaylistToGroup(id: String, groupId: String?) {}
+        override suspend fun deletePlaylist(id: String) {}
+        override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> = emptyFlow()
+        override suspend fun getPlaylistIdsForSong(songId: String) = emptyList<String>()
+        override suspend fun addSongToPlaylist(playlistId: String, songId: String) = false
+        override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) {}
         override suspend fun getSongsByIds(ids: List<String>) = emptyList<Song>()
         override suspend fun getQueueSlots() = emptyList<QueueSlot>()
         override suspend fun getQueueSnapshot() = snapshot
@@ -109,30 +136,61 @@ class QueuePersistenceB1Test {
     private fun reset() = RestoreCoordinator.resetForTest()
 
     @Test fun acceptedWriteDrainsAfterPreparation() = runTest {
-        reset(); val repo = QueueRepo(); repo.gate = CompletableDeferred(); val queue = QueuePersistence(repo)
-        queue.saveQueueRecords(records("a"), "a", 0L); repo.started.await()
-        val restore = async { RestoreCoordinator.exclusive { queue.quiesceForRestore(); RestoreCoordinator.awaitDrained() } }
+        reset()
+        val repo = QueueRepo()
+        repo.gate = CompletableDeferred()
+        val queue = QueuePersistence(repo)
+        queue.saveQueueRecords(records("a"), "a", 0L)
+        repo.started.await()
+        val restore =
+            async {
+                RestoreCoordinator.exclusive {
+                    queue.quiesceForRestore()
+                    RestoreCoordinator.awaitDrained()
+                }
+            }
         yield()
-        repo.gate!!.complete(Unit); withTimeout(2_000) { restore.await() }
-        assertEquals(listOf(listOf("a")), repo.persisted); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+        repo.gate!!.complete(Unit)
+        withTimeout(2_000) { restore.await() }
+        assertEquals(listOf(listOf("a")), repo.persisted)
+        assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 
     @Test fun multipleAcceptedWritesDrainFifoAndReleasePermits() = runTest {
-        reset(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
-        queue.saveQueueRecords(records("a"), "a", 0L); queue.saveQueueRecords(records("b"), "b", 0L); queue.quiesceForRestore()
-        assertEquals(listOf(listOf("a"), listOf("b")), repo.persisted); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+        reset()
+        val repo = QueueRepo()
+        val queue = QueuePersistence(repo)
+        queue.saveQueueRecords(records("a"), "a", 0L)
+        queue.saveQueueRecords(records("b"), "b", 0L)
+        queue.quiesceForRestore()
+        assertEquals(listOf(listOf("a"), listOf("b")), repo.persisted)
+        assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 
     @Test fun closedRejectsNewQueueWriteWithoutPermitLeak() = runTest {
-        reset(); RestoreCoordinator.markClosed(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
-        queue.saveQueueRecords(records("a"), "a", 0L); queue.quiesceForRestore()
-        assertTrue(repo.persisted.isEmpty()); assertEquals(0, RestoreCoordinator.activeOperationCountForTest()); reset()
+        reset()
+        RestoreCoordinator.markClosed()
+        val repo = QueueRepo()
+        val queue = QueuePersistence(repo)
+        queue.saveQueueRecords(records("a"), "a", 0L)
+        queue.quiesceForRestore()
+        assertTrue(repo.persisted.isEmpty())
+        assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+        reset()
     }
 
     @Test fun writePreparationRaceIsPersistedOrRejectedWithoutLeak() = runTest {
         repeat(12) { index ->
-            reset(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
-            val preparation = async { RestoreCoordinator.exclusive { queue.quiesceForRestore(); RestoreCoordinator.awaitDrained() } }
+            reset()
+            val repo = QueueRepo()
+            val queue = QueuePersistence(repo)
+            val preparation =
+                async {
+                    RestoreCoordinator.exclusive {
+                        queue.quiesceForRestore()
+                        RestoreCoordinator.awaitDrained()
+                    }
+                }
             // The coordinator transition and save race through their real synchronization.
             queue.saveQueueRecords(records("$index"), "$index", 0L)
             preparation.await()
@@ -143,40 +201,61 @@ class QueuePersistenceB1Test {
     }
 
     @Test fun unavailableEnqueueAfterPermitAcquisitionReleasesPermit() = runTest {
-        reset(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
+        reset()
+        val repo = QueueRepo()
+        val queue = QueuePersistence(repo)
         queue.release()
         // saveQueueRecords acquires its permit first, then sees the closed admission gate and releases it.
         queue.saveQueueRecords(records("a"), "a", 0L)
         queue.quiesceForRestore()
-        assertTrue(repo.persisted.isEmpty()); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+        assertTrue(repo.persisted.isEmpty())
+        assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 
     @Test fun mutationFailureStillDrainsAndReleasesPermit() = runTest {
-        reset(); val repo = QueueRepo().also { it.failWrites = true }; val queue = QueuePersistence(repo)
-        queue.saveQueueRecords(records("a"), "a", 0L); queue.quiesceForRestore()
-        assertEquals(listOf(listOf("a")), repo.persisted); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+        reset()
+        val repo = QueueRepo().also { it.failWrites = true }
+        val queue = QueuePersistence(repo)
+        queue.saveQueueRecords(records("a"), "a", 0L)
+        queue.quiesceForRestore()
+        assertEquals(listOf(listOf("a")), repo.persisted)
+        assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 
     @Test fun allLiveInstancesDrainAndReleasedInstanceUnregisters() = runTest {
-        reset(); val first = QueueRepo(); val second = QueueRepo()
-        val one = QueuePersistence(first); val two = QueuePersistence(second)
+        reset()
+        val first = QueueRepo()
+        val second = QueueRepo()
+        val one = QueuePersistence(first)
+        val two = QueuePersistence(second)
         assertTrue(QueuePersistence.activeInstanceCountForTest() >= 2)
-        one.saveQueueRecords(records("one"), "one", 0L); two.saveQueueRecords(records("two"), "two", 0L)
+        one.saveQueueRecords(records("one"), "one", 0L)
+        two.saveQueueRecords(records("two"), "two", 0L)
         QueuePersistence.quiesceAllForRestore()
-        assertEquals(listOf(listOf("one")), first.persisted); assertEquals(listOf(listOf("two")), second.persisted)
-        assertEquals(0, QueuePersistence.activeInstanceCountForTest()); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+        assertEquals(listOf(listOf("one")), first.persisted)
+        assertEquals(listOf(listOf("two")), second.persisted)
+        assertEquals(0, QueuePersistence.activeInstanceCountForTest())
+        assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
         reset()
     }
 
     @Test fun releasedInstanceNeverAcceptsAgainOrBlocksGlobalQuiesce() = runTest {
-        reset(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
-        queue.release(); queue.quiesceForRestore(); assertEquals(0, QueuePersistence.activeInstanceCountForTest())
-        queue.saveQueueRecords(records("late"), "late", 0L); QueuePersistence.quiesceAllForRestore()
-        assertTrue(repo.persisted.isEmpty()); assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+        reset()
+        val repo = QueueRepo()
+        val queue = QueuePersistence(repo)
+        queue.release()
+        queue.quiesceForRestore()
+        assertEquals(0, QueuePersistence.activeInstanceCountForTest())
+        queue.saveQueueRecords(records("late"), "late", 0L)
+        QueuePersistence.quiesceAllForRestore()
+        assertTrue(repo.persisted.isEmpty())
+        assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
 
     @Test fun restoreResolvesTheExactDuplicateSlotCursor() = runTest {
-        reset(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
+        reset()
+        val repo = QueueRepo()
+        val queue = QueuePersistence(repo)
         val duplicate = song("same-content")
         repo.snapshot = QueueSnapshot(
             slots = listOf(QueueSlot("slot-a", duplicate), QueueSlot("slot-b", duplicate)),
@@ -194,7 +273,9 @@ class QueuePersistenceB1Test {
     }
 
     @Test fun restoreFallsBackToFirstSlotWhenSavedSlotNoLongerExists() = runTest {
-        reset(); val repo = QueueRepo(); val queue = QueuePersistence(repo)
+        reset()
+        val repo = QueueRepo()
+        val queue = QueuePersistence(repo)
         repo.snapshot = QueueSnapshot(
             slots = slots("survivor"),
             storedSlotCount = 1,

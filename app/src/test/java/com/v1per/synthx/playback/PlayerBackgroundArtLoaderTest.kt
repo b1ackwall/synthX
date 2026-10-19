@@ -7,7 +7,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class PlayerBackgroundArtLoaderTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test fun compressedCopyIsTriedBeforeTheFullResolutionOriginal() {
         val request = PlayerBackgroundArtRequest("song", compressedUri = "content://art", fullUri = "content://full")
@@ -24,15 +25,27 @@ class PlayerBackgroundArtLoaderTest {
     }
 
     @Test fun identicalUrisAreDecodedOnce() {
-        assertEquals(listOf("content://art"), PlayerBackgroundArtRequest("song", "content://art", "content://art").decodeSources())
+        assertEquals(
+            listOf("content://art"),
+            PlayerBackgroundArtRequest("song", "content://art", "content://art").decodeSources(),
+        )
     }
 
     @Test fun requestCarriesTheSongsIdentityAndBothUris() {
         val song = Song(
-            id = "id-1", title = "T", artist = "A", album = "B", duration = 1L, filePath = "f",
-            albumArtUri = "content://art", albumArtFullUri = "content://full",
+            id = "id-1",
+            title = "T",
+            artist = "A",
+            album = "B",
+            duration = 1L,
+            filePath = "f",
+            albumArtUri = "content://art",
+            albumArtFullUri = "content://full",
         )
-        assertEquals(PlayerBackgroundArtRequest("id-1", "content://art", "content://full"), PlayerBackgroundArtRequest.from(song))
+        assertEquals(
+            PlayerBackgroundArtRequest("id-1", "content://art", "content://full"),
+            PlayerBackgroundArtRequest.from(song),
+        )
     }
 
     @Test fun sampleSizeIsTheLargestPowerOfTwoKeepingTheShortSideAtLeast128() {

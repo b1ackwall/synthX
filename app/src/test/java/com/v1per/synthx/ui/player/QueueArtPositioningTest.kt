@@ -11,7 +11,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class QueueArtPositioningTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     @Test
     fun `fixed production weights produce the finalized expanded layout`() {

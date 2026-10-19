@@ -38,8 +38,10 @@ object ProductionSource {
             when {
                 source.startsWith("\"\"\"", i) -> {
                     val end = source.indexOf("\"\"\"", i + 3).let { if (it < 0) source.length else it + 3 }
-                    out.append(source, i, end); i = end
+                    out.append(source, i, end)
+                    i = end
                 }
+
                 source[i] == '"' || source[i] == '\'' -> {
                     val quote = source[i]
                     var j = i + 1
@@ -47,17 +49,24 @@ object ProductionSource {
                         j += if (source[j] == '\\') 2 else 1
                     }
                     val end = minOf(j + 1, source.length)
-                    out.append(source, i, end); i = end
+                    out.append(source, i, end)
+                    i = end
                 }
+
                 rest >= 2 && source.startsWith("//", i) -> {
                     while (i < source.length && source[i] != '\n') i++
                 }
+
                 rest >= 2 && source.startsWith("/*", i) -> {
                     val end = source.indexOf("*/", i + 2)
                     i = if (end < 0) source.length else end + 2
                     out.append(' ')
                 }
-                else -> { out.append(source[i]); i++ }
+
+                else -> {
+                    out.append(source[i])
+                    i++
+                }
             }
         }
         return out.toString()

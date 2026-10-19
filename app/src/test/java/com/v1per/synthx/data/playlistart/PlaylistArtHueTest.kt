@@ -9,7 +9,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class PlaylistArtHueTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.jvm()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.jvm()
 
     // ------------------------------------------------------------------ the palette itself
 
