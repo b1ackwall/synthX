@@ -83,7 +83,7 @@ internal fun PlayerSheetSkeleton(
     onRepeatClick: () -> Unit,
     onQueueSongClick: (slotId: String) -> Unit,
     onQueueMove: (slotId: String, toIndex: Int) -> Unit,
-    onQueueRemove: (songId: String) -> Unit,
+    onQueueRemove: (slotId: String) -> Unit,
     modifier: Modifier = Modifier,
     onProgressChanged: (Float) -> Unit = {},
     collapsePlayerSignal: Int = 0,
@@ -162,7 +162,7 @@ internal fun PlayerSheetSkeleton(
         // Queue-mode toggle, its crossfade progress, the queue list's own scroll state, and
         // the derived controls-overlay visibility — all gathered behind one remembered holder
         // instead of half a dozen separate remember calls at this call site. See
-        // QueueModeState.kt for the state itself and the two bug-fix rationales
+        // QueueModeState.kt for the state itself and the two rationales
         // (controlsVisible's scroll-correction gating, the shuffle scroll-reset race) it
         // preserves.
         val queueModeState = rememberQueueModeState(
@@ -257,13 +257,13 @@ internal fun PlayerSheetSkeleton(
                     .align(Alignment.BottomCenter)
                     .clip(RoundedCornerShape(topStart = cornerRadiusPx, topEnd = cornerRadiusPx))
                     .testTag(PerfTestTags.PlayerSheet)
-                    // Single unified detector driving draggableState directly — replaces the
+                    // Single unified detector driving draggableState directly, not an
                     // anchoredDraggable + dragResistantClickable pairing, which silently
-                    // swallowed touches when co-located on one node (anchoredDraggable's
+                    // swallows touches when co-located on one node (anchoredDraggable's
                     // drag-start detector permanently aborts the moment it sees a consumed
                     // pointer change, and dragResistantClickable's shielding logic has no live
                     // ancestor left to hand a real drag off to once released). One
-                    // awaitEachGesture loop now arbitrates tap vs. drag itself: down + the same
+                    // awaitEachGesture loop arbitrates tap vs. drag itself: down + the same
                     // awaitVerticalTouchSlopOrCancellation Foundation's own draggable/
                     // anchoredDraggable use internally decide whether this is a tap (pointer up
                     // before slop) or a drag (slop crossed) — with no second detector, there's
@@ -281,7 +281,7 @@ internal fun PlayerSheetSkeleton(
                             // nestedScroll), but the overlay's background shield consumes only
                             // the *down*, never the moves — the slop wait below ignores a
                             // consumed down and only bails on consumed moves — so a drag
-                            // anywhere on that ~300dp band used to fall straight through to
+                            // anywhere on that ~300dp band would fall straight through to
                             // here and close the sheet out from under the queue. Returning
                             // leaves the gesture un-claimed rather than fighting for it:
                             // nothing is consumed, and awaitEachGesture parks its own loop on
@@ -317,8 +317,8 @@ internal fun PlayerSheetSkeleton(
                             // move events on every frame it runs, making isConsumed useless
                             // for this purpose from that point on).
                             //
-                            // Deliberately not the "inspect the terminating up event"
-                            // approach originally proposed: awaitVerticalTouchSlopOrCancellation
+                            // Deliberately does not inspect the terminating up event:
+                            // awaitVerticalTouchSlopOrCancellation
                             // returns null on both cancellation paths (consumed mid-drag, or
                             // genuine pointer-up) without exposing the terminating change on
                             // either — Foundation's internal loop swallows it. There is no

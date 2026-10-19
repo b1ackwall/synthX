@@ -83,9 +83,9 @@ private val ControlsMaskFadeHeight = 48.dp
  * `controlsVisible` for `PlayerSkeletonControlsOverlay`.
  *
  * [QueueList] reports a swipe-to-remove as an index into [upcomingQueue]; this composable
- * resolves it to a song id here, while the list is still in hand, and hands [onQueueRemove]
- * that id instead. Everything below the UI layer is identity-based for the same reason — see
- * [com.v1per.synthx.playback.PlaybackEngine.removeQueueItem]'s doc comment.
+ * resolves it to that row's slot id here, while the list is still in hand, and hands
+ * [onQueueRemove] that id instead. Everything below the UI layer is identity-based for the
+ * same reason — see [com.v1per.synthx.playback.PlaybackEngine.removeQueueItem]'s doc comment.
  *
  * Only [QueueList] is conditionally composed (`queueProgressValue > 0f`), not just
  * alpha-faded: an always-present [QueueList] would stay hit-testable even at alpha 0, silently
@@ -125,7 +125,7 @@ fun PlayerSkeletonQueueContent(
     onRepeatClick: () -> Unit,
     onQueueSongClick: (slotId: String) -> Unit,
     onQueueMove: (slotId: String, toIndex: Int) -> Unit,
-    onQueueRemove: (songId: String) -> Unit,
+    onQueueRemove: (slotId: String) -> Unit,
     controlsOverlayHeight: Dp,
     // The collapse/expand term of this content's alpha, in place of expandedContentAlpha.
     queueFadeAlpha: Float,
@@ -248,7 +248,7 @@ fun PlayerSkeletonQueueContent(
                 )
             }
         } else if (queueProgressValue > 0f) {
-            // The live sheet height, which the list's own size no longer follows.
+            // The live sheet height, which the list's own size does not follow.
             val sheetHeightPx = constraints.maxHeight.toFloat()
             // The controls sit at the sheet's bottom, and the list is offset downward: subtract
             // the list origin to express the controls' top in list coordinates.
