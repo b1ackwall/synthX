@@ -132,15 +132,13 @@ interface QueueDao {
 
     /**
      * The atomic write for every call site that changes more than one of {baseline order, active
-     * order, shuffle flag, repeat mode, cursor} at once (P4-T6 / F11) — a fresh play and a
-     * shuffle toggle, at the time this was added. All five pieces land in the same transaction,
+     * order, shuffle flag, repeat mode, cursor} at once — a fresh play and a
+     * shuffle toggle. All five pieces land in the same transaction,
      * so an interrupted write can never leave some already changed and others still at their
-     * previous values — unlike the old shape, where each piece went through one of
+     * previous values, as separate commits through
      * [replaceBaselineQueue]/[updateShuffleEnabled]/[updateRepeatMode]/[updateCursor]/
-     * [replaceQueueAndCursor] as its own independent commit. Narrow single-piece
-     * call sites (a plain track transition, Play Next, a drag-reorder) are unaffected and keep
-     * using those — this is not a replacement for them, only for the call sites that used to
-     * fire several of them back to back for one logical change.
+     * [replaceQueueAndCursor] could. Narrow single-piece
+     * call sites (a plain track transition, Play Next, a drag-reorder) keep using those.
      */
     @Transaction
     suspend fun replaceQueueBaselineAndCursor(
@@ -175,10 +173,9 @@ interface QueueDao {
 
     /**
      * Reads the active queue, baseline order, and cursor together as one consistent snapshot
-     * (P4-T6) — the read-side counterpart of [replaceQueueBaselineAndCursor], closing the
+     * — the read-side counterpart of [replaceQueueBaselineAndCursor], closing the
      * split-read window independent suspending queries would otherwise leave open against an
-     * atomically-written trio. Used by the live-reconnect adoption path, which previously read
-     * active and baseline as two separate suspending calls.
+     * atomically-written trio. Used by the live-reconnect adoption path.
      */
     @Transaction
     suspend fun getFullQueueSnapshot(): Triple<List<QueueItemEntity>, List<BaselineQueueItemEntity>, PlaybackCursorEntity?> =

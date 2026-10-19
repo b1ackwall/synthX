@@ -240,7 +240,7 @@ private suspend fun SongRepositoryImpl.transplantIdentity(
     deleteSongRowWithArtRepoint(songDao, albumDao, oldSongId)
 
     val operationId = UUID.randomUUID().toString()
-    // Same durability discipline as deleteSong (P3-T1 / R2-F09 / R4-F-D4): written inside
+    // Same durability discipline as deleteSong: written inside
     // this same transaction, before the old row is provably gone to any reader outside it.
     pendingCleanupDao.insert(
         PendingCleanupEntity(

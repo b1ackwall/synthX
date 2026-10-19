@@ -34,7 +34,7 @@ internal suspend fun SongRepositoryImpl.setQueueStateInternal(
     positionMs: Long,
 ) = withContext(Dispatchers.IO) {
     queueDao.replaceQueueAndCursor(slots, currentSlotId, positionMs)
-    // P6.3: the one place both sides are now guaranteed to have landed together —
+    // The one place both sides are guaranteed to have landed together —
     // a violation here means replaceQueueAndCursor's transaction itself is broken,
     // never a legitimate runtime state, so this must never silently pass in debug.
     if (BuildConfig.DEBUG) {

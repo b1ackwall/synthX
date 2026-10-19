@@ -19,7 +19,7 @@ import kotlinx.coroutines.sync.withLock
  */
 internal object PlaylistArtBackfill {
 
-    // P8-T1/R6-C1: there is conceptually only ever one backfill "operation" — no per-key
+    // There is conceptually only ever one backfill "operation" — no per-key
     // granularity is needed, unlike FileOperationCoordinator's per-song locks. This alone
     // doesn't make an overlapping pass safe (see setPlaylistArt's own IS NULL guard for that);
     // it exists to stop the *wasted, quality-degrading* half of the problem — two passes each

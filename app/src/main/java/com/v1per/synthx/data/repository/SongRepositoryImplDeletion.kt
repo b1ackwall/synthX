@@ -91,7 +91,7 @@ internal suspend fun SongRepositoryImpl.deleteSongInternal(id: String): SongDele
 
     // Song lock after the backup, never before — see FileOperationCoordinator's acquisition
     // order. Waits out an in-flight graduation of this exact song rather than deleting the
-    // row out from under it, which used to leave its graduated copy orphaned for a scan to
+    // row out from under it, which would leave its graduated copy orphaned for a scan to
     // re-import. Held through the file cleanup so a scan can't re-claim the row mid-delete.
     FileOperationCoordinator.withSongLock(id) {
         // Recheck admission: restore may have begun while the backup was running.
@@ -118,7 +118,7 @@ internal suspend fun SongRepositoryImpl.deleteSongInternal(id: String): SongDele
             val filePath = database.withTransaction {
                 val existing = songDao.getSongById(id)
                 deleteSongRowWithArtRepoint(songDao, albumDao, id)
-                // Durable BEFORE the row is gone (P3-T1 / R2-F09): same transaction as the
+                // Durable BEFORE the row is gone: same transaction as the
                 // row delete, so a crash right after commit still leaves a record behind for
                 // startup reconciliation to finish the file cleanup this call never got to.
                 pendingCleanupDao.insert(
@@ -169,7 +169,7 @@ internal suspend fun SongRepositoryImpl.previewDeleteSongInternal(id: String): D
 
 /**
  * Runs [finishSongDeletion] on [repositoryScope] instead of inline, and joins it — so a
- * caller whose own coroutine gets cancelled (P3-T1 / R4-F-D5, e.g. `IssuesViewModel`'s
+ * caller whose own coroutine gets cancelled (e.g. `IssuesViewModel`'s
  * `NavBackStackEntry` going away mid-delete) only loses the *wait*, not the cleanup itself:
  * [repositoryScope] is not a structured child of the caller's job, so cancelling the caller
  * cannot cancel work already launched on it. The normal (non-cancelled) case is unaffected —
@@ -180,8 +180,7 @@ internal suspend fun SongRepositoryImpl.previewDeleteSongInternal(id: String): D
  * already surfaced honestly via [SongDeletionOutcome] (`FileRemained`/`CleanupUncertain`),
  * which retrying via startup reconciliation would not change. The record exists to protect
  * against *interruption* (this function never returning at all, i.e. process death), not
- * against a provider that permanently refuses a delete — see the P3-T1 report for the full
- * reasoning.
+ * against a provider that permanently refuses a delete.
  */
 internal suspend fun SongRepositoryImpl.runPostCommitCleanup(
     operationId: String,
@@ -215,7 +214,7 @@ private suspend fun SongRepositoryImpl.finishSongDeletion(id: String, filePath: 
         cleanupUncertain = true
     }
 
-    // Handoff barrier (P4-T4 / R3-F03): notifyDeleted's suspending emit only guarantees the
+    // Handoff barrier: notifyDeleted's suspending emit only guarantees the
     // notice was enqueued into a buffered SharedFlow, not that any collector has run yet, let
     // alone that the resulting controller commands (skip/stop/remove) have reached the
     // player. Without this, the file delete right below can race a still-open handle. Bounded

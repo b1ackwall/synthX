@@ -79,19 +79,19 @@ class SongRepositoryImpl(
     internal val repositoryScope = CoroutineScope(repositoryJob + Dispatchers.Default)
 
     // Shared across every getSongs() subscriber instead of re-querying and re-mapping the
-    // full library (~1500 songs) on every SongsViewModel instance. Lazily rather than
+    // full library on every SongsViewModel instance. Lazily rather than
     // WhileSubscribed: local song data changes rarely and Songs is a frequently-revisited
     // screen, so once the query has run once it's worth keeping warm for the rest of the
     // process — instant navigation matters more here than releasing this one cache early.
     // Room's Flow still auto-invalidates on real table changes, so this stays correct
     // across scans/edits regardless of how long the cache is held.
-    // general 7.3 / P1-T6 (R1-F10): nothing upstream of this .stateIn can ever catch a failure
+    // Nothing upstream of this .stateIn can ever catch a failure
     // here — once the upstream Flow (including the extra getAllSongArtistRefs() query below)
     // throws, the stateIn producer coroutine dies and no downstream .catch{} on this StateFlow's
     // consumers can ever see it. .retryOnFailure resubscribes to the whole upstream chain (a
     // genuine re-acquire-permit + re-subscribe-to-DAO-flow retry, with exponential backoff) on any
-    // non-cancellation failure, so a transient DAO error no longer permanently freezes this
-    // StateFlow. The .catch below is now a last-resort backstop only reachable if retryOnFailure
+    // non-cancellation failure, so a transient DAO error does not permanently freeze this
+    // StateFlow. The .catch below is a last-resort backstop only reachable if retryOnFailure
     // itself is bypassed by a downstream cancellation — it logs and degrades to the last
     // successfully computed song list rather than crashing the process or freezing on an empty
     // list.
@@ -181,7 +181,7 @@ class SongRepositoryImpl(
         folderScanner.verifyAlreadyAdmitted(configuredRoots)
 
     /**
-     * Batched by-id fetch used purely for playback-cache reconciliation (P4-T2): a queue-loading
+     * Batched by-id fetch used purely for playback-cache reconciliation: a queue-loading
      * path that suspended across a cache-invalidating event (or the `onStart`/`onResume` recovery
      * pass) re-derives truth directly from the database with this rather than trusting a bus
      * event's payload. An id with no matching row (deleted, or never existed) is simply absent

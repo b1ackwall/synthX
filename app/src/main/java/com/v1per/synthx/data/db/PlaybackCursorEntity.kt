@@ -6,14 +6,13 @@ import androidx.room.PrimaryKey
 
 /**
  * Single-row table holding "where playback was" — the stable slot id within `queue_items`
- * and the playback position within it, plus the shuffle/repeat mode the queue was in. Previously lived
- * in SharedPreferences, written independently of `queue_items`; moved into Room so
- * [QueueDao.replaceQueueAndCursor] can commit both in one transaction, closing the window
- * where a process death between two independent writes left the cursor pointing at a queue
- * structure that was never actually persisted (or vice versa). [shuffleEnabled]/[repeatMode]
- * joined this table for the same reason: a restore installs a whole database file, so state
- * that lives outside it (SharedPreferences) cannot travel atomically with the queue it
- * describes — see data 2.4.
+ * and the playback position within it, plus the shuffle/repeat mode the queue was in. Lives in
+ * Room, not SharedPreferences, so [QueueDao.replaceQueueAndCursor] can commit cursor and queue
+ * in one transaction, closing the window where a process death between two independent writes
+ * leaves the cursor pointing at a queue structure that was never actually persisted (or vice
+ * versa). [shuffleEnabled]/[repeatMode] are here for the same reason: a restore installs a
+ * whole database file, so state that lives outside it (SharedPreferences) cannot travel
+ * atomically with the queue it describes.
  *
  * `id` is always 0 — there is only ever one cursor, so this is an upsert target rather than a
  * growing table. No foreign key to `queue_items`: [currentSlotId] may temporarily name a slot

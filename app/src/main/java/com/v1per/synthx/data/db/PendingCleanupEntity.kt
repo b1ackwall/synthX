@@ -19,8 +19,8 @@ enum class PendingCleanupType { DELETE, GRADUATE }
 enum class PendingCleanupPhase { Committed, SourceDeleted }
 
 /**
- * A durable record of a destructive operation between its DB commit and physical completion —
- * see P3-T1 (R2-F09 / R4-F-D4 / R4-F-D5). Written inside the SAME transaction that makes the
+ * A durable record of a destructive operation between its DB commit and physical completion.
+ * Written inside the SAME transaction that makes the
  * operation's irreversible DB change, so it is durable before that change is observable, and
  * cleared only once the operation's remaining physical work has actually finished.
  *

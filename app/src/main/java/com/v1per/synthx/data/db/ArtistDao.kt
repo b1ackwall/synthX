@@ -33,7 +33,7 @@ interface ArtistDao {
         return artist
     }
 
-    // No longer filtered by is_missing — an artist whose songs are all missing (or who has
+    // Not filtered by is_missing — an artist whose songs are all missing (or who has
     // zero songs, e.g. a not-yet-cleaned-up orphan) is still returned, with
     // allSongsMissing = 1, so ArtistListScreen can render it dimmed instead of hiding it —
     // same reasoning as AlbumDao.getAllAlbums.

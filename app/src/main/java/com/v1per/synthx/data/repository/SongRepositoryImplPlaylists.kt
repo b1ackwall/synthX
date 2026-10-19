@@ -55,7 +55,7 @@ internal suspend fun SongRepositoryImpl.createPlaylistInternal(name: String, gro
     val now = System.currentTimeMillis()
     val id = UUID.randomUUID().toString()
     val structureSeed = Random.nextLong()
-    // P8-T1/R1-F07: reading the existing hues and inserting the new row must be one
+    // Reading the existing hues and inserting the new row must be one
     // transaction — otherwise two concurrent creators (or a creator overlapping a
     // PlaylistArtBackfill pass) can both read the same used-hue snapshot and pick the same
     // "unused" hue before either write lands. Room/SQLite serializes writers at the
@@ -114,7 +114,7 @@ internal suspend fun SongRepositoryImpl.getPlaylistIdsForSongInternal(songId: St
 }
 
 internal suspend fun SongRepositoryImpl.addSongToPlaylistInternal(playlistId: String, songId: String): Boolean = dbOperation {
-    // P7.6/N9/6.6: contains-check, max-position read, and insert live in one
+    // Contains-check, max-position read, and insert live in one
     // @Transaction DAO method so concurrent adds to the same playlist can't race on
     // the next position — see PlaylistDao.addSongToPlaylist.
     val added = playlistDao.addSongToPlaylist(playlistId, songId, System.currentTimeMillis())
