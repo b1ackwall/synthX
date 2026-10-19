@@ -31,6 +31,13 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        // Part of scripts/check.sh: a new compiler warning fails the build.
+        allWarningsAsErrors.set(true)
+    }
+}
+
 // Only the benchmark variant exists, so nothing here can target the debug app.
 androidComponents {
     beforeVariants(selector().all()) { variant ->

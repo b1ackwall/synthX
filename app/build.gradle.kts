@@ -100,6 +100,15 @@ android {
         }
     }
 
+    // Part of scripts/check.sh: any Lint finding above hint level (checkAllWarnings, tests included) fails the build.
+    // app/lint.xml holds the recorded ignores; there is no baseline.
+    lint {
+        checkAllWarnings = true
+        checkTestSources = true
+        warningsAsErrors = true
+        abortOnError = true
+    }
+
     sourceSets.getByName("androidTest").assets.directories.add("schemas")
     sourceSets.getByName("androidTest").assets.directories.add(productionMigrationDbAssetDir.get().asFile.path)
 }
@@ -110,6 +119,8 @@ kotlin {
         // which Windows silently truncates in compose_reports output filenames,
         // producing empty report files.
         moduleName.set("synthX-app")
+        // Part of scripts/check.sh: a new compiler warning in main, test or androidTest sources fails the build.
+        allWarningsAsErrors.set(true)
     }
 }
 
