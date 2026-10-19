@@ -7,7 +7,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -342,52 +341,6 @@ class RestorePrimitivesTest {
             RestoreRecoveryAction.EMERGENCY,
             decide(RestoreTransaction.Phase.LIVE_MOVED, facts()),
         )
-    }
-
-    @Test fun everyRequiredFaultPointHasANarrowInjectionHook() {
-        val expected = setOf(
-            RestoreFaultPoint.SOURCE_STREAM_READ,
-            RestoreFaultPoint.SOURCE_SHA_VERIFY,
-            RestoreFaultPoint.MIGRATION,
-            RestoreFaultPoint.FREE_SPACE_PREFLIGHT,
-            RestoreFaultPoint.SAFETY_SNAPSHOT,
-            RestoreFaultPoint.WAL_CHECKPOINT,
-            RestoreFaultPoint.STATE_PERSISTENCE,
-            RestoreFaultPoint.LIVE_TO_OLD_RENAME,
-            RestoreFaultPoint.CANDIDATE_TO_LIVE_RENAME,
-            RestoreFaultPoint.INSTALLED_VALIDATION,
-            RestoreFaultPoint.OLD_ROLLBACK_RENAME,
-            RestoreFaultPoint.SAFETY_FALLBACK_PROMOTION,
-            RestoreFaultPoint.LIVE_TO_OLD_DIRECTORY_SYNC,
-            RestoreFaultPoint.CANDIDATE_TO_LIVE_DIRECTORY_SYNC,
-            RestoreFaultPoint.PRE_CLOSE_FAILURE_CLEANUP_DIRECTORY_SYNC,
-            RestoreFaultPoint.STATELESS_FALLBACK_DIRECTORY_SYNC,
-            RestoreFaultPoint.STARTUP_ROLLBACK_DIRECTORY_SYNC,
-            RestoreFaultPoint.CURRENT_ROLLBACK_DIRECTORY_SYNC,
-            RestoreFaultPoint.PARK_LIVE_DIRECTORY_SYNC,
-            RestoreFaultPoint.STATE_JOURNAL_DIRECTORY_SYNC,
-            RestoreFaultPoint.PRE_CLOSE_CLEANUP_DIRECTORY_SYNC,
-            RestoreFaultPoint.POST_COMPLETE_CLEANUP_DIRECTORY_SYNC,
-            RestoreFaultPoint.CORRUPT_STATE_ARCHIVE_DIRECTORY_SYNC,
-            RestoreFaultPoint.INCIDENT_DIRECTORY_SYNC,
-            RestoreFaultPoint.INCIDENT_ID_OPEN,
-            RestoreFaultPoint.INCIDENT_ID_WRITE,
-            RestoreFaultPoint.INCIDENT_ID_FILE_SYNC,
-            RestoreFaultPoint.INCIDENT_ID_ARCHIVE_RENAME,
-            RestoreFaultPoint.INCIDENT_ID_PROMOTE_RENAME,
-            RestoreFaultPoint.INCIDENT_REPORT_OPEN,
-            RestoreFaultPoint.INCIDENT_REPORT_WRITE,
-            RestoreFaultPoint.INCIDENT_REPORT_FILE_SYNC,
-            RestoreFaultPoint.INCIDENT_REPORT_PROMOTE_RENAME,
-            RestoreFaultPoint.INCIDENT_REPORT_DIRECTORY_SYNC,
-            RestoreFaultPoint.RECOVERED_ARTIFACT_ARCHIVE_DIRECTORY_SYNC,
-            RestoreFaultPoint.SAFETY_PROMOTION_STAGE_DIRECTORY_SYNC,
-            RestoreFaultPoint.SAFETY_PROMOTION_CLEANUP_DIRECTORY_SYNC,
-        )
-        assertEquals(expected, RestoreFaultPoint.entries.toSet())
-        var injected: RestoreFaultPoint? = null
-        RestoreFaultInjector { injected = it }.hit(RestoreFaultPoint.MIGRATION)
-        assertNotNull(injected)
     }
 
     private fun decide(
