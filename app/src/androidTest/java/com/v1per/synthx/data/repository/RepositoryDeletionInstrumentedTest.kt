@@ -52,7 +52,8 @@ import org.junit.runner.RunWith
 /** Exercises the public repository methods and real backup drain, not a copy of their ordering. */
 @RunWith(AndroidJUnit4::class)
 class RepositoryDeletionInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private lateinit var context: DeletionTestContext
     private lateinit var database: SynthXDatabase
@@ -68,14 +69,24 @@ class RepositoryDeletionInstrumentedTest {
         DestructiveActionTracker.resetForTest(context)
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
         exports = PlaylistExportManager(
-            context, database, database.playlistDao(), database.songDao(), database.artistDao(), database.albumDao(),
+            context,
+            database,
+            database.playlistDao(),
+            database.songDao(),
+            database.artistDao(),
+            database.albumDao(),
         )
         repository = SongRepositoryImpl(
             context, database, database.songDao(), database.artistDao(), database.albumDao(),
             database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
             FolderScanner(
-                context, database, database.songDao(), database.artistDao(), database.albumDao(),
-                database.songArtistDao(), exports,
+                context,
+                database,
+                database.songDao(),
+                database.artistDao(),
+                database.albumDao(),
+                database.songArtistDao(),
+                exports,
             ),
             BackupManager(context), exports,
             destructiveFileCheck = { _, _ -> DestructiveFilePreflightResult.Ambiguous },
@@ -83,8 +94,14 @@ class RepositoryDeletionInstrumentedTest {
         )
         database.songDao().upsertSong(
             SongEntity(
-                id = "song", title = "Song", albumId = null, duration = 1,
-                filePath = "test://song", albumArtUri = null, year = null, dateAdded = 1,
+                id = "song",
+                title = "Song",
+                albumId = null,
+                duration = 1,
+                filePath = "test://song",
+                albumArtUri = null,
+                year = null,
+                dateAdded = 1,
             ),
         )
         database.playlistDao().insertPlaylist(
@@ -131,8 +148,14 @@ class RepositoryDeletionInstrumentedTest {
     @Test fun deletePreviewNamesMembershipsAndDetectsOnlyMemberPlaylist() = runBlocking {
         database.songDao().upsertSong(
             SongEntity(
-                id = "other", title = "Other", albumId = null, duration = 1,
-                filePath = "test://other", albumArtUri = null, year = null, dateAdded = 2,
+                id = "other",
+                title = "Other",
+                albumId = null,
+                duration = 1,
+                filePath = "test://other",
+                albumArtUri = null,
+                year = null,
+                dateAdded = 2,
             ),
         )
         database.playlistDao().insertPlaylist(
@@ -146,7 +169,7 @@ class RepositoryDeletionInstrumentedTest {
                 listOf(
                     DeleteSongPlaylistImpact("Playlist", willBecomeEmpty = true),
                     DeleteSongPlaylistImpact("Shared", willBecomeEmpty = false),
-                )
+                ),
             ),
             repository.previewDeleteSong("song"),
         )
@@ -155,7 +178,7 @@ class RepositoryDeletionInstrumentedTest {
     @Test fun audioFileRetryReattemptsCapturedPathAndCanSucceed() = runBlocking {
         val attemptedPaths = mutableListOf<String>()
         val outcomes = ArrayDeque(
-            listOf(AudioFileDeletion.Failed, AudioFileDeletion.ConfirmedAbsent)
+            listOf(AudioFileDeletion.Failed, AudioFileDeletion.ConfirmedAbsent),
         )
         val retryingRepository = repositoryWithPreflight(
             result = DestructiveFilePreflightResult.Ambiguous,
@@ -305,7 +328,10 @@ class RepositoryDeletionInstrumentedTest {
         val finishGraduation = CompletableDeferred<Unit>()
         val graduation = async(Dispatchers.IO) {
             graduateSong(
-                context, database, database.songDao(), "song",
+                context,
+                database,
+                database.songDao(),
+                "song",
                 "content://com.v1per.synthx.test.nonexistent/tree/music".toUri(),
             ) { stage ->
                 if (stage is GraduationStage.Failed) {
@@ -378,8 +404,13 @@ class RepositoryDeletionInstrumentedTest {
         context, database, database.songDao(), database.artistDao(), database.albumDao(),
         database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
         FolderScanner(
-            context, database, database.songDao(), database.artistDao(), database.albumDao(),
-            database.songArtistDao(), exports,
+            context,
+            database,
+            database.songDao(),
+            database.artistDao(),
+            database.albumDao(),
+            database.songArtistDao(),
+            exports,
         ),
         BackupManager(context), exports,
         destructiveFileCheck = { _, _ -> result },

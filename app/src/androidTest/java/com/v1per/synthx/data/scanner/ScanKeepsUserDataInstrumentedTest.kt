@@ -28,7 +28,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ScanKeepsUserDataInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var fx: ScanTestFixture
@@ -176,7 +177,11 @@ class ScanKeepsUserDataInstrumentedTest {
         assertTrue(hidden.isMissing)
         assertEquals("stale://${old.id}", hidden.filePath)
         assertTrue("pinned: star stays on the hidden copy", hidden.isStarred)
-        assertEquals("pinned: playlist stays on the hidden copy", listOf(old.id), fx.playlistDao.getSongIdsForPlaylist("p1"))
+        assertEquals(
+            "pinned: playlist stays on the hidden copy",
+            listOf(old.id),
+            fx.playlistDao.getSongIdsForPlaylist("p1"),
+        )
         assertTrue("new row is in no playlist", fx.playlistDao.getPlaylistIdsForSong(fresh.id).isEmpty())
         assertTrue("remap old to new: $remaps", remaps.any { it.oldId == old.id && it.newSong.id == fresh.id })
     }

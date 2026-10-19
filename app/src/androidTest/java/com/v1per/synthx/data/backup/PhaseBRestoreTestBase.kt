@@ -34,7 +34,8 @@ import org.junit.Rule
  * is `protected`.
  */
 abstract class PhaseBRestoreTestBase {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     protected val context: Context = ApplicationProvider.getApplicationContext()
     protected val databaseDir: File get() = requireNotNull(context.getDatabasePath(SynthXDatabase.DB_NAME).parentFile)
@@ -108,11 +109,7 @@ abstract class PhaseBRestoreTestBase {
         BackupSnapshotValidator.validate(destination, false)
     }
 
-    protected fun group(
-        marker: String,
-        id: String = "marker",
-        position: Int = 0,
-    ) = PlaylistGroupEntity(
+    protected fun group(marker: String, id: String = "marker", position: Int = 0) = PlaylistGroupEntity(
         id = id,
         name = marker,
         position = position,

@@ -53,8 +53,12 @@ internal class RepositoryTestFixture(base: Context) {
     val database: SynthXDatabase =
         Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
     val exports = PlaylistExportManager(
-        context, database, database.playlistDao(), database.songDao(),
-        database.artistDao(), database.albumDao(),
+        context,
+        database,
+        database.playlistDao(),
+        database.songDao(),
+        database.artistDao(),
+        database.albumDao(),
     )
     private val repositories = mutableListOf<SongRepositoryImpl>()
     val repository = repositoryWith()
@@ -64,8 +68,13 @@ internal class RepositoryTestFixture(base: Context) {
         context, database, songDao, database.artistDao(), database.albumDao(),
         database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
         FolderScanner(
-            context, database, database.songDao(), database.artistDao(), database.albumDao(),
-            database.songArtistDao(), exports,
+            context,
+            database,
+            database.songDao(),
+            database.artistDao(),
+            database.albumDao(),
+            database.songArtistDao(),
+            exports,
         ),
         BackupManager(context), exports,
         destructiveFileCheck = { _, _ -> DestructiveFilePreflightResult.Ambiguous },
@@ -168,12 +177,7 @@ internal class RepositoryTestFixture(base: Context) {
 }
 
 /** Waits for [flow] to emit a value matching [done]; fails with the last value seen. */
-internal suspend fun <T> awaitEmission(
-    flow: Flow<T>,
-    what: String,
-    timeoutMs: Long = 5_000,
-    done: (T) -> Boolean,
-): T {
+internal suspend fun <T> awaitEmission(flow: Flow<T>, what: String, timeoutMs: Long = 5_000, done: (T) -> Boolean): T {
     var last: Any? = "nothing emitted"
     val match = withTimeoutOrNull(timeoutMs) {
         flow.first { value ->

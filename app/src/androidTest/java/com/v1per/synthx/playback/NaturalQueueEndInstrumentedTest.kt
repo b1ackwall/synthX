@@ -56,7 +56,13 @@ class NaturalQueueEndInstrumentedTest : PlaybackServiceTestBase() {
         assertNotNull("current song", onMain { engine._currentSong.value })
         assertEquals("cursor index", 1, onMain { engine._currentIndex.value })
         assertFalse("not playing", onMain { engine._isPlaying.value })
-        assertEquals("queue untouched", listOf("end-0", "end-1"), onMain { engine.orderStore.live.map { songsOf(it.slotId) } })
+        assertEquals(
+            "queue untouched",
+            listOf("end-0", "end-1"),
+            onMain {
+                engine.orderStore.live.map { songsOf(it.slotId) }
+            },
+        )
         assertTrue("timeline still loaded", onMain { engine.controller!!.mediaItemCount } > 0)
         assertEquals("session parked at end of timeline", Player.STATE_ENDED, onMain { extraController.playbackState })
         assertTrue("queue-ended flag", onMain { engine._isQueueEnded.value })

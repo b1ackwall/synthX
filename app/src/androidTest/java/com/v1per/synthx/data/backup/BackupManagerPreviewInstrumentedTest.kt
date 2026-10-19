@@ -23,7 +23,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class BackupManagerPreviewInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val preferenceName = "backup-preview-${UUID.randomUUID()}"
@@ -85,7 +86,10 @@ class BackupManagerPreviewInstrumentedTest {
 
         val result = backupManager.previewBackup(info)
 
-        assertTrue("Preview of a genuinely small backup must pass free space: ${result.exceptionOrNull()}", result.isSuccess)
+        assertTrue(
+            "Preview of a genuinely small backup must pass free space: ${result.exceptionOrNull()}",
+            result.isSuccess,
+        )
     }
 
     /**

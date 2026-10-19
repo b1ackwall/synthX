@@ -253,7 +253,9 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
         val faults = RestoreFaultInjector { point ->
             if (point == RestoreFaultPoint.SAFETY_SNAPSHOT ||
                 point == RestoreFaultPoint.PRE_CLOSE_FAILURE_CLEANUP_DIRECTORY_SYNC
-            ) error("Injected $point")
+            ) {
+                error("Injected $point")
+            }
         }
 
         val result = execute(source, metadata(source), faults)
@@ -285,7 +287,9 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
         val faults = RestoreFaultInjector { point ->
             if (point == RestoreFaultPoint.CANDIDATE_TO_LIVE_RENAME ||
                 point == RestoreFaultPoint.OLD_ROLLBACK_RENAME
-            ) error("injected $point")
+            ) {
+                error("injected $point")
+            }
         }
         assertTrue(execute(source, metadata(source), faults).isFailure)
         assertEquals(RestoreCoordinator.Terminal.EMERGENCY, RestoreCoordinator.current())
@@ -302,7 +306,9 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
                         .writeText("corrupt old")
                     error("force safety fallback")
                 }
+
                 RestoreFaultPoint.SAFETY_FALLBACK_PROMOTION -> error("injected safety promotion")
+
                 else -> Unit
             }
         }
@@ -311,10 +317,7 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
         assertTrue(databaseDir.listFiles().orEmpty().any { it.name.endsWith(".safety.db") })
     }
 
-    private data class RestoreOutcome(
-        val state: RestoreTransaction.State,
-        val old: File,
-    )
+    private data class RestoreOutcome(val state: RestoreTransaction.State, val old: File)
 
     private suspend fun successfulRestore(): RestoreOutcome {
         createLive("state-a")

@@ -80,7 +80,7 @@ class PhaseBRestoreJournalUpgradeInstrumentedTest : PhaseBRestoreTestBase() {
             historicalCompleteState(
                 recordedVersion = impossibleRunningVersion,
                 oldVersion = 1,
-            )
+            ),
         )
         assertFalse(liveFile().exists())
         assertNotNull(RestoreTransaction.decodeStateOrNull(stateFile().readText()))
@@ -205,12 +205,32 @@ class PhaseBRestoreJournalUpgradeInstrumentedTest : PhaseBRestoreTestBase() {
     private fun writeHistoricalState(state: RestoreTransaction.State) {
         var text = RestoreJournalGoldens.read("v2.5-complete-rolled-back.json")
             .replace(RestoreJournalGoldens.OPERATION_ID, state.operationId)
-        text = RestoreJournalGoldens.replaceOnce(text, "\"candidateVersion\":16", "\"candidateVersion\":${state.candidateVersion}")
-        text = RestoreJournalGoldens.replaceOnce(text, "\"oldVersion\":16", "\"oldVersion\":${requireNotNull(state.oldVersion)}")
-        text = RestoreJournalGoldens.replaceOnce(text, "\"safetySha256\":\"${"b".repeat(64)}\"", "\"safetySha256\":\"${state.safetySha256}\"")
+        text =
+            RestoreJournalGoldens.replaceOnce(
+                text,
+                "\"candidateVersion\":16",
+                "\"candidateVersion\":${state.candidateVersion}",
+            )
+        text =
+            RestoreJournalGoldens.replaceOnce(
+                text,
+                "\"oldVersion\":16",
+                "\"oldVersion\":${requireNotNull(state.oldVersion)}",
+            )
+        text =
+            RestoreJournalGoldens.replaceOnce(
+                text,
+                "\"safetySha256\":\"${"b".repeat(64)}\"",
+                "\"safetySha256\":\"${state.safetySha256}\"",
+            )
         text = RestoreJournalGoldens.replaceOnce(text, "\"safetySize\":4096", "\"safetySize\":${state.safetySize}")
         if (state.outcome == RestoreTransaction.Outcome.INSTALLED) {
-            text = RestoreJournalGoldens.replaceOnce(text, "\"outcome\":\"ROLLED_BACK\",\"rollbackSource\":\"SAFETY\",", "")
+            text =
+                RestoreJournalGoldens.replaceOnce(
+                    text,
+                    "\"outcome\":\"ROLLED_BACK\",\"rollbackSource\":\"SAFETY\",",
+                    "",
+                )
         }
         stateFile().writeText(text)
     }

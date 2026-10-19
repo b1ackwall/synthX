@@ -34,7 +34,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class MigrationValidationMarkerInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val live: File get() = context.getDatabasePath(SynthXDatabase.DB_NAME)

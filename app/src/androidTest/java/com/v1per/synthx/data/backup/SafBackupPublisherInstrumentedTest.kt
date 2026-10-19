@@ -23,7 +23,8 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class SafBackupPublisherInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val roots = mutableListOf<File>()
@@ -196,7 +197,7 @@ class SafBackupPublisherInstrumentedTest {
                 file = identity.databaseFileName,
                 sizeBytes = digest.sizeBytes,
                 sha256 = digest.sha256,
-            )
+            ),
         )
 
         val published = SafBackupPublisher(context).publish(

@@ -65,18 +65,18 @@ internal object ScanStubWorkerFactory : WorkerFactory() {
     }
 }
 
-private class StubScanWorker(
-    context: Context,
-    params: WorkerParameters,
-    private val stub: ScanStub,
-) : CoroutineWorker(context, params) {
+private class StubScanWorker(context: Context, params: WorkerParameters, private val stub: ScanStub) :
+    CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = when (stub) {
         ScanStub.Hang -> awaitCancellation()
+
         is ScanStub.Gated -> {
             stub.gate.await()
             Result.success()
         }
+
         is ScanStub.Succeed -> Result.success(stub.output)
+
         is ScanStub.Fail -> Result.failure(
             androidx.work.workDataOf(LibraryScanWorker.KEY_ERROR to stub.error),
         )

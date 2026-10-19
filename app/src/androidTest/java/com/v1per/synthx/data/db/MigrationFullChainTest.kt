@@ -27,7 +27,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class MigrationFullChainTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val createdDatabaseNames = mutableSetOf<String>()
@@ -164,7 +165,10 @@ class MigrationFullChainTest {
                 seedSongOutsideEveryPlaylist(it)
             }
             migrationHelper.runMigrationsAndValidate(
-                name, SynthXDatabase.VERSION, true, *SynthXDatabase.ALL_MIGRATIONS,
+                name,
+                SynthXDatabase.VERSION,
+                true,
+                *SynthXDatabase.ALL_MIGRATIONS,
             ).use { database ->
                 if (startVersion <= 3) {
                     assertEquals(0, database.singleInt("SELECT COUNT(*) FROM songs"))
@@ -196,7 +200,7 @@ class MigrationFullChainTest {
                         FOREIGN KEY(album_id) REFERENCES albums(id)
                             ON UPDATE NO ACTION ON DELETE SET NULL
                     )
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 db.execSQL(
                     """
@@ -205,7 +209,7 @@ class MigrationFullChainTest {
                         date_added,is_missing,missing_since
                     ) SELECT id,title,album_id,duration,file_path,album_art_uri,year,track_number,
                         date_added,is_missing,missing_since FROM songs
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 error("injected crash during 6->7 songs rebuild")
             }
@@ -223,19 +227,29 @@ class MigrationFullChainTest {
             android.database.sqlite.SQLiteDatabase.OPEN_READONLY,
         ).use { rolledBack ->
             assertEquals(6, rolledBack.version)
-            assertEquals(1, rolledBack.rawQuery("SELECT COUNT(*) FROM songs", null).use {
-                it.moveToFirst(); it.getInt(0)
-            })
+            assertEquals(
+                1,
+                rolledBack.rawQuery("SELECT COUNT(*) FROM songs", null).use {
+                    it.moveToFirst()
+                    it.getInt(0)
+                },
+            )
             assertEquals(
                 0,
                 rolledBack.rawQuery(
                     "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='songs_new'",
                     null,
-                ).use { it.moveToFirst(); it.getInt(0) },
+                ).use {
+                    it.moveToFirst()
+                    it.getInt(0)
+                },
             )
         }
         migrationHelper.runMigrationsAndValidate(
-            name, SynthXDatabase.VERSION, true, *SynthXDatabase.ALL_MIGRATIONS,
+            name,
+            SynthXDatabase.VERSION,
+            true,
+            *SynthXDatabase.ALL_MIGRATIONS,
         ).use(::assertRepresentativeRelationships)
     }
 
@@ -266,10 +280,12 @@ class MigrationFullChainTest {
         )
         // v8+ fixtures start after the membership-derived backfill, so seed the invariant that
         // migration would already have established. v7 and earlier must earn this via 7->8.
-        if (startVersion >= 8) database.execSQL(
-            "UPDATE songs SET in_inbox = 0 WHERE id = ?",
-            arrayOf<Any?>(SONG_ID),
-        )
+        if (startVersion >= 8) {
+            database.execSQL(
+                "UPDATE songs SET in_inbox = 0 WHERE id = ?",
+                arrayOf<Any?>(SONG_ID),
+            )
+        }
         database.execSQL(
             "INSERT INTO artists (id, name, name_normalized) VALUES (?, ?, ?)",
             arrayOf<Any?>(ARTIST_ID, "Pre-chain artist", "pre-chain artist"),
@@ -360,8 +376,10 @@ class MigrationFullChainTest {
         )
     }
 
-    private fun SupportSQLiteDatabase.singleInt(sql: String): Int =
-        query(sql).use { it.moveToFirst(); it.getInt(0) }
+    private fun SupportSQLiteDatabase.singleInt(sql: String): Int = query(sql).use {
+        it.moveToFirst()
+        it.getInt(0)
+    }
 
     private companion object {
         const val SONG_ID = "song-pre-chain"

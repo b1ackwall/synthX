@@ -35,7 +35,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ShellSheetsInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -46,8 +47,14 @@ class ShellSheetsInstrumentedTest {
     private val newerSong = seedSong("sheets-newer", "0000 Sheets B", future + 1_000L)
     private val group = PlaylistGroupEntity("sheets-group", "Sheets Group", position = 0, createdAt = 1L)
     private val playlist = PlaylistEntity(
-        id = "sheets-playlist", name = "0000 Sheets Playlist", description = null, groupId = null,
-        position = 0, createdAt = 1L, updatedAt = 1L, coverArtUri = null,
+        id = "sheets-playlist",
+        name = "0000 Sheets Playlist",
+        description = null,
+        groupId = null,
+        position = 0,
+        createdAt = 1L,
+        updatedAt = 1L,
+        coverArtUri = null,
     )
 
     @Before fun setUp() = shell.setUp()
@@ -68,8 +75,14 @@ class ShellSheetsInstrumentedTest {
     private fun text(id: Int) = shell.context.getString(id)
 
     private fun seedSong(id: String, title: String, added: Long) = SongEntity(
-        id = id, title = title, albumId = null, duration = 1, filePath = "file:///$id.mp3",
-        albumArtUri = null, year = null, dateAdded = added,
+        id = id,
+        title = title,
+        albumId = null,
+        duration = 1,
+        filePath = "file:///$id.mp3",
+        albumArtUri = null,
+        year = null,
+        dateAdded = added,
     )
 
     private fun top(title: String): Float =

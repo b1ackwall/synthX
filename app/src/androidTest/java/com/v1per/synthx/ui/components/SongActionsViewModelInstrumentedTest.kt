@@ -48,7 +48,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class SongActionsViewModelInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private var viewModel: SongActionsViewModel? = null
@@ -240,10 +241,8 @@ class SongActionsViewModelInstrumentedTest {
     private fun subject(repository: SongRepository): SongActionsViewModel =
         SongActionsViewModel(repository, PreferencesManager(context)).also { viewModel = it }
 
-    private class RecordingRemoveRepository(
-        backing: SongRepository,
-        private val failWith: Throwable? = null,
-    ) : SongRepository by backing {
+    private class RecordingRemoveRepository(backing: SongRepository, private val failWith: Throwable? = null) :
+        SongRepository by backing {
         val removals = mutableListOf<Pair<String, String>>()
 
         override fun getAllPlaylists(): Flow<List<Playlist>> =
@@ -273,10 +272,8 @@ class SongActionsViewModelInstrumentedTest {
         }
     }
 
-    private class TerminalGraduateRepository(
-        private val terminal: GraduationStage,
-        backing: SongRepository,
-    ) : SongRepository by backing {
+    private class TerminalGraduateRepository(private val terminal: GraduationStage, backing: SongRepository) :
+        SongRepository by backing {
         var receivedNewArrivalsRoot: Uri? = null
 
         override fun graduateSong(

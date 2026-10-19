@@ -32,7 +32,8 @@ import org.junit.Assert.assertTrue
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistDetailCoverInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 
@@ -52,7 +53,12 @@ class PlaylistDetailCoverInstrumentedTest {
     }
 
     private val withArt = Playlist(
-        id = "p1", name = "One", groupId = null, albumArtUri = null, artHue = 200, artStructureSeed = 1234L,
+        id = "p1",
+        name = "One",
+        groupId = null,
+        albumArtUri = null,
+        artHue = 200,
+        artStructureSeed = 1234L,
     )
 
     @Test
@@ -73,9 +79,11 @@ class PlaylistDetailCoverInstrumentedTest {
         val left = (pixels.width - side) / 2
         var differing = 0
         var sampled = 0
-        for (x in left + inset until left + side - inset) for (y in inset until side - inset) {
-            sampled++
-            if (pixels[x, y].toArgb() != SurfaceVariant.toArgb()) differing++
+        for (x in left + inset until left + side - inset) {
+            for (y in inset until side - inset) {
+                sampled++
+                if (pixels[x, y].toArgb() != SurfaceVariant.toArgb()) differing++
+            }
         }
         assertTrue(
             "expected generated art in the hero square, but only $differing of $sampled interior pixels differ from the placeholder fill",

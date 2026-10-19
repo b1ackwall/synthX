@@ -41,12 +41,22 @@ class RestoreFaultPointOrderInstrumentedTest : RestoreScenarioTestBase() {
         val hits = restore.hits
         assertFollowedBy(hits, RestoreFaultPoint.SOURCE_STREAM_READ, RestoreFaultPoint.SOURCE_SHA_VERIFY)
         assertFollowedBy(hits, RestoreFaultPoint.LIVE_TO_OLD_RENAME, RestoreFaultPoint.LIVE_TO_OLD_DIRECTORY_SYNC)
-        assertFollowedBy(hits, RestoreFaultPoint.CANDIDATE_TO_LIVE_RENAME, RestoreFaultPoint.CANDIDATE_TO_LIVE_DIRECTORY_SYNC)
         assertFollowedBy(
-            hits, RestoreFaultPoint.LIVE_TO_OLD_DIRECTORY_SYNC, RestoreFaultPoint.CANDIDATE_TO_LIVE_RENAME, adjacent = false,
+            hits,
+            RestoreFaultPoint.CANDIDATE_TO_LIVE_RENAME,
+            RestoreFaultPoint.CANDIDATE_TO_LIVE_DIRECTORY_SYNC,
         )
         assertFollowedBy(
-            hits, RestoreFaultPoint.CANDIDATE_TO_LIVE_DIRECTORY_SYNC, RestoreFaultPoint.INSTALLED_VALIDATION, adjacent = false,
+            hits,
+            RestoreFaultPoint.LIVE_TO_OLD_DIRECTORY_SYNC,
+            RestoreFaultPoint.CANDIDATE_TO_LIVE_RENAME,
+            adjacent = false,
+        )
+        assertFollowedBy(
+            hits,
+            RestoreFaultPoint.CANDIDATE_TO_LIVE_DIRECTORY_SYNC,
+            RestoreFaultPoint.INSTALLED_VALIDATION,
+            adjacent = false,
         )
 
         RestoreCoordinator.resetForTest()
@@ -66,7 +76,11 @@ class RestoreFaultPointOrderInstrumentedTest : RestoreScenarioTestBase() {
 
         assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir, startup))
 
-        assertFollowedBy(startup.hits, RestoreFaultPoint.OLD_ROLLBACK_RENAME, RestoreFaultPoint.STARTUP_ROLLBACK_DIRECTORY_SYNC)
+        assertFollowedBy(
+            startup.hits,
+            RestoreFaultPoint.OLD_ROLLBACK_RENAME,
+            RestoreFaultPoint.STARTUP_ROLLBACK_DIRECTORY_SYNC,
+        )
         assertEquals("original", readMarker(liveFile()))
     }
 
@@ -82,7 +96,11 @@ class RestoreFaultPointOrderInstrumentedTest : RestoreScenarioTestBase() {
         }
 
         assertTrue(result.exceptionOrNull() is RestoreTransaction.PostCloseFailure)
-        assertFollowedBy(recorder.hits, RestoreFaultPoint.OLD_ROLLBACK_RENAME, RestoreFaultPoint.CURRENT_ROLLBACK_DIRECTORY_SYNC)
+        assertFollowedBy(
+            recorder.hits,
+            RestoreFaultPoint.OLD_ROLLBACK_RENAME,
+            RestoreFaultPoint.CURRENT_ROLLBACK_DIRECTORY_SYNC,
+        )
         assertEquals("original", readMarker(liveFile()))
     }
 }

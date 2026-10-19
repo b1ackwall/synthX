@@ -227,10 +227,7 @@ class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {
      * before the revision capture, the guard would be legitimately inert, and the test would fail
      * (never silently pass).
      */
-    private fun withQueueLoadSuspendedAtConnection(
-        queue: List<Song>,
-        duringSuspension: () -> Unit,
-    ) {
+    private fun withQueueLoadSuspendedAtConnection(queue: List<Song>, duringSuspension: () -> Unit) {
         val gate = SettableFuture.create<MediaController>()
         var captured: MediaController.Listener? = null
         engine = newEngine { listener ->

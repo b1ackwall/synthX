@@ -13,8 +13,7 @@ internal class FailOnSecondCreateDocumentFile(root: File) : DocumentFile(null) {
         return if (createCount == 2) null else delegate.createFile(mimeType, displayName)
     }
 
-    override fun createDirectory(displayName: String): DocumentFile? =
-        delegate.createDirectory(displayName)
+    override fun createDirectory(displayName: String): DocumentFile? = delegate.createDirectory(displayName)
 
     override fun getUri(): Uri = delegate.uri
     override fun getName(): String? = delegate.name

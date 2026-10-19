@@ -35,15 +35,14 @@ internal class FailOnceFlow<T>(private val first: T, private val afterRetry: T) 
 }
 
 /** A [SongRepository] answering only the named Flow-returning reads; any other call fails loudly. */
-internal fun flowOnlyRepository(flows: Map<String, Flow<*>>): SongRepository =
-    Proxy.newProxyInstance(
-        SongRepository::class.java.classLoader,
-        arrayOf(SongRepository::class.java),
-    ) { proxy, method, args ->
-        when (method.name) {
-            "toString" -> "flowOnlyRepository"
-            "hashCode" -> System.identityHashCode(proxy)
-            "equals" -> proxy === args?.firstOrNull()
-            else -> flows[method.name] ?: error("Unexpected repository call: ${method.name}")
-        }
-    } as SongRepository
+internal fun flowOnlyRepository(flows: Map<String, Flow<*>>): SongRepository = Proxy.newProxyInstance(
+    SongRepository::class.java.classLoader,
+    arrayOf(SongRepository::class.java),
+) { proxy, method, args ->
+    when (method.name) {
+        "toString" -> "flowOnlyRepository"
+        "hashCode" -> System.identityHashCode(proxy)
+        "equals" -> proxy === args?.firstOrNull()
+        else -> flows[method.name] ?: error("Unexpected repository call: ${method.name}")
+    }
+} as SongRepository

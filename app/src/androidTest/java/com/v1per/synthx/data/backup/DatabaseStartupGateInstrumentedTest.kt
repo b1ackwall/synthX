@@ -35,7 +35,8 @@ import org.junit.runner.RunWith
 // wording (updated below for accuracy: "backup" -> "migration" throughout).
 @RunWith(AndroidJUnit4::class)
 class DatabaseStartupGateInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val live: File get() = context.getDatabasePath(SynthXDatabase.DB_NAME)

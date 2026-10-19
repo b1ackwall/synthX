@@ -62,11 +62,14 @@ import org.junit.runner.RunWith
 @SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class ShellEventsInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
-    @get:Rule(order = 1) val preferencesSnapshot = DebugPreferencesSnapshot()
+    @get:Rule(order = 1)
+    val preferencesSnapshot = DebugPreferencesSnapshot()
 
-    @get:Rule(order = 2) val composeRule = createAndroidComposeRule<ComponentActivity>()
+    @get:Rule(order = 2)
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private val shell = ShellTestHost(composeRule)
     private val base: Context = shell.context
@@ -217,11 +220,19 @@ class ShellEventsInstrumentedTest {
     @Test fun goToAlbumFromTheExpandedPlayerOpensTheAlbumAndCollapsesThePlayer() {
         val database = SynthXDatabase.getInstance(base)
         runBlocking {
-            database.albumDao().upsertAlbum(AlbumEntity("events-album", "Events Album", year = null, albumArtUri = null))
+            database.albumDao().upsertAlbum(
+                AlbumEntity("events-album", "Events Album", year = null, albumArtUri = null),
+            )
             database.songDao().upsertSong(
                 SongEntity(
-                    id = current.id, title = current.title, albumId = "events-album", duration = 60_000L,
-                    filePath = current.filePath, albumArtUri = null, year = null, dateAdded = 1L,
+                    id = current.id,
+                    title = current.title,
+                    albumId = "events-album",
+                    duration = 60_000L,
+                    filePath = current.filePath,
+                    albumArtUri = null,
+                    year = null,
+                    dateAdded = 1L,
                 ),
             )
         }

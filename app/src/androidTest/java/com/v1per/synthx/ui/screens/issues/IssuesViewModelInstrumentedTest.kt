@@ -35,7 +35,8 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class IssuesViewModelInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private var viewModel: IssuesViewModel? = null
@@ -173,14 +174,12 @@ class IssuesViewModelInstrumentedTest {
         recoverMissingArt: () -> Unit = {},
     ): IssuesViewModel = subject(fakeRepository(delete, recoverMissingArt))
 
-    private fun subject(repository: SongRepository): IssuesViewModel {
-        return IssuesViewModel(
-            context = context,
-            repository = repository,
-            preferences = PreferencesManager(context),
-            enqueueScan = {},
-        ).also { viewModel = it }
-    }
+    private fun subject(repository: SongRepository): IssuesViewModel = IssuesViewModel(
+        context = context,
+        repository = repository,
+        preferences = PreferencesManager(context),
+        enqueueScan = {},
+    ).also { viewModel = it }
 
     private fun fakeRepository(
         delete: () -> SongDeletionOutcome = { SongDeletionOutcome.Deleted },
@@ -191,7 +190,9 @@ class IssuesViewModelInstrumentedTest {
     ) { _, method, args ->
         when (method.name) {
             "getMissingSongs" -> flowOf(emptyList<Any>())
+
             "deleteSong" -> delete()
+
             // IssuesViewModel calls this instead of deleteSong — see
             // SongRepository.deleteSongDetached's kdoc. Invoked synchronously here (the fake has
             // no scope of its own to be independent of); DeferredDeleteRepository below is what
@@ -202,7 +203,9 @@ class IssuesViewModelInstrumentedTest {
                 onResult(runCatching { delete() })
                 Unit
             }
+
             "recoverMissingArt" -> recoverMissingArt()
+
             else -> error("Unexpected repository call: ${method.name}")
         }
     } as SongRepository
@@ -239,10 +242,7 @@ class IssuesViewModelInstrumentedTest {
         }
     }
 
-    private suspend fun eventFrom(
-        subject: IssuesViewModel,
-        action: () -> Unit,
-    ): IssuesActionEvent {
+    private suspend fun eventFrom(subject: IssuesViewModel, action: () -> Unit): IssuesActionEvent {
         val event = kotlinx.coroutines.coroutineScope {
             val deferred = async(start = CoroutineStart.UNDISPATCHED) { subject.events.first() }
             action()

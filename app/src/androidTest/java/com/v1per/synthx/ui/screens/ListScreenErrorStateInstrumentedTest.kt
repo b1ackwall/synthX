@@ -47,7 +47,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ListScreenErrorStateInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -62,8 +63,13 @@ class ListScreenErrorStateInstrumentedTest {
     }
 
     private fun song(id: String, title: String, added: Long) = Song(
-        id = id, title = title, artist = "Error Artist", album = "Error Album", duration = 1_000L,
-        filePath = "file:///$id.mp3", dateAdded = added,
+        id = id,
+        title = title,
+        artist = "Error Artist",
+        album = "Error Album",
+        duration = 1_000L,
+        filePath = "file:///$id.mp3",
+        dateAdded = added,
     )
 
     private fun <T : ViewModel> onUi(build: () -> T): T {

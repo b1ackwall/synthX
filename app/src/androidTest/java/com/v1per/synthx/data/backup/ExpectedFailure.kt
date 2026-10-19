@@ -32,11 +32,7 @@ suspend fun <T : Throwable> expectSuspendFailureOf(
     return checkExpectedFailure(type, messageContains, thrown)
 }
 
-private fun <T : Throwable> checkExpectedFailure(
-    type: KClass<T>,
-    messageContains: String,
-    thrown: Throwable?,
-): T {
+private fun <T : Throwable> checkExpectedFailure(type: KClass<T>, messageContains: String, thrown: Throwable?): T {
     val expected = "${type.java.name} with a message containing \"$messageContains\""
     if (thrown == null) throw AssertionError("Expected failure: $expected, but the block completed normally")
     if (!type.java.isInstance(thrown) || thrown.message?.contains(messageContains) != true) {

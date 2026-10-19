@@ -120,7 +120,9 @@ internal class MainActivityLauncher(private val compose: ComposeTestRule) {
     class HeldGate {
         private val opened = CompletableDeferred<Unit>()
         val attempts = AtomicInteger()
-        fun release() { opened.complete(Unit) }
+        fun release() {
+            opened.complete(Unit)
+        }
         internal val controller = DatabaseStartupController(
             currentVersion = SynthXDatabase.VERSION,
             awaitRestoreNormal = { opened.await() },

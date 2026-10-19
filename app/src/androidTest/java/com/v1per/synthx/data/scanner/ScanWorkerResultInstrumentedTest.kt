@@ -76,7 +76,10 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
 
         assertTrue("$result", result is ListenableWorker.Result.Success)
         val out = result.outputData
-        assertEquals(setOf(ScanDegradation(KnownAudioRoot.Music, ScanDegradationReason.RootUnreachable)), out.scanDegradations())
+        assertEquals(
+            setOf(ScanDegradation(KnownAudioRoot.Music, ScanDegradationReason.RootUnreachable)),
+            out.scanDegradations(),
+        )
         assertEquals(0, out.getInt(LibraryScanWorker.KEY_MISSING, -1))
         assertEquals(0, out.getInt(LibraryScanWorker.KEY_ADDED, -1))
         assertFalse(out.keyValueMap.containsKey(LibraryScanWorker.KEY_HIGH_IMPACT))
@@ -99,7 +102,10 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
         val result = TestListenableWorkerBuilder<NewArrivalsScanWorker>(context).build().doWork()
 
         assertTrue("$result", result is ListenableWorker.Result.Failure)
-        assertEquals(NewArrivalsScanWorker.GRANT_REVOKED_MESSAGE, result.outputData.getString(NewArrivalsScanWorker.KEY_ERROR))
+        assertEquals(
+            NewArrivalsScanWorker.GRANT_REVOKED_MESSAGE,
+            result.outputData.getString(NewArrivalsScanWorker.KEY_ERROR),
+        )
         assertNull(preferences.newArrivalsFolderUri)
         assertEquals(MUSIC, preferences.musicFolderUri)
     }
@@ -112,9 +118,15 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
 
         assertTrue("$result", result is ListenableWorker.Result.Success)
         val out = result.outputData
-        assertFalse("missing is never reported: ${out.keyValueMap}", out.keyValueMap.containsKey(LibraryScanWorker.KEY_MISSING))
+        assertFalse(
+            "missing is never reported: ${out.keyValueMap}",
+            out.keyValueMap.containsKey(LibraryScanWorker.KEY_MISSING),
+        )
         assertEquals(0, out.getInt(LibraryScanWorker.KEY_ADDED, -1))
-        assertEquals(setOf(ScanDegradation(KnownAudioRoot.NewArrivals, ScanDegradationReason.RootUnreachable)), out.scanDegradations())
+        assertEquals(
+            setOf(ScanDegradation(KnownAudioRoot.NewArrivals, ScanDegradationReason.RootUnreachable)),
+            out.scanDegradations(),
+        )
     }
 
     @Test fun issuesWorkerSavesItsCountsAndTimeAndReportsThem() = runBlocking {
@@ -147,7 +159,10 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
         assertTrue("$result", result is ListenableWorker.Result.Success)
         val out = result.outputData
         assertEquals(0, out.getInt(VerifyLibraryWorker.KEY_NEWLY_MISSING, -1))
-        assertEquals(setOf(ScanDegradation(KnownAudioRoot.Music, ScanDegradationReason.RootUnreachable)), out.scanDegradations())
+        assertEquals(
+            setOf(ScanDegradation(KnownAudioRoot.Music, ScanDegradationReason.RootUnreachable)),
+            out.scanDegradations(),
+        )
         assertFalse(liveSong("kept").isMissing)
     }
 
@@ -164,7 +179,7 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
                 dateAdded = 1,
                 isMissing = missing,
                 missingSince = if (missing) 1L else null,
-            )
+            ),
         )
     }
 

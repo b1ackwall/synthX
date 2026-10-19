@@ -37,7 +37,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistArtInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 
@@ -73,7 +74,11 @@ class PlaylistArtInstrumentedTest {
         val detail = cachedPlaylistArtRenderModel(120, 42L, detailPx)
 
         assertNotSame("a second size must not be served the first size's model", row, detail)
-        assertSame("the row's entry must survive the detail cover being built", row, cachedPlaylistArtRenderModel(120, 42L, rowPx))
+        assertSame(
+            "the row's entry must survive the detail cover being built",
+            row,
+            cachedPlaylistArtRenderModel(120, 42L, rowPx),
+        )
         assertSame(detail, cachedPlaylistArtRenderModel(120, 42L, detailPx))
         // Geometry is scaled per size from the same reference space, so a 4x edge is a 4x stroke.
         assertEquals(4f, detail.strokeWidth / row.strokeWidth, 0.05f)
@@ -99,12 +104,16 @@ class PlaylistArtInstrumentedTest {
         val after = composeRule.onNodeWithTag("row").captureToImage().toPixelMap()
         val detail = composeRule.onNodeWithTag("detail").captureToImage().toPixelMap()
 
-        for (x in 0 until before.width) for (y in 0 until before.height) {
-            assertEquals("row pixel ($x,$y) changed", before[x, y].toArgb(), after[x, y].toArgb())
+        for (x in 0 until before.width) {
+            for (y in 0 until before.height) {
+                assertEquals("row pixel ($x,$y) changed", before[x, y].toArgb(), after[x, y].toArgb())
+            }
         }
         var generated = 0
-        for (x in 0 until detail.width step 3) for (y in 0 until detail.height step 3) {
-            if (detail[x, y].toArgb() != SurfaceVariant.toArgb()) generated++
+        for (x in 0 until detail.width step 3) {
+            for (y in 0 until detail.height step 3) {
+                if (detail[x, y].toArgb() != SurfaceVariant.toArgb()) generated++
+            }
         }
         assertTrue("the 160dp cover should be generated art", generated > 100)
     }

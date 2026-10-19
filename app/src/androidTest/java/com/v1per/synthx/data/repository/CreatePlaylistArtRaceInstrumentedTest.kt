@@ -36,7 +36,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class CreatePlaylistArtRaceInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private lateinit var context: Context
     private lateinit var database: SynthXDatabase
@@ -63,15 +64,24 @@ class CreatePlaylistArtRaceInstrumentedTest {
 
     private fun repositoryWith(playlistDao: PlaylistDao): SongRepositoryImpl {
         val exports = PlaylistExportManager(
-            context, database, database.playlistDao(), database.songDao(),
-            database.artistDao(), database.albumDao(),
+            context,
+            database,
+            database.playlistDao(),
+            database.songDao(),
+            database.artistDao(),
+            database.albumDao(),
         )
         return SongRepositoryImpl(
             context, database, database.songDao(), database.artistDao(), database.albumDao(),
             playlistDao, database.queueDao(), database.pendingCleanupDao(),
             FolderScanner(
-                context, database, database.songDao(), database.artistDao(), database.albumDao(),
-                database.songArtistDao(), exports,
+                context,
+                database,
+                database.songDao(),
+                database.artistDao(),
+                database.albumDao(),
+                database.songArtistDao(),
+                exports,
             ),
             BackupManager(context), exports,
             destructiveFileCheck = { _, _ -> DestructiveFilePreflightResult.Ambiguous },

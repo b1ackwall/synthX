@@ -103,8 +103,7 @@ class PlayQueueShuffleInstrumentedTest : PlaybackServiceTestBase() {
         }
     }
 
-    private fun awaitWrites(count: Int) =
-        await("$count unified write(s)") { unifiedShuffleFlags.size >= count }
+    private fun awaitWrites(count: Int) = await("$count unified write(s)") { unifiedShuffleFlags.size >= count }
 
     /** Exactly one structural write — the unified one — carrying [shuffle]. */
     private fun assertOneUnifiedWrite(shuffle: Boolean) {

@@ -31,7 +31,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistRowMenuInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 
@@ -51,7 +52,8 @@ class PlaylistRowMenuInstrumentedTest {
         albumArtUri = null,
     )
 
-    private val groups = listOf(PlaylistGroup(id = "g1", name = "Group One"), PlaylistGroup(id = "g2", name = "Group Two"))
+    private val groups =
+        listOf(PlaylistGroup(id = "g1", name = "Group One"), PlaylistGroup(id = "g2", name = "Group Two"))
 
     @Test
     fun searchStyleRowWithNoGroupingCallbacksHidesBothGroupingEntries() {

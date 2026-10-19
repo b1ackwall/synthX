@@ -25,7 +25,8 @@ import org.junit.runner.RunWith
 /** The artist detail header: the stats line and the Play / Shuffle action row above the songs. */
 @RunWith(AndroidJUnit4::class)
 class ArtistDetailHeaderInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 

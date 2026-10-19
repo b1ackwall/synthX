@@ -21,14 +21,13 @@ internal object MigrationTestSupport {
         table: String,
         columns: List<String> = columnNames(table),
         orderBy: String = "rowid",
-    ): List<List<String?>> =
-        query("SELECT ${columns.joinToString()} FROM $table ORDER BY $orderBy").use { cursor ->
-            buildList {
-                while (cursor.moveToNext()) {
-                    add(columns.indices.map { if (cursor.isNull(it)) null else cursor.getString(it) })
-                }
+    ): List<List<String?>> = query("SELECT ${columns.joinToString()} FROM $table ORDER BY $orderBy").use { cursor ->
+        buildList {
+            while (cursor.moveToNext()) {
+                add(columns.indices.map { if (cursor.isNull(it)) null else cursor.getString(it) })
             }
         }
+    }
 
     /** Full contents of each table, keyed by table name, with a stable order on [orderBy]. */
     fun SupportSQLiteDatabase.snapshot(tables: List<String>, orderBy: String = "rowid") =
@@ -39,20 +38,26 @@ internal object MigrationTestSupport {
             buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) }
         }
 
-    fun SupportSQLiteDatabase.singleInt(sql: String, vararg args: Any?): Int =
-        query(sql, args).use { check(it.moveToFirst()) { "No row for: $sql" }; it.getInt(0) }
+    fun SupportSQLiteDatabase.singleInt(sql: String, vararg args: Any?): Int = query(sql, args).use {
+        check(it.moveToFirst()) { "No row for: $sql" }
+        it.getInt(0)
+    }
 
     /** Single text column of every row; NULL comes back as null. */
-    fun SupportSQLiteDatabase.strings(sql: String, vararg args: Any?): List<String?> =
-        query(sql, args).use { cursor ->
-            buildList { while (cursor.moveToNext()) add(if (cursor.isNull(0)) null else cursor.getString(0)) }
-        }
+    fun SupportSQLiteDatabase.strings(sql: String, vararg args: Any?): List<String?> = query(sql, args).use { cursor ->
+        buildList { while (cursor.moveToNext()) add(if (cursor.isNull(0)) null else cursor.getString(0)) }
+    }
 
     /** `id -> album_id` for every song. */
     fun SupportSQLiteDatabase.songAlbums(): Map<String, String?> =
         query("SELECT id, album_id FROM songs ORDER BY id").use { cursor ->
             buildMap {
-                while (cursor.moveToNext()) put(cursor.getString(0), if (cursor.isNull(1)) null else cursor.getString(1))
+                while (cursor.moveToNext()) {
+                    put(
+                        cursor.getString(0),
+                        if (cursor.isNull(1)) null else cursor.getString(1),
+                    )
+                }
             }
         }
 
@@ -73,16 +78,10 @@ internal object MigrationTestSupport {
             }
         }
 
-    fun SupportSQLiteDatabase.foreignKeyViolations(): Int =
-        query("PRAGMA foreign_key_check").use { it.count }
+    fun SupportSQLiteDatabase.foreignKeyViolations(): Int = query("PRAGMA foreign_key_check").use { it.count }
 
     /** Inserts a song using only columns that exist, unchanged, in every schema from v2 to v16. */
-    fun SupportSQLiteDatabase.insertSong(
-        id: String,
-        albumId: String?,
-        trackNumber: Int? = null,
-        year: Int? = null,
-    ) {
+    fun SupportSQLiteDatabase.insertSong(id: String, albumId: String?, trackNumber: Int? = null, year: Int? = null) {
         execSQL(
             "INSERT INTO songs (id, title, album_id, duration, file_path, album_art_uri, year, " +
                 "track_number, date_added, is_missing, missing_since) " +

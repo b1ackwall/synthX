@@ -43,7 +43,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class PendingCleanupReconciliationInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private lateinit var context: ReconciliationTestContext
     private lateinit var database: SynthXDatabase
@@ -206,12 +207,17 @@ class PendingCleanupReconciliationInstrumentedTest {
         PendingCleanupReconciliation.reconcile(context, database)
 
         assertEquals(0, PendingCleanupReconciliationTracker.lastCount.value)
-        assertEquals("an empty pass must not record a reconciliation", 0L, PendingCleanupReconciliationTracker.lastTimestamp.value)
+        assertEquals(
+            "an empty pass must not record a reconciliation",
+            0L,
+            PendingCleanupReconciliationTracker.lastTimestamp.value,
+        )
     }
 
     private fun reachablePublishedDocument(): String {
         val appContext = context.baseContext
-        val file = File(File(appContext.filesDir, "restore_incidents").apply { mkdirs() }, "${UUID.randomUUID()}.published")
+        val file =
+            File(File(appContext.filesDir, "restore_incidents").apply { mkdirs() }, "${UUID.randomUUID()}.published")
         file.writeText("published")
         publishedFiles += file
         return FileProvider.getUriForFile(appContext, "${appContext.packageName}.fileprovider", file).toString()
@@ -220,8 +226,14 @@ class PendingCleanupReconciliationInstrumentedTest {
     private suspend fun seedSong(id: String, filePath: String) {
         database.songDao().upsertSong(
             SongEntity(
-                id = id, title = id, albumId = null, duration = 1,
-                filePath = filePath, albumArtUri = null, year = null, dateAdded = 1,
+                id = id,
+                title = id,
+                albumId = null,
+                duration = 1,
+                filePath = filePath,
+                albumArtUri = null,
+                year = null,
+                dateAdded = 1,
             ),
         )
     }

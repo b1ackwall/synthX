@@ -45,7 +45,8 @@ abstract class PlaybackServiceTestBase {
     /** Per-test limit; a class that overrides it says why. Override with a getter, not a field. */
     protected open val timeoutSeconds: Long get() = TestTimeouts.DEVICE_SECONDS
 
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device(timeoutSeconds)
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device(timeoutSeconds)
 
     protected val context: Context = ApplicationProvider.getApplicationContext()
     protected val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -267,7 +268,8 @@ abstract class PlaybackServiceTestBase {
         while (SystemClock.uptimeMillis() < deadline) {
             instrumentation.waitForIdleSync()
             val writesInFlight =
-                RestoreCoordinator.activeOperationCountForTest() - RestoreCoordinator.activeReactiveOperationCountForTest()
+                RestoreCoordinator.activeOperationCountForTest() -
+                    RestoreCoordinator.activeReactiveOperationCountForTest()
             val state = onMain { liveControllers().map(::controllerState) } + writesInFlight
             val now = SystemClock.uptimeMillis()
             if (state != last) {
@@ -307,12 +309,19 @@ abstract class PlaybackServiceTestBase {
         fun le32(v: Int) = byteArrayOf(v.toByte(), (v shr 8).toByte(), (v shr 16).toByte(), (v shr 24).toByte())
         fun le16(v: Int) = byteArrayOf(v.toByte(), (v shr 8).toByte())
         file.outputStream().use { out ->
-            out.write("RIFF".toByteArray()); out.write(le32(36 + dataBytes))
-            out.write("WAVE".toByteArray()); out.write("fmt ".toByteArray())
-            out.write(le32(16)); out.write(le16(1)); out.write(le16(1))
-            out.write(le32(sampleRate)); out.write(le32(sampleRate * 2))
-            out.write(le16(2)); out.write(le16(16))
-            out.write("data".toByteArray()); out.write(le32(dataBytes))
+            out.write("RIFF".toByteArray())
+            out.write(le32(36 + dataBytes))
+            out.write("WAVE".toByteArray())
+            out.write("fmt ".toByteArray())
+            out.write(le32(16))
+            out.write(le16(1))
+            out.write(le16(1))
+            out.write(le32(sampleRate))
+            out.write(le32(sampleRate * 2))
+            out.write(le16(2))
+            out.write(le16(16))
+            out.write("data".toByteArray())
+            out.write(le32(dataBytes))
             out.write(ByteArray(dataBytes))
         }
     }

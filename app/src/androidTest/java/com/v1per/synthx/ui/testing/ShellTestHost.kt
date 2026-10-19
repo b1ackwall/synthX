@@ -105,7 +105,11 @@ internal class ShellTestHost(
             wrap {
                 SynthXTheme {
                     navController = rememberNavController()
-                    MainScaffold(navController, startDestination = start, restoreStatusViewModel = restoreStatusViewModel)
+                    MainScaffold(
+                        navController,
+                        startDestination = start,
+                        restoreStatusViewModel = restoreStatusViewModel,
+                    )
                 }
             }
         }
@@ -165,8 +169,7 @@ internal class ShellTestHost(
 
     fun textCount(text: String): Int = rule.onAllNodesWithText(text).fetchSemanticsNodes().size
 
-    fun tagDisplayed(tag: String): Boolean =
-        tagCount(tag) > 0 && rule.onNodeWithTag(tag).isDisplayed()
+    fun tagDisplayed(tag: String): Boolean = tagCount(tag) > 0 && rule.onNodeWithTag(tag).isDisplayed()
 
     fun awaitText(text: String) = rule.waitUntil(WAIT_MS) { textCount(text) > 0 }
 

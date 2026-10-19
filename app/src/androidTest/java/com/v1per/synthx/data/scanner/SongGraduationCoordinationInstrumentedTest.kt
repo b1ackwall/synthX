@@ -39,7 +39,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class SongGraduationCoordinationInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var database: SynthXDatabase
@@ -54,8 +55,14 @@ class SongGraduationCoordinationInstrumentedTest {
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
         database.songDao().upsertSong(
             SongEntity(
-                id = songId, title = "Song", albumId = null, duration = 1,
-                filePath = oldPath, albumArtUri = null, year = null, dateAdded = 1,
+                id = songId,
+                title = "Song",
+                albumId = null,
+                duration = 1,
+                filePath = oldPath,
+                albumArtUri = null,
+                year = null,
+                dateAdded = 1,
             ).copy(isStarred = true),
         )
     }

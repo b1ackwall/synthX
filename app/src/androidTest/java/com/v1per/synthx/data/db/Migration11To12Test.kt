@@ -21,7 +21,8 @@ import org.junit.runner.RunWith
 /** Covers the queue-slot identity and slot-based resume cursor introduced by 11->12. */
 @RunWith(AndroidJUnit4::class)
 class Migration11To12Test {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val createdDatabaseNames = mutableSetOf<String>()

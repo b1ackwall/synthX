@@ -29,11 +29,14 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class MainActivityStartupInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
-    @get:Rule(order = 1) val preferencesSnapshot = DebugPreferencesSnapshot()
+    @get:Rule(order = 1)
+    val preferencesSnapshot = DebugPreferencesSnapshot()
 
-    @get:Rule(order = 2) val composeRule = createEmptyComposeRule()
+    @get:Rule(order = 2)
+    val composeRule = createEmptyComposeRule()
 
     private val launcher = MainActivityLauncher(composeRule)
     private val context = launcher.context

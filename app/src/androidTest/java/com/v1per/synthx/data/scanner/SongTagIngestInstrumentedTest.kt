@@ -23,7 +23,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class SongTagIngestInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var fx: ScanTestFixture
@@ -38,8 +39,17 @@ class SongTagIngestInstrumentedTest {
 
     @Test fun mp3TagsBecomeTitleAlbumYearAndTrack() = runBlocking {
         val file = write(
-            music, "file-name.mp3",
-            mp3(mapOf("TIT2" to "Real Title", "TPE1" to "Solo", "TALB" to "The Album", "TYER" to "1999", "TRCK" to "5/12")),
+            music,
+            "file-name.mp3",
+            mp3(
+                mapOf(
+                    "TIT2" to "Real Title",
+                    "TPE1" to "Solo",
+                    "TALB" to "The Album",
+                    "TYER" to "1999",
+                    "TRCK" to "5/12",
+                ),
+            ),
         )
 
         assertEquals(1, fx.scan(music).added)
@@ -54,7 +64,8 @@ class SongTagIngestInstrumentedTest {
 
     @Test fun flacVorbisCommentsAreRead() = runBlocking {
         val file = write(
-            music, "file-name.flac",
+            music,
+            "file-name.flac",
             ScanAudioFixtures.flac(mapOf("TITLE" to "Flac Title", "ARTIST" to "Flac Artist", "ALBUM" to "Flac Album")),
         )
 
@@ -128,8 +139,10 @@ class SongTagIngestInstrumentedTest {
      * hashed head and tail: same id, and the rescan must re-read the tags into the same row.
      */
     @Test fun tagEditOutsideHashedBytesRetagsTheSameRow() = runBlocking {
-        val before = mp3(mapOf("TIT2" to "Old Title", "TPE1" to "Old Artist"), fillerBeforeFrames = 70_000, audioFrames = 200)
-        val after = mp3(mapOf("TIT2" to "New Title", "TPE1" to "New, Pair!"), fillerBeforeFrames = 70_000, audioFrames = 200)
+        val before =
+            mp3(mapOf("TIT2" to "Old Title", "TPE1" to "Old Artist"), fillerBeforeFrames = 70_000, audioFrames = 200)
+        val after =
+            mp3(mapOf("TIT2" to "New Title", "TPE1" to "New, Pair!"), fillerBeforeFrames = 70_000, audioFrames = 200)
         assertEquals("fixture must keep the file size", before.size, after.size)
         val file = write(music, "song.mp3", before)
         fx.scan(music)
@@ -148,7 +161,13 @@ class SongTagIngestInstrumentedTest {
         assertEquals("New Title", retagged.title)
         assertEquals(listOf("New", "Pair!"), artistNames(retagged.id))
         assertEquals(listOf(original.id), fx.playlistDao.getSongIdsForPlaylist("p1"))
-        assertTrue("remap for the retag: $remaps", remaps.any { it.oldId == original.id && it.newSong.title == "New Title" })
+        assertTrue(
+            "remap for the retag: $remaps",
+            remaps.any {
+                it.oldId == original.id &&
+                    it.newSong.title == "New Title"
+            },
+        )
     }
 
     @Test fun unchangedTagsOnRescanAreCountedUnchanged() = runBlocking {

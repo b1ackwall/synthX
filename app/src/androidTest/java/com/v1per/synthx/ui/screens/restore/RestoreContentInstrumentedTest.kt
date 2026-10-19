@@ -32,7 +32,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class RestoreContentInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 
@@ -115,7 +116,11 @@ class RestoreContentInstrumentedTest {
             backup(fileName = "missing.db", eligible = false, reason = BackupIneligibilityReason.MissingMetadata),
             backup(fileName = "size.db", eligible = false, reason = BackupIneligibilityReason.SizeMismatch(1, 2)),
             backup(fileName = "dup.db", eligible = false, reason = BackupIneligibilityReason.DuplicateDisplayName),
-            backup(fileName = "schema.db", eligible = false, reason = BackupIneligibilityReason.UnsupportedSchema(9999)),
+            backup(
+                fileName = "schema.db",
+                eligible = false,
+                reason = BackupIneligibilityReason.UnsupportedSchema(9999),
+            ),
         )
         composeRule.setContent {
             SynthXTheme {

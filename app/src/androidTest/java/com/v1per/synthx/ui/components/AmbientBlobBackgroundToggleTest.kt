@@ -29,7 +29,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class AmbientBlobBackgroundToggleTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 
@@ -80,8 +81,7 @@ class AmbientBlobBackgroundToggleTest {
         assertSamePixels(beforeDisable, afterReenable)
     }
 
-    private fun captureBackground(): PixelMap =
-        composeRule.onNodeWithTag("bg").captureToImage().toPixelMap()
+    private fun captureBackground(): PixelMap = composeRule.onNodeWithTag("bg").captureToImage().toPixelMap()
 
     private fun assertAllPixelsMatch(expectedArgb: Int, pixels: PixelMap) {
         for (x in 1 until pixels.width - 1) {

@@ -25,7 +25,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class RemoveFromPlaylistDialogInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -39,7 +40,10 @@ class RemoveFromPlaylistDialogInstrumentedTest {
                 RemoveFromPlaylistDialog(
                     songTitle = "Night Drive",
                     playlistName = "Road Trip",
-                    onConfirm = { removals++; open = false },
+                    onConfirm = {
+                        removals++
+                        open = false
+                    },
                     onDismiss = { open = false },
                 )
             }
@@ -50,7 +54,7 @@ class RemoveFromPlaylistDialogInstrumentedTest {
     fun messageNamesSongAndPlaylist() {
         show()
         composeRule.onNodeWithText(
-            context.getString(R.string.remove_from_playlist_dialog_message, "Night Drive", "Road Trip")
+            context.getString(R.string.remove_from_playlist_dialog_message, "Night Drive", "Road Trip"),
         ).assertIsDisplayed()
     }
 
@@ -62,7 +66,7 @@ class RemoveFromPlaylistDialogInstrumentedTest {
 
         assertEquals(0, removals)
         composeRule.onNodeWithText(
-            context.getString(R.string.remove_from_playlist_dialog_title)
+            context.getString(R.string.remove_from_playlist_dialog_title),
         ).assertDoesNotExist()
     }
 
@@ -70,13 +74,13 @@ class RemoveFromPlaylistDialogInstrumentedTest {
     fun confirmRemovesExactlyOnceAndClosesDialog() {
         show()
         composeRule.onNodeWithText(
-            context.getString(R.string.remove_from_playlist_dialog_confirm)
+            context.getString(R.string.remove_from_playlist_dialog_confirm),
         ).performClick()
         composeRule.waitForIdle()
 
         assertEquals(1, removals)
         composeRule.onNodeWithText(
-            context.getString(R.string.remove_from_playlist_dialog_title)
+            context.getString(R.string.remove_from_playlist_dialog_title),
         ).assertDoesNotExist()
     }
 }

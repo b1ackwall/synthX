@@ -36,7 +36,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class Migration15To16ScenariosTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val names = mutableSetOf<String>()
@@ -72,7 +73,10 @@ class Migration15To16ScenariosTest {
             assertEquals("NIGHT DRIVE", db.albums().getValue("b").first)
             assertEquals(
                 mapOf(
-                    "song-b" to "b", "song-k" to "b", "song-m" to "b", "song-z" to "b",
+                    "song-b" to "b",
+                    "song-k" to "b",
+                    "song-m" to "b",
+                    "song-z" to "b",
                     "song-other" to "a-other",
                 ),
                 db.songAlbums(),
@@ -152,8 +156,13 @@ class Migration15To16ScenariosTest {
             assertEquals(setOf("p-tape", "x-mix", "z-mix"), db.albums().keys)
             assertEquals(
                 mapOf(
-                    "p0" to "p-tape", "p5" to "p-tape", "q1" to "p-tape",
-                    "x0" to "x-mix", "x1" to "x-mix", "x2" to "x-mix", "y1" to "x-mix",
+                    "p0" to "p-tape",
+                    "p5" to "p-tape",
+                    "q1" to "p-tape",
+                    "x0" to "x-mix",
+                    "x1" to "x-mix",
+                    "x2" to "x-mix",
+                    "y1" to "x-mix",
                     "z1" to "z-mix",
                 ),
                 db.songAlbums(),
@@ -198,7 +207,11 @@ class Migration15To16ScenariosTest {
             val expectedSongs = before.second.map { row ->
                 row.toMutableList().also { it[albumIdIndex] = merged[it[albumIdIndex]] ?: it[albumIdIndex] }
             }
-            assertEquals("15->16 changed song rows beyond album_id", expectedSongs, db.readRows("songs", orderBy = "id"))
+            assertEquals(
+                "15->16 changed song rows beyond album_id",
+                expectedSongs,
+                db.readRows("songs", orderBy = "id"),
+            )
             assertEquals(setOf("a-dup", "single"), db.albums().keys)
             assertEquals(0, db.foreignKeyViolations())
         }
@@ -216,15 +229,31 @@ class Migration15To16ScenariosTest {
         }
         SQLiteDatabase.openDatabase(context.getDatabasePath(name).path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
             assertEquals(16, db.version)
-            assertEquals(listOf("a-dup", "single"), db.rawQuery("SELECT id FROM albums ORDER BY id", null).use {
-                buildList { while (it.moveToNext()) add(it.getString(0)) }
-            })
-            assertEquals(listOf("a-dup", "a-dup", "single"), db.rawQuery(
-                "SELECT album_id FROM songs WHERE album_id IS NOT NULL ORDER BY id", null,
-            ).use { buildList { while (it.moveToNext()) add(it.getString(0)) } })
-            assertEquals(4, db.rawQuery("SELECT COUNT(*) FROM playlist_songs", null).use { it.moveToFirst(); it.getInt(0) })
+            assertEquals(
+                listOf("a-dup", "single"),
+                db.rawQuery("SELECT id FROM albums ORDER BY id", null).use {
+                    buildList { while (it.moveToNext()) add(it.getString(0)) }
+                },
+            )
+            assertEquals(
+                listOf("a-dup", "a-dup", "single"),
+                db.rawQuery(
+                    "SELECT album_id FROM songs WHERE album_id IS NOT NULL ORDER BY id",
+                    null,
+                ).use { buildList { while (it.moveToNext()) add(it.getString(0)) } },
+            )
+            assertEquals(
+                4,
+                db.rawQuery("SELECT COUNT(*) FROM playlist_songs", null).use {
+                    it.moveToFirst()
+                    it.getInt(0)
+                },
+            )
             val albumSql = db.rawQuery("SELECT sql FROM sqlite_master WHERE name = 'albums'", null)
-                .use { it.moveToFirst(); it.getString(0) }
+                .use {
+                    it.moveToFirst()
+                    it.getString(0)
+                }
             assertTrue(albumSql, albumSql.contains("COLLATE NOCASE", ignoreCase = true))
         }
         val validated = BackupSnapshotValidator.validate(context.getDatabasePath(name), migrationSnapshot = false)
@@ -266,7 +295,9 @@ class Migration15To16ScenariosTest {
         db.execSQL("INSERT INTO queue_baseline_items VALUES ('slot-2', 0, 's1')")
         db.execSQL("INSERT INTO queue_baseline_items VALUES ('slot-1', 1, 's2')")
         db.execSQL("INSERT INTO playback_cursor VALUES (1, 'slot-1', 4321, 1, 2)")
-        db.execSQL("INSERT INTO pending_cleanups VALUES ('op-1', 's4', 'DELETE', '/music/s4.flac', NULL, 'Committed', 500)")
+        db.execSQL(
+            "INSERT INTO pending_cleanups VALUES ('op-1', 's4', 'DELETE', '/music/s4.flac', NULL, 'Committed', 500)",
+        )
     }
 
     private companion object {

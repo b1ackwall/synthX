@@ -44,7 +44,8 @@ import java.util.Random
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistArtBenchmarkInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val density = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics.density
     private val sizePx = 40f * density
@@ -58,12 +59,19 @@ class PlaylistArtBenchmarkInstrumentedTest {
         val build = timeEach { playlistArtRenderModel(hues[it], seeds[it], sizePx) }
         report("walk", walk)
         report("build (walk + brushes/paths/offsets)", build)
-        Log.i(TAG, "build minus walk (what a pattern-only cache cannot remove): median %.1f us".format(median(build) - median(walk)))
+        Log.i(
+            TAG,
+            "build minus walk (what a pattern-only cache cannot remove): median %.1f us".format(
+                median(build) - median(walk),
+            ),
+        )
         val lit = seeds.take(SAMPLES).map { generatePlaylistArt(it).litSegments.size }.sorted()
         Log.i(
             TAG,
-            ("sample lit segments: median=${lit[lit.size / 2]} mean=%.1f " +
-                "(each lit segment costs one Brush + one draw op)").format(lit.average()),
+            (
+                "sample lit segments: median=${lit[lit.size / 2]} mean=%.1f " +
+                    "(each lit segment costs one Brush + one draw op)"
+                ).format(lit.average()),
         )
         // What was timed is right: the model keeps exactly the walk's lit segments.
         for (i in 0 until SAMPLES) {
@@ -86,8 +94,14 @@ class PlaylistArtBenchmarkInstrumentedTest {
             before += 1 + (PlaylistArtGeometry.segments.size - lit) + diamonds + lit
             after += 1 + 1 + diamonds + lit
         }
-        Log.i(TAG, "draw ops per cover (mean of $SAMPLES): before=%.1f after=%.1f (%.0f%% fewer)".format(
-            before.toDouble() / SAMPLES, after.toDouble() / SAMPLES, 100.0 * (before - after) / before))
+        Log.i(
+            TAG,
+            "draw ops per cover (mean of $SAMPLES): before=%.1f after=%.1f (%.0f%% fewer)".format(
+                before.toDouble() / SAMPLES,
+                after.toDouble() / SAMPLES,
+                100.0 * (before - after) / before,
+            ),
+        )
     }
 
     @Test fun cacheHitCost() {
@@ -102,7 +116,10 @@ class PlaylistArtBenchmarkInstrumentedTest {
         val hitNs = (System.nanoTime() - start).toDouble() / lookups
         Log.i(TAG, "%-42s mean=%8.3f us  (n=%d bulk lookups)".format("cache hit", hitNs / 1_000.0, lookups))
         // What was timed was a real hit: the held model comes back, not a rebuilt one.
-        assertSame(cachedPlaylistArtRenderModel(hues[0], seeds[0], sizePx), cachedPlaylistArtRenderModel(hues[0], seeds[0], sizePx))
+        assertSame(
+            cachedPlaylistArtRenderModel(hues[0], seeds[0], sizePx),
+            cachedPlaylistArtRenderModel(hues[0], seeds[0], sizePx),
+        )
     }
 
     @Test fun drawPassCost() {
@@ -136,9 +153,10 @@ class PlaylistArtBenchmarkInstrumentedTest {
         val build = median(timeEach { playlistArtRenderModel(hues[it], seeds[it] + 5, sizePx) })
         Log.i(
             TAG,
-            ("row entry, before (build %.0f + cold record %.0f) = %.0f us; " +
-                "after, cache hit (lookup + warm record) = %.0f us").format(
-                build, median(coldRecord), build + median(coldRecord), median(newRecord)),
+            (
+                "row entry, before (build %.0f + cold record %.0f) = %.0f us; " +
+                    "after, cache hit (lookup + warm record) = %.0f us"
+                ).format(build, median(coldRecord), build + median(coldRecord), median(newRecord)),
         )
     }
 
@@ -151,8 +169,19 @@ class PlaylistArtBenchmarkInstrumentedTest {
         val ring = arrayOfNulls<PlaylistArtRenderModel>(PlaylistArtCache.MAX_ENTRIES)
         val firstHeld = cachedPlaylistArtRenderModel(hues[0], seeds[0] + 1, sizePx)
         report("build, result discarded", timeEach { playlistArtRenderModel(hues[it], seeds[it] + 1, sizePx) })
-        report("build, result retained in ring buffer", timeEach { ring[it % ring.size] = playlistArtRenderModel(hues[it], seeds[it] + 1, sizePx) })
-        report("build via cache (build + put + evict)", timeEach { cachedPlaylistArtRenderModel(hues[it], seeds[it] + 1, sizePx) })
+        report(
+            "build, result retained in ring buffer",
+            timeEach {
+                ring[it % ring.size] =
+                    playlistArtRenderModel(hues[it], seeds[it] + 1, sizePx)
+            },
+        )
+        report(
+            "build via cache (build + put + evict)",
+            timeEach {
+                cachedPlaylistArtRenderModel(hues[it], seeds[it] + 1, sizePx)
+            },
+        )
         // What was timed really evicts: far more than MAX_ENTRIES newer keys pushed the first out,
         // while the newest is still held.
         assertTrue(SAMPLES + WARMUP > 2 * PlaylistArtCache.MAX_ENTRIES)
@@ -164,7 +193,12 @@ class PlaylistArtBenchmarkInstrumentedTest {
         )
     }
 
-    private fun recordIntoRenderNode(model: PlaylistArtRenderModel, draw: DrawScope.() -> Unit = { drawPlaylistArt(model) }) {
+    private fun recordIntoRenderNode(
+        model: PlaylistArtRenderModel,
+        draw: DrawScope.() -> Unit = {
+            drawPlaylistArt(model)
+        },
+    ) {
         val side = sizePx.toInt()
         val node = RenderNode("PlaylistArtBench").apply { setPosition(0, 0, side, side) }
         val canvas = node.beginRecording(side, side)
@@ -175,7 +209,12 @@ class PlaylistArtBenchmarkInstrumentedTest {
         }
     }
 
-    private fun rasterise(model: PlaylistArtRenderModel, draw: DrawScope.() -> Unit = { drawPlaylistArt(model) }): ImageBitmap {
+    private fun rasterise(
+        model: PlaylistArtRenderModel,
+        draw: DrawScope.() -> Unit = {
+            drawPlaylistArt(model)
+        },
+    ): ImageBitmap {
         val side = sizePx.toInt()
         val image = ImageBitmap(side, side)
         CanvasDrawScope().draw(Density(density), LayoutDirection.Ltr, Canvas(image), Size(sizePx, sizePx), draw)
@@ -194,15 +233,20 @@ class PlaylistArtBenchmarkInstrumentedTest {
 
     /** Times two variants over the same inputs, swapping which runs first each call. */
     private fun timePair(a: (Int) -> Unit, b: (Int) -> Unit): Pair<DoubleArray, DoubleArray> {
-        for (i in 0 until WARMUP) { a(i); b(i) }
+        for (i in 0 until WARMUP) {
+            a(i)
+            b(i)
+        }
         val ra = DoubleArray(SAMPLES)
         val rb = DoubleArray(SAMPLES)
         for (i in 0 until SAMPLES) {
             val idx = WARMUP + i
             if (i % 2 == 0) {
-                ra[i] = timeOne { a(idx) }; rb[i] = timeOne { b(idx) }
+                ra[i] = timeOne { a(idx) }
+                rb[i] = timeOne { b(idx) }
             } else {
-                rb[i] = timeOne { b(idx) }; ra[i] = timeOne { a(idx) }
+                rb[i] = timeOne { b(idx) }
+                ra[i] = timeOne { a(idx) }
             }
         }
         return ra to rb
@@ -218,8 +262,18 @@ class PlaylistArtBenchmarkInstrumentedTest {
 
     private fun report(label: String, us: DoubleArray) {
         val sorted = us.sorted()
-        Log.i(TAG, "%-42s median=%8.1f us  p90=%8.1f us  min=%8.1f us  (n=%d, %.2fx density, %.0f px)".format(
-            label, sorted[sorted.size / 2], sorted[sorted.size * 9 / 10], sorted.first(), SAMPLES, density, sizePx))
+        Log.i(
+            TAG,
+            "%-42s median=%8.1f us  p90=%8.1f us  min=%8.1f us  (n=%d, %.2fx density, %.0f px)".format(
+                label,
+                sorted[sorted.size / 2],
+                sorted[sorted.size * 9 / 10],
+                sorted.first(),
+                SAMPLES,
+                density,
+                sizePx,
+            ),
+        )
     }
 
     private companion object {

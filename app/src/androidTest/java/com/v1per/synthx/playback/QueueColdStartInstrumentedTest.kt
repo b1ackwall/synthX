@@ -152,7 +152,10 @@ class QueueColdStartInstrumentedTest : PlaybackServiceTestBase() {
             QueueCursor(written.currentSlotId, 0L, true, Player.REPEAT_MODE_OFF),
         )
         recorder.baseline = written.baselineSlots.map { QueueSlot(it.slotId, byId.getValue(it.songId)) }
-        await("session on the chosen song") { onMain { extraController.currentMediaItem?.mediaId } == written.currentSlotId }
+        await("session on the chosen song") {
+            onMain { extraController.currentMediaItem?.mediaId } ==
+                written.currentSlotId
+        }
         assertTrue("precondition: the player holds only a window", onMain { extraController.mediaItemCount } < 60)
 
         val second = newEngine()

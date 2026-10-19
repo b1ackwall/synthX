@@ -46,7 +46,8 @@ import org.junit.Assert.assertEquals
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class CreatePlaylistRecreationInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -70,8 +71,7 @@ class CreatePlaylistRecreationInstrumentedTest {
         val vm = viewModel<CreatePlaylistViewModel>(
             factory = object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    CreatePlaylistViewModel(repository) as T
+                override fun <T : ViewModel> create(modelClass: Class<T>): T = CreatePlaylistViewModel(repository) as T
             },
         )
         CreatePlaylistScreen(topBar = {}, onCreated = {}, viewModel = vm)

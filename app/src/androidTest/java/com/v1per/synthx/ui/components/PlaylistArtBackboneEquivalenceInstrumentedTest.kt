@@ -41,7 +41,8 @@ import kotlin.math.abs
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistArtBackboneEquivalenceInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @Test fun singlePathBackboneRendersTheSameAsOneLinePerSegment() {
         val rng = Random(20260919L)
@@ -71,18 +72,32 @@ class PlaylistArtBackboneEquivalenceInstrumentedTest {
                     sumChannelDiff += diff
                     if (diff > 0) {
                         differingPixels++
-                        if (distanceToNearest(unlit, (p % sizePx) + 0.5f, (p / sizePx) + 0.5f) > reach) differingOutsideBackbone++
+                        if (distanceToNearest(unlit, (p % sizePx) + 0.5f, (p / sizePx) + 0.5f) >
+                            reach
+                        ) {
+                            differingOutsideBackbone++
+                        }
                     }
                 }
                 totalPixels += actual.size
             }
         }
         val meanDiff = sumChannelDiff.toDouble() / totalPixels
-        android.util.Log.i("PlaylistArtBench", "backbone equivalence: worst channel diff=$worstChannelDiff/255, " +
-            "mean diff=%.3f/255, differing pixels=%.2f%% of $totalPixels, differing outside backbone=$differingOutsideBackbone"
-                .format(meanDiff, 100.0 * differingPixels / totalPixels))
-        assertEquals("Pixels differing farther than a stroke edge from any backbone segment", 0, differingOutsideBackbone)
-        assertTrue("Worst pixel differs by $worstChannelDiff/255 (bound $MAX_CHANNEL_DIFF)", worstChannelDiff <= MAX_CHANNEL_DIFF)
+        android.util.Log.i(
+            "PlaylistArtBench",
+            "backbone equivalence: worst channel diff=$worstChannelDiff/255, " +
+                "mean diff=%.3f/255, differing pixels=%.2f%% of $totalPixels, differing outside backbone=$differingOutsideBackbone"
+                    .format(meanDiff, 100.0 * differingPixels / totalPixels),
+        )
+        assertEquals(
+            "Pixels differing farther than a stroke edge from any backbone segment",
+            0,
+            differingOutsideBackbone,
+        )
+        assertTrue(
+            "Worst pixel differs by $worstChannelDiff/255 (bound $MAX_CHANNEL_DIFF)",
+            worstChannelDiff <= MAX_CHANNEL_DIFF,
+        )
         assertTrue("Mean pixel difference %.3f/255 (bound $MAX_MEAN_DIFF)".format(meanDiff), meanDiff <= MAX_MEAN_DIFF)
     }
 
@@ -112,17 +127,22 @@ class PlaylistArtBackboneEquivalenceInstrumentedTest {
 
     private fun render(sizePx: Int, draw: DrawScope.() -> Unit): IntArray {
         val image = ImageBitmap(sizePx, sizePx)
-        CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, Canvas(image), Size(sizePx.toFloat(), sizePx.toFloat()), draw)
+        CanvasDrawScope().draw(
+            Density(1f),
+            LayoutDirection.Ltr,
+            Canvas(image),
+            Size(sizePx.toFloat(), sizePx.toFloat()),
+            draw,
+        )
         return IntArray(sizePx * sizePx).also { image.readPixels(it, width = sizePx, height = sizePx) }
     }
 
-    private fun maxChannelDiff(a: Int, b: Int): Int =
-        maxOf(
-            abs((a ushr 24) - (b ushr 24)),
-            abs(((a shr 16) and 0xFF) - ((b shr 16) and 0xFF)),
-            abs(((a shr 8) and 0xFF) - ((b shr 8) and 0xFF)),
-            abs((a and 0xFF) - (b and 0xFF)),
-        )
+    private fun maxChannelDiff(a: Int, b: Int): Int = maxOf(
+        abs((a ushr 24) - (b ushr 24)),
+        abs(((a shr 16) and 0xFF) - ((b shr 16) and 0xFF)),
+        abs(((a shr 8) and 0xFF) - ((b shr 8) and 0xFF)),
+        abs((a and 0xFF) - (b and 0xFF)),
+    )
 
     private companion object {
         const val SEEDS_PER_SIZE = 25

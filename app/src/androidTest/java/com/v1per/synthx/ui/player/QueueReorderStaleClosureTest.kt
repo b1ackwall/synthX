@@ -36,7 +36,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class QueueReorderStaleClosureTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 
@@ -47,8 +48,7 @@ class QueueReorderStaleClosureTest {
     private val handleDescription =
         InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.cd_drag_handle)
 
-    private fun slot(id: String) =
-        QueueSlot(id, Song(id, "Title $id", "Artist", "Album", 1000L, "audio/$id"))
+    private fun slot(id: String) = QueueSlot(id, Song(id, "Title $id", "Artist", "Album", 1000L, "audio/$id"))
 
     private fun setUp(vararg ids: String) {
         queue.value = ids.map { slot(it) }.toPersistentList()

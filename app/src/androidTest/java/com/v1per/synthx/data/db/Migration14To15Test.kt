@@ -20,7 +20,8 @@ import org.junit.runner.RunWith
 /** Additive pending_cleanups migration: no existing library or playlist data changes. */
 @RunWith(AndroidJUnit4::class)
 class Migration14To15Test {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val createdDatabaseNames = mutableSetOf<String>()
@@ -174,7 +175,12 @@ class Migration14To15Test {
             "swatch3_hue", "swatch3_saturation", "swatch3_lightness",
         )
         val PENDING_CLEANUP_COLUMNS = listOf(
-            "operation_id", "song_id", "operation_type", "file_path", "published_path", "phase",
+            "operation_id",
+            "song_id",
+            "operation_type",
+            "file_path",
+            "published_path",
+            "phase",
             "created_at",
         )
         val TABLES = listOf(

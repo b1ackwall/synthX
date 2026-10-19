@@ -47,7 +47,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class AlbumDetailCoverInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 
@@ -80,8 +81,13 @@ class AlbumDetailCoverInstrumentedTest {
     private fun show(coverUri: String?) {
         val songs = listOf(
             Song(
-                id = "t1", title = "t1", artist = "Artist", album = "Album", duration = 60_000L,
-                filePath = "/music/t1.mp3", albumArtUri = coverUri,
+                id = "t1",
+                title = "t1",
+                artist = "Artist",
+                album = "Album",
+                duration = 60_000L,
+                filePath = "/music/t1.mp3",
+                albumArtUri = coverUri,
             ),
         )
         composeRule.setContent {
@@ -142,9 +148,11 @@ class AlbumDetailCoverInstrumentedTest {
         val left = (pixels.width - side) / 2
         var differing = 0
         var sampled = 0
-        for (x in left + inset until left + side - inset) for (y in inset until side - inset) {
-            sampled++
-            if (pixels[x, y].toArgb() != SurfaceVariant.toArgb()) differing++
+        for (x in left + inset until left + side - inset) {
+            for (y in inset until side - inset) {
+                sampled++
+                if (pixels[x, y].toArgb() != SurfaceVariant.toArgb()) differing++
+            }
         }
         return differing > sampled / 2
     }

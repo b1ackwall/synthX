@@ -17,7 +17,8 @@ import org.junit.runner.RunWith
 /** The saved play queue written and read back through the real repository and real Room. */
 @RunWith(AndroidJUnit4::class)
 class RepositoryQueueRoomInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private lateinit var fx: RepositoryTestFixture
     private val repository get() = fx.repository
@@ -69,8 +70,12 @@ class RepositoryQueueRoomInstrumentedTest {
 
     @Test fun aNewSaveReplacesEveryEarlierRow() = runBlocking {
         repository.setUnifiedQueueState(
-            slots("s1" to "a", "s2" to "b", "s3" to "c"), slots("s1" to "a", "s2" to "b", "s3" to "c"),
-            "s1", 0, false, 0,
+            slots("s1" to "a", "s2" to "b", "s3" to "c"),
+            slots("s1" to "a", "s2" to "b", "s3" to "c"),
+            "s1",
+            0,
+            false,
+            0,
         )
 
         repository.setUnifiedQueueState(slots("t1" to "b"), slots("t1" to "b"), "t1", 5, false, 1)
@@ -87,7 +92,10 @@ class RepositoryQueueRoomInstrumentedTest {
         repository.setUnifiedQueueState(
             slots("s1" to "a", "s2" to "gone", "s3" to "b"),
             slots("s2" to "gone", "s1" to "a", "s3" to "b"),
-            "s2", 99, false, 0,
+            "s2",
+            99,
+            false,
+            0,
         )
 
         val (snapshot, baseline) = repository.getQueueSnapshotWithBaseline()
@@ -101,8 +109,12 @@ class RepositoryQueueRoomInstrumentedTest {
 
     @Test fun pinnedDeletingASongRowRemovesItsQueueRowsFromBothOrders() = runBlocking {
         repository.setUnifiedQueueState(
-            slots("s1" to "a", "s2" to "b", "s3" to "a"), slots("s1" to "a", "s3" to "a", "s2" to "b"),
-            "s2", 0, false, 0,
+            slots("s1" to "a", "s2" to "b", "s3" to "a"),
+            slots("s1" to "a", "s3" to "a", "s2" to "b"),
+            "s2",
+            0,
+            false,
+            0,
         )
 
         fx.database.openHelper.writableDatabase.execSQL("DELETE FROM songs WHERE id = 'a'")
@@ -126,7 +138,12 @@ class RepositoryQueueRoomInstrumentedTest {
 
     @Test fun cursorOnlySaveLeavesTheQueueAndModesAlone() = runBlocking {
         repository.setUnifiedQueueState(
-            slots("s1" to "a", "s2" to "b"), slots("s2" to "b", "s1" to "a"), "s1", 10, true, 2,
+            slots("s1" to "a", "s2" to "b"),
+            slots("s2" to "b", "s1" to "a"),
+            "s1",
+            10,
+            true,
+            2,
         )
 
         repository.setCursorAlreadyAdmitted("s2", 4_000)
@@ -138,13 +155,26 @@ class RepositoryQueueRoomInstrumentedTest {
     }
 
     @Test fun shuffleAndRepeatSavesChangeOnlyTheirOwnValue() = runBlocking {
-        repository.setUnifiedQueueState(slots("s1" to "a", "s2" to "b"), slots("s1" to "a", "s2" to "b"), "s2", 321, false, 0)
+        repository.setUnifiedQueueState(
+            slots("s1" to "a", "s2" to "b"),
+            slots("s1" to "a", "s2" to "b"),
+            "s2",
+            321,
+            false,
+            0,
+        )
 
         repository.setShuffleEnabledAlreadyAdmitted(true)
-        assertEquals(QueueCursor("s2", 321, shuffleEnabled = true, repeatMode = 0), repository.getQueueSnapshot().cursor)
+        assertEquals(
+            QueueCursor("s2", 321, shuffleEnabled = true, repeatMode = 0),
+            repository.getQueueSnapshot().cursor,
+        )
 
         repository.setRepeatModeAlreadyAdmitted(1)
-        assertEquals(QueueCursor("s2", 321, shuffleEnabled = true, repeatMode = 1), repository.getQueueSnapshot().cursor)
+        assertEquals(
+            QueueCursor("s2", 321, shuffleEnabled = true, repeatMode = 1),
+            repository.getQueueSnapshot().cursor,
+        )
         assertEquals(listOf("s1" to "a", "s2" to "b"), repository.getQueueSlots().pairs())
     }
 
@@ -157,7 +187,14 @@ class RepositoryQueueRoomInstrumentedTest {
     }
 
     @Test fun baselineSaveReplacesOnlyTheBaseline() = runBlocking {
-        repository.setUnifiedQueueState(slots("s1" to "a", "s2" to "b"), slots("s1" to "a", "s2" to "b"), "s1", 0, true, 0)
+        repository.setUnifiedQueueState(
+            slots("s1" to "a", "s2" to "b"),
+            slots("s1" to "a", "s2" to "b"),
+            "s1",
+            0,
+            true,
+            0,
+        )
 
         repository.setBaselineQueueSlots(slots("s2" to "b", "x" to "c", "s1" to "a"))
 

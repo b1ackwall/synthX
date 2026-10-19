@@ -22,7 +22,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class RouteArgumentsInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -64,11 +65,13 @@ class RouteArgumentsInstrumentedTest {
         assertEquals("names that did not open their screen", emptyList<String>(), wrong)
     }
 
-    @Test fun albumNamesSurviveTheRoute() =
-        assertEachNameOpensAndShows(Screen.AlbumDetail.ROUTE) { _, name -> Screen.AlbumDetail.createRoute("route-album", name) }
+    @Test fun albumNamesSurviveTheRoute() = assertEachNameOpensAndShows(Screen.AlbumDetail.ROUTE) { _, name ->
+        Screen.AlbumDetail.createRoute("route-album", name)
+    }
 
-    @Test fun artistNamesSurviveTheRoute() =
-        assertEachNameOpensAndShows(Screen.ArtistDetail.ROUTE) { _, name -> Screen.ArtistDetail.createRoute("route-artist", name) }
+    @Test fun artistNamesSurviveTheRoute() = assertEachNameOpensAndShows(Screen.ArtistDetail.ROUTE) { _, name ->
+        Screen.ArtistDetail.createRoute("route-artist", name)
+    }
 
     /** A playlist page stays on its loading cover until the row exists, so real rows are seeded. */
     @Test fun playlistNamesSurviveTheRoute() {
@@ -76,8 +79,14 @@ class RouteArgumentsInstrumentedTest {
             awkwardNames.forEachIndexed { index, name ->
                 SynthXDatabase.getInstance(shell.context).playlistDao().insertPlaylist(
                     PlaylistEntity(
-                        id = seededPlaylistIds[index], name = name, description = null, groupId = null,
-                        position = index, createdAt = 1L, updatedAt = 1L, coverArtUri = null,
+                        id = seededPlaylistIds[index],
+                        name = name,
+                        description = null,
+                        groupId = null,
+                        position = index,
+                        createdAt = 1L,
+                        updatedAt = 1L,
+                        coverArtUri = null,
                     ),
                 )
             }
@@ -87,6 +96,7 @@ class RouteArgumentsInstrumentedTest {
         }
     }
 
-    @Test fun groupNamesSurviveTheRoute() =
-        assertEachNameOpensAndShows(Screen.GroupDetail.ROUTE) { _, name -> Screen.GroupDetail.createRoute("route-group", name) }
+    @Test fun groupNamesSurviveTheRoute() = assertEachNameOpensAndShows(Screen.GroupDetail.ROUTE) { _, name ->
+        Screen.GroupDetail.createRoute("route-group", name)
+    }
 }

@@ -102,9 +102,11 @@ import org.junit.runner.RunWith
 @SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class OnboardingRecoveryInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
+
     @get:Rule val testName = TestName()
 
     private val appContext: Context = ApplicationProvider.getApplicationContext()
@@ -348,8 +350,10 @@ class OnboardingRecoveryInstrumentedTest {
         }
         await(restore.outcome) { it is RestoreOutcome.Failed }
         assertFalse(completed)
-        assertEquals(before.map { it.id },
-            workManager.getWorkInfosForUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).get().map { it.id })
+        assertEquals(
+            before.map { it.id },
+            workManager.getWorkInfosForUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).get().map { it.id },
+        )
     }
 
     @Test fun recoveryStaysInWizardAndNewArrivalsCanBeSkippedWithBothBackActions() {
@@ -1272,8 +1276,8 @@ class OnboardingRecoveryInstrumentedTest {
                     file = source.name,
                     sizeBytes = digest.sizeBytes,
                     sha256 = digest.sha256,
-                )
-            )
+                ),
+            ),
         )
         return BackupInfo(
             databaseUri = Uri.fromFile(source),
@@ -1301,23 +1305,23 @@ class OnboardingRecoveryInstrumentedTest {
         // flag the tests set/inspect is the one it sees) and counts what would have been the
         // system prompt instead of showing it.
         CompositionLocalProvider(LocalNotificationPermissionBackend provides notificationBackend) {
-        SynthXTheme {
-            navController = rememberNavController().also { controller ->
-                controller.addOnDestinationChangedListener { nav, destination, _ ->
-                    if (destination.route == Screen.Onboarding.route) {
-                        val provider = ViewModelProvider(nav.getBackStackEntry(Screen.Onboarding.route), factory)
-                        provider[LibraryManagementViewModel::class.java]
-                        provider[BackupsAndRestoreViewModel::class.java]
-                        provider[RestoreViewModel::class.java]
-                        provider[OnboardingViewModel::class.java]
+            SynthXTheme {
+                navController = rememberNavController().also { controller ->
+                    controller.addOnDestinationChangedListener { nav, destination, _ ->
+                        if (destination.route == Screen.Onboarding.route) {
+                            val provider = ViewModelProvider(nav.getBackStackEntry(Screen.Onboarding.route), factory)
+                            provider[LibraryManagementViewModel::class.java]
+                            provider[BackupsAndRestoreViewModel::class.java]
+                            provider[RestoreViewModel::class.java]
+                            provider[OnboardingViewModel::class.java]
+                        }
                     }
                 }
+                NavHost(navController, startDestination = startDestination) {
+                    onboardingRoutes(navController)
+                    composable(Screen.Home.route) { Text("Home after onboarding") }
+                }
             }
-            NavHost(navController, startDestination = startDestination) {
-                onboardingRoutes(navController)
-                composable(Screen.Home.route) { Text("Home after onboarding") }
-            }
-        }
         }
     }
 

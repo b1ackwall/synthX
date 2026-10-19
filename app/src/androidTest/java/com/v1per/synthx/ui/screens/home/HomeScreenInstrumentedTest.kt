@@ -14,7 +14,8 @@ import org.junit.runner.RunWith
 /** Home has one content state and reads no data: its screen tag and the synthX wordmark. */
 @RunWith(AndroidJUnit4::class)
 class HomeScreenInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 

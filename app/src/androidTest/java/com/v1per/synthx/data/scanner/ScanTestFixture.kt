@@ -73,16 +73,13 @@ internal class ScanTestFixture(private val context: Context) {
     )
 
     /** Scans [root] the way the Music worker does, unless told it is New Arrivals. */
-    suspend fun scan(
-        root: File,
-        newArrivals: Boolean = false,
-        otherRoots: List<File> = emptyList(),
-    ): ScanResult = scanner().scan(
-        folderUri = uriOf(root).toUri(),
-        reconcileMissing = !newArrivals,
-        otherRootUris = otherRoots.map { uriOf(it).toUri() },
-        isNewArrivalsRoot = newArrivals,
-    )
+    suspend fun scan(root: File, newArrivals: Boolean = false, otherRoots: List<File> = emptyList()): ScanResult =
+        scanner().scan(
+            folderUri = uriOf(root).toUri(),
+            reconcileMissing = !newArrivals,
+            otherRootUris = otherRoots.map { uriOf(it).toUri() },
+            isNewArrivalsRoot = newArrivals,
+        )
 
     suspend fun songAt(file: File): SongEntity? = songDao.getSongByPath(uriOf(file))
 
@@ -100,7 +97,7 @@ internal class ScanTestFixture(private val context: Context) {
                 createdAt = 1,
                 updatedAt = 1,
                 coverArtUri = null,
-            )
+            ),
         )
         songIds.forEachIndexed { index, songId ->
             playlistDao.addSongToPlaylist(id, songId, addedAt = index.toLong())
@@ -129,10 +126,9 @@ internal class ScanTestFixture(private val context: Context) {
         /** Deterministic bytes: the same [seed] and [size] always give the same content. */
         fun bytes(size: Int, seed: Int): ByteArray = Random(seed).nextBytes(size)
 
-        fun write(dir: File, name: String, content: ByteArray): File =
-            File(dir, name).also {
-                it.parentFile?.mkdirs()
-                it.writeBytes(content)
-            }
+        fun write(dir: File, name: String, content: ByteArray): File = File(dir, name).also {
+            it.parentFile?.mkdirs()
+            it.writeBytes(content)
+        }
     }
 }

@@ -35,11 +35,14 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class MainActivityLaunchMaintenanceInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
-    @get:Rule(order = 1) val preferencesSnapshot = DebugPreferencesSnapshot()
+    @get:Rule(order = 1)
+    val preferencesSnapshot = DebugPreferencesSnapshot()
 
-    @get:Rule(order = 2) val composeRule = createEmptyComposeRule()
+    @get:Rule(order = 2)
+    val composeRule = createEmptyComposeRule()
 
     private val launcher = MainActivityLauncher(composeRule)
     private val context = launcher.context
@@ -76,7 +79,8 @@ class MainActivityLaunchMaintenanceInstrumentedTest {
     }
 
     // Fixed 3 s negative window: no signal says "maintenance skipped"; the control above finishes in about 1.5 s.
-    @Test(timeout = 30_000L) fun maintenanceIsHeldBackDuringTheWizard() {
+    @Test(timeout = 30_000L)
+    fun maintenanceIsHeldBackDuringTheWizard() {
         preferences.artSweepPending = true
         preferences.lastIssuesScanTimestamp = 0L
         launcher.launchToShell()

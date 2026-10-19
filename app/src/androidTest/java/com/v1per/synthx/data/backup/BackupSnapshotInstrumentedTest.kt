@@ -30,7 +30,8 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class BackupSnapshotInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val databases = mutableListOf<Pair<SynthXDatabase, String>>()
@@ -133,7 +134,10 @@ class BackupSnapshotInstrumentedTest {
         assertTrue(
             validated.schema.expectedTables.containsAll(
                 setOf(
-                    "songs", "queue_items", "queue_baseline_items", "playback_cursor",
+                    "songs",
+                    "queue_items",
+                    "queue_baseline_items",
+                    "playback_cursor",
                     "pending_cleanups",
                 ),
             ),
@@ -239,7 +243,7 @@ class BackupSnapshotInstrumentedTest {
                 database.execSQL("CREATE TABLE `$table` (id INTEGER PRIMARY KEY)")
             }
             database.execSQL(
-                "CREATE TABLE room_master_table (id INTEGER PRIMARY KEY, identity_hash TEXT)"
+                "CREATE TABLE room_master_table (id INTEGER PRIMARY KEY, identity_hash TEXT)",
             )
             database.execSQL(
                 "INSERT INTO room_master_table (id, identity_hash) VALUES (42, ?)",

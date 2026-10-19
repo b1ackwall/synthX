@@ -25,7 +25,13 @@ class QueueEditInstrumentedTest : PlaybackServiceTestBase() {
     private fun play(list: List<Song>, startIndex: Int, shuffle: Boolean? = false) {
         runBlocking { engine.playQueue(list, startIndex, shuffle) }
         await("${list[startIndex].id} loaded in the session") {
-            onMain { engine.currentSlot()?.let { it.song.id == list[startIndex].id && extraController.currentMediaItem?.mediaId == it.slotId } == true }
+            onMain {
+                engine.currentSlot()?.let {
+                    it.song.id == list[startIndex].id &&
+                        extraController.currentMediaItem?.mediaId == it.slotId
+                } ==
+                    true
+            }
         }
         await("load written") { recorder.writesOf<QueueWrite.Unified>().isNotEmpty() }
         settle()
@@ -92,7 +98,12 @@ class QueueEditInstrumentedTest : PlaybackServiceTestBase() {
         settle()
 
         assertTrue(recorder.writes.toString(), recorder.writesOf<QueueWrite.Baseline>().isEmpty())
-        assertEquals(onMain { engine.queue.now().slotIds() }, recorder.writesOf<QueueWrite.QueueState>().last().slots.map { it.slotId })
+        assertEquals(
+            onMain {
+                engine.queue.now().slotIds()
+            },
+            recorder.writesOf<QueueWrite.QueueState>().last().slots.map { it.slotId },
+        )
         assertTrue(onMain { engine.isQueueCustomized.now() })
 
         // Shuffle off rebuilds from the untouched baseline: list order after the current song.
@@ -144,7 +155,9 @@ class QueueEditInstrumentedTest : PlaybackServiceTestBase() {
 
     @Test fun tappingAnEarlierRowIsIgnoredAndALaterRowPlaysThatExactSlot() {
         play(songs(5, "tap"), 2)
-        val (earlier, current, later) = onMain { engine.queue.now().let { Triple(it[0].slotId, it[2].slotId, it[4].slotId) } }
+        val (earlier, current, later) = onMain {
+            engine.queue.now().let { Triple(it[0].slotId, it[2].slotId, it[4].slotId) }
+        }
 
         onMain { engine.seekToQueueItem(earlier) }
         settle()
@@ -162,7 +175,14 @@ class QueueEditInstrumentedTest : PlaybackServiceTestBase() {
 
         onMain { engine.removeQueueItem(removed) }
         await("row gone") { queueSongIds() == listOf("rm-0", "rm-1", "rm-2", "rm-4") }
-        await("row gone from the player") { onMain { (0 until extraController.mediaItemCount).none { extraController.getMediaItemAt(it).mediaId == removed } } }
+        await("row gone from the player") {
+            onMain {
+                (0 until extraController.mediaItemCount).none {
+                    extraController.getMediaItemAt(it).mediaId ==
+                        removed
+                }
+            }
+        }
         settle()
         recorder.writes.clear()
 

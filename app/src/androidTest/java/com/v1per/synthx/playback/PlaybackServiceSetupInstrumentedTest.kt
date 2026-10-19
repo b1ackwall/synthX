@@ -46,7 +46,9 @@ class PlaybackServiceSetupInstrumentedTest : PlaybackServiceTestBase() {
         recorder.writes.clear()
         assertEquals(AudioManager.AUDIOFOCUS_REQUEST_GRANTED, audio.requestAudioFocus(request))
         try {
-            await("paused by the focus loss") { onMain { !extraController.isPlaying && !extraController.playWhenReady } }
+            await("paused by the focus loss") {
+                onMain { !extraController.isPlaying && !extraController.playWhenReady }
+            }
             await("cursor saved") { recorder.writesOf<QueueWrite.Cursor>().any { it.currentSlotId == slot } }
         } finally {
             audio.abandonAudioFocusRequest(request)
@@ -59,7 +61,12 @@ class PlaybackServiceSetupInstrumentedTest : PlaybackServiceTestBase() {
 
         runBlocking { ExoPlayerEngine.releaseAllForRestore() }
 
-        await("session stopped") { onMain { !extraController.isPlaying && extraController.playbackState == Player.STATE_IDLE } }
+        await("session stopped") {
+            onMain {
+                !extraController.isPlaying &&
+                    extraController.playbackState == Player.STATE_IDLE
+            }
+        }
         assertNull(onMain { engine.currentSongId.now() })
         onMain { engine.resume() }
         settle()
@@ -86,7 +93,10 @@ class PlaybackServiceSetupInstrumentedTest : PlaybackServiceTestBase() {
             startPlaying()
 
             await("channel created") { notifications.getNotificationChannel(CHANNEL_ID) != null }
-            assertEquals(context.getString(R.string.playback_channel_name), notifications.getNotificationChannel(CHANNEL_ID).name)
+            assertEquals(
+                context.getString(R.string.playback_channel_name),
+                notifications.getNotificationChannel(CHANNEL_ID).name,
+            )
         } finally {
             onMain { extraController.release() }
         }

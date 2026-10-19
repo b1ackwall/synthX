@@ -30,8 +30,10 @@ class PlaybackRecoveryInstrumentedTest : PlaybackServiceTestBase() {
 
     @After fun stopCollecting() = collectorScope.cancel()
 
-    private fun missingSong(id: String): Song =
-        song(id, title = "Missing $id").copy(filePath = Uri.fromFile(File(context.cacheDir, "slice1-$id.wav")).toString())
+    private fun missingSong(id: String): Song = song(
+        id,
+        title = "Missing $id",
+    ).copy(filePath = Uri.fromFile(File(context.cacheDir, "slice1-$id.wav")).toString())
 
     private fun playAndAwaitFailure(list: List<Song>, startIndex: Int) {
         // Undispatched, so the collector is subscribed before anything can fail (errors keep no replay).
@@ -41,7 +43,10 @@ class PlaybackRecoveryInstrumentedTest : PlaybackServiceTestBase() {
     }
 
     private fun awaitRecoveredOn(slotId: String) = await("recovered on $slotId") {
-        onMain { extraController.currentMediaItem?.mediaId == slotId && extraController.playbackState != Player.STATE_IDLE }
+        onMain {
+            extraController.currentMediaItem?.mediaId == slotId &&
+                extraController.playbackState != Player.STATE_IDLE
+        }
     }
 
     @Test fun aMissingFileKeepsTheSongShownAndSendsOneErrorMessage() {

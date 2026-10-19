@@ -27,7 +27,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class BackupFolderHealthInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val testId = "folder-health-${UUID.randomUUID()}"

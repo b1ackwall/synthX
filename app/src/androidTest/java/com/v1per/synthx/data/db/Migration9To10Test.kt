@@ -30,7 +30,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class Migration9To10Test {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val createdDatabaseNames = mutableSetOf<String>()
@@ -72,7 +73,11 @@ class Migration9To10Test {
                 columns.keys,
             )
             assertEquals("INTEGER", columns.getValue("id").type)
-            assertEquals("playback_cursor.id must be NOT NULL (it is the primary key)", 1, columns.getValue("id").notNull)
+            assertEquals(
+                "playback_cursor.id must be NOT NULL (it is the primary key)",
+                1,
+                columns.getValue("id").notNull,
+            )
             assertEquals("INTEGER", columns.getValue("queue_index").type)
             assertEquals("playback_cursor.queue_index must be NOT NULL", 1, columns.getValue("queue_index").notNull)
             assertEquals("INTEGER", columns.getValue("position_ms").type)

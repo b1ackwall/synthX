@@ -20,7 +20,8 @@ import org.junit.runner.RunWith
 @Ignore("Manual real-device host-parameter measurement only")
 @RunWith(AndroidJUnit4::class)
 class HostParameterLimitDiagnosticTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @Test
     fun measureEffectiveHostParameterLimit() {
@@ -32,7 +33,8 @@ class HostParameterLimitDiagnosticTest {
         try {
             val sqlite = database.openHelper.writableDatabase
             val sqliteVersion = sqlite.query("SELECT sqlite_version()").use {
-                it.moveToFirst(); it.getString(0)
+                it.moveToFirst()
+                it.getString(0)
             }
             var low = 0
             var high = 65_536
@@ -52,11 +54,10 @@ class HostParameterLimitDiagnosticTest {
         }
     }
 
-    private fun accepts(database: androidx.sqlite.db.SupportSQLiteDatabase, count: Int): Boolean =
-        runCatching {
-            val placeholders = List(count) { "?" }.joinToString(",")
-            database.query(
-                SimpleSQLiteQuery("SELECT 1 WHERE 1 IN ($placeholders)", Array(count) { 1 })
-            ).close()
-        }.isSuccess
+    private fun accepts(database: androidx.sqlite.db.SupportSQLiteDatabase, count: Int): Boolean = runCatching {
+        val placeholders = List(count) { "?" }.joinToString(",")
+        database.query(
+            SimpleSQLiteQuery("SELECT 1 WHERE 1 IN ($placeholders)", Array(count) { 1 }),
+        ).close()
+    }.isSuccess
 }

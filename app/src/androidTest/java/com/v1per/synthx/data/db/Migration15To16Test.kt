@@ -20,7 +20,8 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class Migration15To16Test {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val names = mutableSetOf<String>()
@@ -39,11 +40,17 @@ class Migration15To16Test {
         val name = "migration-15-16-${UUID.randomUUID()}.db".also(names::add)
         helper.createDatabase(name, 15).use(::seed)
         helper.runMigrationsAndValidate(
-            name, 16, true, SynthXDatabase.MIGRATION_15_16,
+            name,
+            16,
+            true,
+            SynthXDatabase.MIGRATION_15_16,
         ).use { database ->
             val albumSql = database.query(
-                "SELECT sql FROM sqlite_master WHERE type='table' AND name='albums'"
-            ).use { it.moveToFirst(); it.getString(0) }
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='albums'",
+            ).use {
+                it.moveToFirst()
+                it.getString(0)
+            }
             assertTrue(albumSql.contains("COLLATE NOCASE", ignoreCase = true))
 
             assertEquals(2, database.singleInt("SELECT COUNT(*) FROM albums"))
@@ -75,14 +82,20 @@ class Migration15To16Test {
                     ) LIMIT 1
                     """.trimIndent(),
                     arrayOf("CASE ALBUM", "artist one"),
-                )
+                ),
             ).use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.getString(3)) } }
-            assertTrue("Query plan did not use title index: $plan", plan.any {
-                it.contains("index_albums_title", ignoreCase = true)
-            })
-            assertFalse("Query plan still scans albums: $plan", plan.any {
-                it.contains("SCAN albums", ignoreCase = true)
-            })
+            assertTrue(
+                "Query plan did not use title index: $plan",
+                plan.any {
+                    it.contains("index_albums_title", ignoreCase = true)
+                },
+            )
+            assertFalse(
+                "Query plan still scans albums: $plan",
+                plan.any {
+                    it.contains("SCAN albums", ignoreCase = true)
+                },
+            )
         }
     }
 
@@ -107,6 +120,8 @@ class Migration15To16Test {
         )
     }
 
-    private fun SupportSQLiteDatabase.singleInt(sql: String): Int =
-        query(sql).use { it.moveToFirst(); it.getInt(0) }
+    private fun SupportSQLiteDatabase.singleInt(sql: String): Int = query(sql).use {
+        it.moveToFirst()
+        it.getInt(0)
+    }
 }

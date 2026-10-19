@@ -20,7 +20,8 @@ import org.junit.runner.RunWith
 /** Song lists read through the real repository from real Room: order, mapping, completeness. */
 @RunWith(AndroidJUnit4::class)
 class RepositorySongReadsInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private lateinit var fx: RepositoryTestFixture
     private val repository get() = fx.repository
@@ -102,12 +103,11 @@ class RepositorySongReadsInstrumentedTest {
         fx.song("s", title = "Survivor")
         val calls = AtomicInteger()
         val flakyDao = object : SongDao by fx.songDao {
-            override fun getAllSongsWithDetails(): Flow<List<SongWithDetails>> =
-                if (calls.getAndIncrement() == 0) {
-                    flow { throw IllegalStateException("simulated database error") }
-                } else {
-                    fx.songDao.getAllSongsWithDetails()
-                }
+            override fun getAllSongsWithDetails(): Flow<List<SongWithDetails>> = if (calls.getAndIncrement() == 0) {
+                flow { throw IllegalStateException("simulated database error") }
+            } else {
+                fx.songDao.getAllSongsWithDetails()
+            }
         }
 
         val songs = awaitEmission(fx.repositoryWith(flakyDao).getSongs(), "songs after one error") {

@@ -25,7 +25,8 @@ import org.junit.runner.RunWith
 /** The album detail header: the hero, the stats line and the Play / Shuffle row above the songs. */
 @RunWith(AndroidJUnit4::class)
 class AlbumDetailHeaderInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 

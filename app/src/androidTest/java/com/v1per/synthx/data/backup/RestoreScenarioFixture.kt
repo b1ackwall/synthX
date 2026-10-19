@@ -142,9 +142,8 @@ internal object RestoreJournalTestAccess {
 internal object RestoreJournalGoldens {
     const val OPERATION_ID = "0123456789abcdef0123456789abcdef"
 
-    fun read(name: String): String =
-        InstrumentationRegistry.getInstrumentation().context.assets
-            .open("restore-journals/$name").bufferedReader().use { it.readText() }
+    fun read(name: String): String = InstrumentationRegistry.getInstrumentation().context.assets
+        .open("restore-journals/$name").bufferedReader().use { it.readText() }
 
     /**
      * [text] with [from] replaced by [to]. [from] must occur exactly once, so a golden that no

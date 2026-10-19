@@ -19,7 +19,8 @@ import org.junit.runner.RunWith
 /** Playlists and their songs changed through the real repository, checked in real Room. */
 @RunWith(AndroidJUnit4::class)
 class RepositoryPlaylistsInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private lateinit var fx: RepositoryTestFixture
     private val repository get() = fx.repository
@@ -45,7 +46,12 @@ class RepositoryPlaylistsInstrumentedTest {
         assertEquals(null, playlist.groupId)
         assertNotNull("a new playlist gets its art hue at creation", playlist.artHue)
         assertNotNull(playlist.artStructureSeed)
-        assertEquals(listOf(id), awaitEmission(repository.getUngroupedPlaylists(), "ungrouped") { it.isNotEmpty() }.map { it.id })
+        assertEquals(
+            listOf(id),
+            awaitEmission(repository.getUngroupedPlaylists(), "ungrouped") {
+                it.isNotEmpty()
+            }.map { it.id },
+        )
         assertTrue(songIds(id).isEmpty())
     }
 
@@ -54,8 +60,18 @@ class RepositoryPlaylistsInstrumentedTest {
         val inGroup = repository.createPlaylist("In group", "g")
         val loose = repository.createPlaylist("Loose", null)
 
-        assertEquals(listOf(inGroup), awaitEmission(repository.getPlaylistsForGroup("g"), "group g") { it.isNotEmpty() }.map { it.id })
-        assertEquals(listOf(loose), awaitEmission(repository.getUngroupedPlaylists(), "ungrouped") { it.isNotEmpty() }.map { it.id })
+        assertEquals(
+            listOf(inGroup),
+            awaitEmission(repository.getPlaylistsForGroup("g"), "group g") {
+                it.isNotEmpty()
+            }.map { it.id },
+        )
+        assertEquals(
+            listOf(loose),
+            awaitEmission(repository.getUngroupedPlaylists(), "ungrouped") {
+                it.isNotEmpty()
+            }.map { it.id },
+        )
     }
 
     @Test fun playlistsAreSortedByNameIgnoringCase() = runBlocking {
@@ -177,10 +193,16 @@ class RepositoryPlaylistsInstrumentedTest {
         fx.playlist("p", songIds = arrayOf("c", "a"))
 
         repository.movePlaylistToGroup("p", "g")
-        awaitEmission(repository.getPlaylistsForGroup("g"), "group g after the move") { list -> list.map { it.id } == listOf("p") }
+        awaitEmission(repository.getPlaylistsForGroup("g"), "group g after the move") { list ->
+            list.map { it.id } ==
+                listOf("p")
+        }
         repository.movePlaylistToGroup("p", null)
 
-        awaitEmission(repository.getUngroupedPlaylists(), "ungrouped after the move back") { list -> list.map { it.id } == listOf("p") }
+        awaitEmission(repository.getUngroupedPlaylists(), "ungrouped after the move back") { list ->
+            list.map { it.id } ==
+                listOf("p")
+        }
         assertEquals(listOf("c", "a"), songIds("p"))
     }
 
@@ -207,12 +229,24 @@ class RepositoryPlaylistsInstrumentedTest {
 
         repository.deleteGroup("g")
 
-        awaitEmission(repository.getAllGroups(), "groups after delete") { list -> list.map { it.id } == listOf("other") }
+        awaitEmission(repository.getAllGroups(), "groups after delete") { list ->
+            list.map { it.id } == listOf("other")
+        }
         val p = allPlaylists("playlists after group delete") { list -> list.any { it.id == "p" && it.groupId == null } }
             .first { it.id == "p" }
         assertEquals(null, p.groupId)
         assertEquals(listOf("a", "b"), songIds("p"))
-        assertEquals(listOf("q"), awaitEmission(repository.getPlaylistsForGroup("other"), "group other") { it.isNotEmpty() }.map { it.id })
-        assertEquals(listOf("p"), awaitEmission(repository.getUngroupedPlaylists(), "ungrouped") { it.isNotEmpty() }.map { it.id })
+        assertEquals(
+            listOf("q"),
+            awaitEmission(repository.getPlaylistsForGroup("other"), "group other") {
+                it.isNotEmpty()
+            }.map { it.id },
+        )
+        assertEquals(
+            listOf("p"),
+            awaitEmission(repository.getUngroupedPlaylists(), "ungrouped") {
+                it.isNotEmpty()
+            }.map { it.id },
+        )
     }
 }

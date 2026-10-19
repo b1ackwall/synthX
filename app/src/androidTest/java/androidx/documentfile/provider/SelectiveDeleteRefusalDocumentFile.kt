@@ -33,8 +33,7 @@ internal class SelectiveDeleteRefusalDocumentFile(
     override fun delete(): Boolean = delegate.delete()
     override fun exists(): Boolean = delegate.exists()
     override fun renameTo(displayName: String): Boolean = delegate.renameTo(displayName)
-    override fun findFile(displayName: String): DocumentFile? =
-        delegate.findFile(displayName)?.let { wrap(it) }
+    override fun findFile(displayName: String): DocumentFile? = delegate.findFile(displayName)?.let { wrap(it) }
 
     override fun listFiles(): Array<DocumentFile> = delegate.listFiles().map(::wrap).toTypedArray()
 

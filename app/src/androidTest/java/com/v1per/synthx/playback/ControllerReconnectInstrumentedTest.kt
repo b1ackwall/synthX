@@ -99,7 +99,10 @@ class ControllerReconnectInstrumentedTest : PlaybackServiceTestBase() {
         // land. The request must wait whether or not the failure callback has run yet; both
         // orderings fall in this window.
         await("first attempt made") {
-            onMain { attempts.get() == 1 && engine.controller == null && engine.connection.phase.value == ConnectionPhase.Connecting }
+            onMain {
+                attempts.get() == 1 && engine.controller == null &&
+                    engine.connection.phase.value == ConnectionPhase.Connecting
+            }
         }
 
         val queue = songs(3, "backoff")
@@ -143,7 +146,11 @@ class ControllerReconnectInstrumentedTest : PlaybackServiceTestBase() {
         playQueueAndAwait(songs(3, "rearmed"), 0)
 
         await("playing through the re-armed connection") { onMain { extraController.isPlaying } }
-        assertEquals("the request itself started the new attempt — no backoff first", failedAttempts + 1, attempts.get())
+        assertEquals(
+            "the request itself started the new attempt — no backoff first",
+            failedAttempts + 1,
+            attempts.get(),
+        )
     }
 
     /** When even the re-armed round fails, the request is surfaced rather than silently dropped. */
@@ -163,7 +170,11 @@ class ControllerReconnectInstrumentedTest : PlaybackServiceTestBase() {
         }
 
         assertEquals(PlaybackError.ServiceUnavailable, error)
-        assertEquals("the request re-armed exactly one more full round", 2 * (ReconnectPolicy.MAX_ATTEMPTS + 1), attempts.get())
+        assertEquals(
+            "the request re-armed exactly one more full round",
+            2 * (ReconnectPolicy.MAX_ATTEMPTS + 1),
+            attempts.get(),
+        )
         assertTrue(onMain { engine.orderStore.isEmpty })
     }
 
@@ -202,7 +213,8 @@ class ControllerReconnectInstrumentedTest : PlaybackServiceTestBase() {
         assertFalse("a dropped controller must not read as connected", onMain { engine.connection.isConnected })
         assertFalse("inserts are refused while reconnecting", onMain { engine.playNext(song("refused")) })
 
-        val loader = thread(name = "reconnect-queue-load") { runBlocking { engine.playQueue(songs(3, "reconnect"), 0) } }
+        val loader =
+            thread(name = "reconnect-queue-load") { runBlocking { engine.playQueue(songs(3, "reconnect"), 0) } }
         await("the reconnect attempt started", timeoutMs = 10_000) { attempts.get() == 2 }
         settle()
         assertTrue("playQueue must wait for the new controller", loader.isAlive)

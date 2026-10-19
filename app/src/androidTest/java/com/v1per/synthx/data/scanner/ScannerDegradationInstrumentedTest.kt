@@ -27,7 +27,8 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ScannerDegradationInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var database: SynthXDatabase
@@ -95,7 +96,7 @@ class ScannerDegradationInstrumentedTest {
             rootMembership = { _, _ -> true },
         )
         val result = scanner.verify(
-            listOf(ConfiguredAudioRoot(rootUri, KnownAudioRoot.Music))
+            listOf(ConfiguredAudioRoot(rootUri, KnownAudioRoot.Music)),
         )
 
         assertEquals(1, result.newlyMissing)
@@ -103,7 +104,7 @@ class ScannerDegradationInstrumentedTest {
         assertFalse(database.songDao().getSongById("uncertain")!!.isMissing)
         assertEquals(
             setOf(
-                ScanDegradation(KnownAudioRoot.Music, ScanDegradationReason.VerificationIncomplete)
+                ScanDegradation(KnownAudioRoot.Music, ScanDegradationReason.VerificationIncomplete),
             ),
             result.degradations,
         )

@@ -32,7 +32,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class Migration15To16PinnedBehaviourTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val names = mutableSetOf<String>()
@@ -124,7 +125,7 @@ class Migration15To16PinnedBehaviourTest {
                     override fun onCreate(db: SupportSQLiteDatabase) = Unit
                     override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
                 })
-                .build()
+                .build(),
         )
         openHelper.use { helperForFile ->
             val db = helperForFile.writableDatabase

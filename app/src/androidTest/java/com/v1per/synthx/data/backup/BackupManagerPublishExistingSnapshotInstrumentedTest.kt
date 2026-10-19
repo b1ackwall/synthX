@@ -30,7 +30,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class BackupManagerPublishExistingSnapshotInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val testId = "publish-existing-${UUID.randomUUID()}"

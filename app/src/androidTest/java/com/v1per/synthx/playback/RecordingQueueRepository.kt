@@ -10,7 +10,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /** One queue write, as the repository received it. */
 internal sealed interface QueueWrite {
-    data class QueueState(val slots: List<QueueSlotRecord>, val currentSlotId: String?, val positionMs: Long) : QueueWrite
+    data class QueueState(val slots: List<QueueSlotRecord>, val currentSlotId: String?, val positionMs: Long) :
+        QueueWrite
     data class Cursor(val currentSlotId: String?, val positionMs: Long) : QueueWrite
     data class Baseline(val slots: List<QueueSlotRecord>) : QueueWrite
     data class Shuffle(val enabled: Boolean) : QueueWrite

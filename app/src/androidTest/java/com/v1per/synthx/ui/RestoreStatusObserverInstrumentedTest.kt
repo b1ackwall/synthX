@@ -49,7 +49,8 @@ import org.junit.runner.RunWith
 @SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class RestoreStatusObserverInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 

@@ -29,12 +29,12 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class QueueModeControlsVisibilityTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 
-    private fun slot(id: String) =
-        QueueSlot(id, Song(id, "Title $id", "Artist", "Album", 1000L, "audio/$id"))
+    private fun slot(id: String) = QueueSlot(id, Song(id, "Title $id", "Artist", "Album", 1000L, "audio/$id"))
 
     private fun QueueModeState.drag(deltaY: Float) {
         queueScrollConnection.onPreScroll(Offset(0f, deltaY), NestedScrollSource.UserInput)

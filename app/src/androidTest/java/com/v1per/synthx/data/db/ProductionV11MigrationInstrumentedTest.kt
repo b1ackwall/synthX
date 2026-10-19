@@ -36,7 +36,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ProductionV11MigrationInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val testAssets = InstrumentationRegistry.getInstrumentation().context.assets
@@ -151,10 +152,7 @@ class ProductionV11MigrationInstrumentedTest {
         )
     }
 
-    private fun captureAndVerifyAfterMigration(
-        database: SQLiteDatabase,
-        before: BeforeMigration,
-    ): AfterMigration {
+    private fun captureAndVerifyAfterMigration(database: SQLiteDatabase, before: BeforeMigration): AfterMigration {
         val integrity = database.singleColumnStrings("PRAGMA integrity_check")
         val foreignKeyViolations = database.queryRows("PRAGMA foreign_key_check")
         val schema = database.schemaSnapshot()
@@ -231,11 +229,7 @@ class ProductionV11MigrationInstrumentedTest {
         )
     }
 
-    private fun assertTableExactlyPreserved(
-        table: String,
-        before: TableSnapshot,
-        after: TableSnapshot,
-    ) {
+    private fun assertTableExactlyPreserved(table: String, before: TableSnapshot, after: TableSnapshot) {
         assertEquals("$table comparison columns changed", before.columns, after.columns)
         assertEquals("$table row count changed", before.rowCount, after.rowCount)
         if (before.rows != after.rows) {
@@ -243,16 +237,12 @@ class ProductionV11MigrationInstrumentedTest {
             val extra = multisetDifference(after.rows, before.rows)
             throw AssertionError(
                 "$table durable data changed; missing=${missing.take(DIFFERENCE_REPORT_LIMIT)}, " +
-                    "extra=${extra.take(DIFFERENCE_REPORT_LIMIT)}"
+                    "extra=${extra.take(DIFFERENCE_REPORT_LIMIT)}",
             )
         }
     }
 
-    private fun reportResult(
-        sourceSha256: String,
-        before: BeforeMigration,
-        after: AfterMigration,
-    ) {
+    private fun reportResult(sourceSha256: String, before: BeforeMigration, after: AfterMigration) {
         println("PRODUCTION_MIGRATION_SOURCE_SHA256=$sourceSha256")
         println("PRODUCTION_MIGRATION_SOURCE_SCHEMA=${before.schema}")
         println("PRODUCTION_MIGRATION_MIGRATED_SCHEMA=${after.schema}")
@@ -261,7 +251,7 @@ class ProductionV11MigrationInstrumentedTest {
         println(
             "PRODUCTION_MIGRATION_QUEUE_COUNTS=" +
                 "queue_items:${before.queueItems}->${after.queueItems}," +
-                "queue_baseline_items:${before.queueBaselineItems}->${after.queueBaselineItems}"
+                "queue_baseline_items:${before.queueBaselineItems}->${after.queueBaselineItems}",
         )
         println("PRODUCTION_MIGRATION_PLAYBACK_CURSOR_BEFORE=${before.playbackCursor}")
         println("PRODUCTION_MIGRATION_PLAYBACK_CURSOR_AFTER=${after.playbackCursor}")
@@ -285,32 +275,25 @@ class ProductionV11MigrationInstrumentedTest {
     private fun SQLiteDatabase.completeTableSnapshot(table: String): TableSnapshot =
         tableSnapshot(table, columnNames(table))
 
-    private fun SQLiteDatabase.tableSnapshot(
-        table: String,
-        columns: List<String>,
-    ): TableSnapshot {
+    private fun SQLiteDatabase.tableSnapshot(table: String, columns: List<String>): TableSnapshot {
         val rows = queryTableRows(table, columns)
             .map(::canonicalRow)
             .sorted()
         return TableSnapshot(columns = columns, rows = rows)
     }
 
-    private fun SQLiteDatabase.queryTableRows(
-        table: String,
-        columns: List<String>,
-    ): List<List<CellValue>> {
+    private fun SQLiteDatabase.queryTableRows(table: String, columns: List<String>): List<List<CellValue>> {
         val projection = columns.joinToString(", ", transform = ::quote)
         return queryRows("SELECT $projection FROM ${quote(table)}")
     }
 
-    private fun SQLiteDatabase.queryRows(sql: String): List<List<CellValue>> =
-        rawQuery(sql, null).use { cursor ->
-            buildList {
-                while (cursor.moveToNext()) {
-                    add(List(cursor.columnCount) { index -> cursor.cellValue(index) })
-                }
+    private fun SQLiteDatabase.queryRows(sql: String): List<List<CellValue>> = rawQuery(sql, null).use { cursor ->
+        buildList {
+            while (cursor.moveToNext()) {
+                add(List(cursor.columnCount) { index -> cursor.cellValue(index) })
             }
         }
+    }
 
     private fun Cursor.cellValue(index: Int): CellValue = when (getType(index)) {
         Cursor.FIELD_TYPE_NULL -> CellValue.Null
@@ -342,19 +325,17 @@ class ProductionV11MigrationInstrumentedTest {
             }
         }
 
-    private fun SQLiteDatabase.tableNames(): List<String> =
-        rawQuery(
-            "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
-            null,
-        ).use { cursor ->
-            buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
-        }
+    private fun SQLiteDatabase.tableNames(): List<String> = rawQuery(
+        "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
+        null,
+    ).use { cursor ->
+        buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
+    }
 
     private fun SQLiteDatabase.allTableCounts(): Map<String, Long> =
         tableNames().associateWith { table -> rowCount(table) }
 
-    private fun SQLiteDatabase.rowCount(table: String): Long =
-        singleLong("SELECT COUNT(*) FROM ${quote(table)}")
+    private fun SQLiteDatabase.rowCount(table: String): Long = singleLong("SELECT COUNT(*) FROM ${quote(table)}")
 
     private fun SQLiteDatabase.whereCount(table: String, where: String): Long =
         singleLong("SELECT COUNT(*) FROM ${quote(table)} WHERE $where")
@@ -364,10 +345,9 @@ class ProductionV11MigrationInstrumentedTest {
         cursor.getLong(0)
     }
 
-    private fun SQLiteDatabase.singleColumnStrings(sql: String): List<String> =
-        rawQuery(sql, null).use { cursor ->
-            buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
-        }
+    private fun SQLiteDatabase.singleColumnStrings(sql: String): List<String> = rawQuery(sql, null).use { cursor ->
+        buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
+    }
 
     private fun multisetDifference(left: List<String>, right: List<String>): List<String> {
         val remaining = right.groupingBy { it }.eachCount().toMutableMap()
@@ -379,8 +359,7 @@ class ProductionV11MigrationInstrumentedTest {
         }
     }
 
-    private fun quote(identifier: String): String =
-        "\"${identifier.replace("\"", "\"\"")}\""
+    private fun quote(identifier: String): String = "\"${identifier.replace("\"", "\"\"")}\""
 
     private data class SchemaSnapshot(
         val userVersion: Int,
@@ -388,10 +367,7 @@ class ProductionV11MigrationInstrumentedTest {
         val tableColumns: Map<String, List<String>>,
     )
 
-    private data class TableSnapshot(
-        val columns: List<String>,
-        val rows: List<String>,
-    ) {
+    private data class TableSnapshot(val columns: List<String>, val rows: List<String>) {
         val rowCount: Int get() = rows.size
     }
 

@@ -16,11 +16,7 @@ internal object ScanAudioFixtures {
      * puts a PRIV frame of that many bytes ahead of the text frames, so the text frames sit past the
      * first 64 KB that song identity hashes. [audioFrames] silent frames of 417 bytes follow the tag.
      */
-    fun mp3(
-        frames: Map<String, String>,
-        fillerBeforeFrames: Int = 0,
-        audioFrames: Int = 40,
-    ): ByteArray {
+    fun mp3(frames: Map<String, String>, fillerBeforeFrames: Int = 0, audioFrames: Int = 40): ByteArray {
         val body = ByteArrayOutputStream()
         if (fillerBeforeFrames > 0) {
             body.write(id3Frame("PRIV", byteArrayOf('x'.code.toByte(), 0) + ByteArray(fillerBeforeFrames)))
@@ -102,8 +98,10 @@ internal object ScanAudioFixtures {
     /** 4096-sample blocks, 44.1 kHz, mono, 16 bits per sample, MD5 left zero. */
     private fun streamInfo(totalSamples: Long): ByteArray {
         val out = ByteArray(34)
-        out[0] = (FLAC_BLOCK shr 8).toByte(); out[1] = FLAC_BLOCK.toByte()
-        out[2] = (FLAC_BLOCK shr 8).toByte(); out[3] = FLAC_BLOCK.toByte()
+        out[0] = (FLAC_BLOCK shr 8).toByte()
+        out[1] = FLAC_BLOCK.toByte()
+        out[2] = (FLAC_BLOCK shr 8).toByte()
+        out[3] = FLAC_BLOCK.toByte()
         // bytes 4..9: min and max frame size, unknown (0)
         // 20 bits sample rate | 3 bits channels-1 | 5 bits bps-1 | 36 bits total samples
         val packed = (44100L shl 44) or (0L shl 41) or (15L shl 36) or (totalSamples and 0xFFFFFFFFFL)
@@ -142,6 +140,9 @@ internal object ScanAudioFixtures {
 
     /** One silent MPEG-1 Layer III frame: 128 kbps, 44.1 kHz, stereo, 417 bytes. */
     private val MP3_FRAME = ByteArray(417).also {
-        it[0] = 0xFF.toByte(); it[1] = 0xFB.toByte(); it[2] = 0x90.toByte(); it[3] = 0x00
+        it[0] = 0xFF.toByte()
+        it[1] = 0xFB.toByte()
+        it[2] = 0x90.toByte()
+        it[3] = 0x00
     }
 }

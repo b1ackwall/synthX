@@ -16,7 +16,8 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class DeleteSongDialogInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -28,12 +29,12 @@ class DeleteSongDialogInstrumentedTest {
             androidx.compose.foundation.layout.Column {
                 DeleteSongDisclosure(
                     previewState = DeleteSongPreviewState.Ready(
-                    DeleteSongPreview(
-                        listOf(
-                            DeleteSongPlaylistImpact("Road Trip", willBecomeEmpty = false),
-                            DeleteSongPlaylistImpact("Only This Song", willBecomeEmpty = true),
-                        )
-                    )
+                        DeleteSongPreview(
+                            listOf(
+                                DeleteSongPlaylistImpact("Road Trip", willBecomeEmpty = false),
+                                DeleteSongPlaylistImpact("Only This Song", willBecomeEmpty = true),
+                            ),
+                        ),
                     ),
                     destructiveActionCount = 0,
                     onRetryPreview = {},
@@ -43,10 +44,10 @@ class DeleteSongDialogInstrumentedTest {
 
         composeRule.onNodeWithText("Road Trip").assertIsDisplayed()
         composeRule.onNodeWithText(
-            context.getString(R.string.delete_song_playlist_will_empty, "Only This Song")
+            context.getString(R.string.delete_song_playlist_will_empty, "Only This Song"),
         ).assertIsDisplayed()
         composeRule.onNodeWithText(
-            context.getString(R.string.delete_song_dialog_message)
+            context.getString(R.string.delete_song_dialog_message),
         ).assertIsDisplayed()
     }
 }

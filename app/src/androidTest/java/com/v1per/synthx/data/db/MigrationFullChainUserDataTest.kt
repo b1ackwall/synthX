@@ -34,7 +34,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class MigrationFullChainUserDataTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val names = mutableSetOf<String>()
@@ -61,18 +62,27 @@ class MigrationFullChainUserDataTest {
             migrateToCurrent(name).use { db ->
                 val label = "start v$start"
                 UNCHANGED_TABLES.forEach { table ->
-                    assertEquals("$label: $table", before.getValue(table), db.readRows(table, orderBy = ORDER.getValue(table)))
+                    assertEquals(
+                        "$label: $table",
+                        before.getValue(table),
+                        db.readRows(table, orderBy = ORDER.getValue(table)),
+                    )
                 }
                 val expectedSongs = before.getValue("songs").map { row ->
                     row.toMutableList().also { if (it[ALBUM_ID_INDEX] == "b-chain") it[ALBUM_ID_INDEX] = "a-chain" }
                 }
                 assertEquals("$label: songs", expectedSongs, db.readRows("songs", SONG_COLUMNS, "id"))
-                assertEquals("$label: playlists", before.getValue("playlists"), db.readRows("playlists", PLAYLIST_COLUMNS, "id"))
+                assertEquals(
+                    "$label: playlists",
+                    before.getValue("playlists"),
+                    db.readRows("playlists", PLAYLIST_COLUMNS, "id"),
+                )
                 assertEquals(
                     "$label: playlist art",
                     if (start >= 14) listOf("210", "9") else listOf(null, null),
                     db.query("SELECT art_hue, art_structure_seed FROM playlists WHERE id = 'p1'").use {
-                        it.moveToFirst(); listOf(it.getString(0), it.getString(1))
+                        it.moveToFirst()
+                        listOf(it.getString(0), it.getString(1))
                     },
                 )
                 assertEquals(
@@ -129,11 +139,20 @@ class MigrationFullChainUserDataTest {
                 assertEquals(
                     "$label: playback_cursor",
                     expectedCursor,
-                    db.readRows("playback_cursor", listOf("id", "current_slot_id", "position_ms", "shuffle_enabled", "repeat_mode")),
+                    db.readRows(
+                        "playback_cursor",
+                        listOf("id", "current_slot_id", "position_ms", "shuffle_enabled", "repeat_mode"),
+                    ),
                 )
                 assertEquals(
                     "$label: pending_cleanups",
-                    if (start >= 15) listOf(listOf("op-1", "s4", "DELETE", "/music/s4.flac", null, "Committed", "500")) else emptyList(),
+                    if (start >=
+                        15
+                    ) {
+                        listOf(listOf("op-1", "s4", "DELETE", "/music/s4.flac", null, "Committed", "500"))
+                    } else {
+                        emptyList()
+                    },
                     db.readRows("pending_cleanups"),
                 )
                 assertEquals("$label: foreign keys", 0, db.foreignKeyViolations())
@@ -144,7 +163,8 @@ class MigrationFullChainUserDataTest {
     private fun migrateToCurrent(name: String): SupportSQLiteDatabase =
         helper.runMigrationsAndValidate(name, SynthXDatabase.VERSION, true, *SynthXDatabase.ALL_MIGRATIONS)
 
-    private fun databaseName(label: String) = "migration-chain-user-data-$label-${UUID.randomUUID()}.db".also(names::add)
+    private fun databaseName(label: String) =
+        "migration-chain-user-data-$label-${UUID.randomUUID()}.db".also(names::add)
 
     /** Rows shaped for [start]'s exported schema. */
     private fun seed(db: SupportSQLiteDatabase, start: Int) {
@@ -166,13 +186,23 @@ class MigrationFullChainUserDataTest {
         if (start >= 8) db.execSQL("UPDATE songs SET in_inbox = 0 WHERE id IN ('s1', 's2', 's3')")
         db.execSQL("INSERT INTO playlist_groups VALUES ('g1', 'Group one', 0, 100)")
         db.execSQL("INSERT INTO playlist_groups VALUES ('g2', 'Group two', 1, 101)")
-        db.execSQL("INSERT INTO playlists (${PLAYLIST_COLUMNS.joinToString()}) VALUES ('p1', 'First', 'notes', 'g1', 0, 100, 200, NULL)")
-        db.execSQL("INSERT INTO playlists (${PLAYLIST_COLUMNS.joinToString()}) VALUES ('p2', 'Second', NULL, 'g1', 1, 101, 201, 'cover')")
-        db.execSQL("INSERT INTO playlists (${PLAYLIST_COLUMNS.joinToString()}) VALUES ('p3', 'Loose', NULL, NULL, 2, 102, 202, NULL)")
+        db.execSQL(
+            "INSERT INTO playlists (${PLAYLIST_COLUMNS.joinToString()}) VALUES ('p1', 'First', 'notes', 'g1', 0, 100, 200, NULL)",
+        )
+        db.execSQL(
+            "INSERT INTO playlists (${PLAYLIST_COLUMNS.joinToString()}) VALUES ('p2', 'Second', NULL, 'g1', 1, 101, 201, 'cover')",
+        )
+        db.execSQL(
+            "INSERT INTO playlists (${PLAYLIST_COLUMNS.joinToString()}) VALUES ('p3', 'Loose', NULL, NULL, 2, 102, 202, NULL)",
+        )
         if (start >= 14) db.execSQL("UPDATE playlists SET art_hue = 210, art_structure_seed = 9 WHERE id = 'p1'")
         listOf(
-            "('p1', 's2', 0, 300)", "('p1', 's1', 1, 301)", "('p1', 's3', 2, 302)",
-            "('p2', 's3', 0, 303)", "('p2', 's2', 5, 304)", "('p3', 's1', 0, 305)",
+            "('p1', 's2', 0, 300)",
+            "('p1', 's1', 1, 301)",
+            "('p1', 's3', 2, 302)",
+            "('p2', 's3', 0, 303)",
+            "('p2', 's2', 5, 304)",
+            "('p3', 's1', 0, 305)",
         ).forEach { db.execSQL("INSERT INTO playlist_songs VALUES $it") }
         if (start <= 6) {
             db.execSQL("INSERT INTO listen_history VALUES (1, 's1', 1000, 180000, 1)")
@@ -184,6 +214,7 @@ class MigrationFullChainUserDataTest {
                 db.execSQL("INSERT INTO queue_items VALUES (1, 's4')")
                 if (start >= 6) db.execSQL("INSERT INTO queue_baseline_items VALUES (0, 's4')")
             }
+
             in 12..15 -> {
                 db.execSQL("INSERT INTO queue_items VALUES ('slot-1', 0, 's2')")
                 db.execSQL("INSERT INTO queue_items VALUES ('slot-2', 1, 's4')")
@@ -197,12 +228,15 @@ class MigrationFullChainUserDataTest {
             in 12..15 -> db.execSQL("INSERT INTO playback_cursor VALUES (1, 'slot-2', 9876, 1, 2)")
         }
         if (start >= 15) {
-            db.execSQL("INSERT INTO pending_cleanups VALUES ('op-1', 's4', 'DELETE', '/music/s4.flac', NULL, 'Committed', 500)")
+            db.execSQL(
+                "INSERT INTO pending_cleanups VALUES ('op-1', 's4', 'DELETE', '/music/s4.flac', NULL, 'Committed', 500)",
+            )
         }
     }
 
     private companion object {
         const val FIRST_START = 4
+
         /** Song columns that exist, unchanged, in every schema from v4 to v16. */
         val SONG_COLUMNS = listOf(
             "id", "title", "album_id", "duration", "file_path", "album_art_uri", "year",
@@ -210,7 +244,14 @@ class MigrationFullChainUserDataTest {
         )
         val ALBUM_ID_INDEX = SONG_COLUMNS.indexOf("album_id")
         val PLAYLIST_COLUMNS = listOf(
-            "id", "name", "description", "group_id", "position", "created_at", "updated_at", "cover_art_uri",
+            "id",
+            "name",
+            "description",
+            "group_id",
+            "position",
+            "created_at",
+            "updated_at",
+            "cover_art_uri",
         )
         val UNCHANGED_TABLES = listOf("artists", "song_artists", "playlist_groups", "playlist_songs")
         val ORDER = mapOf(

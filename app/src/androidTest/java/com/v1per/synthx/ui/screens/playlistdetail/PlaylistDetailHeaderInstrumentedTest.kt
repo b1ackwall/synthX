@@ -25,12 +25,18 @@ import org.junit.runner.RunWith
 /** The detail header under the hero: the stats line and the Play / Shuffle action row. */
 @RunWith(AndroidJUnit4::class)
 class PlaylistDetailHeaderInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createComposeRule()
 
     private val playlist = Playlist(
-        id = "p1", name = "One", groupId = null, albumArtUri = null, artHue = 200, artStructureSeed = 1234L,
+        id = "p1",
+        name = "One",
+        groupId = null,
+        albumArtUri = null,
+        artHue = 200,
+        artStructureSeed = 1234L,
     )
 
     private val played = mutableListOf<List<Song>>()

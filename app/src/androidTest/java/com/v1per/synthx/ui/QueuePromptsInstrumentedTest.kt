@@ -27,7 +27,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class QueuePromptsInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -48,8 +49,7 @@ class QueuePromptsInstrumentedTest {
         shell.awaitText(text(title))
     }
 
-    private fun assertPromptGone(title: Int) =
-        composeRule.onNodeWithText(text(title)).assertDoesNotExist()
+    private fun assertPromptGone(title: Int) = composeRule.onNodeWithText(text(title)).assertDoesNotExist()
 
     // ------------------------------------------------------------ Replace / Cancel (playAll)
 

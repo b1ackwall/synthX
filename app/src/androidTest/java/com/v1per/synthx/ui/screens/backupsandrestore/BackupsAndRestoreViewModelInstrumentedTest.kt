@@ -39,7 +39,8 @@ import org.junit.runner.RunWith
 @SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class BackupsAndRestoreViewModelInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val testId = "backups-vm-test-${UUID.randomUUID()}"
@@ -65,10 +66,8 @@ class BackupsAndRestoreViewModelInstrumentedTest {
      * file-backed [androidx.documentfile.provider.DocumentFile] instead; a ViewModel test needs
      * the whole [BackupManager] substituted, not just that one method.
      */
-    private class FakeBackupManager(
-        private val fakeContext: Context,
-        var result: BackupListResult,
-    ) : BackupManager(fakeContext) {
+    private class FakeBackupManager(private val fakeContext: Context, var result: BackupListResult) :
+        BackupManager(fakeContext) {
         override suspend fun listBackups(): BackupListResult = result
         override fun ensureFolderStructure(treeUri: Uri): Boolean = true
 
@@ -233,7 +232,10 @@ class BackupsAndRestoreViewModelInstrumentedTest {
         viewModel.createManualBackup()
         viewModel.createManualBackup()
         await(viewModel.isBackingUp) { it }
-        assertFalse("A second tap while backing up must not start a second attempt", manager.createBackupCallCount.get() > 1)
+        assertFalse(
+            "A second tap while backing up must not start a second attempt",
+            manager.createBackupCallCount.get() > 1,
+        )
 
         await(viewModel.isBackingUp) { !it }
         assertEquals(1, manager.createBackupCallCount.get())

@@ -20,7 +20,8 @@ import org.junit.runner.RunWith
 /** Additive raw-palette migration: no existing library, playlist or playback data changes. */
 @RunWith(AndroidJUnit4::class)
 class Migration12To13Test {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val createdDatabaseNames = mutableSetOf<String>()
@@ -137,7 +138,9 @@ class Migration12To13Test {
         )
         database.execSQL("INSERT INTO song_artists VALUES ('song', 'artist', 0)")
         database.execSQL("INSERT INTO playlist_groups VALUES ('group', 'Group', 2, 100)")
-        database.execSQL("INSERT INTO playlists VALUES ('playlist', 'Playlist', 'Notes', 'group', 3, 100, 200, 'cover')")
+        database.execSQL(
+            "INSERT INTO playlists VALUES ('playlist', 'Playlist', 'Notes', 'group', 3, 100, 200, 'cover')",
+        )
         database.execSQL("INSERT INTO playlist_songs VALUES ('playlist', 'song', 4, 300)")
         database.execSQL("INSERT INTO queue_items VALUES ('slot-a', 0, 'song')")
         database.execSQL("INSERT INTO queue_items VALUES ('slot-b', 1, 'song')")

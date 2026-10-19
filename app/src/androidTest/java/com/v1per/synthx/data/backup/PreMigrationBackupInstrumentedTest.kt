@@ -28,8 +28,7 @@ class PreMigrationBackupInstrumentedTest : PhaseBRestoreTestBase() {
     private val testId = "pre-migration-${UUID.randomUUID()}"
     private val isolated = object : ContextWrapper(context) {
         override fun getApplicationContext(): Context = this
-        override fun getSharedPreferences(name: String, mode: Int) =
-            context.getSharedPreferences("$testId-$name", mode)
+        override fun getSharedPreferences(name: String, mode: Int) = context.getSharedPreferences("$testId-$name", mode)
     }
     private val tierRoot = File(context.cacheDir, testId).apply { mkdirs() }
 

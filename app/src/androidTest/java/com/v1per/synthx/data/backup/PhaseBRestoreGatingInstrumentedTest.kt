@@ -49,7 +49,9 @@ class PhaseBRestoreGatingInstrumentedTest : PhaseBRestoreTestBase() {
         val repository = SongRepositoryImpl.create(context)
         val queue = QueuePersistence(repository)
         RestoreCoordinator.markClosed()
-        expectSuspendFailure(IllegalStateException::class, "Database operation is unavailable during restore") { repository.isInAnyPlaylist("missing") }
+        expectSuspendFailure(IllegalStateException::class, "Database operation is unavailable during restore") {
+            repository.isInAnyPlaylist("missing")
+        }
         queue.saveQueueRecords(emptyList(), null, 0L)
         queue.quiesceForRestore()
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
@@ -119,7 +121,9 @@ class PhaseBRestoreGatingInstrumentedTest : PhaseBRestoreTestBase() {
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
 
         RestoreCoordinator.markClosed()
-        expectSuspendFailure(IllegalStateException::class, "Database operation is unavailable during restore") { scanner.scan(Uri.EMPTY) }
+        expectSuspendFailure(IllegalStateException::class, "Database operation is unavailable during restore") {
+            scanner.scan(Uri.EMPTY)
+        }
         assertEquals(2, executions)
         database.close()
     }

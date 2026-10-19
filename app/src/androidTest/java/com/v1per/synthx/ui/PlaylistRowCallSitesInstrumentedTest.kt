@@ -33,7 +33,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistRowCallSitesInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -68,8 +69,14 @@ class PlaylistRowCallSitesInstrumentedTest {
     }
 
     private fun playlist(id: String, name: String, groupId: String?) = PlaylistEntity(
-        id = id, name = name, description = null, groupId = groupId,
-        position = 0, createdAt = 1L, updatedAt = 1L, coverArtUri = null,
+        id = id,
+        name = name,
+        description = null,
+        groupId = groupId,
+        position = 0,
+        createdAt = 1L,
+        updatedAt = 1L,
+        coverArtUri = null,
     )
 
     private fun text(id: Int) = shell.context.getString(id)
@@ -77,7 +84,8 @@ class PlaylistRowCallSitesInstrumentedTest {
     private fun openMenuOf(name: String) {
         shell.awaitText(name)
         composeRule.onNode(
-            hasContentDescription(text(R.string.cd_more_options)) and hasAnyAncestor(hasText(name) and !hasSetTextAction()),
+            hasContentDescription(text(R.string.cd_more_options)) and
+                hasAnyAncestor(hasText(name) and !hasSetTextAction()),
         ).performClick()
         shell.awaitText(text(R.string.action_rename))
     }

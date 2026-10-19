@@ -30,19 +30,32 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class RemoveFromPlaylistShellInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private val shell = ShellTestHost(composeRule)
     private val database get() = SynthXDatabase.getInstance(shell.context)
     private val song = SongEntity(
-        id = "removeshell-song", title = "0000 RemoveShell Song", albumId = null, duration = 1,
-        filePath = "file:///removeshell-song.mp3", albumArtUri = null, year = null, dateAdded = 1L,
+        id = "removeshell-song",
+        title = "0000 RemoveShell Song",
+        albumId = null,
+        duration = 1,
+        filePath = "file:///removeshell-song.mp3",
+        albumArtUri = null,
+        year = null,
+        dateAdded = 1L,
     )
     private val playlist = PlaylistEntity(
-        id = "removeshell-playlist", name = "0000 RemoveShell Playlist", description = null, groupId = null,
-        position = 0, createdAt = 1L, updatedAt = 1L, coverArtUri = null,
+        id = "removeshell-playlist",
+        name = "0000 RemoveShell Playlist",
+        description = null,
+        groupId = null,
+        position = 0,
+        createdAt = 1L,
+        updatedAt = 1L,
+        coverArtUri = null,
     )
 
     @Before fun setUp() {
@@ -114,6 +127,12 @@ class RemoveFromPlaylistShellInstrumentedTest {
 
         composeRule.waitUntil(ShellTestHost.WAIT_MS) { !inPlaylist() }
         composeRule.waitUntil(ShellTestHost.WAIT_MS) { shell.textCount(song.title) == 0 }
-        assertEquals("the song stays in the library", 1, runBlocking { database.songDao().getSongsByIds(listOf(song.id)).size })
+        assertEquals(
+            "the song stays in the library",
+            1,
+            runBlocking {
+                database.songDao().getSongsByIds(listOf(song.id)).size
+            },
+        )
     }
 }

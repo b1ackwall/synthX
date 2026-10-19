@@ -41,7 +41,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class RestoreShellInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     @get:Rule
     val composeRule = createComposeRule()
@@ -210,9 +211,13 @@ class RestoreShellInstrumentedTest {
     private fun navigateTo(route: String) {
         composeRule.runOnUiThread { navController.navigate(route) }
         composeRule.waitForIdle()
-        assertEquals("navigate($route) did not reach its destination", route, composeRule.runOnIdle {
-            navController.currentDestination?.route
-        })
+        assertEquals(
+            "navigate($route) did not reach its destination",
+            route,
+            composeRule.runOnIdle {
+                navController.currentDestination?.route
+            },
+        )
         if (route == Screen.Library.route) awaitTag(PerfTestTags.LibraryScreen, present = true)
     }
 

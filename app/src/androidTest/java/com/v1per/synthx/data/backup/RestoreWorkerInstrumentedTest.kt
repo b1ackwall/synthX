@@ -32,7 +32,8 @@ import org.junit.runner.RunWith
 @SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class RestoreWorkerInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val workManager get() = WorkManager.getInstance(context)
@@ -52,7 +53,10 @@ class RestoreWorkerInstrumentedTest {
     @After fun tearDown() {
         SynthXDatabase.closeInstance()
         SongRepositoryImpl.resetForTest()
-        runBlocking { workManager.cancelAllWork().result.get(); workManager.pruneWork().result.get() }
+        runBlocking {
+            workManager.cancelAllWork().result.get()
+            workManager.pruneWork().result.get()
+        }
         cleanOwnedFiles()
         DatabaseStartupGate.resetForTest(context)
         RestorePermitLeakCheck.assertDrainedThenReset()
@@ -84,7 +88,11 @@ class RestoreWorkerInstrumentedTest {
         createDatabaseFile(context.getDatabasePath(SynthXDatabase.DB_NAME), "state-a")
         val backup = backupInfo(File(databaseDir, validBackupName()))
         val request = RestoreWorker.request(backup)
-        workManager.enqueueUniqueWork(RestoreWorker.UNIQUE_WORK_NAME, androidx.work.ExistingWorkPolicy.KEEP, request).result.get()
+        workManager.enqueueUniqueWork(
+            RestoreWorker.UNIQUE_WORK_NAME,
+            androidx.work.ExistingWorkPolicy.KEEP,
+            request,
+        ).result.get()
         WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
         assertEquals(WorkInfo.State.FAILED, awaitFinished(request.id).state)
         BackupSnapshotValidator.validate(context.getDatabasePath(SynthXDatabase.DB_NAME), false)
@@ -107,12 +115,16 @@ class RestoreWorkerInstrumentedTest {
         val metadataFile = File(databaseDir, source.name.removeSuffix(".db") + ".json")
         metadataFile.writeBytes(BackupMetadataCodec.encode(metadata(source)))
         val request = RestoreWorker.request(backupInfo(source, metadataFile))
-        workManager.enqueueUniqueWork(RestoreWorker.UNIQUE_WORK_NAME, androidx.work.ExistingWorkPolicy.KEEP, request).result.get()
+        workManager.enqueueUniqueWork(
+            RestoreWorker.UNIQUE_WORK_NAME,
+            androidx.work.ExistingWorkPolicy.KEEP,
+            request,
+        ).result.get()
         WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
         assertEquals(WorkInfo.State.SUCCEEDED, awaitFinished(request.id).state)
         assertEquals(RestoreCoordinator.Terminal.RESTART_REQUIRED, RestoreCoordinator.current())
         val state = RestoreTransaction.decodeStateOrNull(
-            File(databaseDir, "synthx.restore-state.json").readText()
+            File(databaseDir, "synthx.restore-state.json").readText(),
         )
         assertEquals(request.id.toString().replace("-", ""), state?.operationId)
         assertEquals(request.id.toString().replace("-", ""), state?.requestId)
@@ -131,7 +143,11 @@ class RestoreWorkerInstrumentedTest {
         val metadataFile = File(databaseDir, source.name.removeSuffix(".db") + ".json")
         metadataFile.writeBytes(BackupMetadataCodec.encode(metadata(source)))
         val request = RestoreWorker.request(backupInfo(source, metadataFile))
-        workManager.enqueueUniqueWork(RestoreWorker.UNIQUE_WORK_NAME, androidx.work.ExistingWorkPolicy.KEEP, request).result.get()
+        workManager.enqueueUniqueWork(
+            RestoreWorker.UNIQUE_WORK_NAME,
+            androidx.work.ExistingWorkPolicy.KEEP,
+            request,
+        ).result.get()
         WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
         assertEquals(WorkInfo.State.SUCCEEDED, awaitFinished(request.id).state)
         assertEquals(RestoreCoordinator.Terminal.RESTART_REQUIRED, RestoreCoordinator.current())
@@ -193,7 +209,11 @@ class RestoreWorkerInstrumentedTest {
             }
         }
         try {
-            workManager.enqueueUniqueWork(RestoreWorker.UNIQUE_WORK_NAME, androidx.work.ExistingWorkPolicy.KEEP, request).result.get()
+            workManager.enqueueUniqueWork(
+                RestoreWorker.UNIQUE_WORK_NAME,
+                androidx.work.ExistingWorkPolicy.KEEP,
+                request,
+            ).result.get()
             WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
             assertEquals(WorkInfo.State.SUCCEEDED, awaitFinished(request.id).state)
         } finally {

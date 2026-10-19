@@ -30,10 +30,12 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class BackupListResultInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val preferenceName = "backup-list-result-${UUID.randomUUID()}"
+
     // Both PreferencesManager and BackupManager must share this same isolated context — using
     // the raw appContext for one of them would silently read/write the app's real
     // "synthx_prefs" file instead of this test's isolated one.
@@ -141,12 +143,7 @@ class BackupListResultInstrumentedTest {
     }
 
     /** Writes a `.db` (128 bytes) + matching `.json` sidecar; `sizeMatches=false` lies about size. */
-    private fun writeBackupPair(
-        tierDir: File,
-        randomId: String,
-        dbVersion: Int,
-        sizeMatches: Boolean,
-    ): String {
+    private fun writeBackupPair(tierDir: File, randomId: String, dbVersion: Int, sizeMatches: Boolean): String {
         val identity = BackupFileNames.create(randomId = randomId)
         val databaseFile = File(tierDir, identity.databaseFileName)
         databaseFile.writeBytes(ByteArray(128) { 1 })

@@ -50,7 +50,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class LibraryPullToRefreshInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val appContext: Context = ApplicationProvider.getApplicationContext()
     private val testId = "pull-refresh-test-${UUID.randomUUID()}"
@@ -167,7 +168,12 @@ class LibraryPullToRefreshInstrumentedTest {
 
         assertEquals(context.getString(R.string.library_refresh_already_scanning), message)
         // The pull started nothing: the owner is still the only request under the name.
-        assertEquals(listOf(owner.id), workManager.getWorkInfosForUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME).get().map { it.id })
+        assertEquals(
+            listOf(owner.id),
+            workManager.getWorkInfosForUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME).get().map {
+                it.id
+            },
+        )
         // Spinner shows the scan that is genuinely running, not a phantom request of the pull's.
         assertTrue(awaitRefreshing(true))
     }
@@ -253,7 +259,10 @@ class LibraryPullToRefreshInstrumentedTest {
     private fun scanTagsUnderUniqueName(): List<String> =
         workManager.getWorkInfosForUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME).get()
             .flatMap { info ->
-                info.tags.filter { it == LibraryScanWorker::class.java.name || it == NewArrivalsScanWorker::class.java.name }
+                info.tags.filter {
+                    it == LibraryScanWorker::class.java.name ||
+                        it == NewArrivalsScanWorker::class.java.name
+                }
             }
 
     private companion object {

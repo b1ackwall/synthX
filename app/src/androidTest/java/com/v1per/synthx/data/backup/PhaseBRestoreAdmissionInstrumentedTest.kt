@@ -79,7 +79,10 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
             backupInfo(source),
             metadata(source).copy(dbVersion = SynthXDatabase.VERSION + 1),
             UUID.randomUUID().toString(),
-            sourceOpener = RestoreSourceOpener { _, _ -> opens.incrementAndGet(); null },
+            sourceOpener = RestoreSourceOpener { _, _ ->
+                opens.incrementAndGet()
+                null
+            },
         )
         assertTrue(result.isFailure)
         assertEquals(0, opens.get())
@@ -98,7 +101,10 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
             faults = RestoreFaultInjector { point ->
                 if (point == RestoreFaultPoint.FREE_SPACE_PREFLIGHT) error("no space")
             },
-            sourceOpener = RestoreSourceOpener { _, _ -> opens.incrementAndGet(); source.inputStream() },
+            sourceOpener = RestoreSourceOpener { _, _ ->
+                opens.incrementAndGet()
+                source.inputStream()
+            },
         )
         assertTrue(result.isFailure)
         assertEquals(0, opens.get())
@@ -111,7 +117,13 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
         val source = object : InputStream() {
             private val bytes = ByteArray(1_000) { 1 }
             private var position = 0
-            override fun read(): Int = if (position == bytes.size) -1 else bytes[position++].toInt().also { bytesRead++ }
+            override fun read(): Int = if (position ==
+                bytes.size
+            ) {
+                -1
+            } else {
+                bytes[position++].toInt().also { bytesRead++ }
+            }
             override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
                 if (position == bytes.size) return -1
                 val count = minOf(4, length, bytes.size - position)
@@ -147,7 +159,13 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
         val source = object : InputStream() {
             private val bytes = ByteArray(totalSize) { 1 }
             private var position = 0
-            override fun read(): Int = if (position == bytes.size) -1 else bytes[position++].toInt().also { bytesRead++ }
+            override fun read(): Int = if (position ==
+                bytes.size
+            ) {
+                -1
+            } else {
+                bytes[position++].toInt().also { bytesRead++ }
+            }
             override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
                 if (position == bytes.size) return -1
                 val count = minOf(length, bytes.size - position)
@@ -164,7 +182,10 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
                 "content://cancel-me",
                 destination,
                 sourceOpener = RestoreSourceOpener { _, _ -> source },
-                isCancelled = { polls++; polls > 3 },
+                isCancelled = {
+                    polls++
+                    polls > 3
+                },
             )
         }
         assertTrue(
@@ -196,7 +217,11 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
         val older = context.getDatabasePath(olderName)
         assertEquals(7, BackupSnapshotValidator.validate(older, true).schema.userVersion)
         val isolated = SynthXDatabase.createStandalone(context, olderName)
-        try { isolated.openHelper.writableDatabase } finally { isolated.close() }
+        try {
+            isolated.openHelper.writableDatabase
+        } finally {
+            isolated.close()
+        }
         assertEquals("state-a", readMarker(liveFile()))
     }
 
@@ -205,7 +230,11 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
         registeredDatabaseNames += olderName
         migrationHelper.createDatabase(olderName, 7).close()
         val isolated = SynthXDatabase.createStandalone(context, olderName)
-        try { isolated.openHelper.writableDatabase } finally { isolated.close() }
+        try {
+            isolated.openHelper.writableDatabase
+        } finally {
+            isolated.close()
+        }
         val result = BackupSnapshotValidator.validate(context.getDatabasePath(olderName), false)
         assertEquals(SynthXDatabase.VERSION, result.schema.userVersion)
     }

@@ -441,8 +441,11 @@ class PhaseBRestoreRecoveryInstrumentedTest : RestoreScenarioTestBase() {
 
         assertTrue(
             RestoreTransaction.execute(
-                context, backupInfo(replaySource), metadata(replaySource), requestId,
-            ).isSuccess
+                context,
+                backupInfo(replaySource),
+                metadata(replaySource),
+                requestId,
+            ).isSuccess,
         )
         assertEquals("user-change-after-first-restore", readMarker(liveFile()))
     }
@@ -461,8 +464,11 @@ class PhaseBRestoreRecoveryInstrumentedTest : RestoreScenarioTestBase() {
 
         assertTrue(
             RestoreTransaction.execute(
-                context, backupInfo(replaySource), metadata(replaySource), requestId,
-            ).isSuccess
+                context,
+                backupInfo(replaySource),
+                metadata(replaySource),
+                requestId,
+            ).isSuccess,
         )
         assertEquals("rolled-back-live", readMarker(liveFile()))
     }
@@ -480,8 +486,11 @@ class PhaseBRestoreRecoveryInstrumentedTest : RestoreScenarioTestBase() {
 
         assertTrue(
             RestoreTransaction.execute(
-                context, backupInfo(newSource), metadata(newSource), newOp(),
-            ).isSuccess
+                context,
+                backupInfo(newSource),
+                metadata(newSource),
+                newOp(),
+            ).isSuccess,
         )
         assertEquals("new-request-installed", readMarker(liveFile()))
     }

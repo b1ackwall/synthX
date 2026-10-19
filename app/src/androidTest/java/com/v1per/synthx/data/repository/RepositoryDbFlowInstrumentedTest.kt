@@ -37,7 +37,8 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class RepositoryDbFlowInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var database: SynthXDatabase
@@ -136,7 +137,11 @@ class RepositoryDbFlowInstrumentedTest {
             withTimeout(2_000) { while (attempts.get() < 2) kotlinx.coroutines.yield() }
             // Admission is decided synchronously on subscribe; give a wrong admit time to show.
             kotlinx.coroutines.delay(200)
-            assertEquals("no Room upstream may connect during preparation", 0, RestoreCoordinator.activeReactiveOperationCountForTest())
+            assertEquals(
+                "no Room upstream may connect during preparation",
+                0,
+                RestoreCoordinator.activeReactiveOperationCountForTest(),
+            )
             assertEquals(1, cached.value.size)
         }
 
@@ -183,7 +188,6 @@ class RepositoryDbFlowInstrumentedTest {
 
     private class RoomGroupRepository(database: SynthXDatabase) {
         private val dao = database.playlistDao()
-        fun groups(): Flow<List<PlaylistGroupEntity>> =
-            RepositoryDbFlow.observe { dao.getAllGroups() }
+        fun groups(): Flow<List<PlaylistGroupEntity>> = RepositoryDbFlow.observe { dao.getAllGroups() }
     }
 }

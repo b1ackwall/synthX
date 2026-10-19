@@ -39,7 +39,14 @@ class QueueLongWindowInstrumentedTest : PlaybackServiceTestBase() {
         val ahead = loaded.size - 1 - loaded.indexOf(current)
         assertTrue("loaded ${loaded.size} items, at most $WINDOW_SIZE", loaded.size <= WINDOW_SIZE)
         assertTrue("only $ahead items loaded ahead of the current one", ahead >= WINDOW_REFILL_HEADROOM)
-        assertEquals("loaded items follow the queue order", onMain { engine.queue.now().slotIds() }.filter { it in loaded }, loaded)
+        assertEquals(
+            "loaded items follow the queue order",
+            onMain { engine.queue.now().slotIds() }.filter {
+                it in
+                    loaded
+            },
+            loaded,
+        )
     }
 
     /** The player reaches the end of what it holds while the queue goes on: playback continues. */

@@ -17,7 +17,8 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class RestoreBoundaryAndStagingInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val staging = File(context.noBackupFilesDir, "backup_staging")
@@ -43,13 +44,17 @@ class RestoreBoundaryAndStagingInstrumentedTest {
 
     @Test fun unexpectedStartupThrowPersistsIncidentIdAndReport() {
         RestoreCoordinator.resetForTest()
-        val incidentFile = File(context.getDatabasePath(SynthXDatabase.DB_NAME).parentFile, "synthx.restore-incident.id")
+        val incidentFile =
+            File(context.getDatabasePath(SynthXDatabase.DB_NAME).parentFile, "synthx.restore-incident.id")
         incidentFile.delete()
         try {
-            val result = RestoreStartup.runProtectedRecovery(context, recovery = { error("unexpected boundary failure") })
+            val result = RestoreStartup.runProtectedRecovery(context, recovery = {
+                error("unexpected boundary failure")
+            })
 
             assertEquals(RestoreRecovery.EMERGENCY, result)
-            val incidentId = requireNotNull(RestoreCoordinator.diagnosticOperationId.value) { "no incident id published" }
+            val incidentId =
+                requireNotNull(RestoreCoordinator.diagnosticOperationId.value) { "no incident id published" }
             assertEquals(incidentId, incidentFile.readText().trim())
             val report = RestoreIncidentReports.decode(RestoreIncidentReports.reportFile(context, incidentId))
             assertEquals("STARTUP_BOUNDARY_EXCEPTION", report.triggerCategory)

@@ -14,7 +14,8 @@ import org.junit.runner.RunWith
 /** Album and artist lists, and their song lists, read through the real repository from real Room. */
 @RunWith(AndroidJUnit4::class)
 class RepositoryAlbumArtistReadsInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private lateinit var fx: RepositoryTestFixture
     private val repository get() = fx.repository
@@ -49,7 +50,12 @@ class RepositoryAlbumArtistReadsInstrumentedTest {
 
         val albums = awaitEmission(repository.getAlbums(), "albums") { it.isNotEmpty() }
 
-        assertEquals(listOf("Album" to "First Artist", "Bare" to "Unknown Artist"), albums.map { it.title to it.artist })
+        assertEquals(
+            listOf("Album" to "First Artist", "Bare" to "Unknown Artist"),
+            albums.map {
+                it.title to it.artist
+            },
+        )
     }
 
     @Test fun pinnedAlbumsWhoseSongsAreAllMissingStayListedAndFlagged() = runBlocking {
@@ -65,7 +71,11 @@ class RepositoryAlbumArtistReadsInstrumentedTest {
         val albums = awaitEmission(repository.getAlbums(), "albums") { it.isNotEmpty() }
 
         assertEquals(
-            listOf(Triple("All gone", true, "Artist"), Triple("Empty", true, "Unknown Artist"), Triple("Half", false, "Unknown Artist")),
+            listOf(
+                Triple("All gone", true, "Artist"),
+                Triple("Empty", true, "Unknown Artist"),
+                Triple("Half", false, "Unknown Artist"),
+            ),
             albums.map { Triple(it.title, it.allSongsMissing, it.artist) },
         )
     }

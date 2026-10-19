@@ -21,7 +21,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistArtDaoInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private lateinit var database: SynthXDatabase
 
@@ -30,7 +31,9 @@ class PlaylistArtDaoInstrumentedTest {
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
     }
 
-    @After fun tearDown() { database.close() }
+    @After fun tearDown() {
+        database.close()
+    }
 
     @Test fun setPlaylistArtIsANoOpOnceAlreadyAssigned() = runBlocking {
         val dao = database.playlistDao()

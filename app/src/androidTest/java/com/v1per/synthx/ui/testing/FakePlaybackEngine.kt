@@ -58,8 +58,12 @@ internal class FakePlaybackEngine(
         playQueueCalls += PlayCall(songs, startIndex, shuffle)
     }
     override suspend fun restoreSavedQueue() {}
-    override fun persistPlaybackState() { persistCalls.incrementAndGet() }
-    override fun next() { nextCalls.incrementAndGet() }
+    override fun persistPlaybackState() {
+        persistCalls.incrementAndGet()
+    }
+    override fun next() {
+        nextCalls.incrementAndGet()
+    }
     override fun previous() {}
     override suspend fun setShuffleEnabled(enabled: Boolean) {}
     override fun setRepeatMode(mode: RepeatMode) {}
@@ -71,12 +75,18 @@ internal class FakePlaybackEngine(
     override fun moveQueueItem(slotId: String, toIndex: Int) {}
     override fun removeQueueItem(slotId: String) {}
     override fun seekToQueueItem(slotId: String) {}
-    override fun pause() { pauseCalls.incrementAndGet() }
-    override fun resume() { resumeCalls.incrementAndGet() }
+    override fun pause() {
+        pauseCalls.incrementAndGet()
+    }
+    override fun resume() {
+        resumeCalls.incrementAndGet()
+    }
     override fun stop() {}
     override fun seekTo(positionMs: Long) {}
     override fun release() {}
-    override suspend fun reconcileWithDatabase() { reconcileCalls.incrementAndGet() }
+    override suspend fun reconcileWithDatabase() {
+        reconcileCalls.incrementAndGet()
+    }
 
     companion object {
         fun song(id: String, albumId: String? = null) = Song(

@@ -58,7 +58,10 @@ class PlaybackCheckpointInstrumentedTest : PlaybackServiceTestBase() {
         onMain { extraController.seekTo(20_000L) }
 
         await("cursor saved near 20 s") {
-            recorder.writesOf<QueueWrite.Cursor>().any { it.currentSlotId == slot && abs(it.positionMs - 20_000L) < 1_000L }
+            recorder.writesOf<QueueWrite.Cursor>().any {
+                it.currentSlotId == slot &&
+                    abs(it.positionMs - 20_000L) < 1_000L
+            }
         }
     }
 
@@ -69,7 +72,9 @@ class PlaybackCheckpointInstrumentedTest : PlaybackServiceTestBase() {
 
         onMain { engine.next() }
 
-        await("cursor saved on the next track") { recorder.writesOf<QueueWrite.Cursor>().any { it.currentSlotId == next } }
+        await("cursor saved on the next track") {
+            recorder.writesOf<QueueWrite.Cursor>().any { it.currentSlotId == next }
+        }
     }
 
     /** The backgrounding save writes the full order, not the ~51 loaded items. */

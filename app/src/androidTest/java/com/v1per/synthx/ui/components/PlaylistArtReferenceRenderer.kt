@@ -26,7 +26,15 @@ internal fun DrawScope.drawReference(model: PlaylistArtRenderModel, unlit: List<
         )
     }
     model.diamonds.forEach { drawPath(path = it, color = model.diamondColor, alpha = 0.5f) }
-    model.lit.forEach { drawLine(brush = it.brush, start = it.start, end = it.end, strokeWidth = model.strokeWidth, cap = StrokeCap.Round) }
+    model.lit.forEach {
+        drawLine(
+            brush = it.brush,
+            start = it.start,
+            end = it.end,
+            strokeWidth = model.strokeWidth,
+            cap = StrokeCap.Round,
+        )
+    }
 }
 
 /** Every segment the walk did not light, scaled the way the model scales them. */

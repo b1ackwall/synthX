@@ -24,7 +24,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class SystemNavigationPlayerInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private var nativeCommands: Player.Commands = Player.Commands.EMPTY
     private val registered = mutableListOf<Player.Listener>()
@@ -47,10 +48,7 @@ class SystemNavigationPlayerInstrumentedTest {
         }
     } as Player
 
-    private class Handler(
-        var next: Boolean = true,
-        var previous: Boolean = true,
-    ) : SystemNavigationHandler {
+    private class Handler(var next: Boolean = true, var previous: Boolean = true) : SystemNavigationHandler {
         override val isReady = true
         override fun hasNext() = next
         override fun hasPrevious() = previous
@@ -85,8 +83,7 @@ class SystemNavigationPlayerInstrumentedTest {
     private fun onMain(block: () -> Unit) = instrumentation.runOnMainSync(block)
 
     @OptIn(markerClass = [UnstableApi::class])
-    private fun commandsOf(vararg ids: Int) =
-        Player.Commands.Builder().apply { ids.forEach { add(it) } }.build()
+    private fun commandsOf(vararg ids: Int) = Player.Commands.Builder().apply { ids.forEach { add(it) } }.build()
 
     @Before fun setUp() {
         wrapper = SystemNavigationPlayer(delegate)

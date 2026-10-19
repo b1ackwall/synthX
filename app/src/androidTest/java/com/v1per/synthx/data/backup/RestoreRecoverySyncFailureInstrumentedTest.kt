@@ -126,7 +126,10 @@ class RestoreRecoverySyncFailureInstrumentedTest : RestoreScenarioTestBase() {
         val candidate = File(databaseDir, RestoreArtifactNames(newOp()).candidate)
         createDatabaseFile(candidate, "debris")
 
-        assertEquals(RestoreRecovery.EMERGENCY, recoverWith(RestoreFaultPoint.RECOVERED_ARTIFACT_ARCHIVE_DIRECTORY_SYNC))
+        assertEquals(
+            RestoreRecovery.EMERGENCY,
+            recoverWith(RestoreFaultPoint.RECOVERED_ARTIFACT_ARCHIVE_DIRECTORY_SYNC),
+        )
 
         assertFalse(candidate.exists())
         assertTrue(File(candidate.path + ".recovered").isFile)

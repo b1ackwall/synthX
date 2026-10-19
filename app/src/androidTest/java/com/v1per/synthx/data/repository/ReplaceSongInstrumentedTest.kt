@@ -51,7 +51,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ReplaceSongInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private lateinit var context: Context
     private lateinit var database: SynthXDatabase
@@ -69,14 +70,24 @@ class ReplaceSongInstrumentedTest {
         DestructiveActionTracker.resetForTest(context)
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
         exports = PlaylistExportManager(
-            context, database, database.playlistDao(), database.songDao(), database.artistDao(), database.albumDao(),
+            context,
+            database,
+            database.playlistDao(),
+            database.songDao(),
+            database.artistDao(),
+            database.albumDao(),
         )
         repository = SongRepositoryImpl(
             context, database, database.songDao(), database.artistDao(), database.albumDao(),
             database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
             FolderScanner(
-                context, database, database.songDao(), database.artistDao(), database.albumDao(),
-                database.songArtistDao(), exports,
+                context,
+                database,
+                database.songDao(),
+                database.artistDao(),
+                database.albumDao(),
+                database.songArtistDao(),
+                exports,
             ),
             BackupManager(context), exports,
             destructiveFileCheck = { _, _ -> DestructiveFilePreflightResult.Ambiguous },
@@ -122,11 +133,10 @@ class ReplaceSongInstrumentedTest {
         database.playlistDao().getPlaylistMembershipsForSong(songId)
             .firstOrNull { it.playlistId == playlistId }
 
-    private suspend fun replace(resolution: PlaylistConflictResolution) =
-        withTimeout(10_000) {
-            val preview = repository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
-            repository.replaceSong("old", "new", resolution, preview.membershipSnapshot)
-        }
+    private suspend fun replace(resolution: PlaylistConflictResolution) = withTimeout(10_000) {
+        val preview = repository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
+        repository.replaceSong("old", "new", resolution, preview.membershipSnapshot)
+    }
 
     @Test fun keepOldMovesTheReplacementIntoTheOldSongsSlot() = runBlocking {
         val result = replace(PlaylistConflictResolution.KeepOld)
@@ -242,7 +252,10 @@ class ReplaceSongInstrumentedTest {
 
         val preview = guardedRepository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
         val result = guardedRepository.replaceSong(
-            "old", "new", PlaylistConflictResolution.KeepOld, preview.membershipSnapshot,
+            "old",
+            "new",
+            PlaylistConflictResolution.KeepOld,
+            preview.membershipSnapshot,
         )
 
         assertEquals(
@@ -266,7 +279,10 @@ class ReplaceSongInstrumentedTest {
 
         val preview = guardedRepository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
         val result = guardedRepository.replaceSong(
-            "old", "new", PlaylistConflictResolution.KeepOld, preview.membershipSnapshot,
+            "old",
+            "new",
+            PlaylistConflictResolution.KeepOld,
+            preview.membershipSnapshot,
         )
 
         assertEquals(
@@ -286,7 +302,10 @@ class ReplaceSongInstrumentedTest {
 
         val preview = nonBlockingRepository.previewReplaceSong("old", "new") as ReplaceSongPreviewResult.Ready
         val result = nonBlockingRepository.replaceSong(
-            "old", "new", PlaylistConflictResolution.KeepOld, preview.membershipSnapshot,
+            "old",
+            "new",
+            PlaylistConflictResolution.KeepOld,
+            preview.membershipSnapshot,
         )
 
         assertTrue(result is ReplaceSongResult.Success)
@@ -311,7 +330,10 @@ class ReplaceSongInstrumentedTest {
         )
 
         val result = repository.replaceSong(
-            "old", "new", PlaylistConflictResolution.KeepOld, preview.membershipSnapshot,
+            "old",
+            "new",
+            PlaylistConflictResolution.KeepOld,
+            preview.membershipSnapshot,
         )
 
         assertEquals(ReplaceSongResult.PreviewStale, result)
@@ -325,7 +347,10 @@ class ReplaceSongInstrumentedTest {
         database.playlistDao().removePlaylistSong("only-old", "old")
 
         val result = repository.replaceSong(
-            "old", "new", PlaylistConflictResolution.KeepOld, preview.membershipSnapshot,
+            "old",
+            "new",
+            PlaylistConflictResolution.KeepOld,
+            preview.membershipSnapshot,
         )
 
         assertEquals(ReplaceSongResult.PreviewStale, result)
@@ -377,8 +402,13 @@ class ReplaceSongInstrumentedTest {
         context, database, database.songDao(), database.artistDao(), database.albumDao(),
         database.playlistDao(), database.queueDao(), database.pendingCleanupDao(),
         FolderScanner(
-            context, database, database.songDao(), database.artistDao(), database.albumDao(),
-            database.songArtistDao(), exports,
+            context,
+            database,
+            database.songDao(),
+            database.artistDao(),
+            database.albumDao(),
+            database.songArtistDao(),
+            exports,
         ),
         BackupManager(context), exports,
         destructiveFileCheck = { _, _ -> oldResult },

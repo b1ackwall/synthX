@@ -29,7 +29,8 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class PlaylistDaoIdReuseInstrumentedTest {
-    @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()
+    @get:Rule(order = TestTimeouts.RULE_ORDER)
+    val testTimeout = TestTimeouts.device()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var database: SynthXDatabase
@@ -38,7 +39,9 @@ class PlaylistDaoIdReuseInstrumentedTest {
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
     }
 
-    @After fun tearDown() { database.close() }
+    @After fun tearDown() {
+        database.close()
+    }
 
     @Test fun reusingAGroupIdThrowsAndLeavesItsPlaylistsGroupedStill() = runBlocking<Unit> {
         val dao = database.playlistDao()
@@ -71,8 +74,14 @@ class PlaylistDaoIdReuseInstrumentedTest {
         val songDao = database.songDao()
         songDao.upsertSong(
             SongEntity(
-                id = "s1", title = "Song", albumId = null, duration = 1000L,
-                filePath = "content://audio/s1", albumArtUri = null, year = null, dateAdded = 1L,
+                id = "s1",
+                title = "Song",
+                albumId = null,
+                duration = 1000L,
+                filePath = "content://audio/s1",
+                albumArtUri = null,
+                year = null,
+                dateAdded = 1L,
             ),
         )
         dao.insertPlaylist(
