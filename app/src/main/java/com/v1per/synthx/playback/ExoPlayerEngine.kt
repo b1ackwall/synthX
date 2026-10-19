@@ -114,8 +114,8 @@ class ExoPlayerEngine(
 
     // Recomputed imperatively (see refreshNavigationState) rather than derived from other
     // flows: it is a repeat-aware question about the order store's true length and position,
-    // and neither the store nor the cursor is a Flow. Deliberately NOT ctrl.hasNextMediaItem()
-    // any more — the loaded timeline ends ~WINDOW_FORWARD ahead of the current song, so the
+    // and neither the store nor the cursor is a Flow. Deliberately NOT ctrl.hasNextMediaItem():
+    // the loaded timeline ends ~WINDOW_FORWARD ahead of the current song, so the
     // controller would answer "no next item" with hundreds of songs still queued.
     internal val _hasNext = MutableStateFlow(false)
     override val hasNext: Flow<Boolean> = _hasNext.asStateFlow()
@@ -149,11 +149,9 @@ class ExoPlayerEngine(
     internal val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     internal var artworkJob: Job? = null
 
-    // Single 500ms ticker shared by currentPosition and duration below — previously each
-    // ran its own independent delay loop polling the same controller snapshot twice per
-    // tick for no reason. shareIn (rather than two separate cold flows) means only one
-    // timer runs regardless of how many downstream collectors currentPosition/duration
-    // pick up. Collected on the caller's dispatcher (the ViewModel collects on
+    // Single 500ms ticker shared by currentPosition and duration below. shareIn (rather
+    // than two separate cold flows) means only one timer runs regardless of how many
+    // downstream collectors currentPosition/duration pick up. Collected on the caller's dispatcher (the ViewModel collects on
     // Main.immediate via stateIn), which satisfies MediaController's main-thread requirement.
     private val positionTicker: Flow<Unit> = flow {
         while (true) {
@@ -198,16 +196,15 @@ class ExoPlayerEngine(
         SessionToken(context, ComponentName(context, SynthXPlaybackService::class.java))
 
     /**
-     * Rebuilt on every (re)connection attempt — hence `var`, not `val` as before. P4-T3: the
-     * original one-shot future meant a failed initial connection or a mid-session disconnection
-     * was terminal for the rest of this engine's lifetime, despite comments elsewhere promising
-     * retry. [connectToSession] is what actually rebuilds this now.
+     * Rebuilt by [connectToSession] on every (re)connection attempt, hence `var`: a one-shot
+     * future would make a failed initial connection or a mid-session disconnection terminal for
+     * the rest of this engine's lifetime.
      */
     internal var controllerFuture: ListenableFuture<MediaController> = buildControllerFuture()
 
     // Where the session connection stands, across the initial connection, its retries and any
-    // later mid-session reconnect — what awaitController waits on (issue #175; see
-    // ControllerConnection's kdoc for the one-shot deferred this replaced). Bounded retry for
+    // later mid-session reconnect — what awaitController waits on (see ControllerConnection's
+    // kdoc). Bounded retry for
     // BOTH the initial connection and a mid-session disconnection, capped rather than infinite
     // so a permanently-gone session doesn't retry forever; a later playback request re-arms one
     // fresh round (see awaitController) instead of the engine staying dead until the Activity is
@@ -218,12 +215,12 @@ class ExoPlayerEngine(
     init {
         instances += this
         // Registered so SongDeletionAcknowledgment.register() knows there is at least one live
-        // engine to hand a deletion off to (P4-T4) — see releaseInternal for the matching detach.
+        // engine to hand a deletion off to — see releaseInternal for the matching detach.
         SongDeletionAcknowledgment.engineAttached()
         // A rescan can replace one content id while several independently keyed queue slots
         // reference it. Refresh every matching value without changing any stable slot key.
         //
-        // collectCatching gives each event its own exception boundary (P4-T2 / R3-F07):
+        // collectCatching gives each event its own exception boundary:
         // SupervisorJob only isolates THIS launch from its siblings, it does not protect one
         // collect{} invocation from a later one — an uncaught exception here would otherwise
         // permanently kill this collector coroutine, silently dropping every remap for the rest
@@ -251,7 +248,7 @@ class ExoPlayerEngine(
                 } finally {
                     // Signalled regardless of songId even being in THIS engine's queue, and
                     // regardless of whether handling above succeeded — the repository's handoff
-                    // wait (P4-T4) only needs "every live engine has reacted to this event",
+                    // wait only needs "every live engine has reacted to this event",
                     // not "every live engine actually held this song".
                     SongDeletionAcknowledgment.signalCleared(deletion.songId)
                 }
@@ -264,7 +261,7 @@ class ExoPlayerEngine(
         connectToSession()
     }
 
-    // P4-T7 / R3-F13: bounded periodic checkpoint during long, uninterrupted single-track
+    // Bounded periodic checkpoint during long, uninterrupted single-track
     // playback — see periodicCheckpointDriver's kdoc. A plain collect rather than collectLatest
     // here: the driver itself already restarts its internal delay loop on every isPlaying
     // transition, so there is nothing further for the collector to cancel/restart.
@@ -342,7 +339,7 @@ class ExoPlayerEngine(
 
     // Checked against the connection phase, not `controller != null`: during a mid-session
     // reconnect `controller` still holds the dropped instance, and an insert into it would
-    // update the order store while media3 ignores the timeline edit (issue #175).
+    // update the order store while media3 ignores the timeline edit.
     override fun playNext(song: Song): Boolean {
         if (!connection.isConnected) return reportUnavailable("playNext")
         playNextInternal(song)
@@ -415,12 +412,12 @@ class ExoPlayerEngine(
         // short-circuit after release instead of calling into a released instance.
         controller = null
         instances.remove(this)
-        // Matches the attach in init — see SongDeletionAcknowledgment's kdoc (P4-T4).
+        // Matches the attach in init — see SongDeletionAcknowledgment's kdoc.
         SongDeletionAcknowledgment.engineDetached()
     }
 
     /**
-     * The `onStart`/`onResume` recovery pass (P4-T2): re-verifies this engine's whole cache
+     * The `onStart`/`onResume` recovery pass: re-verifies this engine's whole cache
      * against the database, independent of whether [PlaybackCacheRevision] moved at all — this is
      * the general-purpose backstop for a missed emission (a worker interrupted after its DB
      * commit but before it finished emitting; a collector that was down when an event fired),

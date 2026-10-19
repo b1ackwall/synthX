@@ -8,8 +8,8 @@ import com.v1per.synthx.data.repository.QueueSlotRecord
 /**
  * How far behind the currently-playing slot the live timeline is kept loaded. Bounds how far
  * `previous()` can walk back before it hits the rear edge and simply restarts the current item
- * instead — an accepted, deliberate behaviour change from the old full-timeline player, which
- * could walk back through a whole session. The window is deliberately NOT extended backwards on
+ * instead — an accepted, deliberate limit: `previous()` cannot walk back through a whole
+ * session. The window is deliberately NOT extended backwards on
  * a `previous()` press: doing so would reintroduce a timeline mutation in exactly the
  * interactive moment windowing exists to keep cheap.
  */
@@ -23,8 +23,8 @@ internal const val WINDOW_FORWARD = 40
  * the real queue is. This is the whole point: every `MediaController`/`ExoPlayerImpl` playlist
  * mutation allocates a `Timeline.Window` and a `Timeline.Period` per loaded item on both sides
  * of the session IPC, so the cost of a mutation is O(loaded items), not O(queue). Capping the
- * loaded count caps that cost — and a reorder, which used to be O(N) mutations over N items
- * (the O(N-squared) blow-up that OOMed a ~1500-song shuffle), becomes O(51-squared) worst case.
+ * loaded count caps that cost: a reorder is O(N) mutations over N loaded items, O(N-squared)
+ * overall, so with the cap it stays O([WINDOW_SIZE]-squared) at worst for any queue length.
  */
 internal const val WINDOW_SIZE = WINDOW_BACK + WINDOW_FORWARD + 1
 
@@ -175,8 +175,8 @@ internal fun loadedSlotIds(ctrl: MediaController): List<String> =
  * leaves the player in `STATE_IDLE` (prepared media source torn down, `prepare()` required
  * before anything plays again), while a plain end-of-timeline leaves it in `STATE_ENDED`
  * (still prepared, just parked at the end). That session-side recovery is only reached via an
- * explicit `MediaController.play()` call — never via a local `ctrl.seekTo()`, which is why a
- * transport skip issued straight after a fatal error used to seek silently on a dead player
+ * explicit `MediaController.play()` call — never via a local `ctrl.seekTo()`, so without this a
+ * transport skip issued straight after a fatal error would seek silently on a dead player
  * (see [seekToLiveIndex]'s kdoc). Pure so the state-to-action mapping is unit-testable without
  * a real `MediaController`.
  */
@@ -267,7 +267,7 @@ private fun ExoPlayerEngine.applyWindowEdits(ctrl: MediaController, edits: List<
  * (a plain seek within the window); otherwise the window is rebuilt around it. The rebuild does
  * tear the current item down, but that is a deliberate jump to somewhere else in the queue, so
  * the interruption is expected — and it is bounded to [WINDOW_SIZE] items rather than the whole
- * queue, which is what made the old whole-timeline rebuild expensive.
+ * queue.
  */
 internal fun ExoPlayerEngine.seekToLiveIndex(targetIndex: Int, play: Boolean): Boolean {
     val ctrl = controller ?: return false

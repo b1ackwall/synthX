@@ -17,8 +17,7 @@ import kotlinx.coroutines.withContext
 internal fun ExoPlayerEngine.buildControllerFuture(): ListenableFuture<MediaController> {
     val sessionListener = object : MediaController.Listener {
         // Session-level disconnection (the session/service itself went away or revoked
-        // this controller) — distinct from a Player.Listener callback, and previously
-        // nothing installed a MediaController.Listener at all (P4-T3 / R3-F09).
+        // this controller) — distinct from a Player.Listener callback.
         override fun onDisconnected(controller: MediaController) {
             Log.w(TAG, "MediaController disconnected mid-session")
             scheduleReconnect()
@@ -58,18 +57,16 @@ internal fun ExoPlayerEngine.startConnectionAttempt() {
 
 /**
  * (Re)connects to [SynthXPlaybackService]'s session — the first connection at construction,
- * and any later reconnection [scheduleReconnect] triggers. P4-T3: previously this ran once,
- * inline in an `init` block, un-retryable by construction; splitting it out is what makes
- * retry possible at all.
+ * and any later reconnection [scheduleReconnect] triggers. A function rather than an `init`
+ * block so that a failed connection can be retried.
  */
 internal fun ExoPlayerEngine.connectToSession() {
     controllerFuture.addListener(
         {
             // A suspend hop is needed here (see adoptRunningTimeline) when reconnecting
-            // to a still-running service, so this is a coroutine launch rather than the
-            // plain synchronous body it used to be — engineScope's Main.immediate
-            // dispatcher keeps `controller` assignment and the connection-phase update on
-            // the main thread either way.
+            // to a still-running service, so this is a coroutine launch — engineScope's
+            // Main.immediate dispatcher keeps `controller` assignment and the
+            // connection-phase update on the main thread.
             engineScope.launch {
                 try {
                     val ctrl = controllerFuture.get()
@@ -81,11 +78,11 @@ internal fun ExoPlayerEngine.connectToSession() {
                     reconnectJob = null
                     // Adopt whatever repeat state the session already holds (a service
                     // that outlived the previous MediaController keeps its timeline).
-                    // Shuffle has no media3-side state to adopt any more — restoreSavedQueue
-                    // (or a fresh playQueue) is what seeds _shuffleEnabled now.
+                    // Shuffle has no media3-side state to adopt — restoreSavedQueue
+                    // (or a fresh playQueue) is what seeds _shuffleEnabled.
                     _repeatMode.value = ctrl.repeatMode.toRepeatMode()
-                    // Seeded here rather than left to the next Player.Listener callback
-                    // (P4-T3 / R3-F09): adding a listener does not replay the controller's
+                    // Seeded here rather than left to the next Player.Listener callback:
+                    // adding a listener does not replay the controller's
                     // current values, so without this an already-playing session (a
                     // reconnect, or adopting a still-running service) shows paused/idle
                     // until a later real transition happens to fire.
@@ -93,8 +90,9 @@ internal fun ExoPlayerEngine.connectToSession() {
                     _isBuffering.value = ctrl.playbackState == Player.STATE_BUFFERING
                     // Captured before adoptRunningTimeline's suspending DB read below — see
                     // reconcileIfRevisionChanged's kdoc. This connect path is one of the
-                    // three suspension points P4-T2 covers: a remap/deletion landing while
-                    // this suspends is checked against a still-empty cache and discarded.
+                    // three queue-loading paths that check the revision: a remap/deletion
+                    // landing while this suspends is checked against a still-empty cache and
+                    // discarded.
                     val revisionBeforeAdopt = PlaybackCacheRevision.current()
                     val connectionPath = if (ctrl.mediaItemCount > 0 && orderStore.isEmpty) {
                         // Reconnecting to a still-running service: the order store and
@@ -116,7 +114,7 @@ internal fun ExoPlayerEngine.connectToSession() {
                     refreshUpcomingQueue()
                     refreshNavigationState()
                     // The service's surviving timeline is whatever window this engine
-                    // instance (or an activity-finish-while-playing predecessor, per P4-T3)
+                    // instance (or an activity-finish-while-playing predecessor)
                     // last left loaded; reconcile it against the order just adopted.
                     maintainWindow(force = true)
                     prefetchArtwork()
@@ -146,9 +144,8 @@ internal fun ExoPlayerEngine.connectToSession() {
 
 /**
  * The controller a queue load should use, waiting out a connection that is still being made
- * or retried (issue #175) — previously this answered "no controller" as soon as the first
- * attempt failed, silently dropping the request while a retry was seconds away. Returns null
- * only when the whole round of attempts fails (or the engine is released).
+ * or retried, so a request is not dropped while a retry is seconds away. Returns null only
+ * when the whole round of attempts fails (or the engine is released).
  *
  * A request that finds the engine already given up re-arms one fresh round rather than
  * failing instantly: the service may well be reachable again by now, and a user tap is the

@@ -12,7 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.transformLatest
 
-/** How often [periodicCheckpointDriver] ticks while playback is running (P4-T7). */
+/** How often [periodicCheckpointDriver] ticks while playback is running. */
 internal const val PERIODIC_CHECKPOINT_INTERVAL_MS = 30_000L
 
 /**
@@ -23,15 +23,15 @@ internal const val PERIODIC_CHECKPOINT_INTERVAL_MS = 30_000L
  */
 internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : Player.Listener {
     /**
-     * P4-T7 / R3-F13: the only observable signal for "playback stopped" that exists at all —
-     * see this file's header note on why. No app-level `AudioManager` focus listener or
+     * The only observable signal for "playback stopped" that exists at all. No app-level
+     * `AudioManager` focus listener or
      * becoming-noisy receiver exists anywhere in this codebase; both are delegated entirely to
      * Media3 (`handleAudioFocus = true` / `setHandleAudioBecomingNoisy(true)` in
      * `SynthXPlaybackService.onCreate`), and the only thing either produces on the app side is
      * this same callback flipping to `false`. Checkpointing here is deliberately a "catch the
      * symptom, not the cause" fix: it cannot distinguish a user's own pause() (already
      * checkpointed there, so this is a harmless redundant write) from a focus loss or
-     * becoming-noisy pause (previously never checkpointed at all) — but with no finer-grained
+     * becoming-noisy pause — but with no finer-grained
      * hook available, catching every stop is the only way to close the gap.
      */
     override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -40,7 +40,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
     }
 
     /**
-     * No longer a queue signal. The timeline is a bounded window into the order store rather
+     * Not a queue signal. The timeline is a bounded window into the order store rather
      * than the queue itself, so its changes are almost always the *result* of edits
      * [maintainWindow] just applied — which is also why window maintenance must not be
      * triggered from here, as that would recurse. Navigation state is refreshed defensively;
@@ -65,7 +65,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
         refreshUpcomingQueue()
         refreshNavigationState()
         prefetchArtwork()
-        // Lightweight cursor-only persistence for the track-transition case (data 2.2):
+        // Lightweight cursor-only persistence for the track-transition case:
         // pause/onStop/onTaskRemoved are the only *full* writes, and none of them repeat
         // during extended, uninterrupted background/notification-controlled playback — so
         // without this, the durable resume point can go arbitrarily stale as playback
@@ -79,10 +79,9 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
     }
 
     /**
-     * P4-T7 / R3-F13: a same-item seek (the user drags the seek bar, or taps forward/back
-     * within the currently playing track) previously never triggered a checkpoint at all —
-     * [onMediaItemTransition] only fires when the item itself changes, not on a seek within
-     * one. Only [Player.DISCONTINUITY_REASON_SEEK] is checkpointed here: an automatic
+     * Checkpoints a same-item seek (the user drags the seek bar, or taps forward/back within
+     * the currently playing track): [onMediaItemTransition] only fires when the item itself
+     * changes, not on a seek within one. Only [Player.DISCONTINUITY_REASON_SEEK] is checkpointed here: an automatic
      * discontinuity (e.g. the internal adjustment media3 sometimes reports around a transition)
      * is already covered by [onMediaItemTransition] and would just be a redundant write.
      * Restricted to a same-item seek specifically because a cross-item seek already gets a
@@ -116,7 +115,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
     }
 
     /**
-     * STATE_ENDED means the *loaded timeline* finished, which is no longer the same thing as
+     * STATE_ENDED means the *loaded timeline* finished, which is not the same thing as
      * the queue finishing: the timeline only holds a window, so running off its end can happen
      * with hundreds of songs still queued. [advancePastWindowEnd] consults the order store and
      * keeps playing from the true next slot; only a genuinely exhausted queue returns false and
@@ -141,8 +140,8 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
     }
 
     /**
-     * Deliberately does *not* call stop(): stop() clears currentSongId, which used to make
-     * the entire mini-player/expanded-player UI vanish the instant one track failed (corrupt
+     * Deliberately does *not* call stop(): stop() clears currentSongId, which would make
+     * the entire mini-player/expanded-player UI vanish the instant one track fails (corrupt
      * file, missing file) — the user would see the error Snackbar flash by and then the
      * player chrome would be gone, with no way to skip past the failure. isPlaying already
      * flips to false on its own (media3 emits onIsPlayingChanged alongside the error), so the
@@ -152,7 +151,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
     override fun onPlayerError(error: PlaybackException) {
         val title = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
             ?: _currentSlotId.value?.let { songsBySlotId[it]?.title }
-        // Was previously received and discarded — the code/cause is what actually distinguishes
+        // Logged because the code/cause is what actually distinguishes
         // a missing file from a revoked content provider from a decoder failure, none of which
         // the user-facing snackbar below carries.
         Log.e(ExoPlayerEngine.TAG, playerErrorLogMessage(error, _currentSlotId.value, title), error)
@@ -197,7 +196,7 @@ internal fun handleSameItemSeekForCheckpoint(
 }
 
 /**
- * Shared cursor-only checkpoint (P4-T7), used from every listener callback that observes
+ * Shared cursor-only checkpoint, used from every listener callback that observes
  * playback having moved or stopped without necessarily changing the queue structure —
  * [onMediaItemTransition]'s track-transition case, [onIsPlayingChanged]'s stop case, and
  * [onPositionDiscontinuity]'s same-item-seek case. Deliberately goes through
@@ -248,9 +247,9 @@ internal fun resumePositionMs(playbackState: Int, positionMs: Long): Long =
     if (playbackState == Player.STATE_ENDED) 0L else positionMs
 
 /**
- * P4-T7 / R3-F13: the periodic-checkpoint half of the fix — long, uninterrupted playback of a
- * single long track previously went un-checkpointed between the track's start and whatever
- * later event (its own end, a pause, backgrounding) eventually saved a position. Emits one tick
+ * Periodic checkpoint: without it, long, uninterrupted playback of a single long track goes
+ * un-checkpointed between the track's start and whatever later event (its own end, a pause,
+ * backgrounding) eventually saves a position. Emits one tick
  * every [intervalMs] for as long as [isPlaying] reports `true`, and stops ticking the instant it
  * flips `false` — [transformLatest] cancels the running `while(true)` delay loop below exactly
  * like [kotlinx.coroutines.flow.collectLatest] cancels a stale collector, so a paused/stopped

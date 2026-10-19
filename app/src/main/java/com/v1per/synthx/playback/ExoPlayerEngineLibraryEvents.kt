@@ -67,7 +67,7 @@ internal fun ExoPlayerEngine.removeDeletedSongInternal(songId: String) {
             // none), but the cursor has to leave the deleted slot — stop() is the engine's own
             // "playback left the queue" path and publishes a null current slot for us.
             stop()
-            // Explicitly wipe the controller's own timeline here too (P4-T4 / R3-F14): stop()
+            // Explicitly wipe the controller's own timeline here too: stop()
             // alone clears the engine's cursor but leaves whatever history Media3 still has
             // loaded (e.g. queue [A, B, B], playing the last B — A and the first B are still
             // loaded behind it). Media3 must then resolve SOME new "current item" from that
@@ -91,8 +91,8 @@ internal fun ExoPlayerEngine.removeDeletedSongInternal(songId: String) {
         }
     }
 
-    // One batch removal rather than one orderStore.remove() call per occurrence (P4-T4 /
-    // R3-F15): per-occurrence calls each copy/filter the full live+baseline lists and, if
+    // One batch removal rather than one orderStore.remove() call per occurrence:
+    // per-occurrence calls each copy/filter the full live+baseline lists and, if
     // baseline changed, trigger their own whole-baseline persistence write — quadratic work
     // and N writes (through an unbounded channel) for N duplicate occurrences of one song.
     val removedAny = orderStore.removeAll(affectedSlotIds)

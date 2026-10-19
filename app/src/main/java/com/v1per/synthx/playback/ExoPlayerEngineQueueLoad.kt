@@ -15,7 +15,7 @@ private const val TAG = "SynthXQueue"
 internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
     if (songs.isEmpty()) return
     // Captured BEFORE the snapshot below and the artwork suspension that follows — see
-    // reconcileIfRevisionChanged's kdoc (P4-T2). A remap/deletion landing in that window is
+    // reconcileIfRevisionChanged's kdoc. A remap/deletion landing in that window is
     // checked against a cache this call hasn't installed yet, correctly (but now stalely)
     // finds nothing to do, and is discarded; the revision bump alone is what lets this call
     // notice, after installing, that its own snapshot may already be wrong.
@@ -31,7 +31,7 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
 
     // MediaController is main-thread-only and buildArtworkData above may have moved us off it.
     withContext(Dispatchers.Main.immediate) {
-        // Waits out a connection still being made or retried (issue #175) rather than dropping
+        // Waits out a connection still being made or retried rather than dropping
         // the tap; null only once the whole round of attempts has failed.
         val ctrl = awaitController() ?: run {
             reportUnavailable("playQueue")
@@ -50,10 +50,10 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
         // write below are a single step — no current slot needed, unlike setShuffleEnabled.
         if (shuffle != null) _shuffleEnabled.value = shuffle
         if (_shuffleEnabled.value) {
-            // F12: a fresh play issued while shuffle is already on must actually shuffle the
-            // incoming queue rather than leaving the flag true against an unshuffled order —
-            // the previous behaviour silently left flag and order disagreeing, which is also
-            // what made re-enabling shuffle later read as a rejected no-op.
+            // A fresh play issued while shuffle is already on must actually shuffle the
+            // incoming queue rather than leaving the flag true against an unshuffled order;
+            // a flag and order that disagree also make re-enabling shuffle later read as a
+            // rejected no-op.
             val startRecord = baselineRecords[start]
             val liveRecords = listOf(startRecord) + (baselineRecords - startRecord).shuffled()
             orderStore.captureFreshShuffled(liveRecords, baselineRecords, writeBaseline = false)
@@ -71,10 +71,7 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
         refreshUpcomingQueue()
         refreshNavigationState()
         _isQueueCustomized.value = false
-        // Baseline + active order + shuffle + repeat + cursor, all in one atomic write
-        // (P4-T6 / F11) — replaces the old shape (captureFresh's own separate baseline write,
-        // then onQueueStructureChanged's separate persistQueue), which could previously land as
-        // two independent commits.
+        // Baseline + active order + shuffle + repeat + cursor, all in one atomic write.
         persistUnifiedQueueState()
         prefetchArtwork()
     }
@@ -113,9 +110,9 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     var installed = false
 
     withContext(Dispatchers.Main.immediate) {
-        // Same wait as playQueueInternal — a launch-time restore used to be lost for good when
-        // the first connection attempt failed, even though the retry then connected (issue
-        // #175). Logged rather than surfaced on errors: nobody tapped anything to restore.
+        // Same wait as playQueueInternal, so a launch-time restore survives a failed first
+        // connection attempt that a retry then recovers. Logged rather than surfaced on errors:
+        // nobody tapped anything to restore.
         val ctrl = awaitController() ?: run {
             Log.w(TAG, "Queue restore skipped: could not connect to the playback session")
             return@withContext

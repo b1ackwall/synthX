@@ -8,7 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * The re-verification half of P4-T2's fix: a queue-loading path (fresh play, saved restore,
+ * Re-verification after a suspended queue load: a queue-loading path (fresh play, saved restore,
  * running-timeline adoption) captures [PlaybackCacheRevision.current] before it suspends for
  * artwork/DB/controller readiness, then calls this immediately after installing its snapshot.
  * A bump during the suspension means a remap or deletion (from ANY producer, not just the one
@@ -32,7 +32,7 @@ internal suspend fun ExoPlayerEngine.reconcileIfRevisionChanged(revisionBefore: 
 /**
  * Re-derives every cached [Song] this engine holds directly from the database, rather than
  * trusting whatever bus events did or didn't arrive. Used both by [reconcileIfRevisionChanged]
- * and by the `onStart`/`onResume` recovery pass (P4-T2 — the general-purpose recovery mechanism
+ * and by the `onStart`/`onResume` recovery pass (the general-purpose recovery mechanism
  * for a missed emission, e.g. a worker interrupted after its DB commit but before it finished
  * emitting).
  *

@@ -9,10 +9,10 @@ import com.v1per.synthx.data.repository.QueueSlotRecord
  * flows, writes the new structure to storage, and records whether the queue is still a pristine
  * context list or has been hand-modified.
  *
- * "Structural" now means the order store changed, not the timeline — callers apply their edit
+ * "Structural" means the order store changed, not the timeline — callers apply their edit
  * to [ExoPlayerEngine.orderStore] and then call this. [refreshNavigationState] is part of the
- * sequence for the same reason: `hasNext` is derived from the store's true length and position
- * now, so a mutation that adds or removes the last slot has to re-answer it here rather than
+ * sequence for the same reason: `hasNext` is derived from the store's true length and position,
+ * so a mutation that adds or removes the last slot has to re-answer it here rather than
  * waiting for a timeline callback that may never come (the mutation may be entirely outside the
  * loaded window).
  */
@@ -57,7 +57,7 @@ internal fun ExoPlayerEngine.persistQueue() {
 
 /**
  * Persists baseline + active order + shuffle flag + repeat mode + cursor together as one atomic
- * unit (P4-T6 / F11) — see [QueuePersistence.saveUnifiedQueueState]. Used by every call site that
+ * unit — see [QueuePersistence.saveUnifiedQueueState]. Used by every call site that
  * changes more than one of these five pieces at once (a fresh play, a shuffle toggle), so an
  * interrupted write can never leave a torn combination. [persistQueue]/[writeBaselineOrder] etc.
  * remain correct for call sites that only ever touch one piece.
@@ -78,25 +78,25 @@ internal fun ExoPlayerEngine.persistUnifiedQueueState() {
 /**
  * Rebuilds engine state when reconnecting to a service that was already running with no live
  * `ExoPlayerEngine` instance owning it. NOT actual process death — this same-process
- * `MediaLibraryService` cannot survive that (see [SynthXPlaybackService]'s own kdoc, corrected in
- * P4-T3). The real trigger is the Activity finishing while playback was running (the ViewModel
+ * `MediaLibraryService` cannot survive that (see [SynthXPlaybackService]'s own kdoc). The real
+ * trigger is the Activity finishing while playback was running (the ViewModel
  * torn down, the process and its foreground service both still alive) or a fresh
  * `ExoPlayerEngine` construction reconnecting to that still-running session. Neither
  * [playQueueInternal] nor [restoreSavedQueueInternal] runs in this path (the latter explicitly
  * no-ops once the timeline already has media items), so without this the engine would come up
  * with an empty order store against a player that is actually playing.
  *
- * Reads the persisted order rather than the live timeline, which is the windowing-era
- * correction to this path: the timeline holds at most [WINDOW_SIZE] items, so adopting it would
- * silently shrink a 2000-song queue to the window that happened to be loaded. `queue_items` is
+ * Reads the persisted order rather than the live timeline: the timeline holds at most
+ * [WINDOW_SIZE] items, so adopting it would silently shrink a long queue to the window that
+ * happened to be loaded. `queue_items` is
  * the full order and the engine rewrites it on every structural change, so it is the right
  * thing to adopt; the caller reconciles the already-playing window against it afterwards.
  */
 internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController) {
     if (ctrl.mediaItemCount == 0) return
-    // Read together as one consistent snapshot (P4-T6) — two separate suspending reads here
-    // used to leave a window where a write landing in between could hand this path an active
-    // order and a baseline from two different generations.
+    // Read together as one consistent snapshot: two separate suspending reads would leave a
+    // window where a write landing in between could hand this path an active order and a
+    // baseline from two different generations.
     val (restored, restoredBaseline) = persistence.loadQueueWithBaseline()
     restored ?: return
     restored.slots.forEach { songsBySlotId[it.slotId] = it.song }
@@ -118,17 +118,17 @@ internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController)
  */
 internal fun ExoPlayerEngine.refreshNavigationState() {
     _hasNext.value = nextLiveIndex() != null
-    // System transport availability is derived from the same answers (P9-T3): the service's
+    // System transport availability is derived from the same answers: the service's
     // player wrapper re-publishes its commands only if they actually changed.
     SystemNavigationBridge.notifyChanged()
 }
 
 /**
  * The next position in the full order, honouring repeat mode — the app-side replacement for
- * media3's own next-window traversal, which now only sees the window.
+ * media3's own next-window traversal, which only sees the window.
  *
  * Repeat One returns the following slot (wrapping) rather than the current one, matching the
- * product requirement the old `nextWindowIndexForRepeatOne` encoded: media3 treats Repeat One
+ * product requirement: media3 treats Repeat One
  * as Repeat Off for navigation and would no-op at the end, but a track the user is repeating is
  * still one they expect to be able to skip off of.
  */
@@ -202,8 +202,8 @@ internal fun ExoPlayerEngine.refreshUpcomingQueue() {
 
 /**
  * Records to [QueueSlot]s via the engine's song cache. A slot with no cached song is skipped
- * rather than faked — the same tolerance the old timeline walk had, though the cache is
- * populated for every slot in the store, so it should never trigger.
+ * rather than faked; the cache is populated for every slot in the store, so it should never
+ * trigger.
  */
 private fun ExoPlayerEngine.hydrate(records: List<QueueSlotRecord>): List<QueueSlot> =
     records.mapNotNull { record ->
@@ -225,7 +225,7 @@ internal fun indexOfMediaId(ctrl: MediaController, mediaId: String): Int? {
 
 /**
  * The pure accept/reject decision behind [seekToQueueItemInternal], split out so it is
- * unit-testable without a real `MediaController` (P4-T8 / R3-F04) — matching the
+ * unit-testable without a real `MediaController` — matching the
  * `nextIndexInOrder`/`idleRecoveryActionFor` precedent for this kind of extraction. Rejects
  * (returns `null`) whenever there is no current slot, [slotId] resolved to nothing (the tapped
  * row's slot no longer exists in the order at all — deleted, or already played past), or it

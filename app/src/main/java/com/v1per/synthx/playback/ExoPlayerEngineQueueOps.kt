@@ -14,15 +14,15 @@ import java.util.UUID
  * `xxxInternal` extension functions are where the actual logic lives, relocated here purely to
  * keep `ExoPlayerEngine.kt` shorter.
  *
- * Every one of them now follows the same two-step shape: **mutate the order store, then
+ * Every one of them follows the same two-step shape: **mutate the order store, then
  * reconcile the window.** The store edit is a cheap pure list operation that always succeeds
  * regardless of queue size or where in the queue it lands; [maintainWindow] afterwards is a
  * no-op when the edit fell outside the loaded window, and a handful of bounded controller calls
- * when it did not. That replaces the old shape, where every mutation had to translate a display
- * position into a real timeline index and could silently no-op if the target was not loaded.
+ * when it did not. No mutation translates a display position into a timeline index, so an edit
+ * to a slot that is not loaded still lands.
  *
- * Building `MediaItem`s no longer needs its own dispatcher hop either: the most that is ever
- * built at once is [WINDOW_SIZE] of them, where it used to be one per song in the queue.
+ * Building `MediaItem`s needs no dispatcher hop of its own: the most that is ever built at once
+ * is [WINDOW_SIZE] of them.
  */
 
 /**
@@ -31,12 +31,11 @@ import java.util.UUID
  * after it in baseline, plus anything added via Play Next / Add to Queue during the shuffle-ON
  * session just ending; that result also becomes the new baseline.
  *
- * The reorder itself is now a pure permutation of the order store's records — no `MediaItem`s,
+ * The reorder itself is a pure permutation of the order store's records — no `MediaItem`s,
  * no timeline rebuild — followed by [maintainWindow] reconciling the ~[WINDOW_SIZE] items that
  * are actually loaded. The currently-playing item is never removed and re-added by that
- * reconciliation, so unlike the old large-queue `setMediaItems` path this does not tear down
- * and rebuffer the playing track, and unlike the old move-based path it does not scale with
- * queue size. That is what let the size threshold between those two paths be deleted outright.
+ * reconciliation, so this does not tear down and rebuffer the playing track, and its cost does
+ * not scale with queue size.
  */
 internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean) {
     withContext(Dispatchers.Main.immediate) {
@@ -48,7 +47,7 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
             orderStore.shuffle(currentSlotId)
         } else {
             // writeBaseline=false: baseline is rewritten again as part of the SAME atomic write
-            // below (P4-T6 / F11) — letting this land as its own independent write would reopen
+            // below — letting this land as its own independent write would reopen
             // exactly the torn-write window unification exists to close.
             orderStore.unshuffle(currentSlotId, writeBaseline = false)
         }
@@ -66,11 +65,9 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
         refreshQueue()
         refreshUpcomingQueue()
         refreshNavigationState()
-        // Baseline + active order + shuffle + repeat + cursor, all in one atomic write
-        // (P4-T6 / F11) — replaces the old shape (a separate updateShuffleEnabled write, plus
-        // onQueueReordered's separate persistQueue, plus — while turning shuffle off —
-        // unshuffle's own separate baseline write): three independent commits for one logical
-        // change, any pair of which a process death between them could leave mismatched.
+        // Baseline + active order + shuffle + repeat + cursor, all in one atomic write: separate
+        // writes would be independent commits for one logical change, and a process death
+        // between any two of them could leave them mismatched.
         persistUnifiedQueueState()
         prefetchArtwork()
     }
@@ -113,7 +110,7 @@ internal fun ExoPlayerEngine.addToQueueInternal(song: Song) {
 }
 
 /**
- * [slotId] identifies the item being moved (P4-T8 / R3-F04) — resolved against the order store's
+ * [slotId] identifies the item being moved — resolved against the order store's
  * *current* position fresh at execution time via [QueueOrderStore.moveUpcoming], never trusted
  * from a caller-captured index. A UI gesture can be several async hops (a drag, a suspend, a
  * ViewModel call) away from the moment this actually runs, and any queue mutation landing in
@@ -150,8 +147,8 @@ internal fun ExoPlayerEngine.moveQueueItemInternal(slotId: String, toIndex: Int)
  * slid into that slot, removing it permanently. Resolving by stable slot id against the order
  * store closes that gap, and does so whether or not the slot is currently loaded.
  *
- * The currently-playing slot is explicitly not removable, matching the old behaviour (it is
- * never one of the Up Next rows the gesture can reach) and keeping the window's anchor alive.
+ * The currently-playing slot is explicitly not removable: it is never one of the Up Next rows
+ * the gesture can reach, and keeping it keeps the window's anchor alive.
  *
  * Always permanent, regardless of shuffle state — see [QueueOrderStore.remove].
  */
@@ -168,7 +165,7 @@ internal fun ExoPlayerEngine.removeQueueItemInternal(slotId: String) {
 }
 
 /**
- * [slotId] identifies the tapped row (P4-T8 / R3-F04) — resolved against the order store's
+ * [slotId] identifies the tapped row — resolved against the order store's
  * *current* position fresh at execution time, never a caller-captured `upcomingQueue` index. A
  * tap is a Compose click plus, in production, a ViewModel hop before this actually runs; a queue
  * mutation landing in that window (auto-advance, a deletion, another reorder) would otherwise
