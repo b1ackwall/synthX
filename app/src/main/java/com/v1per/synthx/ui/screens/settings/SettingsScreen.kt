@@ -70,8 +70,8 @@ private fun SettingsScreenContent(
             title = stringResource(R.string.settings_backups_and_restore),
             onClick = onBackupsAndRestoreClick,
         )
-        // Developer Settings exposes a process-lifetime blob-tuning testbed and
-        // playlist-seed bootstrap tools that must never be reachable in a signed production
+        // Developer Settings exposes a debug-only root library organization check
+        // that must never be reachable in a signed production
         // build. Recorded decision: gate the entry point on BuildConfig.DEBUG rather
         // than relying on nobody tapping it — this is the only place the screen is reachable
         // from, so hiding the row is sufficient to keep it off production.

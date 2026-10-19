@@ -37,7 +37,7 @@ internal fun effectivePlayerBackgroundBlurEdgeMode(
     state: PlayerBackgroundDebugState,
 ): AltStageBlurEdgeMode = if (debug) state.blurEdgeMode else PlayerAltStageStyle.BlurEdgeMode
 
-// Process-lifetime state, like HomeBlobDebugStateHolder; nothing is persisted.
+// Process-lifetime state; nothing is persisted.
 internal object PlayerBackgroundDebugStateHolder {
     val state = mutableStateOf(PlayerBackgroundDebugState())
 
