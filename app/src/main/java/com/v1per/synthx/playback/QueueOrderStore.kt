@@ -34,7 +34,6 @@ fun interface BaselineOrderWriter {
  *
  * Nothing here touches a `MediaController` or the timeline — the engine applies whatever order
  * this produces.
- * Former QueueBaselineManager names: weaveNext = insertAfterCurrent, weaveEnd = append, mirrorMove = mirrorMoveIntoBaseline, computeShuffleTarget = shuffle, computeUnshuffleTarget = unshuffle (the rest are unchanged).
  *
  * Main-thread-confined by the same convention as the engine's `songsBySlotId`: every caller is
  * either a playback mutation or a `Player.Listener` callback, and both run there.
