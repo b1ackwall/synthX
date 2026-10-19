@@ -196,9 +196,6 @@ private fun NormalShell(
     // 0f = collapsed mini player, 1f = fully expanded. Reported up by PlayerSheetSkeleton and
     // used to slide the bottom nav down in lockstep with the sheet's expansion.
     var playerProgress by remember { mutableFloatStateOf(0f) }
-    // DEAD CODE: Home no longer draws ambient blobs, so it has nothing to pause.
-    // Delete in a cleanup pass. Ask  before deleting.
-    // val homeAmbientPaused = isHomeAmbientFullyOccluded(currentRoute, playerProgress)
 
     // Incremented to signal "collapse the expanded player" — e.g. when "Go to Album"/"Go to
     // Artist" navigates away from underneath it. An Int counter rather than a Boolean so a
@@ -283,8 +280,6 @@ private fun NormalShell(
                     playbackViewModel = playbackViewModel,
                     chromeBottomPadding = chromeBottomPadding,
                     searchReselectEvents = searchReselectEvents,
-                    // DEAD CODE: see homeAmbientPaused above. Delete in a cleanup pass. Ask  before deleting.
-                    // homeAmbientPaused = homeAmbientPaused,
                     onShowSortSheet = { order, onOrderSelected ->
                         sortSheetTarget = SortSheetTarget(order, onOrderSelected)
                     },
