@@ -404,9 +404,6 @@ private fun NormalShell(
     Trace.endSection()
 }
 
-internal fun isHomeAmbientFullyOccluded(currentRoute: String?, playerProgress: Float): Boolean =
-    currentRoute == Screen.Home.route && playerProgress >= 0.999f
-
 private data class SortSheetTarget(val selectedOrder: SortOrder, val onOrderSelected: (SortOrder) -> Unit)
 
 /**

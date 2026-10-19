@@ -2,7 +2,6 @@ package com.v1per.synthx.ui
 
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.unit.dp
-import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.ui.components.shouldPauseAmbientMotion
 import com.v1per.synthx.ui.components.shouldReduceAmbientMotion
 import com.v1per.synthx.ui.player.queueCompositingStrategy
@@ -17,14 +16,6 @@ import kotlin.test.assertTrue
 class AmbientMotionPolicyTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)
     val testTimeout = TestTimeouts.jvm()
-
-    @Test fun homePausesOnlyWhenHomeIsFullyOccluded() {
-        assertFalse(isHomeAmbientFullyOccluded(Screen.Home.route, 0f))
-        assertFalse(isHomeAmbientFullyOccluded(Screen.Home.route, 0.5f))
-        assertFalse(isHomeAmbientFullyOccluded(Screen.Home.route, 0.9989f))
-        assertTrue(isHomeAmbientFullyOccluded(Screen.Home.route, 0.999f))
-        assertFalse(isHomeAmbientFullyOccluded(Screen.Library.route, 1f))
-    }
 
     @Test fun eitherSystemPolicyForcesReducedMotion() {
         assertFalse(shouldReduceAmbientMotion(powerSaveMode = false, animatorDurationScale = 1f))
