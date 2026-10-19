@@ -1,0 +1,15 @@
+root = true
+# ktlint style for Kotlin files; see docs/code-work/mechanical-hygiene-formatting-discovery.md
+[*.{kt,kts}]
+ktlint_code_style = android_studio
+max_line_length = 120
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+ktlint_function_naming_ignore_when_annotated_with = Composable
+ktlint_standard_property-naming = disabled
+ktlint_standard_backing-property-naming = disabled
+ktlint_standard_filename = disabled
+ktlint_standard_import-ordering = disabled
+ktlint_standard_comment-wrapping = disabled
+ktlint_standard_kdoc = disabled
+ktlint_standard_value-parameter-comment = disabled
