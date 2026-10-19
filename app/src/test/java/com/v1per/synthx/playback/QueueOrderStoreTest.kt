@@ -150,48 +150,6 @@ class QueueOrderStoreTest {
         assertEquals(listOf("slot-a", "slot-b"), subject.baselineIds())
     }
 
-    /**
-     * The drag-reorder case windowing exists to make possible: both endpoints sit far outside
-     * any window the player could have loaded, and the move still has to land exactly.
-     */
-    @Test fun moveResolvesPositionsFarOutsideAnyLoadedWindow() {
-        val subject = store()
-        subject.captureFresh(bigQueue(2000))
-
-        // Row 1500 of Up Next (i.e. slot-1501 in the full order) dragged to the very top.
-        val moved = subject.moveUpcoming(
-            fromDisplayIndex = 1500,
-            toDisplayIndex = 0,
-            currentSlotId = "slot-0",
-            mirrorToBaseline = true,
-        )
-
-        assertTrue(moved)
-        assertEquals("slot-1501", subject.live[1].slotId)
-        assertEquals("slot-1", subject.live[2].slotId)
-        assertEquals(2000, subject.size)
-        assertEquals(subject.liveIds(), subject.baselineIds())
-    }
-
-    @Test fun moveMirrorsBaselineOnlyWhileUnshuffled() {
-        val subject = store()
-        subject.captureFresh(records("a", "b", "c", "d"))
-
-        subject.moveUpcoming(0, 2, currentSlotId = "slot-a", mirrorToBaseline = false)
-
-        assertEquals(listOf("slot-a", "slot-c", "slot-d", "slot-b"), subject.liveIds())
-        assertEquals(listOf("slot-a", "slot-b", "slot-c", "slot-d"), subject.baselineIds())
-    }
-
-    @Test fun moveRejectsOutOfRangeAndUnknownCurrentSlot() {
-        val subject = store()
-        subject.captureFresh(records("a", "b"))
-
-        assertFalse(subject.moveUpcoming(0, 5, "slot-a", mirrorToBaseline = true))
-        assertFalse(subject.moveUpcoming(0, 0, "slot-nope", mirrorToBaseline = true))
-        assertEquals(listOf("slot-a", "slot-b"), subject.liveIds())
-    }
-
     // --- slot-id-identified move -------------------------------------------
 
     /**
@@ -224,7 +182,7 @@ class QueueOrderStoreTest {
         // The order changes (b and c swap) but the slot SET is identical — exactly the gap a
         // UI-layer set-equality guard cannot detect.
         subject.moveUpcoming(
-            fromDisplayIndex = 0,
+            slotId = "slot-b",
             toDisplayIndex = 1,
             currentSlotId = "slot-a",
             mirrorToBaseline = false,
