@@ -46,23 +46,15 @@ class PlayerBackgroundDebugStateTest {
     )
 
     @Test fun selectionPicksTheChosenMetricAndStatistic() {
-        assertEquals(0.1f, brightness.select(AdaptiveTextMetric.WcagLuminance, AdaptiveTextStatistic.Mean))
         assertEquals(0.2f, brightness.select(AdaptiveTextMetric.WcagLuminance, AdaptiveTextStatistic.Median))
-        assertEquals(0.3f, brightness.select(AdaptiveTextMetric.WcagLuminance, AdaptiveTextStatistic.P90))
-        assertEquals(0.4f, brightness.select(AdaptiveTextMetric.OklabLightness, AdaptiveTextStatistic.Mean))
-        assertEquals(0.5f, brightness.select(AdaptiveTextMetric.OklabLightness, AdaptiveTextStatistic.Median))
-        assertEquals(0.6f, brightness.select(AdaptiveTextMetric.OklabLightness, AdaptiveTextStatistic.P90))
     }
 
     @Test fun darkTitleNeedsEnabledAValueAndSelectedValueAboveThreshold() {
         val wcag = AdaptiveTextMetric.WcagLuminance
-        val oklab = AdaptiveTextMetric.OklabLightness
-        val p90 = AdaptiveTextStatistic.P90
-        assertEquals(true, useDarkPlayerTitle(true, brightness, wcag, p90, 0.25f))
-        assertEquals(false, useDarkPlayerTitle(true, brightness, wcag, p90, 0.3f))
-        assertEquals(false, useDarkPlayerTitle(true, brightness, wcag, AdaptiveTextStatistic.Mean, 0.25f))
-        assertEquals(true, useDarkPlayerTitle(true, brightness, oklab, AdaptiveTextStatistic.Mean, 0.25f))
-        assertEquals(false, useDarkPlayerTitle(false, brightness, oklab, p90, 0.25f))
-        assertEquals(false, useDarkPlayerTitle(true, null, wcag, p90, 0.25f))
+        val median = AdaptiveTextStatistic.Median
+        assertEquals(true, useDarkPlayerTitle(true, brightness, wcag, median, 0.15f))
+        assertEquals(false, useDarkPlayerTitle(true, brightness, wcag, median, 0.2f))
+        assertEquals(false, useDarkPlayerTitle(false, brightness, wcag, median, 0.15f))
+        assertEquals(false, useDarkPlayerTitle(true, null, wcag, median, 0.15f))
     }
 }

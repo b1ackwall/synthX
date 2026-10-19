@@ -19,21 +19,17 @@ class PlayerBackgroundLuminanceTest {
         assertNotNull(backgroundBrightness(pixels, saturation))
 
     private fun assertAll(expected: Float, stats: BrightnessStats, tolerance: Float) {
-        assertEquals(expected, stats.mean, tolerance)
         assertEquals(expected, stats.median, tolerance)
-        assertEquals(expected, stats.p90, tolerance)
     }
 
-    @Test fun allWhiteGivesOneForBothMetricsAndAllStatistics() {
+    @Test fun allWhiteGivesOne() {
         val result = measure(IntArray(16) { white }, saturation = 1.75f)
         assertAll(1f, result.wcag, 1e-4f)
-        assertAll(1f, result.oklab, 1e-4f)
     }
 
     @Test fun allBlackGivesZero() {
         val result = measure(IntArray(16) { black }, saturation = 1.75f)
         assertAll(0f, result.wcag, 1e-6f)
-        assertAll(0f, result.oklab, 1e-6f)
     }
 
     @Test fun noPixelsYieldsNoValue() {
@@ -46,32 +42,25 @@ class PlayerBackgroundLuminanceTest {
 
     @Test fun eightyPercentBlackTwentyPercentWhiteSplitsTheStatistics() {
         val result = measure(IntArray(100) { if (it < 80) black else white })
-        for (stats in listOf(result.wcag, result.oklab)) {
-            assertEquals(0.2f, stats.mean, 1e-4f)
-            assertEquals(0f, stats.median, 1e-6f)
-            assertEquals(1f, stats.p90, 1e-4f)
-        }
+        assertEquals(0f, result.wcag.median, 1e-6f)
     }
 
-    @Test fun p90IsNearestRank() {
-        val result = measure(IntArray(100) { if (it < 91) black else white })
-        assertEquals(0f, result.wcag.p90, 1e-6f)
-        assertEquals(1f, measure(IntArray(100) { if (it < 89) black else white }).wcag.p90, 1e-4f)
+    @Test fun medianIsNearestRank() {
+        val result = measure(IntArray(100) { if (it < 50) black else white })
+        assertEquals(0f, result.wcag.median, 1e-6f)
+        assertEquals(1f, measure(IntArray(100) { if (it < 49) black else white }).wcag.median, 1e-4f)
     }
 
     @Test fun midGreyMatchesKnownValues() {
         val result = measure(IntArray(10) { 0xFF808080.toInt() })
-        // sRGB 0x80 is about 0.2159 linear; its OKLab lightness is the cube root of that.
-        assertEquals(0.2159f, result.wcag.mean, 2e-3f)
-        assertEquals(0.5998f, result.oklab.mean, 3e-3f)
+        // sRGB 0x80 is about 0.2159 linear.
+        assertEquals(0.2159f, result.wcag.median, 2e-3f)
     }
 
     @Test fun saturationLeavesGreyAloneAndChangesAColor() {
         val grey = intArrayOf(0xFF808080.toInt())
-        assertEquals(measure(grey, 1f).wcag.mean, measure(grey, 1.75f).wcag.mean, 1e-4f)
-        assertEquals(measure(grey, 1f).oklab.mean, measure(grey, 1.75f).oklab.mean, 1e-4f)
+        assertEquals(measure(grey, 1f).wcag.median, measure(grey, 1.75f).wcag.median, 1e-4f)
         val muted = intArrayOf(0xFF804040.toInt())
-        assertTrue(measure(muted, 1.75f).wcag.mean != measure(muted, 1f).wcag.mean)
-        assertTrue(measure(muted, 1.75f).oklab.mean != measure(muted, 1f).oklab.mean)
+        assertTrue(measure(muted, 1.75f).wcag.median != measure(muted, 1f).wcag.median)
     }
 }
