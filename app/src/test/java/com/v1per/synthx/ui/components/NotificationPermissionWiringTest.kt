@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
  * strip comments first, the rest read the raw text). The
  * behaviour behind them (rationale, single prompt, the "asked" flag, never waiting on the
  * prompt) is covered by NotificationPermissionGateInstrumentedTest; the shell's second chance
- * is also exercised on a device by NotificationSecondChanceInstrumentedTest.
+ * is exercised on a device by NotificationSecondChanceInstrumentedTest.
  */
 class NotificationPermissionWiringTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)

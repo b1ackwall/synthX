@@ -12,8 +12,8 @@ import org.junit.runner.RunWith
 /**
  * The service's owner gate, on the real session: playback stops when the app's last owning
  * controller leaves, and controllers flagged as media3's notification controller never count,
- * whether they connect first, connect later, or leave first. These are the device versions of the
- * connect/disconnect cases IsOwnerControllerTest re-creates on the JVM. (A controller from another
+ * whether they connect first, connect later, or leave first. These connect/disconnect cases are
+ * tested only here, on a device. (A controller from another
  * app cannot be connected from inside this process; that case stays with the JVM decision test.)
  *
  * [extraController] is a flagged observer connected before the engine, so the first connection to
