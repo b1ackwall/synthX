@@ -80,18 +80,21 @@ private fun AlbumListContent(
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
             is UiState.Loading -> LoadingIndicator()
+
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_albums),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
                 color = Error,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             is UiState.Success -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
             ) {
@@ -112,10 +115,7 @@ private fun AlbumListContent(
 // disabled row: hiding the whole album was the actual problem being fixed, and a dead end
 // tap target would just reintroduce a milder version of it.
 @Composable
-private fun AlbumRow(
-    album: Album,
-    onClick: () -> Unit,
-) {
+private fun AlbumRow(album: Album, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
 
     Column {

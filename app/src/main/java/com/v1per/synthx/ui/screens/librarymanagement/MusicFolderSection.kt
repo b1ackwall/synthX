@@ -12,11 +12,7 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextSecondary
 
 @Composable
-internal fun MusicFolderSection(
-    folderPath: String?,
-    folderError: String?,
-    onClick: () -> Unit,
-) {
+internal fun MusicFolderSection(folderPath: String?, folderError: String?, onClick: () -> Unit) {
     ManagementRow(
         title = stringResource(R.string.settings_music_folder),
         subtitle = folderPath ?: stringResource(R.string.settings_no_folder_selected),

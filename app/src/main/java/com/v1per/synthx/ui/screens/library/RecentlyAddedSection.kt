@@ -49,11 +49,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.collections.immutable.ImmutableList
 
 @Composable
-internal fun RecentlyAddedSection(
-    songs: ImmutableList<Song>,
-    onSeeAllClick: () -> Unit,
-    onSongClick: (Int) -> Unit,
-) {
+internal fun RecentlyAddedSection(songs: ImmutableList<Song>, onSeeAllClick: () -> Unit, onSongClick: (Int) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -231,11 +227,7 @@ private fun RecentSongTileSkeleton(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun RecentSongTile(
-    song: Song,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun RecentSongTile(song: Song, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .then(
@@ -243,7 +235,7 @@ private fun RecentSongTile(
                     Modifier
                 } else {
                     Modifier.clickable(onClick = onClick)
-                }
+                },
             )
             .alpha(if (song.isMissing) Alpha.Disabled else 1f),
     ) {

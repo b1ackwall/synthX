@@ -8,7 +8,7 @@ val Surface = Color(0xFF101811)
 val SurfaceVariant = Color(0xFF182519)
 
 // Brand
-val Accent = Color(0xFF1AE62B)   // HSL(125, 80%, 50%) — electric neon green, the sacred color
+val Accent = Color(0xFF1AE62B) // HSL(125, 80%, 50%) — electric neon green, the sacred color
 val OnAccent = Color(0xFF0F2E12)
 
 // Text
@@ -18,7 +18,7 @@ val TextTertiary = Color(0xFFDAE7DC)
 
 // Structural
 // Derived from Accent, never a standalone hex — it must follow the accent automatically.
-val Hairline = Accent.copy(alpha = 0.08f)  // neon at 8% alpha — 1dp dividers and borders
+val Hairline = Accent.copy(alpha = 0.08f) // neon at 8% alpha — 1dp dividers and borders
 
 // Status
-val Error = Color(0xFFEE6363)  // HSL(360, 80%, 66%)
+val Error = Color(0xFFEE6363) // HSL(360, 80%, 66%)

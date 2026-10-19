@@ -108,10 +108,12 @@ internal fun DeleteSongDisclosure(
     Spacer(modifier = Modifier.height(Spacing.md))
     when (val state = previewState) {
         DeleteSongPreviewState.Loading -> Text(stringResource(R.string.delete_song_preview_loading))
+
         DeleteSongPreviewState.Failed -> {
             Text(stringResource(R.string.delete_song_preview_failed), color = Error)
             TextButton(onClick = onRetryPreview) { Text(stringResource(R.string.action_retry)) }
         }
+
         is DeleteSongPreviewState.Ready -> {
             Text(stringResource(R.string.delete_song_playlists_heading, state.preview.playlists.size))
             if (state.preview.playlists.isEmpty()) {
@@ -121,7 +123,9 @@ internal fun DeleteSongDisclosure(
                     Text(
                         if (impact.willBecomeEmpty) {
                             stringResource(R.string.delete_song_playlist_will_empty, impact.name)
-                        } else impact.name
+                        } else {
+                            impact.name
+                        },
                     )
                 }
             }

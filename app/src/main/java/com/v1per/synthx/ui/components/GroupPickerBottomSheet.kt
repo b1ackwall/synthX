@@ -127,11 +127,7 @@ internal fun GroupPickerBottomSheet(
  * choice that silently does nothing.
  */
 @Composable
-private fun GroupPickerRow(
-    name: String,
-    isCurrent: Boolean,
-    onClick: () -> Unit,
-) {
+private fun GroupPickerRow(name: String, isCurrent: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -143,7 +139,7 @@ private fun GroupPickerRow(
                         .background(SurfaceVariant)
                 } else {
                     Modifier.clickable(onClick = onClick)
-                }
+                },
             )
             .padding(horizontal = Spacing.HorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,

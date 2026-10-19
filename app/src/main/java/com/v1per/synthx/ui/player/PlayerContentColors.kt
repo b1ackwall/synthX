@@ -50,10 +50,7 @@ internal fun playerContentColorsFor(brightness: BackgroundBrightness?): PlayerCo
 
 /** Decides the player's content colors from [brightness] and provides them to [content]. */
 @Composable
-internal fun ProvidePlayerContentColors(
-    brightness: BackgroundBrightness?,
-    content: @Composable () -> Unit,
-) {
+internal fun ProvidePlayerContentColors(brightness: BackgroundBrightness?, content: @Composable () -> Unit) {
     val colors = remember(brightness) { playerContentColorsFor(brightness) }
     CompositionLocalProvider(LocalPlayerContentColors provides colors, content = content)
 }

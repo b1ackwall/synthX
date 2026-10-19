@@ -49,7 +49,7 @@ interface ArtistDao {
             ) THEN 0 ELSE 1 END AS allSongsMissing
         FROM artists
         ORDER BY name COLLATE NOCASE ASC
-        """
+        """,
     )
     fun getAllArtists(): Flow<List<ArtistWithMissingFlag>>
 

@@ -58,7 +58,10 @@ fun Modifier.dragResistantClickable(
         if (!enabled) {
             disabled()
         } else {
-            onClick(label = onClickLabel) { onClick(); true }
+            onClick(label = onClickLabel) {
+                onClick()
+                true
+            }
         }
     }
     .pointerInput(interactionSource, enabled, onClick) {

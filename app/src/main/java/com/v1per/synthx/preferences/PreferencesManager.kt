@@ -59,8 +59,7 @@ class PreferencesManager(context: Context) {
      * Exists so missing-detection can reconcile against *all* configured roots rather than
      * only the one being walked — see FolderScanner.scan's `otherRootUris`.
      */
-    fun configuredAudioRootUris(): List<Uri> =
-        listOfNotNull(musicFolderUri, newArrivalsFolderUri).map(Uri::parse)
+    fun configuredAudioRootUris(): List<Uri> = listOfNotNull(musicFolderUri, newArrivalsFolderUri).map(Uri::parse)
 
     /** Epoch millis of the last successful Daily backup. 0 means none taken yet. */
     var lastDailyBackupTimestamp: Long
@@ -369,12 +368,11 @@ class PreferencesManager(context: Context) {
      */
     // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
     @SuppressLint("UseKtx")
-    fun completeFirstScanDurably(): Boolean =
-        prefs.edit()
-            .remove(KEY_FIRST_SCAN_REQUEST_ID)
-            .remove(KEY_ONBOARDING_STEP)
-            .remove(KEY_ONBOARDING_RETURNING_FROM_RECOVERY)
-            .commit()
+    fun completeFirstScanDurably(): Boolean = prefs.edit()
+        .remove(KEY_FIRST_SCAN_REQUEST_ID)
+        .remove(KEY_ONBOARDING_STEP)
+        .remove(KEY_ONBOARDING_RETURNING_FROM_RECOVERY)
+        .commit()
 
     /**
      * The user chose "Change folder" after a failed/cancelled first scan. Un-completes onboarding
@@ -383,20 +381,18 @@ class PreferencesManager(context: Context) {
      */
     // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
     @SuppressLint("UseKtx")
-    fun abandonFirstScanDurably(): Boolean =
-        prefs.edit()
-            .remove(KEY_FIRST_SCAN_REQUEST_ID)
-            .putBoolean(KEY_ONBOARDING_COMPLETE, false)
-            .commit()
+    fun abandonFirstScanDurably(): Boolean = prefs.edit()
+        .remove(KEY_FIRST_SCAN_REQUEST_ID)
+        .putBoolean(KEY_ONBOARDING_COMPLETE, false)
+        .commit()
 
     /** Commits both fields together so a reader never observes one updated without the other. */
     // Returns commit()'s Boolean, which KTX edit(commit = true) would drop.
     @SuppressLint("UseKtx")
-    fun setOnboardingProgressDurably(stepName: String, returningFromRecovery: Boolean): Boolean =
-        prefs.edit()
-            .putString(KEY_ONBOARDING_STEP, stepName)
-            .putBoolean(KEY_ONBOARDING_RETURNING_FROM_RECOVERY, returningFromRecovery)
-            .commit()
+    fun setOnboardingProgressDurably(stepName: String, returningFromRecovery: Boolean): Boolean = prefs.edit()
+        .putString(KEY_ONBOARDING_STEP, stepName)
+        .putBoolean(KEY_ONBOARDING_RETURNING_FROM_RECOVERY, returningFromRecovery)
+        .commit()
 
     // ------------------------------------------------- issues scan cache (see IssuesScanWorker)
     // Six categories stay live. Missing-art aggregate IDs are persisted so the screen and

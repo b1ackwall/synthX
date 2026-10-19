@@ -72,18 +72,21 @@ private fun ArtistListContent(
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
             is UiState.Loading -> LoadingIndicator()
+
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_artists),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
                 color = Error,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             is UiState.Success -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
             ) {
@@ -101,10 +104,7 @@ private fun ArtistListContent(
 // See AlbumListScreen's AlbumRow for why this stays tappable (dimmed only, not disabled)
 // even when every song under the artist is missing.
 @Composable
-private fun ArtistRow(
-    artist: Artist,
-    onClick: () -> Unit,
-) {
+private fun ArtistRow(artist: Artist, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
 
     Column {

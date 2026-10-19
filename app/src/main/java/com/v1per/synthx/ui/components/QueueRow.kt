@@ -280,15 +280,24 @@ fun QueueRow(
                     .semantics {
                         customActions = listOfNotNull(
                             onMoveUp?.let {
-                                CustomAccessibilityAction(moveUpLabel) { it(); true }
+                                CustomAccessibilityAction(moveUpLabel) {
+                                    it()
+                                    true
+                                }
                             },
                             onMoveDown?.let {
-                                CustomAccessibilityAction(moveDownLabel) { it(); true }
+                                CustomAccessibilityAction(moveDownLabel) {
+                                    it()
+                                    true
+                                }
                             },
                             // Same callback the swipe reaches, invoked directly: there is no
                             // gesture to settle, so the row just disappears when the removal
                             // lands. Listed last — destructive action after the reorders.
-                            CustomAccessibilityAction(removeLabel) { onRemove(); true },
+                            CustomAccessibilityAction(removeLabel) {
+                                onRemove()
+                                true
+                            },
                         )
                     },
             ) {

@@ -88,18 +88,25 @@ fun IssuesScreen(
         viewModel.events.collect { event ->
             val message = when (event) {
                 IssuesActionEvent.ActionFailed -> actionFailedMessage
+
                 is IssuesActionEvent.DeletedButFileRemained -> deleteFileRemainedMessage
+
                 is IssuesActionEvent.DeletedButCleanupUncertain ->
                     deleteCleanupUncertainMessage
+
                 IssuesActionEvent.AudioCleanupRetrySucceeded ->
                     resources.getString(R.string.audio_cleanup_retry_succeeded)
+
                 is IssuesActionEvent.DeleteBlocked -> when (val reason = event.reason) {
                     is DestructiveFilePreflightResult.GrantNotWritable -> when (reason.root) {
                         KnownAudioRoot.Music -> musicGrantMessage
                         KnownAudioRoot.NewArrivals -> newArrivalsGrantMessage
                     }
+
                     DestructiveFilePreflightResult.DocumentNotWritable -> documentNotWritableMessage
+
                     DestructiveFilePreflightResult.IdentityMismatch -> identityMismatchMessage
+
                     DestructiveFilePreflightResult.RootUnknown -> rootUnknownMessage
                 }
             }
@@ -192,7 +199,9 @@ internal fun ScanStatusBar(status: IssuesScanStatus, onScan: () -> Unit) {
 @Composable
 private fun scanStatusText(status: IssuesScanStatus): String = when (status) {
     IssuesScanStatus.Resolving -> stringResource(R.string.issues_scan_status_checking)
+
     IssuesScanStatus.Scanning -> stringResource(R.string.issues_scan_status_scanning)
+
     is IssuesScanStatus.Idle -> if (status.lastScanTimestamp == 0L) {
         stringResource(R.string.issues_scan_status_never)
     } else {
@@ -223,16 +232,19 @@ internal fun IssuesContent(
             // deliberately not the "No issues found" copy below: an in-progress check saying
             // "no issues" would be a false all-clear.
             is UiState.Loading -> LoadingIndicator()
+
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_issues),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             is UiState.Error -> LoadErrorText(
                 message = uiState.message,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             is UiState.Success -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
             ) {
@@ -246,29 +258,36 @@ internal fun IssuesContent(
                             onLoadDeletePreview = { onLoadDeletePreview(issue.info.id) },
                             onDelete = { onDelete(issue.info.id, issue.info.filePath) },
                         )
+
                         is Issue.BackupUnhealthy -> BackupUnhealthyRow(
                             outcome = issue.outcome,
                             onClick = onNavigateToBackups,
                         )
+
                         is Issue.ExportUnhealthy -> ExportUnhealthyRow(
                             outcome = issue.outcome,
                             onClick = onNavigateToBackups,
                         )
+
                         is Issue.VerificationFailed -> VerificationFailedRow(
                             outcome = issue.outcome,
                             onClick = onNavigateToBackups,
                         )
+
                         is Issue.DestructiveActionsSinceBackup -> DestructiveActionsRow(
                             count = issue.count,
                             onClick = onNavigateToBackups,
                         )
+
                         is Issue.ReconciledPendingCleanups -> ReconciledPendingCleanupsRow(
                             count = issue.count,
                             timestamp = issue.timestamp,
                         )
+
                         is Issue.BackupFolderGrantLost -> BackupFolderGrantLostRow(
                             onClick = onNavigateToBackups,
                         )
+
                         is Issue.MissingArt -> MissingArtRow(
                             songIds = issue.songIds,
                             onFix = { onFixMissingArt(issue.songIds) },

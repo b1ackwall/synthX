@@ -14,9 +14,8 @@ import coil.size.Size
  *   the expanded player opts into this so Coil doesn't upscale a small cached thumbnail.
  */
 @Composable
-fun crossfadeModel(uri: Any?, original: Boolean = false): Any =
-    ImageRequest.Builder(LocalContext.current)
-        .data(uri)
-        .crossfade(true)
-        .apply { if (original) size(Size.ORIGINAL) }
-        .build()
+fun crossfadeModel(uri: Any?, original: Boolean = false): Any = ImageRequest.Builder(LocalContext.current)
+    .data(uri)
+    .crossfade(true)
+    .apply { if (original) size(Size.ORIGINAL) }
+    .build()

@@ -15,11 +15,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
 /** Confirmation for deleting a group, matching [DeletePlaylistDialog]'s pattern. */
 @Composable
-fun DeleteGroupDialog(
-    groupName: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
+fun DeleteGroupDialog(groupName: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.delete_group_dialog_title)) },

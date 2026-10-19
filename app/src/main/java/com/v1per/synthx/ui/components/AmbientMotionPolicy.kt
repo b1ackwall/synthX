@@ -15,15 +15,11 @@ import kotlinx.coroutines.isActive
 
 private const val MotionPolicyPollMillis = 1_000L
 
-internal fun shouldReduceAmbientMotion(
-    powerSaveMode: Boolean,
-    animatorDurationScale: Float,
-): Boolean = powerSaveMode || animatorDurationScale == 0f
+internal fun shouldReduceAmbientMotion(powerSaveMode: Boolean, animatorDurationScale: Float): Boolean =
+    powerSaveMode || animatorDurationScale == 0f
 
-internal fun shouldPauseAmbientMotion(
-    instancePaused: Boolean,
-    systemReducedMotionActive: Boolean,
-): Boolean = instancePaused || systemReducedMotionActive
+internal fun shouldPauseAmbientMotion(instancePaused: Boolean, systemReducedMotionActive: Boolean): Boolean =
+    instancePaused || systemReducedMotionActive
 
 private fun systemReducedMotionActive(context: Context): Boolean {
     val powerSaveMode = context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true

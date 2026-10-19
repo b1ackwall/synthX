@@ -24,9 +24,7 @@ import com.v1per.synthx.ui.theme.TextPrimary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SynthXTopBar(
-    onSettingsClick: () -> Unit,
-) {
+internal fun SynthXTopBar(onSettingsClick: () -> Unit) {
     TopAppBar(
         title = {
             Text(
@@ -58,11 +56,7 @@ internal fun SynthXTopBar(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun DetailTopBar(
-    title: String,
-    onBack: () -> Unit,
-    actions: @Composable RowScope.() -> Unit = {},
-) {
+internal fun DetailTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
     TopAppBar(
         navigationIcon = {
             IconButton(onClick = onBack) {

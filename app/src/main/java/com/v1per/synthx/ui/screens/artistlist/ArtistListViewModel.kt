@@ -15,10 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
-class ArtistListViewModel(
-    private val repository: SongRepository,
-    private val appContext: Context,
-) : ViewModel() {
+class ArtistListViewModel(private val repository: SongRepository, private val appContext: Context) : ViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<List<Artist>>>(UiState.Loading)
     val uiState: StateFlow<UiState<List<Artist>>> = _uiState.asStateFlow()
@@ -37,13 +34,12 @@ class ArtistListViewModel(
     }
 
     companion object {
-        fun factory(context: Context): ViewModelProvider.Factory =
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val repository = SongRepositoryImpl.create(context)
-                    @Suppress("UNCHECKED_CAST")
-                    return ArtistListViewModel(repository, context.applicationContext) as T
-                }
+        fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val repository = SongRepositoryImpl.create(context)
+                @Suppress("UNCHECKED_CAST")
+                return ArtistListViewModel(repository, context.applicationContext) as T
             }
+        }
     }
 }

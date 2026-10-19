@@ -38,28 +38,27 @@ internal sealed interface DatabaseVersionDecision {
 }
 
 internal object DatabaseVersionPolicy {
-    fun decide(
-        live: LiveDatabaseVersion,
-        currentVersion: Int,
-    ): DatabaseVersionDecision = when (live) {
+    fun decide(live: LiveDatabaseVersion, currentVersion: Int): DatabaseVersionDecision = when (live) {
         LiveDatabaseVersion.Missing,
-        LiveDatabaseVersion.EmptyFile -> DatabaseVersionDecision.FreshDatabase
+        LiveDatabaseVersion.EmptyFile,
+        -> DatabaseVersionDecision.FreshDatabase
+
         is LiveDatabaseVersion.Present -> when {
             live.userVersion == currentVersion -> DatabaseVersionDecision.CurrentDatabase
+
             live.userVersion < currentVersion ->
                 DatabaseVersionDecision.BackupBeforeMigration(live.userVersion)
+
             else -> DatabaseVersionDecision.UnsupportedNewerDatabase(live.userVersion)
         }
     }
 }
 
-internal class UnsupportedLiveDatabaseVersionException(
-    actualVersion: Int,
-    currentVersion: Int,
-) : IllegalStateException(
-    "The live database uses schema version $actualVersion, but this synthX build supports " +
-        "version $currentVersion. Downgrade is disabled."
-)
+internal class UnsupportedLiveDatabaseVersionException(actualVersion: Int, currentVersion: Int) :
+    IllegalStateException(
+        "The live database uses schema version $actualVersion, but this synthX build supports " +
+            "version $currentVersion. Downgrade is disabled.",
+    )
 
 /**
  * Reads SQLite's live [android.database.sqlite.SQLiteDatabase] view of `user_version`.
@@ -128,6 +127,7 @@ internal class DatabaseStartupController(
     private val onReady: suspend () -> Unit = {},
 ) {
     private val lock = Any()
+
     @Volatile private var ready = false
     private var running: CompletableDeferred<Result<Unit>>? = null
 
@@ -156,17 +156,22 @@ internal class DatabaseStartupController(
                     if (hasPendingMigrationRecovery()) {
                         throw MigrationInvariantFailedException(
                             "A previous migration failed its post-migration safety check and " +
-                                "has not been recovered yet"
+                                "has not been recovered yet",
                         )
                     }
-                    when (val decision = DatabaseVersionPolicy.decide(
-                        inspectLiveVersion(),
-                        currentVersion,
-                    )) {
+                    when (
+                        val decision = DatabaseVersionPolicy.decide(
+                            inspectLiveVersion(),
+                            currentVersion,
+                        )
+                    ) {
                         DatabaseVersionDecision.FreshDatabase,
-                        DatabaseVersionDecision.CurrentDatabase -> Unit
+                        DatabaseVersionDecision.CurrentDatabase,
+                        -> Unit
+
                         is DatabaseVersionDecision.BackupBeforeMigration ->
                             performMigration(decision.fromVersion)
+
                         is DatabaseVersionDecision.UnsupportedNewerDatabase ->
                             throw UnsupportedLiveDatabaseVersionException(
                                 decision.actualVersion,
@@ -209,6 +214,7 @@ internal class DatabaseStartupController(
 internal object DatabaseStartupGate {
     private const val TAG = "DatabaseStartupGate"
     private val lock = Any()
+
     @Volatile private var controller: DatabaseStartupController? = null
 
     /** Called from [android.app.Application.onCreate]; it deliberately performs no database I/O. */

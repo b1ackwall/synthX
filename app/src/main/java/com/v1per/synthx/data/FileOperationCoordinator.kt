@@ -48,6 +48,7 @@ internal object FileOperationCoordinator {
 
     internal class SongEntry {
         val mutex = Mutex()
+
         /** Holders plus waiters. The entry is removed from [songs] exactly when this hits 0. */
         var refs = 0
     }
@@ -103,10 +104,7 @@ internal object FileOperationCoordinator {
     }
 
     /** A scan's hold on one song. Releasing it records no mutation — scans are not mutators here. */
-    class SongLease internal constructor(
-        private val songId: String,
-        private val entry: SongEntry,
-    ) {
+    class SongLease internal constructor(private val songId: String, private val entry: SongEntry) {
         private var released = false
         fun release() {
             synchronized(lock) {
@@ -240,13 +238,11 @@ internal object FileOperationCoordinator {
 
     // ------------------------------------------------------------------------------ tests
 
-    internal fun songLockRefCountForTest(songId: String): Int =
-        synchronized(lock) { songs[songId]?.refs ?: 0 }
+    internal fun songLockRefCountForTest(songId: String): Int = synchronized(lock) { songs[songId]?.refs ?: 0 }
 
     internal fun songLockEntryCountForTest(): Int = synchronized(lock) { songs.size }
 
-    internal fun rootUserCountForTest(rootKey: String): Int =
-        synchronized(lock) { rootUsers[rootKey] ?: 0 }
+    internal fun rootUserCountForTest(rootKey: String): Int = synchronized(lock) { rootUsers[rootKey] ?: 0 }
 
     /** JVM/instrumentation isolation only. */
     internal fun resetForTest() {

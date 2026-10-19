@@ -18,11 +18,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
  * exactly as they are.
  */
 @Composable
-fun QueueReplaceDialog(
-    onReplace: () -> Unit,
-    onCancel: () -> Unit,
-    onDismiss: () -> Unit,
-) {
+fun QueueReplaceDialog(onReplace: () -> Unit, onCancel: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.queue_replace_prompt_title)) },

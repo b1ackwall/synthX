@@ -58,10 +58,12 @@ internal fun ScanningStep(
 
     when (val current = state) {
         is FirstScanState.Running -> ScanningProgress(status = current.status)
+
         FirstScanState.Succeeded -> {
             LaunchedEffect(Unit) { onComplete() }
             ScanningProgress(status = null)
         }
+
         is FirstScanState.Failed -> {
             // A revoked grant clears the stored folder — retrying the same (now absent) folder
             // cannot work, so only Change folder is offered. Read from the ViewModel's mirrored
@@ -124,8 +126,11 @@ private fun ScanFailed(
     ) {
         Text(
             text = stringResource(
-                if (cancelled) R.string.onboarding_scan_cancelled_title
-                else R.string.onboarding_scan_failed_title,
+                if (cancelled) {
+                    R.string.onboarding_scan_cancelled_title
+                } else {
+                    R.string.onboarding_scan_failed_title
+                },
             ),
             style = MaterialTheme.typography.headlineSmall,
             color = TextPrimary,

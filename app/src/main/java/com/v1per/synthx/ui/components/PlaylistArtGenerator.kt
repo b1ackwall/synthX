@@ -38,12 +38,7 @@ internal enum class SymmetryPlane {
  * ([x1], [y1]) sits near the cell corner, ([x2], [y2]) near the cell centre. Renderers scale
  * these to whatever edge length they are drawing at; nothing here depends on a pixel size.
  */
-internal data class PlaylistArtSegment(
-    val x1: Float,
-    val y1: Float,
-    val x2: Float,
-    val y2: Float,
-)
+internal data class PlaylistArtSegment(val x1: Float, val y1: Float, val x2: Float, val y2: Float)
 
 /** The generated result: everything [PlaylistArt] needs beyond the hue. */
 internal data class PlaylistArtPattern(
@@ -107,7 +102,7 @@ internal object PlaylistArtGeometry {
                             y1 = MARGIN + cornerY + uy * START_DISTANCE,
                             x2 = MARGIN + cornerX + ux * END_DISTANCE,
                             y2 = MARGIN + cornerY + uy * END_DISTANCE,
-                        )
+                        ),
                     )
                 }
             }
@@ -145,6 +140,7 @@ internal fun generatePlaylistArt(structureSeed: Long): PlaylistArtPattern {
                 val other = plane.perpendicular()
                 all + lines.map { it.mirroredAcross(other) } + mirrored.map { it.mirroredAcross(other) }
             }
+
             // A diagonal mirror fixes two quadrants outright and its perpendicular diagonal
             // fixes the same two, so neither can ever leave the pair the walk started in. Only
             // an axis reflection or a quarter turn moves them; take the whole orbit so the
@@ -180,9 +176,8 @@ private const val QUADRANTS = 4
 /** One lit corner of one cell: cell ([r], [c]), corner ([dr], [dc]) with both in 0..1. */
 private data class PathLine(val r: Int, val c: Int, val dr: Int, val dc: Int) {
     /** Which of the four quadrants of the grid this cell falls in, as a 0..3 key. */
-    fun quadrant(): Int =
-        (if (r < PlaylistArtGeometry.ROWS / 2) 0 else 1) * 2 +
-            (if (c < PlaylistArtGeometry.COLS / 2) 0 else 1)
+    fun quadrant(): Int = (if (r < PlaylistArtGeometry.ROWS / 2) 0 else 1) * 2 +
+        (if (c < PlaylistArtGeometry.COLS / 2) 0 else 1)
 
     /**
      * Reflects both the cell and the vertex this corner points at, then re-derives the corner
@@ -227,13 +222,12 @@ private data class ExitOption(
     val distance: Int,
 )
 
-private fun mirrorPoint(r: Int, c: Int, plane: SymmetryPlane, maxIndex: Int): Pair<Int, Int> =
-    when (plane) {
-        SymmetryPlane.VERTICAL -> r to (maxIndex - c)
-        SymmetryPlane.HORIZONTAL -> (maxIndex - r) to c
-        SymmetryPlane.DIAG1 -> c to r
-        SymmetryPlane.DIAG2 -> (maxIndex - c) to (maxIndex - r)
-    }
+private fun mirrorPoint(r: Int, c: Int, plane: SymmetryPlane, maxIndex: Int): Pair<Int, Int> = when (plane) {
+    SymmetryPlane.VERTICAL -> r to (maxIndex - c)
+    SymmetryPlane.HORIZONTAL -> (maxIndex - r) to c
+    SymmetryPlane.DIAG1 -> c to r
+    SymmetryPlane.DIAG2 -> (maxIndex - c) to (maxIndex - r)
+}
 
 /** The (up to four) cells touching a vertex, each tagged with the corner that touches it. */
 private fun cellsAtVertex(vertexR: Int, vertexC: Int): List<CellCorner> =
@@ -252,12 +246,11 @@ private fun cellsAtVertex(vertexR: Int, vertexC: Int): List<CellCorner> =
  * would fold the path back over itself instead of widening it. Only the diagonal planes cut
  * through cells this way; the axis-aligned ones cut between them.
  */
-private fun isOnCuttingDiagonal(r: Int, c: Int, plane: SymmetryPlane, maxIndex: Int): Boolean =
-    when (plane) {
-        SymmetryPlane.DIAG1 -> r == c
-        SymmetryPlane.DIAG2 -> r + c == maxIndex
-        else -> false
-    }
+private fun isOnCuttingDiagonal(r: Int, c: Int, plane: SymmetryPlane, maxIndex: Int): Boolean = when (plane) {
+    SymmetryPlane.DIAG1 -> r == c
+    SymmetryPlane.DIAG2 -> r + c == maxIndex
+    else -> false
+}
 
 /**
  * Walks from a grid corner towards the centre vertex, one cell at a time. Each step enters a
@@ -275,7 +268,9 @@ private fun buildPath(random: Random): GridPath {
     val startOptions = when (plane) {
         SymmetryPlane.VERTICAL, SymmetryPlane.HORIZONTAL ->
             listOf(0 to 0, maxR to 0, 0 to maxC, maxR to maxC)
+
         SymmetryPlane.DIAG1 -> listOf(0 to maxC, maxR to 0)
+
         SymmetryPlane.DIAG2 -> listOf(0 to 0, maxR to maxC)
     }
     var (cellR, cellC) = startOptions[random.nextInt(startOptions.size)]

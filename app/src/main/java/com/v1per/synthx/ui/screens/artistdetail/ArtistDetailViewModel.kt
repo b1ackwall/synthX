@@ -20,11 +20,7 @@ import kotlinx.coroutines.launch
  * included. [playableSongCount] and [playableDurationMs] cover only songs that are not missing —
  * the ones Play and Shuffle would actually queue.
  */
-data class ArtistDetailData(
-    val songs: List<Song>,
-    val playableSongCount: Int,
-    val playableDurationMs: Long,
-)
+data class ArtistDetailData(val songs: List<Song>, val playableSongCount: Int, val playableDurationMs: Long)
 
 internal fun artistDetailData(songs: List<Song>): ArtistDetailData {
     val playable = songs.filterNot { it.isMissing }

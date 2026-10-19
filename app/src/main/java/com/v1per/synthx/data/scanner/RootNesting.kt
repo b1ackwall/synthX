@@ -47,16 +47,18 @@ internal object RootNesting {
         "com.android.providers.downloads.documents",
     )
 
-    private fun isKnownPathLikeAuthority(authority: String?): Boolean =
-        authority in PATH_LIKE_AUTHORITIES
+    private fun isKnownPathLikeAuthority(authority: String?): Boolean = authority in PATH_LIKE_AUTHORITIES
 
     enum class Relation {
         UNRELATED,
         SAME,
+
         /** The first URI passed to [detect] contains the second. */
         FIRST_CONTAINS_SECOND,
+
         /** The second URI passed to [detect] contains the first. */
         SECOND_CONTAINS_FIRST,
+
         /**
          * Nesting could not be conclusively ruled out. Reached only when the tree document
          * ids aren't path-like (so [isPathPrefix] can't apply) *and* the authority isn't one
@@ -67,7 +69,9 @@ internal object RootNesting {
          * class doc). Distinct from [UNRELATED] specifically so callers can fail closed on
          * "can't tell" instead of silently treating it as "confirmed safe."
          */
-        UNDETERMINED;
+        UNDETERMINED,
+
+        ;
 
         val isConflict: Boolean get() = this != UNRELATED
     }
@@ -76,33 +80,35 @@ internal object RootNesting {
      * Binder round-trips in step 4, so this suspends and runs on IO rather than being called
      * straight from a picker callback on the main thread.
      */
-    suspend fun detect(context: Context, first: Uri, second: Uri): Relation =
-        withContext(Dispatchers.IO) {
-            if (first.authority != second.authority) return@withContext Relation.UNRELATED
+    suspend fun detect(context: Context, first: Uri, second: Uri): Relation = withContext(Dispatchers.IO) {
+        if (first.authority != second.authority) return@withContext Relation.UNRELATED
 
-            val firstId = treeDocumentId(first) ?: return@withContext Relation.UNRELATED
-            val secondId = treeDocumentId(second) ?: return@withContext Relation.UNRELATED
-            if (firstId == secondId) return@withContext Relation.SAME
+        val firstId = treeDocumentId(first) ?: return@withContext Relation.UNRELATED
+        val secondId = treeDocumentId(second) ?: return@withContext Relation.UNRELATED
+        if (firstId == secondId) return@withContext Relation.SAME
 
-            if (isPathPrefix(firstId, secondId)) return@withContext Relation.FIRST_CONTAINS_SECOND
-            if (isPathPrefix(secondId, firstId)) return@withContext Relation.SECOND_CONTAINS_FIRST
+        if (isPathPrefix(firstId, secondId)) return@withContext Relation.FIRST_CONTAINS_SECOND
+        if (isPathPrefix(secondId, firstId)) return@withContext Relation.SECOND_CONTAINS_FIRST
 
-            val firstDoc = treeDocumentUri(first) ?: return@withContext Relation.UNRELATED
-            val secondDoc = treeDocumentUri(second) ?: return@withContext Relation.UNRELATED
-            when {
-                isDescendant(context, parent = firstDoc, child = secondDoc) ->
-                    Relation.FIRST_CONTAINS_SECOND
-                isDescendant(context, parent = secondDoc, child = firstDoc) ->
-                    Relation.SECOND_CONTAINS_FIRST
-                // A negative isChildDocument result is only trustworthy for the providers
-                // known to implement it faithfully. For anything else — opaque, non-path-like
-                // document ids — a `false` here doesn't prove the roots are unrelated, so
-                // don't report a confirmed UNRELATED; report that nesting couldn't be
-                // determined instead, and let callers fail closed on it.
-                isKnownPathLikeAuthority(first.authority) -> Relation.UNRELATED
-                else -> Relation.UNDETERMINED
-            }
+        val firstDoc = treeDocumentUri(first) ?: return@withContext Relation.UNRELATED
+        val secondDoc = treeDocumentUri(second) ?: return@withContext Relation.UNRELATED
+        when {
+            isDescendant(context, parent = firstDoc, child = secondDoc) ->
+                Relation.FIRST_CONTAINS_SECOND
+
+            isDescendant(context, parent = secondDoc, child = firstDoc) ->
+                Relation.SECOND_CONTAINS_FIRST
+
+            // A negative isChildDocument result is only trustworthy for the providers
+            // known to implement it faithfully. For anything else — opaque, non-path-like
+            // document ids — a `false` here doesn't prove the roots are unrelated, so
+            // don't report a confirmed UNRELATED; report that nesting couldn't be
+            // determined instead, and let callers fail closed on it.
+            isKnownPathLikeAuthority(first.authority) -> Relation.UNRELATED
+
+            else -> Relation.UNDETERMINED
         }
+    }
 
     /**
      * Path-like containment. A volume-root id ends in ':' and has no separator of its own
@@ -116,8 +122,7 @@ internal object RootNesting {
             .onFailure { Log.w(TAG, "isChildDocument probe failed for $parent: ${it.message}") }
             .getOrDefault(false)
 
-    private fun treeDocumentId(uri: Uri): String? =
-        runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
+    private fun treeDocumentId(uri: Uri): String? = runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
 
     /** The `/tree/X/document/X` form of a picked tree root, which is what the walk produces. */
     private fun treeDocumentUri(uri: Uri): Uri? = runCatching {
@@ -131,19 +136,18 @@ internal object RootNesting {
      * to the root that owns it (e.g. so a launch-time verify pass can skip songs under a
      * root that failed its reachability check rather than probing them individually).
      */
-    suspend fun isUnderRoot(context: Context, documentUri: Uri, rootUri: Uri): Boolean =
-        withContext(Dispatchers.IO) {
-            if (documentUri.authority != rootUri.authority) return@withContext false
+    suspend fun isUnderRoot(context: Context, documentUri: Uri, rootUri: Uri): Boolean = withContext(Dispatchers.IO) {
+        if (documentUri.authority != rootUri.authority) return@withContext false
 
-            val rootTreeId = treeDocumentId(rootUri) ?: return@withContext false
-            val songDocId = runCatching { DocumentsContract.getDocumentId(documentUri) }
-                .getOrNull() ?: return@withContext false
+        val rootTreeId = treeDocumentId(rootUri) ?: return@withContext false
+        val songDocId = runCatching { DocumentsContract.getDocumentId(documentUri) }
+            .getOrNull() ?: return@withContext false
 
-            if (songDocId == rootTreeId || isPathPrefix(rootTreeId, songDocId)) {
-                return@withContext true
-            }
-
-            val rootDoc = treeDocumentUri(rootUri) ?: return@withContext false
-            isDescendant(context, parent = rootDoc, child = documentUri)
+        if (songDocId == rootTreeId || isPathPrefix(rootTreeId, songDocId)) {
+            return@withContext true
         }
+
+        val rootDoc = treeDocumentUri(rootUri) ?: return@withContext false
+        isDescendant(context, parent = rootDoc, child = documentUri)
+    }
 }

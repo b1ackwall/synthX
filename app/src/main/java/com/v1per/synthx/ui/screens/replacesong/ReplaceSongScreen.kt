@@ -85,7 +85,7 @@ fun ReplaceSongScreen(
                     ReplaceSongStep.PickOld -> R.string.replace_song_step_pick_old
                     ReplaceSongStep.PickNew -> R.string.replace_song_step_pick_new
                     ReplaceSongStep.ReviewAndConfirm -> R.string.replace_song_step_review
-                }
+                },
             ),
             onBack = goBack,
         )
@@ -99,6 +99,7 @@ fun ReplaceSongScreen(
                     onQueryChange = viewModel::onQueryChange,
                     onSelect = viewModel::selectOldSong,
                 )
+
                 ReplaceSongStep.PickNew -> ReplaceSongPickerStep(
                     subtitleRes = R.string.replace_song_pick_new_subtitle,
                     query = query,
@@ -106,17 +107,21 @@ fun ReplaceSongScreen(
                     onQueryChange = viewModel::onQueryChange,
                     onSelect = viewModel::selectNewSong,
                 )
+
                 ReplaceSongStep.ReviewAndConfirm -> when (val current = preview) {
                     // Idle is unreachable on this step (selectNewSong starts the preview as it
                     // advances), but is rendered as the same cover rather than as nothing, so a
                     // future path into the step can never show an empty screen.
                     ReplaceSongPreviewState.Idle,
-                    is ReplaceSongPreviewState.Loading ->
+                    is ReplaceSongPreviewState.Loading,
+                    ->
                         ReplaceSongBusyCover(R.string.replace_song_preview_loading)
+
                     is ReplaceSongPreviewState.Failed -> ReplaceSongPreviewFailure(
                         message = current.message,
                         onRetry = if (current.retryable) viewModel::retryPreview else null,
                     )
+
                     is ReplaceSongPreviewState.Ready -> ReplaceSongReviewStep(
                         preview = current.preview,
                         conflictResolution = conflictResolution,

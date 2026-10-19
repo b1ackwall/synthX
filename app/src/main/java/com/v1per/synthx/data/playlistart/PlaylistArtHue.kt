@@ -55,10 +55,7 @@ internal fun circularHueDistance(a: Int, b: Int): Int {
  * [existingHues] are reduced to 0..359 first; any that are not on the palette (older playlists,
  * restored or hand-edited rows) still repel candidates but do not count as using one.
  */
-internal fun selectDistancedHue(
-    existingHues: List<Int>,
-    random: Random = Random.Default,
-): Int {
+internal fun selectDistancedHue(existingHues: List<Int>, random: Random = Random.Default): Int {
     if (existingHues.isEmpty()) return PlaylistArtHues.random(random)
     val existing = existingHues.map(::normalizeArtHue)
     val usage = existing.groupingBy { it }.eachCount()

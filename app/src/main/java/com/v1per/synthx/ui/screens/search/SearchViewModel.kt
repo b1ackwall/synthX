@@ -28,10 +28,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 
 @OptIn(FlowPreview::class)
-class SearchViewModel(
-    private val repository: SongRepository,
-    private val appContext: Context,
-) : ViewModel() {
+class SearchViewModel(private val repository: SongRepository, private val appContext: Context) : ViewModel() {
 
     enum class SearchFilter { ALL, SONGS, PLAYLISTS, ARTISTS, ALBUMS }
 
@@ -145,13 +142,12 @@ class SearchViewModel(
     }
 
     companion object {
-        fun factory(context: Context): ViewModelProvider.Factory =
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val repository = SongRepositoryImpl.create(context)
-                    @Suppress("UNCHECKED_CAST")
-                    return SearchViewModel(repository, context.applicationContext) as T
-                }
+        fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val repository = SongRepositoryImpl.create(context)
+                @Suppress("UNCHECKED_CAST")
+                return SearchViewModel(repository, context.applicationContext) as T
             }
+        }
     }
 }

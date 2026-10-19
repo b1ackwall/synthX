@@ -103,13 +103,12 @@ class GroupDetailViewModel(
     }
 
     companion object {
-        fun factory(context: Context, groupId: String): ViewModelProvider.Factory =
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val repository = SongRepositoryImpl.create(context)
-                    @Suppress("UNCHECKED_CAST")
-                    return GroupDetailViewModel(repository, groupId, context.applicationContext) as T
-                }
+        fun factory(context: Context, groupId: String): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val repository = SongRepositoryImpl.create(context)
+                @Suppress("UNCHECKED_CAST")
+                return GroupDetailViewModel(repository, groupId, context.applicationContext) as T
             }
+        }
     }
 }

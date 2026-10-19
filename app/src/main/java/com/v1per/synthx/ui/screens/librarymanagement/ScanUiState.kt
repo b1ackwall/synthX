@@ -22,16 +22,18 @@ sealed interface FirstScanState {
 }
 
 /** Branches on the actual terminal [WorkInfo.State] — never on a status string existing. */
-internal fun firstScanStateFor(info: WorkInfo, strings: ScanStatusStrings): FirstScanState =
-    when (info.state) {
-        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED, WorkInfo.State.RUNNING ->
-            FirstScanState.Running(scanStatusFor(info, strings))
-        WorkInfo.State.SUCCEEDED -> FirstScanState.Succeeded
-        WorkInfo.State.FAILED ->
-            FirstScanState.Failed(scanStatusFor(info, strings).orEmpty(), cancelled = false)
-        WorkInfo.State.CANCELLED ->
-            FirstScanState.Failed(scanStatusFor(info, strings).orEmpty(), cancelled = true)
-    }
+internal fun firstScanStateFor(info: WorkInfo, strings: ScanStatusStrings): FirstScanState = when (info.state) {
+    WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED, WorkInfo.State.RUNNING ->
+        FirstScanState.Running(scanStatusFor(info, strings))
+
+    WorkInfo.State.SUCCEEDED -> FirstScanState.Succeeded
+
+    WorkInfo.State.FAILED ->
+        FirstScanState.Failed(scanStatusFor(info, strings).orEmpty(), cancelled = false)
+
+    WorkInfo.State.CANCELLED ->
+        FirstScanState.Failed(scanStatusFor(info, strings).orEmpty(), cancelled = true)
+}
 
 /**
  * Whether a New Arrivals scan that was queued behind another scan is still waiting to start

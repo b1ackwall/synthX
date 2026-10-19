@@ -70,12 +70,14 @@ fun GroupDetailScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             when (val state = uiState) {
                 is UiState.Loading -> LoadingIndicator()
+
                 is UiState.Empty -> Text(
                     text = stringResource(R.string.empty_group_no_playlists),
                     style = MaterialTheme.typography.bodyLarge,
                     color = TextSecondary,
                     modifier = Modifier.align(Alignment.Center),
                 )
+
                 is UiState.Success -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                 ) {
@@ -98,6 +100,7 @@ fun GroupDetailScreen(
                         )
                     }
                 }
+
                 is UiState.Error -> LoadErrorText(
                     message = state.message,
                     modifier = Modifier.align(Alignment.Center),

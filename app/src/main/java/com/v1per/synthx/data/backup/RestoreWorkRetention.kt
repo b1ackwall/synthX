@@ -11,7 +11,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 internal object RestoreRequestTracking {
     private val _revision = MutableStateFlow(0L)
     val revision = _revision
-    fun changed() { _revision.value += 1L }
+    fun changed() {
+        _revision.value += 1L
+    }
 }
 
 /**

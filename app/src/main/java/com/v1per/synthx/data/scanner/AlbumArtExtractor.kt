@@ -25,11 +25,7 @@ private const val MAX_ART_DIMENSION_PX = 1000
  */
 internal object AlbumArtExtractor {
 
-    fun extract(
-        context: Context,
-        retriever: MediaMetadataRetriever,
-        songId: String,
-    ): Pair<String?, String?> {
+    fun extract(context: Context, retriever: MediaMetadataRetriever, songId: String): Pair<String?, String?> {
         return try {
             val artBytes = retriever.embeddedPicture ?: return null to null
 
@@ -40,8 +36,8 @@ internal object AlbumArtExtractor {
             // renamed into place only once the write is complete, so a crash mid-write can
             // never leave a partial file sitting at the final, referenced name.
             val fullExt = sniffImageExtension(artBytes)
-            val fullArtFile = File(artDir, "art_full_${songId}.$fullExt")
-            val fullArtTempFile = File(artDir, "art_full_${songId}.${UUID.randomUUID()}.tmp")
+            val fullArtFile = File(artDir, "art_full_$songId.$fullExt")
+            val fullArtTempFile = File(artDir, "art_full_$songId.${UUID.randomUUID()}.tmp")
             FileOutputStream(fullArtTempFile).use { fos -> fos.write(artBytes) }
             if (!fullArtTempFile.renameTo(fullArtFile)) {
                 fullArtTempFile.delete()
@@ -98,7 +94,7 @@ internal object AlbumArtExtractor {
             // at (up to full player-sheet width) while still compressing meaningfully smaller.
             // Same temp-then-rename pattern as the full-resolution copy above.
             val artFile = File(artDir, "art_$songId.jpg")
-            val artTempFile = File(artDir, "art_${songId}.${UUID.randomUUID()}.tmp")
+            val artTempFile = File(artDir, "art_$songId.${UUID.randomUUID()}.tmp")
 
             FileOutputStream(artTempFile).use { fos ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos)
@@ -148,16 +144,16 @@ private fun calculateInSampleSize(rawWidth: Int, rawHeight: Int, reqWidth: Int, 
 }
 
 /** Sniffs leading magic bytes to pick a file extension — never throws, defaults to "jpg". */
-private fun sniffImageExtension(bytes: ByteArray): String {
-    return when {
-        bytes.size >= 8 &&
-            bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
-            bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() -> "png"
-        bytes.size >= 12 &&
-            bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() &&
-            bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte() &&
-            bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() &&
-            bytes[10] == 'B'.code.toByte() && bytes[11] == 'P'.code.toByte() -> "webp"
-        else -> "jpg"
-    }
+private fun sniffImageExtension(bytes: ByteArray): String = when {
+    bytes.size >= 8 &&
+        bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+        bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() -> "png"
+
+    bytes.size >= 12 &&
+        bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() &&
+        bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte() &&
+        bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() &&
+        bytes[10] == 'B'.code.toByte() && bytes[11] == 'P'.code.toByte() -> "webp"
+
+    else -> "jpg"
 }

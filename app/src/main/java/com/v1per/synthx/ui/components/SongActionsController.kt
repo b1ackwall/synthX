@@ -19,6 +19,7 @@ sealed class SongActionEvent {
     data class AddedToPlaylist(val playlistName: String) : SongActionEvent()
     data class RemovedFromPlaylist(val playlistName: String) : SongActionEvent()
     data object RemovedFromStarred : SongActionEvent()
+
     /** A mutation threw (Room/SAF failure) — see [SongActionsViewModel.launchCatching] use. */
     data object ActionFailed : SongActionEvent()
 
@@ -30,12 +31,11 @@ sealed class SongActionEvent {
      * [com.v1per.synthx.data.repository.SongDeletionOutcome].
      */
     data class DeletedButFileRemained(val filePath: String) : SongActionEvent()
+
     /** The library delete committed, but one or more physical cleanup steps could not be verified. */
     data class DeletedButCleanupUncertain(val filePath: String) : SongActionEvent()
     data object AudioCleanupRetrySucceeded : SongActionEvent()
-    data class DeleteBlocked(
-        val reason: DestructiveFilePreflightResult.Blocking,
-    ) : SongActionEvent()
+    data class DeleteBlocked(val reason: DestructiveFilePreflightResult.Blocking) : SongActionEvent()
 }
 
 /**

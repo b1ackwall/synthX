@@ -145,12 +145,15 @@ internal fun verifyAndPublishGraduationTemp(
         // distinguishable, more actionable failure than a generic publish failure.
         val collided = runCatching { destinationRoot.findFile(finalName) != null }.getOrDefault(false)
         return GraduationPublishResult.Failed(
-            reasonAfterTempCleanup(if (collided) {
-                "Could not publish: another file named \"$finalName\" was created in the " +
-                    "library folder at the same time. Try again."
-            } else {
-                "Could not publish destination file."
-            }, temp),
+            reasonAfterTempCleanup(
+                if (collided) {
+                    "Could not publish: another file named \"$finalName\" was created in the " +
+                        "library folder at the same time. Try again."
+                } else {
+                    "Could not publish destination file."
+                },
+                temp,
+            ),
         )
     }
     // temp's own Uri now reflects the rename (see the KDoc above) — nothing left to look up.

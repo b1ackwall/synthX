@@ -52,15 +52,15 @@ internal suspend fun runPostCommitStep(
     false
 }
 
-internal fun songDeletionOutcome(
-    audioOutcome: AudioFileDeletion,
-    cleanupUncertain: Boolean,
-): SongDeletionOutcome = when {
-    audioOutcome == AudioFileDeletion.Failed -> SongDeletionOutcome.FileRemained
-    audioOutcome == AudioFileDeletion.Unknown || cleanupUncertain ->
-        SongDeletionOutcome.CleanupUncertain
-    else -> SongDeletionOutcome.Deleted
-}
+internal fun songDeletionOutcome(audioOutcome: AudioFileDeletion, cleanupUncertain: Boolean): SongDeletionOutcome =
+    when {
+        audioOutcome == AudioFileDeletion.Failed -> SongDeletionOutcome.FileRemained
+
+        audioOutcome == AudioFileDeletion.Unknown || cleanupUncertain ->
+            SongDeletionOutcome.CleanupUncertain
+
+        else -> SongDeletionOutcome.Deleted
+    }
 
 internal fun includePlaylistExportOutcome(
     deletionOutcome: SongDeletionOutcome,
@@ -83,68 +83,71 @@ internal fun includePlaylistExportOutcome(
  * The `file_path` is read inside the same transaction that deletes the row — afterwards there
  * is nothing left to read it from.
  */
-internal suspend fun SongRepositoryImpl.deleteSongInternal(id: String): SongDeletionOutcome = withContext(Dispatchers.IO) {
-    // Backup-then-act: a failed backup (no folder configured) must not block the
-    // delete the user explicitly asked for.
-    // Backup waits for finite operations to drain, so it must precede our own permit.
-    backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_SONG)
+internal suspend fun SongRepositoryImpl.deleteSongInternal(id: String): SongDeletionOutcome =
+    withContext(Dispatchers.IO) {
+        // Backup-then-act: a failed backup (no folder configured) must not block the
+        // delete the user explicitly asked for.
+        // Backup waits for finite operations to drain, so it must precede our own permit.
+        backupManager.createBackup(BackupTier.Auto, BackupReason.DELETE_SONG)
 
-    // Song lock after the backup, never before — see FileOperationCoordinator's acquisition
-    // order. Waits out an in-flight graduation of this exact song rather than deleting the
-    // row out from under it, which would leave its graduated copy orphaned for a scan to
-    // re-import. Held through the file cleanup so a scan can't re-claim the row mid-delete.
-    FileOperationCoordinator.withSongLock(id) {
-        // Recheck admission: restore may have begun while the backup was running.
-        dbOperation {
-            // The permit is already held so restore cannot close Room while the current row is
-            // read, but no transaction is opened until the live SAF preflight has passed (or
-            // returned an intentionally non-blocking gone/ambiguous result).
-            val beforeDelete = songDao.getSongById(id)
-            if (beforeDelete != null) {
-                when (
-                    val preflight = destructiveFileCheck(
-                        beforeDelete.filePath,
-                        beforeDelete.id,
-                    )
-                ) {
-                    is DestructiveFilePreflightResult.Blocking ->
-                        return@dbOperation SongDeletionOutcome.Blocked(preflight)
-                    DestructiveFilePreflightResult.Passed,
-                    DestructiveFilePreflightResult.SourceGone,
-                    DestructiveFilePreflightResult.Ambiguous -> Unit
+        // Song lock after the backup, never before — see FileOperationCoordinator's acquisition
+        // order. Waits out an in-flight graduation of this exact song rather than deleting the
+        // row out from under it, which would leave its graduated copy orphaned for a scan to
+        // re-import. Held through the file cleanup so a scan can't re-claim the row mid-delete.
+        FileOperationCoordinator.withSongLock(id) {
+            // Recheck admission: restore may have begun while the backup was running.
+            dbOperation {
+                // The permit is already held so restore cannot close Room while the current row is
+                // read, but no transaction is opened until the live SAF preflight has passed (or
+                // returned an intentionally non-blocking gone/ambiguous result).
+                val beforeDelete = songDao.getSongById(id)
+                if (beforeDelete != null) {
+                    when (
+                        val preflight = destructiveFileCheck(
+                            beforeDelete.filePath,
+                            beforeDelete.id,
+                        )
+                    ) {
+                        is DestructiveFilePreflightResult.Blocking ->
+                            return@dbOperation SongDeletionOutcome.Blocked(preflight)
+
+                        DestructiveFilePreflightResult.Passed,
+                        DestructiveFilePreflightResult.SourceGone,
+                        DestructiveFilePreflightResult.Ambiguous,
+                        -> Unit
+                    }
                 }
+                val operationId = UUID.randomUUID().toString()
+                val filePath = database.withTransaction {
+                    val existing = songDao.getSongById(id)
+                    deleteSongRowWithArtRepoint(songDao, albumDao, id)
+                    // Durable BEFORE the row is gone: same transaction as the
+                    // row delete, so a crash right after commit still leaves a record behind for
+                    // startup reconciliation to finish the file cleanup this call never got to.
+                    pendingCleanupDao.insert(
+                        PendingCleanupEntity(
+                            operationId = operationId,
+                            songId = id,
+                            operationType = PendingCleanupType.DELETE.name,
+                            filePath = existing?.filePath,
+                            publishedPath = null,
+                            phase = PendingCleanupPhase.Committed.name,
+                            createdAt = System.currentTimeMillis(),
+                        ),
+                    )
+                    existing?.filePath
+                }
+                val deletionOutcome = runPostCommitCleanup(operationId, id, filePath)
+                // Known accepted limitation: if restore closes admission before the nested
+                // pending-cleanup clear in runPostCommitCleanup, that clear throws and this
+                // enqueue is not reached; the durable record remains for startup reconciliation.
+                val exportSucceeded = runPostCommitStep("schedule playlist export") {
+                    schedulePlaylistExport()
+                }
+                includePlaylistExportOutcome(deletionOutcome, exportSucceeded)
             }
-            val operationId = UUID.randomUUID().toString()
-            val filePath = database.withTransaction {
-                val existing = songDao.getSongById(id)
-                deleteSongRowWithArtRepoint(songDao, albumDao, id)
-                // Durable BEFORE the row is gone: same transaction as the
-                // row delete, so a crash right after commit still leaves a record behind for
-                // startup reconciliation to finish the file cleanup this call never got to.
-                pendingCleanupDao.insert(
-                    PendingCleanupEntity(
-                        operationId = operationId,
-                        songId = id,
-                        operationType = PendingCleanupType.DELETE.name,
-                        filePath = existing?.filePath,
-                        publishedPath = null,
-                        phase = PendingCleanupPhase.Committed.name,
-                        createdAt = System.currentTimeMillis(),
-                    ),
-                )
-                existing?.filePath
-            }
-            val deletionOutcome = runPostCommitCleanup(operationId, id, filePath)
-            // Known accepted limitation: if restore closes admission before the nested
-            // pending-cleanup clear in runPostCommitCleanup, that clear throws and this
-            // enqueue is not reached; the durable record remains for startup reconciliation.
-            val exportSucceeded = runPostCommitStep("schedule playlist export") {
-                schedulePlaylistExport()
-            }
-            includePlaylistExportOutcome(deletionOutcome, exportSucceeded)
         }
     }
-}
 
 internal suspend fun SongRepositoryImpl.previewDeleteSongInternal(id: String): DeleteSongPreview = dbOperation {
     database.withTransaction {
@@ -162,7 +165,7 @@ internal suspend fun SongRepositoryImpl.previewDeleteSongInternal(id: String): D
                         willBecomeEmpty = countsById[playlistId] == 1,
                     )
                 }
-            }.sortedBy { it.name.lowercase() }
+            }.sortedBy { it.name.lowercase() },
         )
     }
 }

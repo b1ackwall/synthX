@@ -132,7 +132,10 @@ internal object BackupSchemaContracts {
             roomIdentityHash = "3e0e2f38ca17807335cfa847b095f2fd",
             expectedTables = coreTables +
                 setOf(
-                    "queue_items", "queue_baseline_items", "playback_cursor", "pending_cleanups",
+                    "queue_items",
+                    "queue_baseline_items",
+                    "playback_cursor",
+                    "pending_cleanups",
                 ),
             hasMigrationPathToCurrent = true,
         ),
@@ -143,7 +146,10 @@ internal object BackupSchemaContracts {
             roomIdentityHash = "3e0e2f38ca17807335cfa847b095f2fd",
             expectedTables = coreTables +
                 setOf(
-                    "queue_items", "queue_baseline_items", "playback_cursor", "pending_cleanups",
+                    "queue_items",
+                    "queue_baseline_items",
+                    "playback_cursor",
+                    "pending_cleanups",
                 ),
             hasMigrationPathToCurrent = true,
         ),

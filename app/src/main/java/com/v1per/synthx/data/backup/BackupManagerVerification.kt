@@ -13,37 +13,38 @@ import kotlinx.coroutines.withContext
  * — real [BackupInfo] entries built with `file://` URIs and a genuine SQLite backup file —
  * the same technique [classifyBackupList] uses to avoid needing a genuine SAF tree grant.
  */
-internal suspend fun BackupManager.verifyBackupList(listing: BackupListResult): Result<Unit> = withContext(Dispatchers.IO) {
-    val eligible = listing.backupsOrEmpty().firstOrNull { it.restoreEligible }
+internal suspend fun BackupManager.verifyBackupList(listing: BackupListResult): Result<Unit> =
+    withContext(Dispatchers.IO) {
+        val eligible = listing.backupsOrEmpty().firstOrNull { it.restoreEligible }
 
-    if (eligible == null) {
-        BackupOutcomeStore.recordVerificationSkipped(context)
-        return@withContext Result.success(Unit)
-    }
+        if (eligible == null) {
+            BackupOutcomeStore.recordVerificationSkipped(context)
+            return@withContext Result.success(Unit)
+        }
 
-    val result = runCatching {
-        val metadata = requireNotNull(readRestoreMetadata(eligible)) {
-            "Eligible backup is missing valid metadata"
-        }
-        val stage = BackupStagingCoordinator.acquire(context, "verify")
-        val copy = stage.file
-        try {
-            val digest = RestoreTransaction.copySafOnce(context, eligible.databaseUri.toString(), copy)
-            require(digest.sizeBytes == metadata.sizeBytes && digest.sha256 == metadata.sha256) {
-                "Backup bytes do not match its declared size and SHA-256 metadata"
+        val result = runCatching {
+            val metadata = requireNotNull(readRestoreMetadata(eligible)) {
+                "Eligible backup is missing valid metadata"
             }
-            val validated = BackupSnapshotValidator.validate(copy, migrationSnapshot = true)
-            require(validated.schema.userVersion == metadata.dbVersion) {
-                "Backup metadata version does not match the database"
+            val stage = BackupStagingCoordinator.acquire(context, "verify")
+            val copy = stage.file
+            try {
+                val digest = RestoreTransaction.copySafOnce(context, eligible.databaseUri.toString(), copy)
+                require(digest.sizeBytes == metadata.sizeBytes && digest.sha256 == metadata.sha256) {
+                    "Backup bytes do not match its declared size and SHA-256 metadata"
+                }
+                val validated = BackupSnapshotValidator.validate(copy, migrationSnapshot = true)
+                require(validated.schema.userVersion == metadata.dbVersion) {
+                    "Backup metadata version does not match the database"
+                }
+            } finally {
+                stage.close()
             }
-        } finally {
-            stage.close()
+            Unit
         }
-        Unit
+        BackupOutcomeStore.recordVerificationOutcome(context, result)
+        result
     }
-    BackupOutcomeStore.recordVerificationOutcome(context, result)
-    result
-}
 
 internal suspend fun BackupManager.previewBackupInternal(
     backup: BackupInfo,

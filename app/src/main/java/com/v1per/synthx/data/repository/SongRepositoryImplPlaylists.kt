@@ -26,7 +26,7 @@ internal suspend fun SongRepositoryImpl.createGroupInternal(name: String) = dbOp
             name = name,
             position = 0,
             createdAt = System.currentTimeMillis(),
-        )
+        ),
     )
     playlistExportManager.scheduleExport()
 }
@@ -79,7 +79,7 @@ internal suspend fun SongRepositoryImpl.createPlaylistInternal(name: String, gro
                 coverArtUri = null,
                 artHue = hue,
                 artStructureSeed = structureSeed,
-            )
+            ),
         )
     }
     playlistExportManager.scheduleExport()
@@ -113,18 +113,20 @@ internal suspend fun SongRepositoryImpl.getPlaylistIdsForSongInternal(songId: St
     playlistDao.getPlaylistIdsForSong(songId)
 }
 
-internal suspend fun SongRepositoryImpl.addSongToPlaylistInternal(playlistId: String, songId: String): Boolean = dbOperation {
-    // Contains-check, max-position read, and insert live in one
-    // @Transaction DAO method so concurrent adds to the same playlist can't race on
-    // the next position — see PlaylistDao.addSongToPlaylist.
-    val added = playlistDao.addSongToPlaylist(playlistId, songId, System.currentTimeMillis())
-    if (added) {
+internal suspend fun SongRepositoryImpl.addSongToPlaylistInternal(playlistId: String, songId: String): Boolean =
+    dbOperation {
+        // Contains-check, max-position read, and insert live in one
+        // @Transaction DAO method so concurrent adds to the same playlist can't race on
+        // the next position — see PlaylistDao.addSongToPlaylist.
+        val added = playlistDao.addSongToPlaylist(playlistId, songId, System.currentTimeMillis())
+        if (added) {
+            playlistExportManager.scheduleExport()
+        }
+        added
+    }
+
+internal suspend fun SongRepositoryImpl.removeSongFromPlaylistInternal(playlistId: String, songId: String) =
+    dbOperation {
+        playlistDao.removePlaylistSong(playlistId, songId)
         playlistExportManager.scheduleExport()
     }
-    added
-}
-
-internal suspend fun SongRepositoryImpl.removeSongFromPlaylistInternal(playlistId: String, songId: String) = dbOperation {
-    playlistDao.removePlaylistSong(playlistId, songId)
-    playlistExportManager.scheduleExport()
-}

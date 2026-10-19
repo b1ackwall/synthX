@@ -372,6 +372,7 @@ internal suspend fun reportGraduationCommit(
         onStage(GraduationStage.Failed(GRADUATION_ROW_GONE_REASON))
         GraduationResult.Failure(GRADUATION_ROW_GONE_REASON)
     }
+
     is GraduationCommit.Updated -> {
         // The live playback engine caches a Song per queue slot and bakes its file_path into
         // every MediaItem it builds; neither re-reads the row. Without this notice the original

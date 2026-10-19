@@ -86,11 +86,7 @@ internal class SongIngestor(
      * [includeArt] must be `false` for the retag path. Decoding and rewriting a bitmap is
      * precisely the cost that path exists to avoid paying when nothing changed.
      */
-    suspend fun extractMetadata(
-        file: DocumentFile,
-        songId: String,
-        includeArt: Boolean,
-    ): ExtractedMetadata {
+    suspend fun extractMetadata(file: DocumentFile, songId: String, includeArt: Boolean): ExtractedMetadata {
         // Native metadata/art work is blocking, so check for cancellation before starting it.
         currentCoroutineContext().ensureActive()
 
@@ -211,7 +207,7 @@ internal class SongIngestor(
         val artists = meta.artistNames.mapIndexed { index, name ->
             val artist = resolveArtist(name)
             songArtistDao.insertSongArtist(
-                SongArtistEntity(songId = id, artistId = artist.id, position = index)
+                SongArtistEntity(songId = id, artistId = artist.id, position = index),
             )
             Artist(id = artist.id, name = artist.name)
         }
@@ -287,14 +283,14 @@ internal class SongIngestor(
                     year = meta.year,
                     trackNumber = meta.trackNumber,
                     albumId = albumId,
-                )
+                ),
             )
         }
         if (artistsChanged) {
             songArtistDao.deleteSongArtists(existing.id)
             newArtistIds.forEachIndexed { index, artistId ->
                 songArtistDao.insertSongArtist(
-                    SongArtistEntity(songId = existing.id, artistId = artistId, position = index)
+                    SongArtistEntity(songId = existing.id, artistId = artistId, position = index),
                 )
             }
         }

@@ -33,10 +33,14 @@ internal fun classifyIneligibility(
     schemaSupported: Boolean,
 ): BackupIneligibilityReason? = when {
     isDuplicateName -> BackupIneligibilityReason.DuplicateDisplayName
+
     metadata == null -> BackupIneligibilityReason.MissingMetadata
+
     metadata.sizeBytes != null && metadata.sizeBytes != actualSizeBytes ->
         BackupIneligibilityReason.SizeMismatch(metadata.sizeBytes, actualSizeBytes)
+
     !schemaSupported -> BackupIneligibilityReason.UnsupportedSchema(metadata.dbVersion)
+
     else -> null
 }
 

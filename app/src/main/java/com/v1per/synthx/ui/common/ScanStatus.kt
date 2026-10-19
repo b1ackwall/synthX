@@ -35,10 +35,7 @@ private fun preparingLabelFor(info: WorkInfo, strings: ScanStatusStrings): Strin
     else -> strings.get(R.string.scan_progress_preparing)
 }
 
-private fun degradationMessage(
-    degradations: Set<ScanDegradation>,
-    strings: ScanStatusStrings,
-): String? {
+private fun degradationMessage(degradations: Set<ScanDegradation>, strings: ScanStatusStrings): String? {
     if (degradations.isEmpty()) return null
     return degradations.joinToString(" ") { degradation ->
         val rootName = strings.get(
@@ -50,7 +47,9 @@ private fun degradationMessage(
         strings.get(
             when (degradation.reason) {
                 ScanDegradationReason.RootUnreachable -> R.string.scan_degraded_root_unreachable
+
                 ScanDegradationReason.WalkIncomplete -> R.string.scan_degraded_walk_incomplete
+
                 ScanDegradationReason.VerificationIncomplete ->
                     R.string.scan_degraded_verification_incomplete
             },
@@ -69,7 +68,9 @@ private fun degradationMessage(
  */
 fun scanStatusFor(info: WorkInfo?, strings: ScanStatusStrings): String? = when (info?.state) {
     null -> null
+
     WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> preparingLabelFor(info, strings)
+
     WorkInfo.State.RUNNING -> when {
         LIBRARY_SCAN_TAG in info.tags -> {
             val current = info.progress.getInt(LibraryScanWorker.KEY_CURRENT, -1)
@@ -80,8 +81,10 @@ fun scanStatusFor(info: WorkInfo?, strings: ScanStatusStrings): String? = when (
                 preparingLabelFor(info, strings)
             }
         }
+
         else -> preparingLabelFor(info, strings)
     }
+
     WorkInfo.State.SUCCEEDED -> when {
         LIBRARY_SCAN_TAG in info.tags -> {
             val data = info.outputData
@@ -113,6 +116,7 @@ fun scanStatusFor(info: WorkInfo?, strings: ScanStatusStrings): String? = when (
                 }
             }
         }
+
         NEW_ARRIVALS_TAG in info.tags -> {
             val added = info.outputData.getInt(LibraryScanWorker.KEY_ADDED, 0)
             val warning = degradationMessage(info.outputData.scanDegradations(), strings)
@@ -122,6 +126,7 @@ fun scanStatusFor(info: WorkInfo?, strings: ScanStatusStrings): String? = when (
                 else -> strings.get(R.string.scan_status_new_arrivals_none)
             }
         }
+
         VERIFY_TAG in info.tags -> {
             val newlyMissing = info.outputData.getInt(VerifyLibraryWorker.KEY_NEWLY_MISSING, 0)
             val warning = degradationMessage(info.outputData.scanDegradations(), strings)
@@ -131,12 +136,15 @@ fun scanStatusFor(info: WorkInfo?, strings: ScanStatusStrings): String? = when (
                 else -> strings.get(R.string.scan_status_verify_none)
             }
         }
+
         else -> null
     }
+
     WorkInfo.State.FAILED -> strings.get(
         R.string.scan_status_failed,
         info.outputData.getString(LibraryScanWorker.KEY_ERROR)
             ?: strings.get(R.string.scan_status_unknown_error),
     )
+
     WorkInfo.State.CANCELLED -> strings.get(R.string.scan_cancelled)
 }

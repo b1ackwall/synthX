@@ -13,11 +13,7 @@ import java.util.UUID
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-internal data class SQLiteVersion(
-    val major: Int,
-    val minor: Int,
-    val patch: Int,
-) : Comparable<SQLiteVersion> {
+internal data class SQLiteVersion(val major: Int, val minor: Int, val patch: Int) : Comparable<SQLiteVersion> {
     override fun compareTo(other: SQLiteVersion): Int =
         compareValuesBy(this, other, SQLiteVersion::major, SQLiteVersion::minor, SQLiteVersion::patch)
 
@@ -48,7 +44,7 @@ internal object BackupFileNames {
     private val newFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd_HHmmss_SSS")
     private val oldFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd_HHmmss")
     private val newPattern = Regex(
-        "^synthx_backup_(\\d{4}-\\d{2}-\\d{2}_\\d{6}_\\d{3})_([0-9a-f]{8})\\.db$"
+        "^synthx_backup_(\\d{4}-\\d{2}-\\d{2}_\\d{6}_\\d{3})_([0-9a-f]{8})\\.db$",
     )
     private val oldPattern = Regex("^synthx_backup_(\\d{4}-\\d{2}-\\d{2}_\\d{6})\\.db$")
 

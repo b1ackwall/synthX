@@ -19,8 +19,10 @@ internal object BackupFolderHealth {
 
     sealed interface Result {
         data object Healthy : Result
+
         /** The persisted SAF grant no longer includes write access, or is gone entirely. */
         data object GrantLost : Result
+
         /** The grant is present but the tree no longer resolves to a real, writable directory. */
         data object Unwritable : Result
     }

@@ -45,8 +45,7 @@ fun rememberSongStatsStrings(): SongStatsStrings {
     val resources = LocalResources.current
     return remember(resources) {
         object : SongStatsStrings {
-            override fun songCount(count: Int) =
-                resources.getQuantityString(R.plurals.stats_song_count, count, count)
+            override fun songCount(count: Int) = resources.getQuantityString(R.plurals.stats_song_count, count, count)
             override fun hours(hours: Long) = resources.getString(R.string.stats_duration_hours, hours)
             override fun minutes(minutes: Long) = resources.getString(R.string.stats_duration_minutes, minutes)
             override fun hoursAndMinutes(hours: Long, minutes: Long) =

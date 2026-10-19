@@ -137,82 +137,85 @@ class FolderScanner internal constructor(
     }
 
     /** Caller already owns admission for the complete verification sweep. */
-    internal suspend fun verifyAlreadyAdmitted(
-        configuredRoots: List<ConfiguredAudioRoot>,
-    ): VerifyResult = withContext(Dispatchers.IO) {
-        val degradations = linkedSetOf<ScanDegradation>()
-        val reachableRoots = configuredRoots.filter { configured ->
-            (rootResolver(configured.uri) != null).also { reachable ->
-                if (!reachable) {
-                    degradations += ScanDegradation(
-                        configured.role,
-                        ScanDegradationReason.RootUnreachable,
-                    )
-                }
-            }
-        }
-
-        var newlyMissing = 0
-        for (song in songDao.getAllSongsOnce()) {
-            currentCoroutineContext().ensureActive()
-            if (song.isMissing) continue // already flagged — nothing this pass can add
-
-            // A song whose path doesn't resolve to any currently-reachable root — either
-            // the root it lives under is unreachable, or its stored path is unparseable —
-            // is left untouched this pass rather than treated as gone. Treating an
-            // unparseable path as "gone" would be the same unreachable-vs-deleted
-            // conflation this whole pass exists to avoid, so it gets the same
-            // "can't tell, don't touch" handling.
-            val songUri = runCatching { song.filePath.toUri() }.getOrNull() ?: continue
-            val owningRoot = reachableRoots.firstOrNull { root ->
-                rootMembership(songUri, root.uri)
-            } ?: continue
-
-            when (documentExistenceProbe.exists(songUri)) {
-                DocumentExistence.Present -> continue
-                DocumentExistence.Unknown -> {
-                    degradations += ScanDegradation(
-                        owningRoot.role,
-                        ScanDegradationReason.VerificationIncomplete,
-                    )
-                    continue
-                }
-                DocumentExistence.ConfirmedAbsent -> Unit
-            }
-
-            // The snapshot above can be older than a graduation/delete that has since moved or
-            // removed this song: its old path failing to resolve proves nothing on its own. Skip
-            // a song another operation holds right now; otherwise, holding its lease, re-read the
-            // row and judge the path it has *now*.
-            val lease = FileOperationCoordinator.tryAcquireSong(song.id) ?: continue
-            try {
-                val current = songDao.getSongById(song.id) ?: continue
-                if (current.isMissing) continue
-                if (current.filePath != song.filePath) {
-                    val currentUri = runCatching { current.filePath.toUri() }.getOrNull() ?: continue
-                    val currentRoot = reachableRoots.firstOrNull { root ->
-                        rootMembership(currentUri, root.uri)
-                    } ?: continue
-                    when (documentExistenceProbe.exists(currentUri)) {
-                        DocumentExistence.Present -> continue
-                        DocumentExistence.Unknown -> {
-                            degradations += ScanDegradation(
-                                currentRoot.role,
-                                ScanDegradationReason.VerificationIncomplete,
-                            )
-                            continue
-                        }
-                        DocumentExistence.ConfirmedAbsent -> Unit
+    internal suspend fun verifyAlreadyAdmitted(configuredRoots: List<ConfiguredAudioRoot>): VerifyResult =
+        withContext(Dispatchers.IO) {
+            val degradations = linkedSetOf<ScanDegradation>()
+            val reachableRoots = configuredRoots.filter { configured ->
+                (rootResolver(configured.uri) != null).also { reachable ->
+                    if (!reachable) {
+                        degradations += ScanDegradation(
+                            configured.role,
+                            ScanDegradationReason.RootUnreachable,
+                        )
                     }
                 }
-                songDao.markMissing(song.id, System.currentTimeMillis())
-                newlyMissing++
-            } finally {
-                lease.release()
             }
+
+            var newlyMissing = 0
+            for (song in songDao.getAllSongsOnce()) {
+                currentCoroutineContext().ensureActive()
+                if (song.isMissing) continue // already flagged — nothing this pass can add
+
+                // A song whose path doesn't resolve to any currently-reachable root — either
+                // the root it lives under is unreachable, or its stored path is unparseable —
+                // is left untouched this pass rather than treated as gone. Treating an
+                // unparseable path as "gone" would be the same unreachable-vs-deleted
+                // conflation this whole pass exists to avoid, so it gets the same
+                // "can't tell, don't touch" handling.
+                val songUri = runCatching { song.filePath.toUri() }.getOrNull() ?: continue
+                val owningRoot = reachableRoots.firstOrNull { root ->
+                    rootMembership(songUri, root.uri)
+                } ?: continue
+
+                when (documentExistenceProbe.exists(songUri)) {
+                    DocumentExistence.Present -> continue
+
+                    DocumentExistence.Unknown -> {
+                        degradations += ScanDegradation(
+                            owningRoot.role,
+                            ScanDegradationReason.VerificationIncomplete,
+                        )
+                        continue
+                    }
+
+                    DocumentExistence.ConfirmedAbsent -> Unit
+                }
+
+                // The snapshot above can be older than a graduation/delete that has since moved or
+                // removed this song: its old path failing to resolve proves nothing on its own. Skip
+                // a song another operation holds right now; otherwise, holding its lease, re-read the
+                // row and judge the path it has *now*.
+                val lease = FileOperationCoordinator.tryAcquireSong(song.id) ?: continue
+                try {
+                    val current = songDao.getSongById(song.id) ?: continue
+                    if (current.isMissing) continue
+                    if (current.filePath != song.filePath) {
+                        val currentUri = runCatching { current.filePath.toUri() }.getOrNull() ?: continue
+                        val currentRoot = reachableRoots.firstOrNull { root ->
+                            rootMembership(currentUri, root.uri)
+                        } ?: continue
+                        when (documentExistenceProbe.exists(currentUri)) {
+                            DocumentExistence.Present -> continue
+
+                            DocumentExistence.Unknown -> {
+                                degradations += ScanDegradation(
+                                    currentRoot.role,
+                                    ScanDegradationReason.VerificationIncomplete,
+                                )
+                                continue
+                            }
+
+                            DocumentExistence.ConfirmedAbsent -> Unit
+                        }
+                    }
+                    songDao.markMissing(song.id, System.currentTimeMillis())
+                    newlyMissing++
+                } finally {
+                    lease.release()
+                }
+            }
+            VerifyResult(newlyMissing, degradations)
         }
-        VerifyResult(newlyMissing, degradations)
-    }
 
     companion object {
         /** Sentinel for both `onProgress` arguments while no file count is known yet. */
@@ -222,8 +225,7 @@ class FolderScanner internal constructor(
 
 /** The two real FolderScanner entrypoint ownership modes, kept small enough for JVM proof. */
 internal object FolderScannerAdmission {
-    suspend fun <T> direct(block: suspend () -> T): T =
-        RestoreCoordinator.withDbOperation(block)
+    suspend fun <T> direct(block: suspend () -> T): T = RestoreCoordinator.withDbOperation(block)
 
     suspend fun <T> alreadyAdmitted(block: suspend () -> T): T = block()
 }

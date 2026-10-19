@@ -42,10 +42,7 @@ import java.util.UUID
  * cannot occur on a first run (there is no existing database to be newer).
  */
 @Composable
-internal fun DatabaseStartupFailureContent(
-    error: Throwable,
-    onRetry: () -> Unit,
-) {
+internal fun DatabaseStartupFailureContent(error: Throwable, onRetry: () -> Unit) {
     val message = if (error is UnsupportedLiveDatabaseVersionException) {
         stringResource(R.string.startup_failure_message_newer_database)
     } else {
@@ -109,8 +106,10 @@ internal fun MigrationRecoveryContent(
     var restoreError by remember { mutableStateOf<String?>(null) }
 
     val message = stringResource(R.string.migration_recovery_message) +
-        (restoreError?.let { "\n\n" + stringResource(R.string.migration_recovery_last_attempt_failed, it) }
-            ?: "")
+        (
+            restoreError?.let { "\n\n" + stringResource(R.string.migration_recovery_last_attempt_failed, it) }
+                ?: ""
+            )
 
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         AlertDialog(
@@ -141,8 +140,11 @@ internal fun MigrationRecoveryContent(
                 ) {
                     Text(
                         stringResource(
-                            if (isRestoring) R.string.migration_recovery_restoring
-                            else R.string.migration_recovery_restore_action,
+                            if (isRestoring) {
+                                R.string.migration_recovery_restoring
+                            } else {
+                                R.string.migration_recovery_restore_action
+                            },
                         ),
                     )
                 }
@@ -161,19 +163,33 @@ internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
     var actionRunning by remember { mutableStateOf(false) }
     val message = when (state) {
         RestoreCoordinator.Terminal.RESTART_REQUIRED -> "Restore complete. Close and reopen synthX to continue."
+
         RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED ->
             "Restore was rolled back safely. Close and reopen synthX to continue."
+
         RestoreCoordinator.Terminal.EMERGENCY ->
             "Automatic database recovery could not validate a usable database.\n\n" +
                 "Normal app use is disabled to protect your data.\n\n" +
                 "Diagnostic operation ID:\n$diagnosticId" +
                 (actionError?.let { "\n\n$it" } ?: "")
+
         RestoreCoordinator.Terminal.NORMAL -> ""
     }
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AlertDialog(onDismissRequest = {}, title = {
-            Text(if (state == RestoreCoordinator.Terminal.EMERGENCY) "Database recovery required" else "Restart required")
-        }, text = { Text(message) },
+        AlertDialog(
+            onDismissRequest = {},
+            title = {
+                Text(
+                    if (state ==
+                        RestoreCoordinator.Terminal.EMERGENCY
+                    ) {
+                        "Database recovery required"
+                    } else {
+                        "Restart required"
+                    },
+                )
+            },
+            text = { Text(message) },
             confirmButton = {
                 TextButton(
                     onClick = { exitProcess(0) },
@@ -210,7 +226,9 @@ internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
                                             availableBackups = backups.filter { it.restoreEligible }
                                             actionError = if (availableBackups.isNullOrEmpty()) {
                                                 "No eligible backup is available in the selected backup folder."
-                                            } else null
+                                            } else {
+                                                null
+                                            }
                                         }
                                         .onFailure { actionError = it.message ?: "Could not read backups." }
                                     actionRunning = false

@@ -16,11 +16,7 @@ data class BackupAttemptOutcome(
     val failureMessage: String?,
 )
 
-data class ExportAttemptOutcome(
-    val timestamp: Long,
-    val succeeded: Boolean,
-    val failureMessage: String?,
-)
+data class ExportAttemptOutcome(val timestamp: Long, val succeeded: Boolean, val failureMessage: String?)
 
 /**
  * [skippedNoEligibleBackup]: true only when [BackupManager.verifyMostRecentBackup]
@@ -136,15 +132,9 @@ object BackupOutcomeStore {
         }
     }
 
-    private fun String?.toNameList(): List<String> =
-        this?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+    private fun String?.toNameList(): List<String> = this?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
 
-    internal fun recordBackupOutcome(
-        context: Context,
-        tier: BackupTier,
-        reason: String?,
-        result: Result<String>,
-    ) {
+    internal fun recordBackupOutcome(context: Context, tier: BackupTier, reason: String?, result: Result<String>) {
         val appContext = context.applicationContext
         val outcome = BackupAttemptOutcome(
             timestamp = System.currentTimeMillis(),
@@ -220,11 +210,7 @@ object BackupOutcomeStore {
      * pair failed to fully delete, since this is the one place that can see both inner-swallowed
      * deletion failures [BackupRetention.prune]'s caller has no other way to surface.
      */
-    internal fun recordRetentionOutcome(
-        context: Context,
-        tier: BackupTier,
-        prune: RetentionPruneOutcome,
-    ) {
+    internal fun recordRetentionOutcome(context: Context, tier: BackupTier, prune: RetentionPruneOutcome) {
         val appContext = context.applicationContext
         val outcome = RetentionAttemptOutcome(
             timestamp = System.currentTimeMillis(),

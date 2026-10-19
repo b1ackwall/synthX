@@ -23,9 +23,7 @@ import kotlinx.coroutines.launch
 private const val GENERIC_LOAD_ERROR = "Couldn't load your groups. Try again."
 private const val GENERIC_CREATE_ERROR = "Couldn't create this playlist. Try again."
 
-class CreatePlaylistViewModel(
-    private val repository: SongRepository,
-) : ViewModel() {
+class CreatePlaylistViewModel(private val repository: SongRepository) : ViewModel() {
 
     // Groups-loading readiness, consumed by PlaylistRoutes' ReadinessCoverOverlay — kept
     // separate from `error` below, which is about create-action failures, not load failures.
@@ -72,13 +70,12 @@ class CreatePlaylistViewModel(
     }
 
     companion object {
-        fun factory(context: Context): ViewModelProvider.Factory =
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val repository = SongRepositoryImpl.create(context)
-                    @Suppress("UNCHECKED_CAST")
-                    return CreatePlaylistViewModel(repository) as T
-                }
+        fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val repository = SongRepositoryImpl.create(context)
+                @Suppress("UNCHECKED_CAST")
+                return CreatePlaylistViewModel(repository) as T
             }
+        }
     }
 }

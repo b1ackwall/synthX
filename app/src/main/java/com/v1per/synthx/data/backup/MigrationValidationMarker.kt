@@ -35,11 +35,7 @@ internal object MigrationValidationMarker {
     private val json = Json { ignoreUnknownKeys = false }
 
     @Serializable
-    internal data class Marker(
-        val fromVersion: Int,
-        val toVersion: Int,
-        val createdAt: Long,
-    )
+    internal data class Marker(val fromVersion: Int, val toVersion: Int, val createdAt: Long)
 
     private fun dir(context: Context): File = context.noBackupFilesDir
     private fun markerFile(context: Context): File = File(dir(context), MARKER_FILE_NAME)

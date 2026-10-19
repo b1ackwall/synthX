@@ -57,7 +57,10 @@ internal data class RestoreIncidentArtifact(
 internal object RestoreIncidentReports {
     private const val TAG = "RestoreIncident"
     private const val DIRECTORY = "restore_incidents"
-    private val json = Json { prettyPrint = true; explicitNulls = true }
+    private val json = Json {
+        prettyPrint = true
+        explicitNulls = true
+    }
 
     fun build(
         context: Context,
@@ -102,11 +105,7 @@ internal object RestoreIncidentReports {
         )
     }
 
-    fun writeBestEffort(
-        context: Context,
-        report: RestoreIncidentReport,
-        faults: RestoreFaultInjector,
-    ) {
+    fun writeBestEffort(context: Context, report: RestoreIncidentReport, faults: RestoreFaultInjector) {
         runCatching {
             val directory = File(context.filesDir, DIRECTORY)
             check(directory.isDirectory || directory.mkdirs()) { "Could not create incident report directory" }

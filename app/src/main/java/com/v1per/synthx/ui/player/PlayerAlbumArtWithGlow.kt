@@ -44,12 +44,7 @@ internal fun quantizePlayerGlowSize(size: Dp): Dp {
 // Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
 @SuppressLint("UnclosedTrace")
 @Composable
-internal fun PlayerAlbumArtWithGlow(
-    song: Song,
-    isPlaying: Boolean,
-    size: Dp,
-    modifier: Modifier = Modifier,
-) {
+internal fun PlayerAlbumArtWithGlow(song: Song, isPlaying: Boolean, size: Dp, modifier: Modifier = Modifier) {
     Trace.beginSection(PerfTraceSections.AlbumArtWithGlow)
     // Keep the layout footprint equal to the art throughout the morph. The larger
     // glow overflows symmetrically without moving the art or changing its size.

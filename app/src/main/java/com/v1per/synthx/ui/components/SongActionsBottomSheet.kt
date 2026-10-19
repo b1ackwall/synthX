@@ -123,11 +123,13 @@ fun SongActionsBottomSheet(
                 // duration — running both at DurationNormal left old/new content visibly
                 // overlapping mid-transition; a quicker exit clears the old page before the
                 // incoming one becomes prominent, without reading as an instant cut.
-                (fadeIn(tween(Motion.DurationNormal, easing = Motion.EasingDecelerate)) +
-                    slideInVertically(
-                        tween(Motion.DurationNormal, easing = Motion.EasingDecelerate),
-                        initialOffsetY = { height -> height / 8 },
-                    )) togetherWith
+                (
+                    fadeIn(tween(Motion.DurationNormal, easing = Motion.EasingDecelerate)) +
+                        slideInVertically(
+                            tween(Motion.DurationNormal, easing = Motion.EasingDecelerate),
+                            initialOffsetY = { height -> height / 8 },
+                        )
+                    ) togetherWith
                     fadeOut(tween(Motion.DurationFast, easing = Motion.EasingAccelerate))
             },
             label = "SongActionsSheetPage",
@@ -157,11 +159,13 @@ fun SongActionsBottomSheet(
                     },
                     onShowArtists = { page = SheetPage.Artists },
                 )
+
                 SheetPage.Artists -> SubPage(
                     title = stringResource(R.string.actions_go_to_artist),
                     items = song.artists.map { PickableItem(it.id, it.name) },
                     onSelect = onGoToArtist,
                 )
+
                 SheetPage.Playlists -> SubPage(
                     title = stringResource(R.string.actions_add_to_playlist),
                     items = playlists.map {
@@ -282,11 +286,13 @@ private fun ActionsPage(
 
         when (song.artists.size) {
             0 -> Unit
+
             1 -> ActionRow(
                 icon = Icons.Default.Person,
                 label = stringResource(R.string.actions_go_to_artist),
                 onClick = { onGoToArtist(song.artists.first().id) },
             )
+
             else -> ActionRow(
                 icon = Icons.Default.Person,
                 label = stringResource(R.string.actions_go_to_artist),
@@ -300,20 +306,11 @@ private fun ActionsPage(
 
 /** One row in a [SubPage] list: an id/name pair, plus (Playlists page only) whether the
  *  song is already a member — drives the trailing checkmark and SurfaceVariant highlight below. */
-private data class PickableItem(
-    val id: String,
-    val name: String,
-    val alreadyMember: Boolean = false,
-)
+private data class PickableItem(val id: String, val name: String, val alreadyMember: Boolean = false)
 
 /** Shared shape for the Artists and Playlists pages: a caption plus a pickable list. */
 @Composable
-private fun SubPage(
-    title: String,
-    items: List<PickableItem>,
-    onSelect: (String) -> Unit,
-    emptyText: String? = null,
-) {
+private fun SubPage(title: String, items: List<PickableItem>, onSelect: (String) -> Unit, emptyText: String? = null) {
     Column {
         Text(
             text = title,
@@ -350,7 +347,7 @@ private fun SubPage(
                                         .background(SurfaceVariant)
                                 } else {
                                     Modifier.clickable { onSelect(item.id) }
-                                }
+                                },
                             )
                             .padding(horizontal = Spacing.HorizontalPadding),
                         verticalAlignment = Alignment.CenterVertically,

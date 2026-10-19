@@ -78,9 +78,7 @@ class SongsViewModel(
     // Precomputing the key once per element and sorting by that cached value instead keeps
     // the exact same ordering (still a natural-order sort over the same lowercase strings)
     // for O(n) allocations.
-    private inline fun List<Song>.sortedByLowercase(
-        crossinline selector: (Song) -> String,
-    ): List<Song> =
+    private inline fun List<Song>.sortedByLowercase(crossinline selector: (Song) -> String): List<Song> =
         map { it to selector(it).lowercase() }
             .sortedBy { it.second }
             .map { it.first }
@@ -93,10 +91,8 @@ class SongsViewModel(
         playbackViewModel.requestPlayQueue(songs, index)
     }
 
-    class Factory(
-        private val context: Context,
-        private val playbackViewModel: PlaybackViewModel,
-    ) : ViewModelProvider.Factory {
+    class Factory(private val context: Context, private val playbackViewModel: PlaybackViewModel) :
+        ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (!modelClass.isAssignableFrom(SongsViewModel::class.java)) {
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

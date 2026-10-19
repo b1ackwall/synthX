@@ -43,11 +43,7 @@ val DetailHeroSize: Dp = 240.dp
 
 /** "42 songs · 2 hr 41 min" under a detail screen's hero. */
 @Composable
-fun DetailStatsLine(
-    songCount: Int,
-    totalDurationMs: Long,
-    modifier: Modifier = Modifier,
-) {
+fun DetailStatsLine(songCount: Int, totalDurationMs: Long, modifier: Modifier = Modifier) {
     Text(
         text = formatSongStats(songCount, totalDurationMs, rememberSongStatsStrings()),
         style = MaterialTheme.typography.bodyMedium,
@@ -65,12 +61,7 @@ fun DetailStatsLine(
  * shuffle state. [enabled] is false when there is nothing playable.
  */
 @Composable
-fun DetailPlayShuffleRow(
-    enabled: Boolean,
-    onPlay: () -> Unit,
-    onShuffle: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun DetailPlayShuffleRow(enabled: Boolean, onPlay: () -> Unit, onShuffle: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()

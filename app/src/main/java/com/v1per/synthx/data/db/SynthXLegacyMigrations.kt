@@ -23,14 +23,14 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 
         // Add missing indices
         db.execSQL(
-            "CREATE UNIQUE INDEX IF NOT EXISTS index_songs_file_path ON songs(file_path)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_songs_file_path ON songs(file_path)",
         )
         db.execSQL(
             "CREATE INDEX IF NOT EXISTS index_artists_name_normalized " +
-                "ON artists(name_normalized)"
+                "ON artists(name_normalized)",
         )
         db.execSQL(
-            "CREATE INDEX IF NOT EXISTS index_albums_title ON albums(title)"
+            "CREATE INDEX IF NOT EXISTS index_albums_title ON albums(title)",
         )
     }
 }
@@ -60,10 +60,10 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
                 FOREIGN KEY(song_id) REFERENCES songs(id)
                     ON UPDATE NO ACTION ON DELETE CASCADE
             )
-            """.trimIndent()
+            """.trimIndent(),
         )
         db.execSQL(
-            "CREATE INDEX IF NOT EXISTS index_queue_items_song_id ON queue_items(song_id)"
+            "CREATE INDEX IF NOT EXISTS index_queue_items_song_id ON queue_items(song_id)",
         )
     }
 }
@@ -81,11 +81,11 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
                 FOREIGN KEY(song_id) REFERENCES songs(id)
                     ON UPDATE NO ACTION ON DELETE CASCADE
             )
-            """.trimIndent()
+            """.trimIndent(),
         )
         db.execSQL(
             "CREATE INDEX IF NOT EXISTS index_queue_baseline_items_song_id " +
-                "ON queue_baseline_items(song_id)"
+                "ON queue_baseline_items(song_id)",
         )
     }
 }
@@ -120,7 +120,7 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
                 FOREIGN KEY(album_id) REFERENCES albums(id)
                     ON UPDATE NO ACTION ON DELETE SET NULL
             )
-            """.trimIndent()
+            """.trimIndent(),
         )
         db.execSQL(
             """
@@ -132,17 +132,17 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
                 id, title, album_id, duration, file_path, album_art_uri, year,
                 track_number, date_added, is_missing, missing_since
             FROM songs
-            """.trimIndent()
+            """.trimIndent(),
         )
         db.execSQL("DROP TABLE songs")
         db.execSQL("ALTER TABLE songs_new RENAME TO songs")
 
         // Dropping the old table drops its indices too — recreate them.
         db.execSQL(
-            "CREATE INDEX IF NOT EXISTS index_songs_album_id ON songs(album_id)"
+            "CREATE INDEX IF NOT EXISTS index_songs_album_id ON songs(album_id)",
         )
         db.execSQL(
-            "CREATE UNIQUE INDEX IF NOT EXISTS index_songs_file_path ON songs(file_path)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_songs_file_path ON songs(file_path)",
         )
     }
 }
@@ -157,7 +157,7 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         // SongEntity's @ColumnInfo(defaultValue = "1") exactly or Room's open-time
         // schema validation throws.
         db.execSQL(
-            "ALTER TABLE songs ADD COLUMN in_inbox INTEGER NOT NULL DEFAULT 1"
+            "ALTER TABLE songs ADD COLUMN in_inbox INTEGER NOT NULL DEFAULT 1",
         )
 
         // ...but an *existing* library has already been organized, so backfill the
@@ -172,7 +172,7 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
             WHERE EXISTS (
                 SELECT 1 FROM playlist_songs WHERE playlist_songs.song_id = songs.id
             )
-            """.trimIndent()
+            """.trimIndent(),
         )
     }
 }

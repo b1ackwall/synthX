@@ -23,10 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /** The screen's two lists, loaded together — see [PlaylistListViewModel.uiState]. */
-data class PlaylistListData(
-    val groups: List<PlaylistGroup>,
-    val ungroupedPlaylists: List<Playlist>,
-)
+data class PlaylistListData(val groups: List<PlaylistGroup>, val ungroupedPlaylists: List<Playlist>)
 
 class PlaylistListViewModel(
     private val repository: SongRepository,
@@ -37,8 +34,12 @@ class PlaylistListViewModel(
     /** Resolved to app-voice strings.xml copy by the screen — see
      *  GroupDetailViewModel.ActionError for the same pattern. */
     enum class ActionError {
-        RenamePlaylistFailed, DeletePlaylistFailed, MovePlaylistFailed,
-        RenameGroupFailed, DeleteGroupFailed, CreateGroupFailed,
+        RenamePlaylistFailed,
+        DeletePlaylistFailed,
+        MovePlaylistFailed,
+        RenameGroupFailed,
+        DeleteGroupFailed,
+        CreateGroupFailed,
     }
 
     private val _uiState = MutableStateFlow<UiState<PlaylistListData>>(UiState.Loading)
@@ -149,14 +150,13 @@ class PlaylistListViewModel(
     }
 
     companion object {
-        fun factory(context: Context): ViewModelProvider.Factory =
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val appContext = context.applicationContext
-                    val repository = SongRepositoryImpl.create(appContext)
-                    @Suppress("UNCHECKED_CAST")
-                    return PlaylistListViewModel(repository, appContext) as T
-                }
+        fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val appContext = context.applicationContext
+                val repository = SongRepositoryImpl.create(appContext)
+                @Suppress("UNCHECKED_CAST")
+                return PlaylistListViewModel(repository, appContext) as T
             }
+        }
     }
 }

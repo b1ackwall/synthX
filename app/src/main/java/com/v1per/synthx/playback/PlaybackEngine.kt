@@ -42,8 +42,10 @@ interface PlaybackEngine {
      * engines that have no such state.
      */
     val isQueueEnded: Flow<Boolean> get() = flowOf(false)
+
     /** Content identity ([Song.id]) of the current slot, used for library-row highlighting. */
     val currentSongId: Flow<String?>
+
     /** Fully resolved current song, published by the engine from its slot-to-song lookup. */
     val currentSong: Flow<Song?>
     val currentPosition: Flow<Long>

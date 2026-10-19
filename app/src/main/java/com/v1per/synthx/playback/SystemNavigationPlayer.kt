@@ -123,15 +123,19 @@ internal class SystemNavigationPlayer(player: Player) : ForwardingPlayer(player)
                     val callArgs = args ?: emptyArray()
                     when {
                         method.name == "equals" && callArgs.size == 1 -> self === callArgs[0]
+
                         method.name == "hashCode" && callArgs.isEmpty() -> System.identityHashCode(self)
+
                         method.name == "toString" && callArgs.isEmpty() ->
                             "RewritingListener($delegate)"
+
                         method.name == "onAvailableCommandsChanged" -> {
                             val rewritten = rewrite(callArgs[0] as Player.Commands)
                             onPublished(rewritten)
                             delegate.onAvailableCommandsChanged(rewritten)
                             null
                         }
+
                         else -> try {
                             method.invoke(delegate, *callArgs)
                         } catch (e: InvocationTargetException) {

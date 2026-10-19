@@ -36,7 +36,7 @@ interface SongDao {
         INNER JOIN song_artists ON songs.id = song_artists.song_id
         WHERE song_artists.artist_id = :artistId
         ORDER BY songs.title COLLATE NOCASE ASC
-        """
+        """,
     )
     fun getSongsWithDetailsForArtist(artistId: String): Flow<List<SongWithDetails>>
 
@@ -47,7 +47,7 @@ interface SongDao {
         SELECT * FROM songs
         WHERE album_id = :albumId
         ORDER BY track_number IS NULL, track_number ASC, title COLLATE NOCASE ASC
-        """
+        """,
     )
     fun getSongsWithDetailsForAlbum(albumId: String): Flow<List<SongWithDetails>>
 
@@ -58,7 +58,7 @@ interface SongDao {
         SELECT * FROM songs
         ORDER BY date_added DESC
         LIMIT :limit
-        """
+        """,
     )
     fun getRecentSongsWithDetails(limit: Int): Flow<List<SongWithDetails>>
 
@@ -72,7 +72,7 @@ interface SongDao {
         INNER JOIN playlist_songs ON playlist_songs.song_id = songs.id
         WHERE playlist_songs.playlist_id = :playlistId
         ORDER BY playlist_songs.position ASC
-        """
+        """,
     )
     fun getSongsWithDetailsForPlaylist(playlistId: String): Flow<List<SongWithDetails>>
 
@@ -89,7 +89,7 @@ interface SongDao {
         SELECT * FROM songs
         WHERE in_inbox = 1
         ORDER BY date_added DESC
-        """
+        """,
     )
     fun getStarredSongs(): Flow<List<SongWithDetails>>
 
@@ -188,7 +188,7 @@ interface SongDao {
         )
         WHERE songs.is_missing = 1
         ORDER BY songs.missing_since DESC
-        """
+        """,
     )
     fun getMissingSongs(): Flow<List<MissingSongInfo>>
 
@@ -210,7 +210,7 @@ interface SongDao {
           AND id != :excludeSongId
           AND album_art_uri IS NOT NULL
         LIMIT 1
-        """
+        """,
     )
     suspend fun findReplacementAlbumArt(albumId: String, excludeSongId: String): String?
 

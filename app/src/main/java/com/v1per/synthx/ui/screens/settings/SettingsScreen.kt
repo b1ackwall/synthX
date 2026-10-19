@@ -85,11 +85,7 @@ private fun SettingsScreenContent(
 }
 
 @Composable
-internal fun SettingsRow(
-    title: String,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-) {
+internal fun SettingsRow(title: String, enabled: Boolean = true, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
 
     Column {

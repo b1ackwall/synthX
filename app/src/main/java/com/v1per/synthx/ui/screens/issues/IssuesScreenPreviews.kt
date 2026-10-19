@@ -32,52 +32,52 @@ private fun IssuesPreview() {
                     onScan = {},
                 )
                 IssuesContent(
-                uiState = UiState.Success(
-                    data = listOf(
-                        Issue.BackupFolderGrantLost,
-                        Issue.BackupUnhealthy(
-                            BackupAttemptOutcome(
-                                timestamp = now - 30 * DateUtils.MINUTE_IN_MILLIS,
-                                tier = BackupTier.Daily,
-                                reason = null,
-                                succeeded = false,
-                                failureMessage = "No space left on backup folder",
+                    uiState = UiState.Success(
+                        data = listOf(
+                            Issue.BackupFolderGrantLost,
+                            Issue.BackupUnhealthy(
+                                BackupAttemptOutcome(
+                                    timestamp = now - 30 * DateUtils.MINUTE_IN_MILLIS,
+                                    tier = BackupTier.Daily,
+                                    reason = null,
+                                    succeeded = false,
+                                    failureMessage = "No space left on backup folder",
+                                ),
                             ),
-                        ),
-                        Issue.DestructiveActionsSinceBackup(count = 4),
-                        Issue.MissingSong(
-                            MissingSongInfo(
-                                id = "1",
-                                title = "Severed Link",
-                                artist = "KNTRL",
-                                missingSince = now - 2 * DateUtils.HOUR_IN_MILLIS,
+                            Issue.DestructiveActionsSinceBackup(count = 4),
+                            Issue.MissingSong(
+                                MissingSongInfo(
+                                    id = "1",
+                                    title = "Severed Link",
+                                    artist = "KNTRL",
+                                    missingSince = now - 2 * DateUtils.HOUR_IN_MILLIS,
+                                ),
                             ),
-                        ),
-                        Issue.MissingSong(
-                            MissingSongInfo(
-                                id = "2",
-                                title = "Null Signal",
-                                artist = "v1per",
-                                missingSince = now - 3 * DateUtils.DAY_IN_MILLIS,
+                            Issue.MissingSong(
+                                MissingSongInfo(
+                                    id = "2",
+                                    title = "Null Signal",
+                                    artist = "v1per",
+                                    missingSince = now - 3 * DateUtils.DAY_IN_MILLIS,
+                                ),
                             ),
-                        ),
-                        Issue.MissingSong(
-                            MissingSongInfo(
-                                id = "3",
-                                title = "Ghost Partition",
-                                artist = "Unknown Artist",
-                                missingSince = now - 21 * DateUtils.DAY_IN_MILLIS,
+                            Issue.MissingSong(
+                                MissingSongInfo(
+                                    id = "3",
+                                    title = "Ghost Partition",
+                                    artist = "Unknown Artist",
+                                    missingSince = now - 21 * DateUtils.DAY_IN_MILLIS,
+                                ),
                             ),
                         ),
                     ),
-                ),
-                deleteEnabled = true,
-                deleteInProgress = false,
-                onDelete = { _, _ -> },
-                onFixMissingArt = {},
-                onNavigateToBackups = {},
-                modifier = Modifier.weight(1f),
-            )
+                    deleteEnabled = true,
+                    deleteInProgress = false,
+                    onDelete = { _, _ -> },
+                    onFixMissingArt = {},
+                    onNavigateToBackups = {},
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }

@@ -90,6 +90,7 @@ fun OnboardingScreen(
                 onFreshInstall = viewModel::goToFolderSetup,
                 onRecoverFromBackup = viewModel::goToRecoveryFolderSetup,
             )
+
             OnboardingStep.FolderSetup -> FolderSetupStep(
                 libraryManagementViewModel = libraryManagementViewModel,
                 backupsAndRestoreViewModel = backupsAndRestoreViewModel,
@@ -106,6 +107,7 @@ fun OnboardingScreen(
                     }
                 },
             )
+
             OnboardingStep.Scanning -> ScanningStep(
                 libraryManagementViewModel = libraryManagementViewModel,
                 onChangeFolder = {
@@ -117,11 +119,13 @@ fun OnboardingScreen(
                     onOnboardingComplete()
                 },
             )
+
             OnboardingStep.RecoveryFolderSetup -> RecoveryFolderSetupStep(
                 libraryManagementViewModel = libraryManagementViewModel,
                 onBack = viewModel::goToChoice,
                 onDone = viewModel::goToRecoveryBackupSelect,
             )
+
             OnboardingStep.RecoveryBackupSelect -> RecoveryBackupSelectStep(
                 backupsAndRestoreViewModel = backupsAndRestoreViewModel,
                 onBack = viewModel::goToRecoveryFolderSetup,
@@ -159,10 +163,7 @@ private fun ResumingRecoveryNotice() {
  * on this same screen instead of losing anything or resuming somewhere confusing.
  */
 @Composable
-private fun ChoiceStep(
-    onFreshInstall: () -> Unit,
-    onRecoverFromBackup: () -> Unit,
-) {
+private fun ChoiceStep(onFreshInstall: () -> Unit, onRecoverFromBackup: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()

@@ -139,6 +139,7 @@ private fun sweepOrphanHalves(children: List<DocumentFile>) {
                     runCatching { document.delete() }
                 }
             }
+
             name.endsWith(".json") && !name.endsWith(".json.partial") -> {
                 val databaseName = name.removeSuffix(".json") + ".db"
                 if (databaseName !in namesPresent || !BackupFileNames.isCompletedDatabaseName(databaseName)) {

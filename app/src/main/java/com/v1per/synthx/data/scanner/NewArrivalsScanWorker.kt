@@ -36,10 +36,7 @@ import kotlinx.coroutines.CancellationException
  * The folder URI is read from preferences at execution time rather than passed as input
  * data, so a re-enqueued run always picks up the current folder.
  */
-class NewArrivalsScanWorker(
-    appContext: Context,
-    params: WorkerParameters,
-) : CoroutineWorker(appContext, params) {
+class NewArrivalsScanWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
         val preferences = PreferencesManager(applicationContext)
@@ -81,8 +78,7 @@ class NewArrivalsScanWorker(
         const val GRANT_REVOKED_MESSAGE =
             "Access to your new arrivals folder has been revoked. Please select it again."
 
-        fun request(): OneTimeWorkRequest =
-            // No Constraints: pure local SAF file I/O, no network dependency — nothing
+        fun request(): OneTimeWorkRequest = // No Constraints: pure local SAF file I/O, no network dependency — nothing
             // here to gate on connectivity, battery, or storage state.
             OneTimeWorkRequestBuilder<NewArrivalsScanWorker>()
                 .setConstraints(Constraints.NONE)
@@ -106,10 +102,7 @@ class NewArrivalsScanWorker(
          * append to already finished in a FAILED or CANCELLED state — APPEND_OR_REPLACE starts
          * fresh in that case instead of inheriting a stale failure.
          */
-        fun enqueue(
-            context: Context,
-            policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
-        ): ScanEnqueueResult {
+        fun enqueue(context: Context, policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP): ScanEnqueueResult {
             val request = request()
             val operation = WorkManager.getInstance(context)
                 .enqueueUniqueWork(LibraryScanWorker.UNIQUE_WORK_NAME, policy, request)

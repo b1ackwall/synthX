@@ -78,7 +78,8 @@ private fun blurEffect(blurPx: Float, tileMode: Shader.TileMode, input: NativeEf
 
 private fun saturationEffect(input: NativeEffect?): NativeEffect {
     val filter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(PlayerAltStageStyle.Saturation) })
-    return input?.let { NativeEffect.createColorFilterEffect(filter, it) } ?: NativeEffect.createColorFilterEffect(filter)
+    return input?.let { NativeEffect.createColorFilterEffect(filter, it) }
+        ?: NativeEffect.createColorFilterEffect(filter)
 }
 
 private fun AltStageBlurEdgeMode.toTileMode(): Shader.TileMode = when (this) {
@@ -98,7 +99,11 @@ private fun twistEffect(size: IntSize, input: NativeEffect?): NativeEffect {
 private fun twistEffectApi33(size: IntSize, input: NativeEffect?): NativeEffect {
     val width = size.width.toFloat()
     val shader = RuntimeShader(AltStageTwistShaderSource).apply {
-        setFloatUniform("center", PlayerAltStageStyle.TwistOffsetX * width, PlayerAltStageStyle.TwistOffsetY * size.height)
+        setFloatUniform(
+            "center",
+            PlayerAltStageStyle.TwistOffsetX * width,
+            PlayerAltStageStyle.TwistOffsetY * size.height,
+        )
         setFloatUniform("radius", (PlayerAltStageStyle.TwistRadius * width).coerceAtLeast(1f))
         setFloatUniform("angle", PlayerAltStageStyle.TwistAngle)
         setFloatUniform("size", width, size.height.toFloat())

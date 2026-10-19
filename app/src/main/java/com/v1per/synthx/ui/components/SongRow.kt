@@ -68,7 +68,7 @@ internal fun SongRow(
                             indication = ripple(color = Accent),
                             onClick = onClick,
                         )
-                    }
+                    },
                 )
                 .padding(vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
@@ -79,7 +79,7 @@ internal fun SongRow(
                     .width(2.dp)
                     .fillMaxHeight()
                     .background(
-                        if (isCurrentlyPlaying && !song.isMissing) Accent else Color.Transparent
+                        if (isCurrentlyPlaying && !song.isMissing) Accent else Color.Transparent,
                     ),
             )
 

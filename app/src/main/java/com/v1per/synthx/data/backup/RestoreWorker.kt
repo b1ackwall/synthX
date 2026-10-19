@@ -36,7 +36,7 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
         }
         runCatching { DatabaseStartupGate.awaitReady() }.getOrElse { error ->
             return Result.failure(
-                workDataOf(KEY_ERROR to (error.message ?: "Database startup maintenance failed"))
+                workDataOf(KEY_ERROR to (error.message ?: "Database startup maintenance failed")),
             )
         }
         val backup = inputData.toBackupInfo()
@@ -56,8 +56,8 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
                         KEY_ERROR to RestoreFailureFormatter.describe(
                             error,
                             RestoreCoordinator.diagnosticOperationId.value,
-                        )
-                    )
+                        ),
+                    ),
                 )
             },
         )
@@ -143,7 +143,7 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
                 PreferencesManager(context.applicationContext).trackRestoreRequestDurably(
                     owner.id.toString(),
                     System.currentTimeMillis(),
-                )
+                ),
             ) { "Could not persist restore request identity" }
             RestoreRequestTracking.changed()
             return owner.id
@@ -157,16 +157,26 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
                 .setConstraints(Constraints.Builder().setRequiresStorageNotLow(true).build()).build()
 
         internal fun BackupInfo.toInputData(): Data = workDataOf(
-            KEY_DATABASE_URI to databaseUri.toString(), KEY_METADATA_URI to metadataUri?.toString(),
-            KEY_FILE_NAME to fileName, KEY_TIER to tier.name, KEY_TIMESTAMP to timestamp,
-            KEY_REASON to reason, KEY_SIZE_BYTES to sizeBytes,
+            KEY_DATABASE_URI to databaseUri.toString(),
+            KEY_METADATA_URI to metadataUri?.toString(),
+            KEY_FILE_NAME to fileName,
+            KEY_TIER to tier.name,
+            KEY_TIMESTAMP to timestamp,
+            KEY_REASON to reason,
+            KEY_SIZE_BYTES to sizeBytes,
         )
         internal fun Data.toBackupInfo(): BackupInfo? {
             val uri = getString(KEY_DATABASE_URI)?.let(Uri::parse) ?: return null
             val tier = getString(KEY_TIER)?.let { n -> BackupTier.entries.find { it.name == n } } ?: return null
-            return BackupInfo(uri, getString(KEY_METADATA_URI)?.let(Uri::parse), getString(KEY_FILE_NAME) ?: return null,
-                tier, getLong(KEY_TIMESTAMP, -1).takeIf { it >= 0 } ?: return null,
-                getString(KEY_REASON), getLong(KEY_SIZE_BYTES, -1).takeIf { it >= 0 } ?: return null)
+            return BackupInfo(
+                uri,
+                getString(KEY_METADATA_URI)?.let(Uri::parse),
+                getString(KEY_FILE_NAME) ?: return null,
+                tier,
+                getLong(KEY_TIMESTAMP, -1).takeIf { it >= 0 } ?: return null,
+                getString(KEY_REASON),
+                getLong(KEY_SIZE_BYTES, -1).takeIf { it >= 0 } ?: return null,
+            )
         }
 
         private suspend fun androidx.work.Operation.awaitCompletion() {

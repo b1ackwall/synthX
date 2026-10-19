@@ -231,12 +231,7 @@ private class OrganicWobble(
     }
 }
 
-private fun updateOrganicPath(
-    path: Path,
-    offsets: FloatArray,
-    directions: FloatArray,
-    points: FloatArray,
-): Float {
+private fun updateOrganicPath(path: Path, offsets: FloatArray, directions: FloatArray, points: FloatArray): Float {
     path.reset()
     val count = offsets.size
     if (count < 3) return 1f
@@ -304,19 +299,10 @@ private class BlobMotionState {
     var directionAngleRadians = Random.nextFloat() * 2f * PI.toFloat()
 }
 
-private class BlobAnimation(
-    val motion: BlobMotionState,
-    val opacity: State<Float>,
-    val sizeFraction: State<Float>,
-)
+private class BlobAnimation(val motion: BlobMotionState, val opacity: State<Float>, val sizeFraction: State<Float>)
 
 @Composable
-private fun rememberBlobAnimation(
-    index: Int,
-    blob: BlobParams,
-    layerSize: IntSize,
-    paused: Boolean,
-): BlobAnimation {
+private fun rememberBlobAnimation(index: Int, blob: BlobParams, layerSize: IntSize, paused: Boolean): BlobAnimation {
     val motion = remember { BlobMotionState() }
     val inactive = paused || layerSize.width <= 0 || layerSize.height <= 0
     val opacity = rememberRandomizedValue(index, blob.opacity, blob.opacityRandomizer, inactive)

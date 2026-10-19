@@ -68,7 +68,9 @@ suspend fun walkAndClassifyRootOrganization(
         val song = songDao.getSongByPath(path)
         when {
             song == null -> unindexed.add(path)
+
             song.isMissing -> Unit
+
             !songDao.isInAnyPlaylist(song.id) ->
                 unorganized.add(UnorganizedSong(id = song.id, title = song.title, filePath = song.filePath))
         }

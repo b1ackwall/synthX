@@ -20,8 +20,22 @@ private fun LibraryScreenPreview() {
         ) {
             LibraryScreenContent(
                 recentSongs = persistentListOf(
-                    Song(id = "1", title = "Neon Pulse", artist = "v1per", album = "Ultraviolet", duration = 243000L, filePath = ""),
-                    Song(id = "2", title = "Static Bloom", artist = "KNTRL", album = "Fragments", duration = 198000L, filePath = ""),
+                    Song(
+                        id = "1",
+                        title = "Neon Pulse",
+                        artist = "v1per",
+                        album = "Ultraviolet",
+                        duration = 243000L,
+                        filePath = "",
+                    ),
+                    Song(
+                        id = "2",
+                        title = "Static Bloom",
+                        artist = "KNTRL",
+                        album = "Fragments",
+                        duration = 198000L,
+                        filePath = "",
+                    ),
                 ),
                 error = null,
                 isLoading = false,

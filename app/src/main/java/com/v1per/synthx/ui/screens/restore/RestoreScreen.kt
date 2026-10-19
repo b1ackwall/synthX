@@ -95,6 +95,7 @@ fun RestoreScreen(
             // unlike an actual restore there is no uninterruptible install phase to guard.
             onCancel = viewModel::cancelPreview,
         )
+
         is RestorePreview.Ready -> ConfirmRestoreDialog(
             backup = current.backup,
             counts = current.counts,
@@ -109,6 +110,7 @@ fun RestoreScreen(
             },
             onDismiss = { viewModel.dismissPreview() },
         )
+
         is RestorePreview.Failed -> AlertDialog(
             onDismissRequest = viewModel::dismissPreview,
             title = { Text(stringResource(R.string.restore_preview_error_title)) },
@@ -125,6 +127,7 @@ fun RestoreScreen(
             titleContentColor = TextPrimary,
             textContentColor = TextSecondary,
         )
+
         RestorePreview.Idle -> Unit
     }
 
@@ -139,8 +142,13 @@ fun RestoreScreen(
                 restoreProgress == null ||
                 restoreProgress == RestoreProgressStep.COPYING ||
                 restoreProgress == RestoreProgressStep.VALIDATING
-            ) viewModel::cancelRestore else null,
+            ) {
+                viewModel::cancelRestore
+            } else {
+                null
+            },
         )
+
         is RestoreOutcome.Complete -> AlertDialog(
             // Not dismissible: the DB handle is closed and every live ViewModel is stale.
             // The only correct next step is a cold start.
@@ -159,6 +167,7 @@ fun RestoreScreen(
             titleContentColor = TextPrimary,
             textContentColor = TextSecondary,
         )
+
         is RestoreOutcome.Failed -> AlertDialog(
             onDismissRequest = viewModel::dismissFailure,
             title = { Text(stringResource(R.string.restore_failed_title)) },
@@ -175,6 +184,7 @@ fun RestoreScreen(
             titleContentColor = TextPrimary,
             textContentColor = TextSecondary,
         )
+
         else -> Unit
     }
 }
@@ -187,11 +197,7 @@ fun RestoreScreen(
  * has passed into its uninterruptible install phase.
  */
 @Composable
-private fun RestoreProgressOverlay(
-    step: RestoreProgressStep?,
-    fallbackText: String,
-    onCancel: (() -> Unit)?,
-) {
+private fun RestoreProgressOverlay(step: RestoreProgressStep?, fallbackText: String, onCancel: (() -> Unit)?) {
     val steps = RestoreProgressStep.entries
     val stepIndex = step?.let(steps::indexOf)
     val label = step?.let { stringResource(restoreProgressLabelRes(it)) } ?: fallbackText
@@ -256,6 +262,7 @@ internal fun RestoreContent(
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
             is UiState.Loading -> LoadingIndicator()
+
             is UiState.Empty -> Text(
                 text = stringResource(R.string.restore_empty),
                 style = MaterialTheme.typography.bodyLarge,
@@ -264,6 +271,7 @@ internal fun RestoreContent(
                     .align(Alignment.Center)
                     .padding(horizontal = Spacing.HorizontalPadding),
             )
+
             is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
@@ -272,16 +280,20 @@ internal fun RestoreContent(
                     .align(Alignment.Center)
                     .padding(horizontal = Spacing.HorizontalPadding),
             )
+
             is UiState.Success -> when (val result = uiState.data) {
                 is BackupListResult.NoFolderConfigured -> EmptyStateMessage(
                     text = stringResource(R.string.restore_no_folder_configured),
                 )
+
                 is BackupListResult.FolderUnreachable -> EmptyStateMessage(
                     text = stringResource(R.string.restore_folder_unreachable),
                 )
+
                 is BackupListResult.Empty -> EmptyStateMessage(
                     text = stringResource(R.string.restore_empty),
                 )
+
                 is BackupListResult.Success -> {
                     val allIneligible = result.backups.isNotEmpty() &&
                         result.backups.none { it.restoreEligible }

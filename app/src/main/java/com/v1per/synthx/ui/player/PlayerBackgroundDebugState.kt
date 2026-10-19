@@ -7,9 +7,11 @@ internal const val PlayerBackgroundBlurMinDp = 0f
 internal const val PlayerBackgroundBlurMaxDp = 300f
 
 /** [value] limited to the slider range; a NaN falls back to the locked production blur. */
-internal fun clampPlayerBackgroundBlurDp(value: Float): Float =
-    if (value.isNaN()) PlayerAltStageStyle.BlurDp
-    else value.coerceIn(PlayerBackgroundBlurMinDp, PlayerBackgroundBlurMaxDp)
+internal fun clampPlayerBackgroundBlurDp(value: Float): Float = if (value.isNaN()) {
+    PlayerAltStageStyle.BlurDp
+} else {
+    value.coerceIn(PlayerBackgroundBlurMinDp, PlayerBackgroundBlurMaxDp)
+}
 
 /** How the blur treats content near the layer edge. */
 internal enum class AltStageBlurEdgeMode { Clamp, Mirror, Decal, Repeat }

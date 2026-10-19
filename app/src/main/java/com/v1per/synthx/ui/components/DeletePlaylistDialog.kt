@@ -22,11 +22,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
  * the destructive-action count, read the same way from [DestructiveActionTracker].
  */
 @Composable
-fun DeletePlaylistDialog(
-    playlistName: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
+fun DeletePlaylistDialog(playlistName: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val destructiveActionCount by DestructiveActionTracker.count.collectAsState()
     AlertDialog(
         onDismissRequest = onDismiss,

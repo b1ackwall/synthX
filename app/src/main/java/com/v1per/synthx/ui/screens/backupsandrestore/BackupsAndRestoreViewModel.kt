@@ -58,7 +58,7 @@ class BackupsAndRestoreViewModel(
 ) : ViewModel() {
 
     private val _backupFolderUri = MutableStateFlow(
-        preferencesManager.backupFolderUri?.let { it.toUri() }
+        preferencesManager.backupFolderUri?.let { it.toUri() },
     )
     val backupFolderUri: StateFlow<Uri?> = _backupFolderUri.asStateFlow()
 
@@ -87,7 +87,9 @@ class BackupsAndRestoreViewModel(
         when {
             outcome != null && !outcome.succeeded && (success == null || outcome.timestamp > success.timestamp) ->
                 BackupHealthState.Failed(outcome.timestamp, outcome.failureMessage)
+
             success != null -> BackupHealthState.Succeeded(success.timestamp, success.tier)
+
             else -> BackupHealthState.Unknown
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BackupHealthState.Unknown)
@@ -141,9 +143,11 @@ class BackupsAndRestoreViewModel(
             viewModelScope.launch {
                 when (BackupFolderHealth.check(context, backupManager, uri)) {
                     BackupFolderHealth.Result.Healthy -> Unit
+
                     BackupFolderHealth.Result.GrantLost ->
                         _backupFolderError.value =
                             context.getString(R.string.error_backup_folder_grant_lost)
+
                     BackupFolderHealth.Result.Unwritable ->
                         _backupFolderError.value =
                             context.getString(R.string.backup_status_folder_create_failed)
@@ -210,19 +214,25 @@ class BackupsAndRestoreViewModel(
                             // cached success displayed against the newly-selected folder.
                             viewModelScope.launch { refreshLastSuccessfulBackup() }
                         }
+
                         // Persistent (not showTemporarily), matching the same convention used
                         // for the launch-time/screen-entry health check above: a rejected pick
                         // is a real, unresolved problem and should stay visible until the user
                         // either fixes it or picks a different folder, not vanish after 4s while
                         // the row above still says "No folder selected."
-                        Outcome.NESTED -> _backupFolderError.value =
-                            context.getString(R.string.error_backup_folder_nested)
+                        Outcome.NESTED ->
+                            _backupFolderError.value =
+                                context.getString(R.string.error_backup_folder_nested)
+
                         // Nesting couldn't be ruled out (opaque provider ids) rather than
                         // confirmed — fail closed with a message that doesn't overclaim.
-                        Outcome.NESTING_UNDETERMINED -> _backupFolderError.value =
-                            context.getString(R.string.error_backup_folder_nesting_undetermined)
-                        Outcome.UNUSABLE -> _backupFolderError.value =
-                            context.getString(R.string.backup_status_folder_create_failed)
+                        Outcome.NESTING_UNDETERMINED ->
+                            _backupFolderError.value =
+                                context.getString(R.string.error_backup_folder_nesting_undetermined)
+
+                        Outcome.UNUSABLE ->
+                            _backupFolderError.value =
+                                context.getString(R.string.backup_status_folder_create_failed)
                     }
                 },
                 onFailure = {
@@ -262,7 +272,7 @@ class BackupsAndRestoreViewModel(
                                 e.message ?: context.getString(R.string.scan_status_unknown_error),
                             )
                         },
-                    )
+                    ),
                 )
             } finally {
                 _isBackingUp.value = false

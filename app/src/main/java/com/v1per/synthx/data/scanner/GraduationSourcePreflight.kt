@@ -29,17 +29,21 @@ internal class GraduationSourcePreflight(
                 "synthX doesn't have write access to your $rootName folder. Reselect it in " +
                     "Settings > Library Management. Nothing was copied.",
             )
+
             RootWriteState.Ambiguous -> return GraduationSourcePreflightResult.Failed(
                 "synthX couldn't verify write access to your $rootName folder. Nothing was copied.",
             )
+
             RootWriteState.Writable -> Unit
         }
         return when (probe.supportsDelete(documentUri)) {
             true -> GraduationSourcePreflightResult.Passed
+
             false -> GraduationSourcePreflightResult.Failed(
                 "The file in your $rootName folder can't be deleted by its storage provider. " +
                     "Nothing was copied.",
             )
+
             null -> GraduationSourcePreflightResult.Failed(
                 "synthX couldn't confirm that the file in your $rootName folder can be deleted. " +
                     "Nothing was copied.",

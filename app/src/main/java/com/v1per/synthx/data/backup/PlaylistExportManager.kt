@@ -287,6 +287,7 @@ class PlaylistExportManager(
         private const val TAG = "PlaylistExport"
 
         private const val MIME_JSON = "application/json"
+
         /** Sibling of the Daily/Auto/Manual tier folders; deliberately not a [BackupTier]. */
         internal const val EXPORT_FOLDER_NAME = "PlaylistExports"
         private const val FINAL_FILE_NAME = "playlists_export.json"
@@ -303,29 +304,30 @@ class PlaylistExportManager(
         @Volatile private var legacyMigrationDone = false
 
         /** Test-only: resets the once-per-process migration guard. */
-        internal fun resetMigrationGuardForTest() { legacyMigrationDone = false }
+        internal fun resetMigrationGuardForTest() {
+            legacyMigrationDone = false
+        }
 
         // Only applicationContext is stored here (see create).
         @SuppressLint("StaticFieldLeak")
-        @Volatile private var INSTANCE: PlaylistExportManager? = null
+        @Volatile
+        private var INSTANCE: PlaylistExportManager? = null
 
         // A true singleton (matching SongRepositoryImpl.create()'s and SynthXDatabase's own
         // pattern), not just a caller-discipline convention: a second independent instance
         // would run its own competing debounced-write collector against the same SAF files.
-        fun create(context: Context): PlaylistExportManager {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: run {
-                    val appContext = context.applicationContext
-                    val db = SynthXDatabase.getInstance(appContext)
-                    PlaylistExportManager(
-                        context = appContext,
-                        database = db,
-                        playlistDao = db.playlistDao(),
-                        songDao = db.songDao(),
-                        artistDao = db.artistDao(),
-                        albumDao = db.albumDao(),
-                    ).also { INSTANCE = it }
-                }
+        fun create(context: Context): PlaylistExportManager = INSTANCE ?: synchronized(this) {
+            INSTANCE ?: run {
+                val appContext = context.applicationContext
+                val db = SynthXDatabase.getInstance(appContext)
+                PlaylistExportManager(
+                    context = appContext,
+                    database = db,
+                    playlistDao = db.playlistDao(),
+                    songDao = db.songDao(),
+                    artistDao = db.artistDao(),
+                    albumDao = db.albumDao(),
+                ).also { INSTANCE = it }
             }
         }
     }

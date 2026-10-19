@@ -73,18 +73,18 @@ internal fun RestoreMaintenanceSurface() {
 
 /** Unchanged from the guard this shell has always had; only its call site moved. */
 @Composable
-internal fun RestoreTerminalSurface(
-    restoreTerminal: RestoreCoordinator.Terminal,
-    diagnosticOperationId: String?,
-) {
+internal fun RestoreTerminalSurface(restoreTerminal: RestoreCoordinator.Terminal, diagnosticOperationId: String?) {
     val message = when (restoreTerminal) {
         RestoreCoordinator.Terminal.RESTART_REQUIRED -> "Restore complete. Close and reopen synthX to continue."
+
         RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED ->
             "Restore was rolled back safely. Close and reopen synthX to continue."
+
         RestoreCoordinator.Terminal.EMERGENCY ->
             "Automatic database recovery could not validate a usable database.\n\n" +
                 "Normal app use is disabled to protect your data.\n\n" +
                 "Diagnostic operation ID:\n${diagnosticOperationId ?: "unavailable"}"
+
         RestoreCoordinator.Terminal.NORMAL -> ""
     }
     AlertDialog(
@@ -95,7 +95,7 @@ internal fun RestoreTerminalSurface(
                     "Database recovery required"
                 } else {
                     "Restart required"
-                }
+                },
             )
         },
         text = { Text(message) },

@@ -10,8 +10,7 @@ private const val LumaR = 0.213f
 private const val LumaG = 0.715f
 private const val LumaB = 0.072f
 
-private fun srgbToLinear(c: Float): Float =
-    if (c <= 0.04045f) c / 12.92f else ((c + 0.055f) / 1.055f).pow(2.4f)
+private fun srgbToLinear(c: Float): Float = if (c <= 0.04045f) c / 12.92f else ((c + 0.055f) / 1.055f).pow(2.4f)
 
 /** Mean, median and 90th percentile of one brightness metric, each in 0..1. */
 data class BrightnessStats(val mean: Float, val median: Float, val p90: Float)

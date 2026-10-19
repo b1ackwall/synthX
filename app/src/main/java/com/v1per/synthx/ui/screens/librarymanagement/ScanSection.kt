@@ -62,12 +62,7 @@ internal fun ScanSection(
 }
 
 @Composable
-private fun RescanRow(
-    status: String?,
-    statusNeedsAttention: Boolean,
-    isScanning: Boolean,
-    onClick: () -> Unit,
-) {
+private fun RescanRow(status: String?, statusNeedsAttention: Boolean, isScanning: Boolean, onClick: () -> Unit) {
     // Disabled while a scan is in progress — the status line reports progress instead.
     ManagementRow(
         title = stringResource(R.string.settings_rescan_library),

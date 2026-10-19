@@ -70,8 +70,10 @@ class RestoreStatusViewModel internal constructor(
                             delay((submittedAt + pendingGraceMillis - now()).coerceAtLeast(0L))
                             _status.value = RestoreAppStatus.WaitingForStorage(info.id)
                         }
+
                         WorkInfo.State.RUNNING, WorkInfo.State.BLOCKED ->
                             _status.value = RestoreAppStatus.Working(info.id)
+
                         WorkInfo.State.SUCCEEDED -> {
                             // This is recovery's genuine completion signal — the
                             // restore actually landed, not merely RESTORE_PREPARING being
@@ -86,11 +88,13 @@ class RestoreStatusViewModel internal constructor(
                             }
                             _status.value = RestoreAppStatus.Succeeded(info.id)
                         }
+
                         WorkInfo.State.FAILED -> _status.value = RestoreAppStatus.Failed(
                             info.id,
                             info.outputData.getString(RestoreWorker.KEY_ERROR)
                                 ?: appContext.getString(R.string.restore_error_unknown),
                         )
+
                         WorkInfo.State.CANCELLED -> _status.value = RestoreAppStatus.Failed(
                             info.id,
                             appContext.getString(R.string.restore_error_cancelled),

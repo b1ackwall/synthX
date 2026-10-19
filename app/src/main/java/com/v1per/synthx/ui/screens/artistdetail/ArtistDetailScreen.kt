@@ -70,18 +70,21 @@ internal fun ArtistDetailContent(
     Box(modifier = Modifier.fillMaxSize()) {
         when (val state = uiState) {
             is UiState.Loading -> LoadingIndicator()
+
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_songs),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             is UiState.Error -> Text(
                 text = state.message,
                 style = MaterialTheme.typography.bodyLarge,
                 color = Error,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             // No hero: the stats line sits under the top content padding, and the action row's
             // own vertical padding spaces it from the stats line above and the first row below.
             is UiState.Success -> LazyColumn(

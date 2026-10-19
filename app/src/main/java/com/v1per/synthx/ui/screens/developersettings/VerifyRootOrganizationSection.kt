@@ -75,7 +75,7 @@ internal fun VerifyRootOrganizationSection(
                 Text(
                     "Walk the configured music folder and report songs not yet in a " +
                         "playlist, plus any files on disk with no matching library entry. " +
-                        "Read-only — nothing is changed."
+                        "Read-only — nothing is changed.",
                 )
             },
             confirmButton = {
@@ -109,10 +109,7 @@ internal fun VerifyRootOrganizationSection(
 }
 
 @Composable
-private fun RootOrganizationResultDialog(
-    result: RootOrganizationCheckResult,
-    onDismiss: () -> Unit,
-) {
+private fun RootOrganizationResultDialog(result: RootOrganizationCheckResult, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Root library check") },

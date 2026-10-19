@@ -33,11 +33,7 @@ private const val TAG = "SynthXArtRecovery"
 private val ART_RECOVERY_PARALLELISM = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
 
 /** Outcome of one [ArtRecovery.recover] pass. Public — surfaced through [com.v1per.synthx.data.repository.SongRepository]. */
-data class ArtRecoveryResult(
-    val checked: Int,
-    val recovered: Int,
-    val skipped: Int,
-)
+data class ArtRecoveryResult(val checked: Int, val recovered: Int, val skipped: Int)
 
 /**
  * Detects and repairs songs whose art file(s) have gone missing from `filesDir/art/` while
@@ -169,14 +165,11 @@ internal object ArtRecovery {
      * so the merge itself is testable with a plain fake, no Android framework involved — same
      * shape as [findMissingArt]'s split.
      */
-    internal fun mergeArtRecoveryResult(
-        current: SongEntity,
-        compressedUri: String?,
-        fullArtUri: String?,
-    ): SongEntity = current.copy(
-        albumArtUri = compressedUri ?: current.albumArtUri,
-        albumArtFullUri = fullArtUri ?: current.albumArtFullUri,
-    )
+    internal fun mergeArtRecoveryResult(current: SongEntity, compressedUri: String?, fullArtUri: String?): SongEntity =
+        current.copy(
+            albumArtUri = compressedUri ?: current.albumArtUri,
+            albumArtFullUri = fullArtUri ?: current.albumArtFullUri,
+        )
 
     /**
      * Re-extracts both art variants for [song], merges the result into its row via

@@ -18,12 +18,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
  * [DeleteSongDialog]/[DeletePlaylistDialog]. Same shape as [PlayNextDuplicateDialog].
  */
 @Composable
-fun RemoveFromPlaylistDialog(
-    songTitle: String,
-    playlistName: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
+fun RemoveFromPlaylistDialog(songTitle: String, playlistName: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.remove_from_playlist_dialog_title)) },

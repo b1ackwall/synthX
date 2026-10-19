@@ -102,10 +102,15 @@ class RestoreViewModel(
     ) { info, dismissed, blockReason, submissionPending ->
         when {
             blockReason != null -> RestoreOutcome.Failed(blockReason)
+
             submissionPending -> RestoreOutcome.InProgress
+
             info == null -> RestoreOutcome.Idle
+
             !info.state.isFinished -> RestoreOutcome.InProgress
+
             info.state == WorkInfo.State.SUCCEEDED -> RestoreOutcome.Complete
+
             info.state == WorkInfo.State.FAILED -> if (dismissed) {
                 RestoreOutcome.Idle
             } else {
@@ -114,11 +119,13 @@ class RestoreViewModel(
                         ?: context.getString(R.string.restore_error_unknown),
                 )
             }
+
             info.state == WorkInfo.State.CANCELLED -> if (dismissed) {
                 RestoreOutcome.Idle
             } else {
                 RestoreOutcome.Failed(context.getString(R.string.restore_error_cancelled))
             }
+
             else -> RestoreOutcome.Idle
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RestoreOutcome.Idle)

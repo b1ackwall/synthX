@@ -29,10 +29,7 @@ import java.util.concurrent.TimeUnit
  * machinery exists so a long folder walk survives Doze/App Standby; this pass is bounded and
  * fast, so it stays a plain background worker and stays silent.
  */
-class VerifyLibraryWorker(
-    appContext: Context,
-    params: WorkerParameters,
-) : CoroutineWorker(appContext, params) {
+class VerifyLibraryWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
         val preferences = PreferencesManager(applicationContext)
@@ -78,14 +75,12 @@ class VerifyLibraryWorker(
      * and retrying indefinitely (WorkManager has no built-in attempt cap) would just mask a
      * real, persistent problem instead of ever surfacing it.
      */
-    private fun retryOrFail(e: Exception): Result {
-        return if (runAttemptCount < MAX_TRANSIENT_ATTEMPTS) {
-            Log.w(TAG, "Launch verify failed transiently (attempt ${runAttemptCount + 1}), retrying", e)
-            Result.retry()
-        } else {
-            Log.e(TAG, "Launch verify failed after $MAX_TRANSIENT_ATTEMPTS attempts, giving up", e)
-            Result.failure()
-        }
+    private fun retryOrFail(e: Exception): Result = if (runAttemptCount < MAX_TRANSIENT_ATTEMPTS) {
+        Log.w(TAG, "Launch verify failed transiently (attempt ${runAttemptCount + 1}), retrying", e)
+        Result.retry()
+    } else {
+        Log.e(TAG, "Launch verify failed after $MAX_TRANSIENT_ATTEMPTS attempts, giving up", e)
+        Result.failure()
     }
 
     companion object {

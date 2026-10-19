@@ -88,6 +88,7 @@ class QueueModeState internal constructor(
                     controlsVisible = false
                     accumulatedScrollDelta = 0f
                 }
+
                 accumulatedScrollDelta >= overlayToggleThresholdPx -> {
                     controlsVisible = true
                     accumulatedScrollDelta = 0f

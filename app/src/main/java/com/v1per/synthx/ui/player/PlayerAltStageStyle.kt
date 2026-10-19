@@ -20,8 +20,20 @@ internal object PlayerAltStageStyle {
     val Copies = listOf(
         AltStageArtCopy(sizeFraction = 1.25f, spinSpeed = 0.05f, clockwise = true),
         AltStageArtCopy(sizeFraction = 0.80f, spinSpeed = 0.07f, clockwise = false),
-        AltStageArtCopy(sizeFraction = 0.50f, spinSpeed = 0.10f, clockwise = true, orbitRadius = 0.25f, orbitSpeed = 0.06f),
-        AltStageArtCopy(sizeFraction = 0.25f, spinSpeed = 0.14f, clockwise = false, orbitRadius = 0.40f, orbitSpeed = -0.09f),
+        AltStageArtCopy(
+            sizeFraction = 0.50f,
+            spinSpeed = 0.10f,
+            clockwise = true,
+            orbitRadius = 0.25f,
+            orbitSpeed = 0.06f,
+        ),
+        AltStageArtCopy(
+            sizeFraction = 0.25f,
+            spinSpeed = 0.14f,
+            clockwise = false,
+            orbitRadius = 0.40f,
+            orbitSpeed = -0.09f,
+        ),
     )
 
     /** Copy indices that circle the layer center; orbit slots follow this order. */

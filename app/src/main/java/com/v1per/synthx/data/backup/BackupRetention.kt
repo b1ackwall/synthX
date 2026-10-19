@@ -1,12 +1,7 @@
 package com.v1per.synthx.data.backup
 
 /** Provider-neutral facts used to derive trustworthy final DB + metadata pairs. */
-internal data class BackupArtifact<T>(
-    val document: T,
-    val name: String,
-    val isFile: Boolean,
-    val sizeBytes: Long,
-)
+internal data class BackupArtifact<T>(val document: T, val name: String, val isFile: Boolean, val sizeBytes: Long)
 
 internal data class CompletedBackup<T>(
     val database: BackupArtifact<T>,
@@ -49,10 +44,7 @@ internal object CompletedBackupCatalog {
 }
 
 /** Per-victim outcome of attempting to delete both halves of a [CompletedBackup] pair. */
-internal data class PairDeletionResult(
-    val databaseDeleted: Boolean,
-    val metadataDeleted: Boolean,
-) {
+internal data class PairDeletionResult(val databaseDeleted: Boolean, val metadataDeleted: Boolean) {
     val complete: Boolean get() = databaseDeleted && metadataDeleted
     val orphaned: Boolean get() = databaseDeleted != metadataDeleted
 }

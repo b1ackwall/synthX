@@ -46,15 +46,14 @@ internal fun SongRepositoryImpl.getStarredSongsInternal(): Flow<List<Song>> =
 
 // Sort order (date_added DESC) and the limit stay in the DAO query;
 // this only resolves artist order, same as the other scoped song lists above.
-internal fun SongRepositoryImpl.getRecentSongsInternal(limit: Int): Flow<List<Song>> =
-    RepositoryDbFlow.observe {
-        songDao.getRecentSongsWithDetails(limit)
-    }.map { details ->
-        val refsBySongId = details.map { it.song.id }
-            .queryInBatches(songDao::getSongArtistRefsForSongs)
-            .groupBy { it.songId }
-        details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
-    }.flowOn(Dispatchers.Default)
+internal fun SongRepositoryImpl.getRecentSongsInternal(limit: Int): Flow<List<Song>> = RepositoryDbFlow.observe {
+    songDao.getRecentSongsWithDetails(limit)
+}.map { details ->
+    val refsBySongId = details.map { it.song.id }
+        .queryInBatches(songDao::getSongArtistRefsForSongs)
+        .groupBy { it.songId }
+    details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+}.flowOn(Dispatchers.Default)
 
 // No dbOperation{} wrapper here — graduateSongFile takes its own song lock and one
 // RestoreCoordinator permit held for its whole duration (file I/O included), in the
@@ -112,15 +111,17 @@ internal fun SongRepositoryImpl.getSongsForPlaylistInternal(playlistId: String):
         details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
     }.flowOn(Dispatchers.Default)
 
-internal suspend fun SongRepositoryImpl.getSongsByIdsInternal(ids: List<String>): List<Song> = dbOperation { withContext(Dispatchers.IO) {
-    if (ids.isEmpty()) return@withContext emptyList()
-    val distinctIds = ids.distinct()
-    val details = distinctIds.queryInBatches(songDao::getSongsWithDetailsByIds)
-    val refsBySongId = details.map { it.song.id }
-        .queryInBatches(songDao::getSongArtistRefsForSongs)
-        .groupBy { it.songId }
-    val songsById = details.associate { row ->
-        row.song.id to row.toDomain(refsBySongId[row.song.id] ?: emptyList())
+internal suspend fun SongRepositoryImpl.getSongsByIdsInternal(ids: List<String>): List<Song> = dbOperation {
+    withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext emptyList()
+        val distinctIds = ids.distinct()
+        val details = distinctIds.queryInBatches(songDao::getSongsWithDetailsByIds)
+        val refsBySongId = details.map { it.song.id }
+            .queryInBatches(songDao::getSongArtistRefsForSongs)
+            .groupBy { it.songId }
+        val songsById = details.associate { row ->
+            row.song.id to row.toDomain(refsBySongId[row.song.id] ?: emptyList())
+        }
+        distinctIds.mapNotNull(songsById::get)
     }
-    distinctIds.mapNotNull(songsById::get)
-} }
+}

@@ -14,10 +14,7 @@ import com.v1per.synthx.R
  * its own.
  */
 @Composable
-internal fun ReplaceSongRow(
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
+internal fun ReplaceSongRow(enabled: Boolean, onClick: () -> Unit) {
     ManagementRow(
         title = stringResource(R.string.settings_replace_song),
         subtitle = stringResource(
@@ -25,7 +22,7 @@ internal fun ReplaceSongRow(
                 R.string.settings_replace_song_subtitle
             } else {
                 R.string.settings_replace_song_disabled
-            }
+            },
         ),
         subtitleMaxLines = 2,
         enabled = enabled,

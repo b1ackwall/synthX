@@ -4,12 +4,7 @@ package com.v1per.synthx.glitch
  * One strip of the deterministic glitch pattern, normalized so any renderer (Compose
  * DrawScope, Android Canvas) can scale it to its own target size.
  */
-data class GlitchStrip(
-    val yFrac: Float,
-    val heightFrac: Float,
-    val widthFrac: Float,
-    val colorIndex: Int,
-)
+data class GlitchStrip(val yFrac: Float, val heightFrac: Float, val widthFrac: Float, val colorIndex: Int)
 
 /**
  * Deterministically derives a 4-6 strip glitch pattern from [songId] via an XOR/multiply

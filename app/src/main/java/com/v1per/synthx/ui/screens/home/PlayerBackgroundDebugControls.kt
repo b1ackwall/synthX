@@ -75,10 +75,7 @@ internal fun PlayerBackgroundDebugControls() {
 
 // Same look as the Developer Settings blob sheet: translucent surface, no handle, no drag-dismiss.
 @Composable
-private fun PlayerBackgroundDebugSheet(
-    sheetState: RefinedBottomSheetState,
-    onDismissRequest: () -> Unit,
-) {
+private fun PlayerBackgroundDebugSheet(sheetState: RefinedBottomSheetState, onDismissRequest: () -> Unit) {
     val debugState by PlayerBackgroundDebugStateHolder.state
 
     RefinedBottomSheet(

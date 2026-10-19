@@ -92,26 +92,37 @@ fun SongActionsHost(
             val message = when (event) {
                 is SongActionEvent.AlreadyInPlaylist ->
                     resources.getString(R.string.actions_already_in_playlist, event.playlistName)
+
                 is SongActionEvent.AddedToPlaylist ->
                     resources.getString(R.string.actions_added_to_playlist, event.playlistName)
+
                 is SongActionEvent.RemovedFromPlaylist ->
                     resources.getString(R.string.actions_removed_from_playlist, event.playlistName)
+
                 SongActionEvent.RemovedFromStarred ->
                     resources.getString(R.string.actions_removed_from_starred)
+
                 SongActionEvent.ActionFailed -> resources.getString(R.string.actions_failed)
+
                 is SongActionEvent.DeletedButFileRemained ->
                     resources.getString(R.string.actions_delete_file_remained)
+
                 is SongActionEvent.DeletedButCleanupUncertain ->
                     deleteCleanupUncertainMessage
+
                 SongActionEvent.AudioCleanupRetrySucceeded ->
                     resources.getString(R.string.audio_cleanup_retry_succeeded)
+
                 is SongActionEvent.DeleteBlocked -> when (val reason = event.reason) {
                     is DestructiveFilePreflightResult.GrantNotWritable -> when (reason.root) {
                         KnownAudioRoot.Music -> musicGrantMessage
                         KnownAudioRoot.NewArrivals -> newArrivalsGrantMessage
                     }
+
                     DestructiveFilePreflightResult.DocumentNotWritable -> documentNotWritableMessage
+
                     DestructiveFilePreflightResult.IdentityMismatch -> identityMismatchMessage
+
                     DestructiveFilePreflightResult.RootUnknown -> rootUnknownMessage
                 }
             }
@@ -239,7 +250,9 @@ fun SongActionsHost(
                 dismiss {
                     when (onPlayNext(song, false)) {
                         QueueAddResult.Added -> showQueueSnackbar(R.string.actions_playing_next)
+
                         QueueAddResult.NeedsConfirmation -> playNextConfirmTarget = song
+
                         // The engine already surfaced the scaffold's error snackbar.
                         QueueAddResult.Unavailable -> Unit
                     }
@@ -320,18 +333,10 @@ fun SongActionsHost(
 
 private data class RemoveFromPlaylistTarget(val song: Song, val playlistId: String)
 
-private data class SongActionsTarget(
-    val song: Song,
-    val playlistId: String?,
-    val source: SongActionSource,
-)
+private data class SongActionsTarget(val song: Song, val playlistId: String?, val source: SongActionSource)
 
 /** [SongActionsTarget] reduced to primitives — what actually gets saved across config change. */
-private data class SongActionsTargetKey(
-    val songId: String,
-    val playlistId: String?,
-    val source: SongActionSource,
-)
+private data class SongActionsTargetKey(val songId: String, val playlistId: String?, val source: SongActionSource)
 
 // Nullable Original (the sheet is usually closed) — an empty list is the null sentinel, since
 // a saved value can't itself be null.

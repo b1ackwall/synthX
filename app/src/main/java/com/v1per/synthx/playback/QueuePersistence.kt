@@ -42,13 +42,12 @@ import java.util.concurrent.ConcurrentHashMap
  * plain constructor stays public for tests that deliberately want isolated,
  * independently-draining instances.
  */
-class QueuePersistence(
-    private val repository: SongRepository,
-) : BaselineOrderWriter {
+class QueuePersistence(private val repository: SongRepository) : BaselineOrderWriter {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val writeQueue = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+
     /** Serializes writer admission with channel closure. */
     private val admissionLock = Any()
     private var acceptingWrites = true
@@ -87,14 +86,13 @@ class QueuePersistence(
      * pause, an app-backgrounded event, or a restore rewrite) already has both in hand, so
      * there is no case where only one is known.
      */
-    internal fun saveQueueRecords(
-        slots: List<QueueSlotRecord>,
-        currentSlotId: String?,
-        positionMs: Long,
-    ) {
+    internal fun saveQueueRecords(slots: List<QueueSlotRecord>, currentSlotId: String?, positionMs: Long) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
-            if (!acceptingWrites) { permit.release(); return }
+            if (!acceptingWrites) {
+                permit.release()
+                return
+            }
             val accepted = writeQueue.trySend {
                 try {
                     require(repository is AdmittedQueuePersistenceRepository) {
@@ -122,7 +120,10 @@ class QueuePersistence(
     fun updateCursor(currentSlotId: String?, positionMs: Long) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
-            if (!acceptingWrites) { permit.release(); return }
+            if (!acceptingWrites) {
+                permit.release()
+                return
+            }
             val accepted = writeQueue.trySend {
                 try {
                     require(repository is AdmittedQueuePersistenceRepository) {
@@ -150,7 +151,10 @@ class QueuePersistence(
     override fun writeBaselineOrder(records: List<QueueSlotRecord>) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
-            if (!acceptingWrites) { permit.release(); return }
+            if (!acceptingWrites) {
+                permit.release()
+                return
+            }
             val accepted = writeQueue.trySend {
                 try {
                     require(repository is AdmittedQueuePersistenceRepository) {
@@ -176,7 +180,10 @@ class QueuePersistence(
     fun updateShuffleEnabled(enabled: Boolean) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
-            if (!acceptingWrites) { permit.release(); return }
+            if (!acceptingWrites) {
+                permit.release()
+                return
+            }
             val accepted = writeQueue.trySend {
                 try {
                     require(repository is AdmittedQueuePersistenceRepository) {
@@ -210,14 +217,22 @@ class QueuePersistence(
     ) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
-            if (!acceptingWrites) { permit.release(); return }
+            if (!acceptingWrites) {
+                permit.release()
+                return
+            }
             val accepted = writeQueue.trySend {
                 try {
                     require(repository is AdmittedQueuePersistenceRepository) {
                         "Queue persistence requires an already-admitted repository"
                     }
                     repository.setUnifiedQueueState(
-                        activeSlots, baselineSlots, currentSlotId, positionMs, shuffleEnabled, repeatMode,
+                        activeSlots,
+                        baselineSlots,
+                        currentSlotId,
+                        positionMs,
+                        shuffleEnabled,
+                        repeatMode,
                     )
                 } catch (e: Exception) {
                     runCatching { Log.w(TAG, "Unified queue state save failed: ${e.message}") }
@@ -233,7 +248,10 @@ class QueuePersistence(
     fun updateRepeatMode(mode: Int) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
-            if (!acceptingWrites) { permit.release(); return }
+            if (!acceptingWrites) {
+                permit.release()
+                return
+            }
             val accepted = writeQueue.trySend {
                 try {
                     require(repository is AdmittedQueuePersistenceRepository) {
@@ -308,13 +326,11 @@ class QueuePersistence(
      * index/position bookkeeping here: the baseline is a plain ordered list, nothing reads
      * a "current position" out of it directly.
      */
-    suspend fun loadBaselineQueue(): List<QueueSlot> {
-        return try {
-            repository.getBaselineQueueSlots()
-        } catch (e: Exception) {
-            Log.w(TAG, "Baseline queue load failed: ${e.message}")
-            emptyList()
-        }
+    suspend fun loadBaselineQueue(): List<QueueSlot> = try {
+        repository.getBaselineQueueSlots()
+    } catch (e: Exception) {
+        Log.w(TAG, "Baseline queue load failed: ${e.message}")
+        emptyList()
     }
 
     /** Stops admission, drains accepted writes in FIFO order, then permanently closes Room use. */
@@ -365,12 +381,10 @@ class QueuePersistence(
         // own instance and silently lose the fresher state. Like SongRepositoryImpl's own singleton, this is not
         // invalidated on restore — restore's terminal mode already requires a process restart,
         // which is what rebuilds it.
-        fun create(context: Context): QueuePersistence {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: run {
-                    val appContext = context.applicationContext
-                    QueuePersistence(repository = SongRepositoryImpl.create(appContext)).also { INSTANCE = it }
-                }
+        fun create(context: Context): QueuePersistence = INSTANCE ?: synchronized(this) {
+            INSTANCE ?: run {
+                val appContext = context.applicationContext
+                QueuePersistence(repository = SongRepositoryImpl.create(appContext)).also { INSTANCE = it }
             }
         }
 

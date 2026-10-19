@@ -27,10 +27,7 @@ internal enum class RestoreShellSurface {
  * `DatabaseVersionPolicy.decide`, so every combination is exercisable without a device.
  */
 internal object RestoreShellPolicy {
-    fun decide(
-        mode: RestoreCoordinator.Mode,
-        terminal: RestoreCoordinator.Terminal,
-    ): RestoreShellSurface = when {
+    fun decide(mode: RestoreCoordinator.Mode, terminal: RestoreCoordinator.Terminal): RestoreShellSurface = when {
         // Checked ahead of Terminal because it is the earlier lifecycle phase: RESTORE_PREPARING
         // is entered before any Terminal exists, and on an early abort is left again with no
         // Terminal ever published.

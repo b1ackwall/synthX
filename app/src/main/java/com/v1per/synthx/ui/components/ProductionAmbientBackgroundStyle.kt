@@ -23,15 +23,14 @@ internal fun productionAmbientScrimColor(swatches: List<ExtractedSwatchHsl>?): C
         ).copy(alpha = ProductionAmbientBackgroundStyle.ScrimAlpha)
     }
 
-internal fun Modifier.productionAmbientScrim(scrimColor: Color?): Modifier =
-    if (scrimColor == null) {
-        this
-    } else {
-        drawWithContent {
-            drawContent()
-            drawRect(
-                color = scrimColor,
-                blendMode = ProductionAmbientBackgroundStyle.ScrimBlendMode,
-            )
-        }
+internal fun Modifier.productionAmbientScrim(scrimColor: Color?): Modifier = if (scrimColor == null) {
+    this
+} else {
+    drawWithContent {
+        drawContent()
+        drawRect(
+            color = scrimColor,
+            blendMode = ProductionAmbientBackgroundStyle.ScrimBlendMode,
+        )
     }
+}

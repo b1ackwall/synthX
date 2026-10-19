@@ -13,10 +13,7 @@ import kotlinx.coroutines.launch
  * crashes the process outright. [onError] is called on the same dispatcher
  * as [block] and defaults to a no-op for call sites with nothing better to do than swallow it.
  */
-fun ViewModel.launchCatching(
-    onError: (Throwable) -> Unit = {},
-    block: suspend CoroutineScope.() -> Unit,
-) {
+fun ViewModel.launchCatching(onError: (Throwable) -> Unit = {}, block: suspend CoroutineScope.() -> Unit) {
     viewModelScope.launch {
         try {
             block()

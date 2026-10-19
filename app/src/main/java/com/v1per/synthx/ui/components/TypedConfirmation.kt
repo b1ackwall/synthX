@@ -27,8 +27,7 @@ import androidx.compose.ui.res.stringResource
  * A pure function, split from [TypedConfirmationField] so callers can drive a button's `enabled`
  * from it without duplicating the rule — and so the rule itself is unit-testable.
  */
-fun typedConfirmationMatches(typed: String, requiredWord: String): Boolean =
-    typed.trim() == requiredWord
+fun typedConfirmationMatches(typed: String, requiredWord: String): Boolean = typed.trim() == requiredWord
 
 /**
  * The text field half of a typed confirmation: the user must type [requiredWord] exactly before

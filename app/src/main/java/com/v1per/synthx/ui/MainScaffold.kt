@@ -83,7 +83,9 @@ fun MainScaffold(
 
     when (RestoreShellPolicy.decide(restoreMode, restoreTerminal)) {
         RestoreShellSurface.Maintenance -> RestoreMaintenanceSurface()
+
         RestoreShellSurface.Terminal -> RestoreTerminalSurface(restoreTerminal, diagnosticOperationId)
+
         RestoreShellSurface.Normal -> NormalShell(
             navController,
             startDestination,
@@ -144,7 +146,7 @@ private fun NormalShell(
     val context = LocalContext.current
     val resources = LocalResources.current
     val playbackViewModel = viewModel<PlaybackViewModel>(
-        factory = PlaybackViewModel.Factory(context.applicationContext)
+        factory = PlaybackViewModel.Factory(context.applicationContext),
     )
     NotificationSecondChanceEffect(playbackViewModel)
     val snackbarHostState = remember { SnackbarHostState() }
@@ -163,6 +165,7 @@ private fun NormalShell(
             val message = when (error) {
                 is PlaybackError.PlaybackFailed ->
                     resources.getString(R.string.playback_error_failed, error.songTitle)
+
                 PlaybackError.ServiceUnavailable ->
                     resources.getString(R.string.playback_error_service_unavailable)
             }
@@ -263,145 +266,145 @@ private fun NormalShell(
         onAddToQueue = playbackViewModel::addToQueue,
         currentSongId = currentSong?.id,
     ) {
-    Trace.beginSection(PerfTraceSections.MainShellContent)
-    // Exposes test tags to UiAutomator as resource ids for the benchmark module.
-    Box(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
-        // Excluded from TalkBack traversal while the sort sheet is open — see
-        // hiddenFromAccessibilityWhileSheetShown's kdoc in RefinedBottomSheet.kt.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .hiddenFromAccessibilityWhileSheetShown(
-                    hidden = sortSheetTarget != null || groupPickerTarget != null,
-                ),
-        ) {
-            SynthXNavHost(
-                navController = navController,
-                playbackViewModel = playbackViewModel,
-                chromeBottomPadding = chromeBottomPadding,
-                searchReselectEvents = searchReselectEvents,
-                // DEAD CODE: see homeAmbientPaused above. Delete in a cleanup pass. Ask  before deleting.
-                // homeAmbientPaused = homeAmbientPaused,
-                onShowSortSheet = { order, onOrderSelected ->
-                    sortSheetTarget = SortSheetTarget(order, onOrderSelected)
-                },
-                onShowGroupPicker = { groups, currentGroupId, onGroupSelected ->
-                    groupPickerTarget = GroupPickerTarget(groups, currentGroupId, onGroupSelected)
-                },
-                startDestination = startDestination,
-                onRestoreTerminalShown = {
-                    restoreStatusViewModel?.terminalWasShown(it)
-                    restoreStatusViewModel?.dismissTerminal(it)
-                },
-            )
-
-            BottomChromeOverlay(
-                navController = navController,
-                currentRoute = currentRoute,
-                showBottomBar = showBottomBar,
-                currentSong = currentSong,
-                playerProgress = playerProgress,
-                onPlayerProgressChanged = { playerProgress = it },
-                collapsePlayerSignal = collapsePlayerSignal,
-                playbackViewModel = playbackViewModel,
-                onSearchReselected = { searchReselectEvents.tryEmit(Unit) },
-            )
-
-            if (backupFolderNeedsAttention) {
-                BackupFolderNotice(
-                    onClick = {
-                        BackupFolderLaunchCheck.dismiss()
-                        navController.navigate(Screen.BackupsAndRestore.route)
+        Trace.beginSection(PerfTraceSections.MainShellContent)
+        // Exposes test tags to UiAutomator as resource ids for the benchmark module.
+        Box(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
+            // Excluded from TalkBack traversal while the sort sheet is open — see
+            // hiddenFromAccessibilityWhileSheetShown's kdoc in RefinedBottomSheet.kt.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .hiddenFromAccessibilityWhileSheetShown(
+                        hidden = sortSheetTarget != null || groupPickerTarget != null,
+                    ),
+            ) {
+                SynthXNavHost(
+                    navController = navController,
+                    playbackViewModel = playbackViewModel,
+                    chromeBottomPadding = chromeBottomPadding,
+                    searchReselectEvents = searchReselectEvents,
+                    // DEAD CODE: see homeAmbientPaused above. Delete in a cleanup pass. Ask  before deleting.
+                    // homeAmbientPaused = homeAmbientPaused,
+                    onShowSortSheet = { order, onOrderSelected ->
+                        sortSheetTarget = SortSheetTarget(order, onOrderSelected)
+                    },
+                    onShowGroupPicker = { groups, currentGroupId, onGroupSelected ->
+                        groupPickerTarget = GroupPickerTarget(groups, currentGroupId, onGroupSelected)
+                    },
+                    startDestination = startDestination,
+                    onRestoreTerminalShown = {
+                        restoreStatusViewModel?.terminalWasShown(it)
+                        restoreStatusViewModel?.dismissTerminal(it)
                     },
                 )
+
+                BottomChromeOverlay(
+                    navController = navController,
+                    currentRoute = currentRoute,
+                    showBottomBar = showBottomBar,
+                    currentSong = currentSong,
+                    playerProgress = playerProgress,
+                    onPlayerProgressChanged = { playerProgress = it },
+                    collapsePlayerSignal = collapsePlayerSignal,
+                    playbackViewModel = playbackViewModel,
+                    onSearchReselected = { searchReselectEvents.tryEmit(Unit) },
+                )
+
+                if (backupFolderNeedsAttention) {
+                    BackupFolderNotice(
+                        onClick = {
+                            BackupFolderLaunchCheck.dismiss()
+                            navController.navigate(Screen.BackupsAndRestore.route)
+                        },
+                    )
+                }
             }
-        }
 
-        // Declared after BottomChromeOverlay (not nested inside SynthXNavHost) so it draws
-        // above the bottom nav/player structurally — the same reason SongActionsHost's sheet
-        // (an even higher-level sibling, above this whole Box) already draws correctly.
-        sortSheetTarget?.let { target ->
-            SortBottomSheet(
-                selectedOrder = target.selectedOrder,
-                sheetState = sortSheetState,
-                onOrderSelected = { order -> dismissSortSheet { target.onOrderSelected(order) } },
-                onDismiss = { dismissSortSheet() },
-            )
-        }
+            // Declared after BottomChromeOverlay (not nested inside SynthXNavHost) so it draws
+            // above the bottom nav/player structurally — the same reason SongActionsHost's sheet
+            // (an even higher-level sibling, above this whole Box) already draws correctly.
+            sortSheetTarget?.let { target ->
+                SortBottomSheet(
+                    selectedOrder = target.selectedOrder,
+                    sheetState = sortSheetState,
+                    onOrderSelected = { order -> dismissSortSheet { target.onOrderSelected(order) } },
+                    onDismiss = { dismissSortSheet() },
+                )
+            }
 
-        // Same structural position, and the same reason for it, as the sort sheet above.
-        groupPickerTarget?.let { target ->
-            GroupPickerBottomSheet(
-                groups = target.groups,
-                currentGroupId = target.currentGroupId,
-                sheetState = groupPickerSheetState,
-                // Reassigning a group is non-destructive and instantaneous, so the pick closes
-                // the sheet and applies — no confirmation step, matching the picker's other
-                // single-tap consumers.
-                onGroupSelected = { groupId ->
-                    dismissGroupPicker { target.onGroupSelected(groupId) }
-                },
-                onDismiss = { dismissGroupPicker() },
-            )
-        }
+            // Same structural position, and the same reason for it, as the sort sheet above.
+            groupPickerTarget?.let { target ->
+                GroupPickerBottomSheet(
+                    groups = target.groups,
+                    currentGroupId = target.currentGroupId,
+                    sheetState = groupPickerSheetState,
+                    // Reassigning a group is non-destructive and instantaneous, so the pick closes
+                    // the sheet and applies — no confirmation step, matching the picker's other
+                    // single-tap consumers.
+                    onGroupSelected = { groupId ->
+                        dismissGroupPicker { target.onGroupSelected(groupId) }
+                    },
+                    onDismiss = { dismissGroupPicker() },
+                )
+            }
 
-        // Declared last so it draws over the nav and player, and offset by the same
-        // chrome reservation the destinations use so it never sits behind them. Both
-        // are needed: chromeBottomPadding goes to 0 on routes without the bottom bar.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .navigationBarsPadding()
-                .padding(bottom = chromeBottomPadding),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            SnackbarHost(hostState = snackbarHostState)
-        }
+            // Declared last so it draws over the nav and player, and offset by the same
+            // chrome reservation the destinations use so it never sits behind them. Both
+            // are needed: chromeBottomPadding goes to 0 on routes without the bottom bar.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .navigationBarsPadding()
+                    .padding(bottom = chromeBottomPadding),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                SnackbarHost(hostState = snackbarHostState)
+            }
 
-        // Keep acts on the tapped song alone; Clear rebuilds from the list it came from.
-        // Dismissing does neither — the current song and queue are left exactly as they are.
-        queuePrompt?.let { prompt ->
-            QueuePromptDialog(
-                onKeep = {
-                    // Same confirmation strings SongActionsHost already shows for the
-                    // ordinary Play Next action — reused rather than duplicated so the
-                    // duplicate-queue message reads identically everywhere it appears.
-                    // null: the engine refused for lack of a session connection and has
-                    // already shown its own error snackbar, so there is nothing to confirm.
-                    val message = when (playbackViewModel.keepQueueAndPlayNext(prompt.tappedSong)) {
-                        true -> resources.getString(R.string.actions_playing_next)
-                        false -> resources.getString(R.string.actions_already_playing_next)
-                        null -> null
-                    }
-                    if (message != null) scope.launch { snackbarHostState.showSnackbar(message) }
-                    queuePrompt = null
-                },
-                onClear = {
-                    playbackViewModel.clearQueueAndPlay(prompt.contextSongs, prompt.startIndex)
-                    queuePrompt = null
-                },
-                onDismiss = { queuePrompt = null },
-            )
-        }
+            // Keep acts on the tapped song alone; Clear rebuilds from the list it came from.
+            // Dismissing does neither — the current song and queue are left exactly as they are.
+            queuePrompt?.let { prompt ->
+                QueuePromptDialog(
+                    onKeep = {
+                        // Same confirmation strings SongActionsHost already shows for the
+                        // ordinary Play Next action — reused rather than duplicated so the
+                        // duplicate-queue message reads identically everywhere it appears.
+                        // null: the engine refused for lack of a session connection and has
+                        // already shown its own error snackbar, so there is nothing to confirm.
+                        val message = when (playbackViewModel.keepQueueAndPlayNext(prompt.tappedSong)) {
+                            true -> resources.getString(R.string.actions_playing_next)
+                            false -> resources.getString(R.string.actions_already_playing_next)
+                            null -> null
+                        }
+                        if (message != null) scope.launch { snackbarHostState.showSnackbar(message) }
+                        queuePrompt = null
+                    },
+                    onClear = {
+                        playbackViewModel.clearQueueAndPlay(prompt.contextSongs, prompt.startIndex)
+                        queuePrompt = null
+                    },
+                    onDismiss = { queuePrompt = null },
+                )
+            }
 
-        // Replace plays the request exactly as decided at tap time; Cancel and dismiss do nothing.
-        queueReplacePrompt?.let { prompt ->
-            QueueReplaceDialog(
-                onReplace = {
-                    val request = prompt.request
-                    playbackViewModel.playQueue(request.songs, request.startIndex, request.shuffle)
-                    queueReplacePrompt = null
-                },
-                onCancel = { queueReplacePrompt = null },
-                onDismiss = { queueReplacePrompt = null },
-            )
-        }
+            // Replace plays the request exactly as decided at tap time; Cancel and dismiss do nothing.
+            queueReplacePrompt?.let { prompt ->
+                QueueReplaceDialog(
+                    onReplace = {
+                        val request = prompt.request
+                        playbackViewModel.playQueue(request.songs, request.startIndex, request.shuffle)
+                        queueReplacePrompt = null
+                    },
+                    onCancel = { queueReplacePrompt = null },
+                    onDismiss = { queueReplacePrompt = null },
+                )
+            }
 
-        val routeOwnsRestoreOutcome = currentRoute == Screen.Onboarding.route ||
-            currentRoute == Screen.Restore.route
-        RestoreObservedStatusHost(restoreStatus, routeOwnsRestoreOutcome, restoreStatusViewModel)
-    }
-    Trace.endSection()
+            val routeOwnsRestoreOutcome = currentRoute == Screen.Onboarding.route ||
+                currentRoute == Screen.Restore.route
+            RestoreObservedStatusHost(restoreStatus, routeOwnsRestoreOutcome, restoreStatusViewModel)
+        }
+        Trace.endSection()
     }
     Trace.endSection()
 }
@@ -409,10 +412,7 @@ private fun NormalShell(
 internal fun isHomeAmbientFullyOccluded(currentRoute: String?, playerProgress: Float): Boolean =
     currentRoute == Screen.Home.route && playerProgress >= 0.999f
 
-private data class SortSheetTarget(
-    val selectedOrder: SortOrder,
-    val onOrderSelected: (SortOrder) -> Unit,
-)
+private data class SortSheetTarget(val selectedOrder: SortOrder, val onOrderSelected: (SortOrder) -> Unit)
 
 /**
  * One open group picker: the groups to offer, the group the playlist is already in (null when it

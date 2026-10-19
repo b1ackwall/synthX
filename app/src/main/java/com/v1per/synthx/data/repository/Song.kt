@@ -24,14 +24,8 @@ data class Song(
 
 /** One independently addressable occurrence of a [Song] in the playback queue. */
 @Immutable
-data class QueueSlot(
-    val slotId: String,
-    val song: Song,
-)
+data class QueueSlot(val slotId: String, val song: Song)
 
 /** The persistence form of [QueueSlot], retaining identity without duplicating song data. */
 @Immutable
-data class QueueSlotRecord(
-    val slotId: String,
-    val songId: String,
-)
+data class QueueSlotRecord(val slotId: String, val songId: String)

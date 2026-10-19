@@ -152,8 +152,11 @@ internal fun PlayerSheetSkeleton(
                 val offset = draggableState.offset
                 if (offset.isNaN()) return@derivedStateOf 0f
                 val collapsedAnchor = availableHeightPx - collapsedHeightPx
-                if (collapsedAnchor <= 0f) 0f
-                else ((collapsedAnchor - offset) / collapsedAnchor).coerceIn(0f, 1f)
+                if (collapsedAnchor <= 0f) {
+                    0f
+                } else {
+                    ((collapsedAnchor - offset) / collapsedAnchor).coerceIn(0f, 1f)
+                }
             }
         }
 

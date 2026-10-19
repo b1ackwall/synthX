@@ -79,11 +79,7 @@ open class BackupManager(internal val context: Context) {
         cancelActiveScan = false,
     )
 
-    private suspend fun createBackupLocked(
-        tier: BackupTier,
-        reason: String?,
-        cancelActiveScan: Boolean,
-    ): String {
+    private suspend fun createBackupLocked(tier: BackupTier, reason: String?, cancelActiveScan: Boolean): String {
         val treeUri = preferences.backupFolderUri?.let { it.toUri() }
             ?: throw BackupNotConfiguredException()
         val sourceFile = context.getDatabasePath(SynthXDatabase.DB_NAME)
@@ -317,14 +313,13 @@ open class BackupManager(internal val context: Context) {
     }
 
     /** Terminal-only SAF recovery. Deliberately bypasses normal startup/Room gates. */
-    suspend fun emergencyRestore(backup: BackupInfo, requestId: String): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            val metadata = readRestoreMetadata(backup)
-                ?: return@withContext Result.failure(
-                    IllegalArgumentException(context.getString(R.string.restore_ineligible_missing_metadata)),
-                )
-            RestoreTransaction.executeEmergencyReplacement(context, backup, metadata, requestId)
-        }
+    suspend fun emergencyRestore(backup: BackupInfo, requestId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val metadata = readRestoreMetadata(backup)
+            ?: return@withContext Result.failure(
+                IllegalArgumentException(context.getString(R.string.restore_ineligible_missing_metadata)),
+            )
+        RestoreTransaction.executeEmergencyReplacement(context, backup, metadata, requestId)
+    }
 
     /** Backup metadata is mandatory for a trustworthy restore, though old files may still list. */
     internal suspend fun readRestoreMetadata(backup: BackupInfo): BackupMetadata? = withContext(Dispatchers.IO) {
@@ -360,11 +355,7 @@ open class BackupManager(internal val context: Context) {
     }
 
     @VisibleForTesting
-    internal open fun resolveTierDir(
-        treeUri: Uri,
-        tier: BackupTier,
-        create: Boolean = true,
-    ): DocumentFile? {
+    internal open fun resolveTierDir(treeUri: Uri, tier: BackupTier, create: Boolean = true): DocumentFile? {
         val root = DocumentFile.fromTreeUri(context, treeUri) ?: return null
         val existing = root.findFile(tier.folderName)
         if (existing != null && existing.isDirectory) return existing

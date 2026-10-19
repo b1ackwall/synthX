@@ -13,10 +13,7 @@ import com.v1per.synthx.ui.theme.SurfaceVariant
 
 /** Static album-art placeholder shown wherever a song/album/playlist has no artwork. */
 @Composable
-fun ArtPlaceholder(
-    modifier: Modifier = Modifier,
-    size: Dp = 48.dp,
-) {
+fun ArtPlaceholder(modifier: Modifier = Modifier, size: Dp = 48.dp) {
     Box(
         modifier = modifier
             .size(size)

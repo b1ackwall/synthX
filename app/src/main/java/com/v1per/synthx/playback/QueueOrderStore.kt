@@ -54,8 +54,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     val isEmpty: Boolean get() = live.isEmpty()
 
     /** Position of [slotId] in [live], or -1. Slot id, never song id — duplicates are distinct. */
-    fun indexOfSlot(slotId: String?): Int =
-        if (slotId == null) -1 else live.indexOfFirst { it.slotId == slotId }
+    fun indexOfSlot(slotId: String?): Int = if (slotId == null) -1 else live.indexOfFirst { it.slotId == slotId }
 
     fun slotAt(index: Int): QueueSlotRecord? = live.getOrNull(index)
 
@@ -110,11 +109,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
      * [mirrorToBaseline] is "shuffle is off" — while shuffle is on baseline is left alone and
      * the slot is folded in later by [unshuffle], per the locked spec.
      */
-    fun insertAfterCurrent(
-        record: QueueSlotRecord,
-        currentSlotId: String?,
-        mirrorToBaseline: Boolean,
-    ) {
+    fun insertAfterCurrent(record: QueueSlotRecord, currentSlotId: String?, mirrorToBaseline: Boolean) {
         val liveIndex = indexOfSlot(currentSlotId)
         val insertAt = if (liveIndex >= 0) liveIndex + 1 else live.size
         live = live.toMutableList().apply { add(insertAt.coerceIn(0, size), record) }
@@ -179,12 +174,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
      * the notes on [com.v1per.synthx.ui.components.QueueList] for the accepted
      * tradeoff this implies.
      */
-    fun moveUpcoming(
-        slotId: String,
-        toDisplayIndex: Int,
-        currentSlotId: String?,
-        mirrorToBaseline: Boolean,
-    ): Boolean {
+    fun moveUpcoming(slotId: String, toDisplayIndex: Int, currentSlotId: String?, mirrorToBaseline: Boolean): Boolean {
         val currentIndex = indexOfSlot(currentSlotId)
         if (currentIndex < 0) return false
         val from = indexOfSlot(slotId)
@@ -201,11 +191,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
         return true
     }
 
-    private fun mirrorMoveIntoBaseline(
-        fromDisplayIndex: Int,
-        toDisplayIndex: Int,
-        currentSlotId: String?,
-    ) {
+    private fun mirrorMoveIntoBaseline(fromDisplayIndex: Int, toDisplayIndex: Int, currentSlotId: String?) {
         val baseIndex = baseline.indexOfFirst { it.slotId == currentSlotId }
         if (baseIndex < 0) return
         val from = baseIndex + 1 + fromDisplayIndex

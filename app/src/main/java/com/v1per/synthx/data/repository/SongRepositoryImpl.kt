@@ -67,10 +67,10 @@ class SongRepositoryImpl(
     },
     // Deterministic transaction-boundary seam for the Room concurrency regression test.
     internal val previewAnalysisCheckpoint: suspend () -> Unit = {},
-) : SongRepository, AdmittedQueuePersistenceRepository {
+) : SongRepository,
+    AdmittedQueuePersistenceRepository {
 
-    internal suspend fun <T> dbOperation(block: suspend () -> T): T =
-        RepositoryDbOperation.run(block)
+    internal suspend fun <T> dbOperation(block: suspend () -> T): T = RepositoryDbOperation.run(block)
 
     // This class is a singleton (see companion.create), so this scope effectively lives as
     // long as the app process does — same shape as ExoPlayerEngine.engineScope /
@@ -203,13 +203,12 @@ class SongRepositoryImpl(
 
     override suspend fun previewDeleteSong(id: String): DeleteSongPreview = previewDeleteSongInternal(id)
 
-    override suspend fun retryAudioFileDeletion(filePath: String): SongDeletionOutcome =
-        withContext(Dispatchers.IO) {
-            songDeletionOutcome(
-                audioOutcome = audioFileDelete(filePath),
-                cleanupUncertain = false,
-            )
-        }
+    override suspend fun retryAudioFileDeletion(filePath: String): SongDeletionOutcome = withContext(Dispatchers.IO) {
+        songDeletionOutcome(
+            audioOutcome = audioFileDelete(filePath),
+            cleanupUncertain = false,
+        )
+    }
 
     // See SongRepository.deleteSongDetached's kdoc. The whole call (locks, backup, transaction,
     // and the runPostCommitCleanup phase below) runs on repositoryScope from the start, so
@@ -221,10 +220,8 @@ class SongRepositoryImpl(
         }
     }
 
-    override suspend fun previewReplaceSong(
-        oldSongId: String,
-        newSongId: String,
-    ): ReplaceSongPreviewResult = previewReplaceSongInternal(oldSongId, newSongId)
+    override suspend fun previewReplaceSong(oldSongId: String, newSongId: String): ReplaceSongPreviewResult =
+        previewReplaceSongInternal(oldSongId, newSongId)
 
     override suspend fun replaceSong(
         oldSongId: String,
@@ -235,8 +232,7 @@ class SongRepositoryImpl(
 
     override fun getStarredSongs(): Flow<List<Song>> = getStarredSongsInternal()
 
-    override fun getStarredSongCount(): Flow<Int> =
-        RepositoryDbFlow.observe { songDao.getStarredSongCount() }
+    override fun getStarredSongCount(): Flow<Int> = RepositoryDbFlow.observe { songDao.getStarredSongCount() }
 
     override fun getRecentSongs(limit: Int): Flow<List<Song>> = getRecentSongsInternal(limit)
 
@@ -258,16 +254,13 @@ class SongRepositoryImpl(
 
     // Debug tooling, read-only — no backupManager.createBackup here, unlike deleteSong: this
     // pass never writes to the DB.
-    override suspend fun checkRootLibraryOrganization(musicFolderUri: Uri): RootOrganizationCheckResult? =
-        dbOperation {
-            walkAndClassifyRootOrganization(context, songDao, musicFolderUri)
-        }
+    override suspend fun checkRootLibraryOrganization(musicFolderUri: Uri): RootOrganizationCheckResult? = dbOperation {
+        walkAndClassifyRootOrganization(context, songDao, musicFolderUri)
+    }
 
-    override fun getMissingSongs(): Flow<List<MissingSongInfo>> =
-        RepositoryDbFlow.observe { songDao.getMissingSongs() }
+    override fun getMissingSongs(): Flow<List<MissingSongInfo>> = RepositoryDbFlow.observe { songDao.getMissingSongs() }
 
-    override fun getMissingSongCount(): Flow<Int> =
-        RepositoryDbFlow.observe { songDao.getMissingSongCount() }
+    override fun getMissingSongCount(): Flow<Int> = RepositoryDbFlow.observe { songDao.getMissingSongCount() }
 
     // Read-only filesystem check, same dbOperation gating as checkRootLibraryOrganization above
     // even though it writes nothing — RestoreCoordinator still needs to know this work is in
@@ -331,9 +324,11 @@ class SongRepositoryImpl(
 
     override suspend fun getPlaylistIdsForSong(songId: String): List<String> = getPlaylistIdsForSongInternal(songId)
 
-    override suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean = addSongToPlaylistInternal(playlistId, songId)
+    override suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean =
+        addSongToPlaylistInternal(playlistId, songId)
 
-    override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) = removeSongFromPlaylistInternal(playlistId, songId)
+    override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) =
+        removeSongFromPlaylistInternal(playlistId, songId)
 
     override suspend fun getSongsByIds(ids: List<String>): List<Song> = getSongsByIdsInternal(ids)
 
@@ -341,18 +336,14 @@ class SongRepositoryImpl(
 
     override suspend fun getQueueSnapshot(): QueueSnapshot = getQueueSnapshotInternal()
 
-    override suspend fun setQueueState(
-        slots: List<QueueSlotRecord>,
-        currentSlotId: String?,
-        positionMs: Long,
-    ) = setQueueStateInternal(slots, currentSlotId, positionMs)
+    override suspend fun setQueueState(slots: List<QueueSlotRecord>, currentSlotId: String?, positionMs: Long) =
+        setQueueStateInternal(slots, currentSlotId, positionMs)
 
-    override suspend fun setCursorAlreadyAdmitted(
-        currentSlotId: String?,
-        positionMs: Long,
-    ) = setCursorAlreadyAdmittedInternal(currentSlotId, positionMs)
+    override suspend fun setCursorAlreadyAdmitted(currentSlotId: String?, positionMs: Long) =
+        setCursorAlreadyAdmittedInternal(currentSlotId, positionMs)
 
-    override suspend fun setShuffleEnabledAlreadyAdmitted(enabled: Boolean) = setShuffleEnabledAlreadyAdmittedInternal(enabled)
+    override suspend fun setShuffleEnabledAlreadyAdmitted(enabled: Boolean) =
+        setShuffleEnabledAlreadyAdmittedInternal(enabled)
 
     override suspend fun setRepeatModeAlreadyAdmitted(mode: Int) = setRepeatModeAlreadyAdmittedInternal(mode)
 
@@ -371,56 +362,59 @@ class SongRepositoryImpl(
         shuffleEnabled: Boolean,
         repeatMode: Int,
     ) = setUnifiedQueueStateInternal(
-        activeSlots, baselineSlots, currentSlotId, positionMs, shuffleEnabled, repeatMode,
+        activeSlots,
+        baselineSlots,
+        currentSlotId,
+        positionMs,
+        shuffleEnabled,
+        repeatMode,
     )
 
-    internal fun PlaylistEntity.toDomain(): Playlist =
-        Playlist(
-            id = id,
-            name = name,
-            groupId = groupId,
-            albumArtUri = coverArtUri,
-            artHue = artHue,
-            artStructureSeed = artStructureSeed,
-        )
+    internal fun PlaylistEntity.toDomain(): Playlist = Playlist(
+        id = id,
+        name = name,
+        groupId = groupId,
+        albumArtUri = coverArtUri,
+        artHue = artHue,
+        artStructureSeed = artStructureSeed,
+    )
 
     companion object {
         // Only applicationContext is stored here (see create).
         @SuppressLint("StaticFieldLeak")
-        @Volatile private var INSTANCE: SongRepositoryImpl? = null
+        @Volatile
+        private var INSTANCE: SongRepositoryImpl? = null
 
         // Manual DI entry point — everything hangs off the SynthXDatabase singleton. A true
         // singleton itself now (matching SynthXDatabase.getInstance()'s pattern) so getSongs()'s
         // cached StateFlow above is actually shared across every caller rather than rebuilt
         // per-caller.
-        fun create(context: Context): SongRepositoryImpl {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: run {
-                    val appContext = context.applicationContext
-                    val db = SynthXDatabase.getInstance(appContext)
-                    val playlistExportManager = PlaylistExportManager.create(appContext)
-                    SongRepositoryImpl(
+        fun create(context: Context): SongRepositoryImpl = INSTANCE ?: synchronized(this) {
+            INSTANCE ?: run {
+                val appContext = context.applicationContext
+                val db = SynthXDatabase.getInstance(appContext)
+                val playlistExportManager = PlaylistExportManager.create(appContext)
+                SongRepositoryImpl(
+                    context = appContext,
+                    database = db,
+                    songDao = db.songDao(),
+                    artistDao = db.artistDao(),
+                    albumDao = db.albumDao(),
+                    playlistDao = db.playlistDao(),
+                    queueDao = db.queueDao(),
+                    pendingCleanupDao = db.pendingCleanupDao(),
+                    folderScanner = FolderScanner(
                         context = appContext,
                         database = db,
                         songDao = db.songDao(),
                         artistDao = db.artistDao(),
                         albumDao = db.albumDao(),
-                        playlistDao = db.playlistDao(),
-                        queueDao = db.queueDao(),
-                        pendingCleanupDao = db.pendingCleanupDao(),
-                        folderScanner = FolderScanner(
-                            context = appContext,
-                            database = db,
-                            songDao = db.songDao(),
-                            artistDao = db.artistDao(),
-                            albumDao = db.albumDao(),
-                            songArtistDao = db.songArtistDao(),
-                            playlistExportManager = playlistExportManager,
-                        ),
-                        backupManager = BackupManager.create(appContext),
+                        songArtistDao = db.songArtistDao(),
                         playlistExportManager = playlistExportManager,
-                    ).also { INSTANCE = it }
-                }
+                    ),
+                    backupManager = BackupManager.create(appContext),
+                    playlistExportManager = playlistExportManager,
+                ).also { INSTANCE = it }
             }
         }
 

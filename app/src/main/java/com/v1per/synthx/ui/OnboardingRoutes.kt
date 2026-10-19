@@ -14,10 +14,7 @@ import java.util.UUID
  * [RouteContent]/chromeBottomPadding like the other route groups — this route is never in
  * MainScaffold's bottomBarRoutes set, so it never reserves that space in the first place.
  */
-fun NavGraphBuilder.onboardingRoutes(
-    navController: NavHostController,
-    onRestoreTerminalShown: (UUID) -> Unit = {},
-) {
+fun NavGraphBuilder.onboardingRoutes(navController: NavHostController, onRestoreTerminalShown: (UUID) -> Unit = {}) {
     composable(Screen.Onboarding.route) {
         OnboardingScreen(
             onOnboardingComplete = {

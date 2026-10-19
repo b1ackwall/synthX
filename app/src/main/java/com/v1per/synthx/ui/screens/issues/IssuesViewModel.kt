@@ -77,9 +77,7 @@ sealed class IssuesActionEvent {
     data class DeletedButFileRemained(val filePath: String) : IssuesActionEvent()
     data class DeletedButCleanupUncertain(val filePath: String) : IssuesActionEvent()
     data object AudioCleanupRetrySucceeded : IssuesActionEvent()
-    data class DeleteBlocked(
-        val reason: DestructiveFilePreflightResult.Blocking,
-    ) : IssuesActionEvent()
+    data class DeleteBlocked(val reason: DestructiveFilePreflightResult.Blocking) : IssuesActionEvent()
 }
 
 /**
@@ -166,7 +164,9 @@ class IssuesViewModel(
         combine(scanRunning, _pendingScan) { running, pending ->
             when {
                 running == null -> IssuesScanStatus.Resolving
+
                 running || pending -> IssuesScanStatus.Scanning
+
                 // Read at emission time rather than captured once, so the emission that follows
                 // a scan completing already carries that scan's freshly written summary.
                 else -> IssuesScanStatus.Idle(
@@ -308,10 +308,13 @@ class IssuesViewModel(
                 onSuccess = { outcome ->
                     when (outcome) {
                         SongDeletionOutcome.Deleted -> Unit
+
                         SongDeletionOutcome.FileRemained ->
                             _events.tryEmit(IssuesActionEvent.DeletedButFileRemained(filePath))
+
                         SongDeletionOutcome.CleanupUncertain ->
                             _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain(filePath))
+
                         is SongDeletionOutcome.Blocked ->
                             _events.tryEmit(IssuesActionEvent.DeleteBlocked(outcome.reason))
                     }
@@ -325,14 +328,19 @@ class IssuesViewModel(
     fun retryAudioFileDeletion(filePath: String) {
         viewModelScope.launch {
             val event = runCatching { repository.retryAudioFileDeletion(filePath) }.fold(
-                onSuccess = { outcome -> when (outcome) {
-                    SongDeletionOutcome.Deleted -> IssuesActionEvent.AudioCleanupRetrySucceeded
-                    SongDeletionOutcome.FileRemained -> IssuesActionEvent.DeletedButFileRemained(filePath)
-                    SongDeletionOutcome.CleanupUncertain ->
-                        IssuesActionEvent.DeletedButCleanupUncertain(filePath)
-                    is SongDeletionOutcome.Blocked ->
-                        IssuesActionEvent.DeletedButCleanupUncertain(filePath)
-                } },
+                onSuccess = { outcome ->
+                    when (outcome) {
+                        SongDeletionOutcome.Deleted -> IssuesActionEvent.AudioCleanupRetrySucceeded
+
+                        SongDeletionOutcome.FileRemained -> IssuesActionEvent.DeletedButFileRemained(filePath)
+
+                        SongDeletionOutcome.CleanupUncertain ->
+                            IssuesActionEvent.DeletedButCleanupUncertain(filePath)
+
+                        is SongDeletionOutcome.Blocked ->
+                            IssuesActionEvent.DeletedButCleanupUncertain(filePath)
+                    }
+                },
                 onFailure = { IssuesActionEvent.DeletedButCleanupUncertain(filePath) },
             )
             _events.emit(event)

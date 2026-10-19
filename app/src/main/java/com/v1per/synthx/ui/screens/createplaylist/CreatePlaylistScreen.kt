@@ -141,16 +141,19 @@ fun CreatePlaylistScreen(
             )
             when (val state = uiState) {
                 is UiState.Loading -> LoadingIndicator()
+
                 is UiState.Error -> Text(
                     text = state.message,
                     style = MaterialTheme.typography.bodyMedium,
                     color = Error,
                 )
+
                 is UiState.Empty -> Text(
                     text = stringResource(R.string.empty_no_groups),
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextTertiary,
                 )
+
                 is UiState.Success -> LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
                     items(state.data, key = { it.id }) { group ->
                         val selected = group.id == selectedGroupId
@@ -197,11 +200,7 @@ fun CreatePlaylistScreen(
 }
 
 @Composable
-private fun CreateButton(
-    enabled: Boolean,
-    isCreating: Boolean,
-    onClick: () -> Unit,
-) {
+private fun CreateButton(enabled: Boolean, isCreating: Boolean, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         enabled = enabled,

@@ -21,11 +21,7 @@ object BackupReason {
 }
 
 /** Read-only content counts for a candidate backup (restore preview), never a live query. */
-data class BackupPreviewCounts(
-    val playlistCount: Int,
-    val songCount: Int,
-    val playlistEntryCount: Int,
-)
+data class BackupPreviewCounts(val playlistCount: Int, val songCount: Int, val playlistEntryCount: Int)
 
 data class BackupInfo(
     val databaseUri: Uri,

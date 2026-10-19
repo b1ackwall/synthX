@@ -78,14 +78,14 @@ class MainActivity : ComponentActivity() {
      */
     private val playbackViewModel: PlaybackViewModel by lazy {
         ViewModelProvider(this, PlaybackViewModel.Factory(applicationContext))[
-            PlaybackViewModel::class.java
+            PlaybackViewModel::class.java,
         ]
     }
 
     /** Activity-owned for the same reason as playback: it must outlive every nav destination. */
     private val restoreStatusViewModel: RestoreStatusViewModel by lazy {
         ViewModelProvider(this, RestoreStatusViewModel.Factory(applicationContext))[
-            RestoreStatusViewModel::class.java
+            RestoreStatusViewModel::class.java,
         ]
     }
 
@@ -126,15 +126,18 @@ class MainActivity : ComponentActivity() {
                     when {
                         RestoreCoordinator.current() != RestoreCoordinator.Terminal.NORMAL ->
                             RestoreTerminalContent(RestoreCoordinator.current())
+
                         startupFailure is MigrationInvariantFailedException ->
                             MigrationRecoveryContent(
                                 applicationContext = applicationContext,
                                 snapshotAvailable = migrationSnapshotAvailable,
                             )
+
                         startupFailure != null -> DatabaseStartupFailureContent(
                             error = startupFailure,
                             onRetry = ::resolveDatabaseStartup,
                         )
+
                         else -> MainScaffold(
                             startDestination = startDestination,
                             restoreStatusViewModel = restoreStatusViewModel,
@@ -324,10 +327,7 @@ class MainActivity : ComponentActivity() {
             .enqueue()
     }
 
-    private suspend fun backupDailyIfDue(
-        preferences: PreferencesManager,
-        backupManager: BackupManager,
-    ) {
+    private suspend fun backupDailyIfDue(preferences: PreferencesManager, backupManager: BackupManager) {
         val last = preferences.lastDailyBackupTimestamp
         val now = System.currentTimeMillis()
         if (last != 0L && now - last < DAILY_INTERVAL_MS) return

@@ -12,11 +12,7 @@ import androidx.compose.ui.graphics.Color
 // fade — content is either fully hidden or fully shown, matching the app-wide
 // instant-transition convention.
 @Composable
-fun ReadinessCoverOverlay(
-    isReady: Boolean,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
+fun ReadinessCoverOverlay(isReady: Boolean, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(modifier = modifier.fillMaxSize()) {
         if (isReady) {
             content()

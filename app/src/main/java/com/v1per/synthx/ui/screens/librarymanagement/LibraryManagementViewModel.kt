@@ -96,12 +96,12 @@ class LibraryManagementViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     internal val _musicFolderUri = MutableStateFlow(
-        preferencesManager.musicFolderUri?.let { it.toUri() }
+        preferencesManager.musicFolderUri?.let { it.toUri() },
     )
     val musicFolderUri: StateFlow<Uri?> = _musicFolderUri.asStateFlow()
 
     internal val _newArrivalsFolderUri = MutableStateFlow(
-        preferencesManager.newArrivalsFolderUri?.let { it.toUri() }
+        preferencesManager.newArrivalsFolderUri?.let { it.toUri() },
     )
     val newArrivalsFolderUri: StateFlow<Uri?> = _newArrivalsFolderUri.asStateFlow()
 
@@ -142,7 +142,9 @@ class LibraryManagementViewModel(
                             delay(MissingFirstScanGraceMs)
                             emit(null)
                         }
+
                         isDeferredScanPending(info.state) -> emit(notice)
+
                         else -> emit(null)
                     }
                 }
@@ -202,8 +204,10 @@ class LibraryManagementViewModel(
     val scanStatusNeedsAttention: StateFlow<Boolean> = workInfo
         .map { info ->
             info?.state == WorkInfo.State.FAILED ||
-                (info?.state == WorkInfo.State.SUCCEEDED &&
-                    info.outputData.scanDegradations().isNotEmpty())
+                (
+                    info?.state == WorkInfo.State.SUCCEEDED &&
+                        info.outputData.scanDegradations().isNotEmpty()
+                    )
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 

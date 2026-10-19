@@ -22,11 +22,13 @@ import kotlinx.coroutines.withContext
 internal suspend fun SongRepositoryImpl.previewReplaceSongInternal(
     oldSongId: String,
     newSongId: String,
-): ReplaceSongPreviewResult = dbOperation { withContext(Dispatchers.IO) {
-    database.withTransaction {
-        analyzeReplaceSongInTransaction(oldSongId, newSongId)
+): ReplaceSongPreviewResult = dbOperation {
+    withContext(Dispatchers.IO) {
+        database.withTransaction {
+            analyzeReplaceSongInTransaction(oldSongId, newSongId)
+        }
     }
-} }
+}
 
 /** Caller must be inside [SynthXDatabase.withTransaction]. */
 private suspend fun SongRepositoryImpl.analyzeReplaceSongInTransaction(
@@ -55,6 +57,7 @@ private suspend fun SongRepositoryImpl.analyzeReplaceSongInTransaction(
     val namesById = (oldPlaylistIds + newPlaylistIds)
         .queryInBatches(playlistDao::getPlaylistsByIds)
         .associate { it.id to it.name }
+
     // A membership whose playlist row can't be named is skipped rather than shown as blank —
     // it cannot happen (playlist_songs has an FK to playlists) but the review step must not
     // present an unnamed line item as something the user is about to act on.
@@ -108,63 +111,72 @@ internal suspend fun SongRepositoryImpl.replaceSongInternal(
     // The old song is the one whose row and file this destroys, so it is the one locked — same
     // placement and reasoning as deleteSong. The new song only receives narrow column writes
     // inside the transaction, which graduation's own transactional re-read already tolerates.
-    FileOperationCoordinator.withSongLock(oldSongId) { dbOperation {
-        // Read under the restore permit and old-song lock, but before opening the transplant
-        // transaction. Definite failures leave both rows and every membership untouched.
-        val oldBeforeReplace = songDao.getSongById(oldSongId)
-            ?: return@dbOperation ReplaceSongResult.OldSongMissing
-        when (
-            val preflight = destructiveFileCheck(
-                oldBeforeReplace.filePath,
-                oldBeforeReplace.id,
-            )
-        ) {
-            is DestructiveFilePreflightResult.Blocking ->
-                return@dbOperation ReplaceSongResult.OldSongBlocked(preflight)
-            DestructiveFilePreflightResult.Passed,
-            DestructiveFilePreflightResult.SourceGone,
-            DestructiveFilePreflightResult.Ambiguous -> Unit
-        }
-
-        val newBeforeReplace = songDao.getSongById(newSongId)
-            ?: return@dbOperation ReplaceSongResult.NewSongMissing
-        when (
-            val preflight = replacementFileCheck(
-                newBeforeReplace.filePath,
-                newBeforeReplace.id,
-            )
-        ) {
-            is ReplacementFilePreflightResult.Blocking ->
-                return@dbOperation ReplaceSongResult.NewSongUnusable(preflight)
-            ReplacementFilePreflightResult.Passed,
-            ReplacementFilePreflightResult.Ambiguous -> Unit
-        }
-
-        val transplant = database.withTransaction {
-            transplantIdentity(oldSongId, newSongId, conflictResolution, expectedMemberships)
-        }
-        when (transplant) {
-            is Transplant.OldMissing -> ReplaceSongResult.OldSongMissing
-            is Transplant.NewMissing -> ReplaceSongResult.NewSongMissing
-            is Transplant.StalePreview -> ReplaceSongResult.PreviewStale
-            is Transplant.Done -> {
-                val deletionOutcome = runPostCommitCleanup(
-                    transplant.operationId,
-                    oldSongId,
-                    transplant.oldFilePath,
+    FileOperationCoordinator.withSongLock(oldSongId) {
+        dbOperation {
+            // Read under the restore permit and old-song lock, but before opening the transplant
+            // transaction. Definite failures leave both rows and every membership untouched.
+            val oldBeforeReplace = songDao.getSongById(oldSongId)
+                ?: return@dbOperation ReplaceSongResult.OldSongMissing
+            when (
+                val preflight = destructiveFileCheck(
+                    oldBeforeReplace.filePath,
+                    oldBeforeReplace.id,
                 )
-                val exportSucceeded = runPostCommitStep("schedule playlist export") {
-                    schedulePlaylistExport()
+            ) {
+                is DestructiveFilePreflightResult.Blocking ->
+                    return@dbOperation ReplaceSongResult.OldSongBlocked(preflight)
+
+                DestructiveFilePreflightResult.Passed,
+                DestructiveFilePreflightResult.SourceGone,
+                DestructiveFilePreflightResult.Ambiguous,
+                -> Unit
+            }
+
+            val newBeforeReplace = songDao.getSongById(newSongId)
+                ?: return@dbOperation ReplaceSongResult.NewSongMissing
+            when (
+                val preflight = replacementFileCheck(
+                    newBeforeReplace.filePath,
+                    newBeforeReplace.id,
+                )
+            ) {
+                is ReplacementFilePreflightResult.Blocking ->
+                    return@dbOperation ReplaceSongResult.NewSongUnusable(preflight)
+
+                ReplacementFilePreflightResult.Passed,
+                ReplacementFilePreflightResult.Ambiguous,
+                -> Unit
+            }
+
+            val transplant = database.withTransaction {
+                transplantIdentity(oldSongId, newSongId, conflictResolution, expectedMemberships)
+            }
+            when (transplant) {
+                is Transplant.OldMissing -> ReplaceSongResult.OldSongMissing
+
+                is Transplant.NewMissing -> ReplaceSongResult.NewSongMissing
+
+                is Transplant.StalePreview -> ReplaceSongResult.PreviewStale
+
+                is Transplant.Done -> {
+                    val deletionOutcome = runPostCommitCleanup(
+                        transplant.operationId,
+                        oldSongId,
+                        transplant.oldFilePath,
+                    )
+                    val exportSucceeded = runPostCommitStep("schedule playlist export") {
+                        schedulePlaylistExport()
+                    }
+                    ReplaceSongResult.Success(
+                        oldAudioCleanup = includePlaylistExportOutcome(
+                            deletionOutcome,
+                            exportSucceeded,
+                        ),
+                    )
                 }
-                ReplaceSongResult.Success(
-                    oldAudioCleanup = includePlaylistExportOutcome(
-                        deletionOutcome,
-                        exportSucceeded,
-                    ),
-                )
             }
         }
-    } }
+    }
 }
 
 /** [transplantIdentity]'s result, carrying what the out-of-transaction half still needs. */
@@ -219,7 +231,7 @@ private suspend fun SongRepositoryImpl.transplantIdentity(
                 // Inherited, not stamped as now: the replacement steps into the old song's
                 // membership wholesale, the same way it inherits date_added below.
                 addedAt = membership.addedAt,
-            )
+            ),
         )
     }
 

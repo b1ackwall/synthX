@@ -52,7 +52,7 @@ internal class SafBackupPublisher(private val context: Context) {
 
             if (!temporaryMetadata.renameTo(identity.metadataFileName)) {
                 throw BackupPublicationException(
-                    "SAF provider cannot publish metadata by renaming a temporary document"
+                    "SAF provider cannot publish metadata by renaming a temporary document",
                 )
             }
             // A successful renameTo mutates the DocumentFile's own Uri to the provider's
@@ -72,7 +72,7 @@ internal class SafBackupPublisher(private val context: Context) {
             // The recognizable database name is deliberately published last.
             if (!temporaryDatabase.renameTo(identity.databaseFileName)) {
                 throw BackupPublicationException(
-                    "SAF provider cannot publish database by renaming a temporary document"
+                    "SAF provider cannot publish database by renaming a temporary document",
                 )
             }
             // Same rename continuity as the metadata above — no findFile lookup.
@@ -138,7 +138,7 @@ internal class SafBackupPublisher(private val context: Context) {
         if (document.name != expected) {
             throw BackupPublicationException(
                 "SAF provider reported document name \"${document.name}\" instead of " +
-                    "\"$expected\"; safe publication is unsupported"
+                    "\"$expected\"; safe publication is unsupported",
             )
         }
     }
@@ -178,6 +178,7 @@ internal class SafBackupPublisher(private val context: Context) {
 
     companion object {
         private const val TAG = "SafBackupPublisher"
+
         // Custom MIME types avoid providers appending a second extension to our deliberately
         // complete display names (for example, turning "x.json.partial" into "x.json.partial.json").
         private const val MIME_DATABASE = "application/x-synthx-backup"
@@ -194,7 +195,7 @@ internal class SafBackupPublisher(private val context: Context) {
             if (actual.sizeBytes != expected.sizeBytes) {
                 throw BackupPublicationException(
                     "SAF $label byte count mismatch: expected ${expected.sizeBytes}, " +
-                        "read ${actual.sizeBytes}"
+                        "read ${actual.sizeBytes}",
                 )
             }
             if (actual.sha256 != expected.sha256) {

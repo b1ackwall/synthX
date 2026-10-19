@@ -156,6 +156,5 @@ internal object MigrationRecoveryAction {
         }
     }
 
-    private fun forceToStorage(file: File) =
-        java.io.RandomAccessFile(file, "rw").channel.use { it.force(true) }
+    private fun forceToStorage(file: File) = java.io.RandomAccessFile(file, "rw").channel.use { it.force(true) }
 }

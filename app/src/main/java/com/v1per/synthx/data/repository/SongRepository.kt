@@ -141,6 +141,7 @@ interface SongRepository {
     fun getAllPlaylists(): Flow<List<Playlist>>
     fun getUngroupedPlaylists(): Flow<List<Playlist>>
     fun getPlaylistsForGroup(groupId: String): Flow<List<Playlist>>
+
     /** @return the id of the newly created playlist. */
     suspend fun createPlaylist(name: String, groupId: String?): String
     suspend fun renamePlaylist(id: String, name: String)
@@ -221,21 +222,13 @@ data class QueueCursor(
 )
 
 /** A consistent persisted queue/cursor read, including rows that no longer resolve to songs. */
-data class QueueSnapshot(
-    val slots: List<QueueSlot>,
-    val storedSlotCount: Int,
-    val cursor: QueueCursor?,
-)
+data class QueueSnapshot(val slots: List<QueueSlot>, val storedSlotCount: Int, val cursor: QueueCursor?)
 
 /** Internal queue-only contract: the caller already owns a RestoreCoordinator operation permit. */
 internal interface AdmittedQueuePersistenceRepository {
     /** Replaces the queue structure and the resume cursor in one atomic commit — see
      *  [com.v1per.synthx.data.db.QueueDao.replaceQueueAndCursor]. */
-    suspend fun setQueueState(
-        slots: List<QueueSlotRecord>,
-        currentSlotId: String?,
-        positionMs: Long,
-    )
+    suspend fun setQueueState(slots: List<QueueSlotRecord>, currentSlotId: String?, positionMs: Long)
 
     /** Cursor-only counterpart of [setQueueState] — see
      *  [com.v1per.synthx.data.db.QueueDao.updateCursor]. Does not touch the persisted queue. */

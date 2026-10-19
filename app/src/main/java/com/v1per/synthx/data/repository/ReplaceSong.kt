@@ -69,18 +69,12 @@ data class ReplaceSongMembershipSnapshot(
     val newSongMemberships: List<ReplaceSongMembershipFingerprint>,
 )
 
-data class ReplaceSongMembershipFingerprint(
-    val playlistId: String,
-    val position: Int,
-    val addedAt: Long,
-)
+data class ReplaceSongMembershipFingerprint(val playlistId: String, val position: Int, val addedAt: Long)
 
 /** Typed preview result so a vanished selection is not collapsed into a retryable null. */
 sealed interface ReplaceSongPreviewResult {
-    data class Ready(
-        val preview: ReplaceSongPreview,
-        val membershipSnapshot: ReplaceSongMembershipSnapshot,
-    ) : ReplaceSongPreviewResult
+    data class Ready(val preview: ReplaceSongPreview, val membershipSnapshot: ReplaceSongMembershipSnapshot) :
+        ReplaceSongPreviewResult
 
     data object OldSongMissing : ReplaceSongPreviewResult
     data object NewSongMissing : ReplaceSongPreviewResult
@@ -92,9 +86,7 @@ sealed class ReplaceSongResult {
      * The replacement landed. [oldAudioCleanup] preserves the complete post-commit cleanup result
      * so callers can distinguish confirmed file retention from an uncertain cleanup state.
      */
-    data class Success(
-        val oldAudioCleanup: SongDeletionOutcome,
-    ) : ReplaceSongResult()
+    data class Success(val oldAudioCleanup: SongDeletionOutcome) : ReplaceSongResult()
 
     /** Membership state changed after review. No database writes were made. */
     data object PreviewStale : ReplaceSongResult()
@@ -109,12 +101,8 @@ sealed class ReplaceSongResult {
     data object NewSongMissing : ReplaceSongResult()
 
     /** The old song's live audio document failed a definite destructive-safety check. */
-    data class OldSongBlocked(
-        val reason: DestructiveFilePreflightResult.Blocking,
-    ) : ReplaceSongResult()
+    data class OldSongBlocked(val reason: DestructiveFilePreflightResult.Blocking) : ReplaceSongResult()
 
     /** The replacement row exists, but its live audio is definitely gone or has different content. */
-    data class NewSongUnusable(
-        val reason: ReplacementFilePreflightResult.Blocking,
-    ) : ReplaceSongResult()
+    data class NewSongUnusable(val reason: ReplacementFilePreflightResult.Blocking) : ReplaceSongResult()
 }

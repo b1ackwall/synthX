@@ -101,5 +101,7 @@ val QueuePlaybackModeRowIntrinsicHeight: Dp = 56.dp
  * value now fixes.
  */
 val Density.QueueColumnLeadingSlack: Dp
-    get() = (QueueHeaderRegionHeight - QueueHeaderRowIntrinsicHeight -
-        QueuePlaybackModeRowIntrinsicHeight).coerceAtLeast(0.dp)
+    get() = (
+        QueueHeaderRegionHeight - QueueHeaderRowIntrinsicHeight -
+            QueuePlaybackModeRowIntrinsicHeight
+        ).coerceAtLeast(0.dp)

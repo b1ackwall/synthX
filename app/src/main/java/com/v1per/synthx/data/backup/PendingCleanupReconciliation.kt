@@ -88,10 +88,15 @@ internal object PendingCleanupReconciliation {
         database.withTransaction {
             val song = songDao.getSongById(record.songId)
             when {
-                song == null -> Unit // Row already gone — nothing left to re-point.
-                song.filePath == publishedPath -> Unit // Already reconciled.
+                song == null -> Unit
+
+                // Row already gone — nothing left to re-point.
+                song.filePath == publishedPath -> Unit
+
+                // Already reconciled.
                 publishedDocumentExists(context, publishedPath) ->
                     songDao.upsertSong(song.copy(filePath = publishedPath, isStarred = false))
+
                 else -> songDao.upsertSong(
                     song.copy(
                         isMissing = true,

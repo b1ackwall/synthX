@@ -35,12 +35,7 @@ import com.v1per.synthx.data.playlistart.PlaylistArtRole
  * [ArtPlaceholder] every other artless surface uses, rather than inventing a look of its own.
  */
 @Composable
-internal fun PlaylistArt(
-    hue: Int?,
-    structureSeed: Long?,
-    size: Dp,
-    modifier: Modifier = Modifier,
-) {
+internal fun PlaylistArt(hue: Int?, structureSeed: Long?, size: Dp, modifier: Modifier = Modifier) {
     if (hue == null || structureSeed == null || hue !in 0..359) {
         // Out-of-range hue (hand-edited row, restore from a divergent writer) falls back the
         // same as missing art rather than crashing Color.hsl, which requires 0f..360f.
@@ -100,11 +95,7 @@ internal class PlaylistArtRenderModel(
     val diamondColor: Color,
 )
 
-internal fun playlistArtRenderModel(
-    hue: Int,
-    structureSeed: Long,
-    sizePx: Float,
-): PlaylistArtRenderModel {
+internal fun playlistArtRenderModel(hue: Int, structureSeed: Long, sizePx: Float): PlaylistArtRenderModel {
     val pattern = generatePlaylistArt(structureSeed)
     val scale = sizePx / PlaylistArtGeometry.REFERENCE_SIZE
     val hueDegrees = hue.toFloat()
@@ -178,8 +169,11 @@ private fun backgroundBrush(hueDegrees: Float, plane: SymmetryPlane, sizePx: Flo
     val (start, end) = when (plane) {
         // CSS 90deg / 180deg / 45deg / 135deg respectively.
         SymmetryPlane.VERTICAL -> Offset(0f, half) to Offset(sizePx, half)
+
         SymmetryPlane.HORIZONTAL -> Offset(half, 0f) to Offset(half, sizePx)
+
         SymmetryPlane.DIAG1 -> Offset(0f, sizePx) to Offset(sizePx, 0f)
+
         SymmetryPlane.DIAG2 -> Offset(0f, 0f) to Offset(sizePx, sizePx)
     }
     return Brush.linearGradient(colors, start = start, end = end)

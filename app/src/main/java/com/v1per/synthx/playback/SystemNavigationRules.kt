@@ -78,14 +78,11 @@ internal fun navigationCommandEdit(hasNext: Boolean, hasPrevious: Boolean): Navi
 
 // The sets only contain Player.COMMAND_SEEK_TO_NEXT, _NEXT_MEDIA_ITEM, _PREVIOUS and
 // _PREVIOUS_MEDIA_ITEM; Lint cannot track the @Player.Command IntDef through a Set<Int>.
+
 /** [base] with [navigationCommandEdit] applied. */
 @SuppressLint("WrongConstant")
 @OptIn(markerClass = [UnstableApi::class])
-internal fun navigationCommandsFor(
-    base: Player.Commands,
-    hasNext: Boolean,
-    hasPrevious: Boolean,
-): Player.Commands {
+internal fun navigationCommandsFor(base: Player.Commands, hasNext: Boolean, hasPrevious: Boolean): Player.Commands {
     val edit = navigationCommandEdit(hasNext, hasPrevious)
     return base.buildUpon()
         .addAll(*edit.add.toIntArray())

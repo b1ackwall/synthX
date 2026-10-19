@@ -7,11 +7,7 @@ import kotlin.random.Random
  * A whole-list play from a Play or Shuffle button, decided at tap time: the playable songs, the
  * song to start on and the shuffle flag playback ends up with.
  */
-data class PlayAllRequest(
-    val songs: List<Song>,
-    val startIndex: Int,
-    val shuffle: Boolean,
-)
+data class PlayAllRequest(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean)
 
 /**
  * Asked before a Play or Shuffle button replaces a hand-built queue. Carries the [request] as

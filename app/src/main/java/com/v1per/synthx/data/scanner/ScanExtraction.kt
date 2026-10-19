@@ -270,7 +270,9 @@ private suspend fun extractOneFile(
             artWrittenIds.add(id)
             ingestor.extractMetadata(file, id, includeArt = true)
         }
+
         ScanBranch.RETAG_CHECK -> ingestor.extractMetadata(file, id, includeArt = false)
+
         ScanBranch.HASH_FAILED, ScanBranch.PATH_MOVED, ScanBranch.REAPPEARED -> null
     }
 

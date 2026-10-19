@@ -196,12 +196,7 @@ private fun ArtworkFixMenu(onFix: () -> Unit) {
 
 /** Shared body for the five safety-net rows: title/subtitle/optional-timestamp, tap to navigate. */
 @Composable
-private fun SafetyNetIssueRow(
-    title: String,
-    subtitle: String,
-    timestamp: Long?,
-    onClick: () -> Unit,
-) {
+private fun SafetyNetIssueRow(title: String, subtitle: String, timestamp: Long?, onClick: () -> Unit) {
     Column {
         Column(
             modifier = Modifier
@@ -311,10 +306,9 @@ internal fun BackupFolderGrantLostRow(onClick: () -> Unit) {
  * minute reads as "0 min. ago" rather than a bare "now", which is fine here — a song
  * that vanished seconds ago is not a case worth special-casing.
  */
-internal fun relativeTime(timestamp: Long): CharSequence =
-    DateUtils.getRelativeTimeSpanString(
-        timestamp,
-        System.currentTimeMillis(),
-        DateUtils.MINUTE_IN_MILLIS,
-        DateUtils.FORMAT_ABBREV_RELATIVE,
-    )
+internal fun relativeTime(timestamp: Long): CharSequence = DateUtils.getRelativeTimeSpanString(
+    timestamp,
+    System.currentTimeMillis(),
+    DateUtils.MINUTE_IN_MILLIS,
+    DateUtils.FORMAT_ABBREV_RELATIVE,
+)

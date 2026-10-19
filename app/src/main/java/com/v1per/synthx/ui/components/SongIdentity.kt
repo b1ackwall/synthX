@@ -31,10 +31,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
  * apply `.alpha()` and `.weight()` themselves, since those belong to the containing row.
  */
 @Composable
-fun SongIdentity(
-    song: Song,
-    modifier: Modifier = Modifier,
-) {
+fun SongIdentity(song: Song, modifier: Modifier = Modifier) {
     // Non-null only inside the player sheet (the queue rows); everywhere else this stays null
     // and the text keeps its usual tokens.
     val playerColors = LocalPlayerContentColors.current

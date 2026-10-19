@@ -9,10 +9,7 @@ import java.io.RandomAccessFile
 internal class BackupSnapshotException(message: String, cause: Throwable? = null) :
     IllegalStateException(message, cause)
 
-internal data class ValidatedBackupSnapshot(
-    val file: File,
-    val schema: BackupSchemaContract,
-)
+internal data class ValidatedBackupSnapshot(val file: File, val schema: BackupSchemaContract)
 
 internal object BackupSnapshotter {
     fun createFromRoom(source: SupportSQLiteDatabase, destination: File) {
@@ -37,7 +34,7 @@ internal object BackupSnapshotter {
         ).use { source ->
             if (source.inTransaction()) {
                 throw BackupSnapshotException(
-                    "Cannot create a migration backup from inside a database transaction"
+                    "Cannot create a migration backup from inside a database transaction",
                 )
             }
             requireVacuumIntoSupport(querySQLiteVersion(source))
@@ -93,7 +90,7 @@ internal object BackupSnapshotter {
             ?: throw BackupSnapshotException("Unsupported malformed SQLite version: $rawVersion")
         if (version < SQLiteVersion.VACUUM_INTO_MINIMUM) {
             throw BackupSnapshotException(
-                "SQLite $rawVersion is unsupported; backups require SQLite 3.27.0 or newer"
+                "SQLite $rawVersion is unsupported; backups require SQLite 3.27.0 or newer",
             )
         }
     }
@@ -118,19 +115,19 @@ internal object BackupSnapshotValidator {
                 val userVersion = singleInt(query, "PRAGMA user_version")
                 val schema = BackupSchemaContracts.forVersion(userVersion)
                     ?: throw BackupSnapshotException(
-                        "Snapshot uses unknown synthX database version $userVersion"
+                        "Snapshot uses unknown synthX database version $userVersion",
                     )
 
                 if (migrationSnapshot) {
                     if (!schema.hasMigrationPathToCurrent) {
                         throw BackupSnapshotException(
-                            "No supported migration path exists from snapshot version $userVersion"
+                            "No supported migration path exists from snapshot version $userVersion",
                         )
                     }
                 } else if (userVersion != BackupSchemaContracts.current.userVersion) {
                     throw BackupSnapshotException(
                         "Current backup has database version $userVersion; expected " +
-                            BackupSchemaContracts.current.userVersion
+                            BackupSchemaContracts.current.userVersion,
                     )
                 }
 
@@ -184,10 +181,7 @@ internal object BackupSnapshotValidator {
         }
     }
 
-    private fun validateRoomIdentity(
-        query: (String) -> Cursor,
-        schema: BackupSchemaContract,
-    ) {
+    private fun validateRoomIdentity(query: (String) -> Cursor, schema: BackupSchemaContract) {
         val tables = tableNames(query)
         if (ROOM_MASTER_TABLE !in tables) {
             throw BackupSnapshotException("Snapshot is missing Room identity table")
@@ -200,31 +194,27 @@ internal object BackupSnapshotValidator {
         }
         if (identity != schema.roomIdentityHash) {
             throw BackupSnapshotException(
-                "Snapshot Room identity does not match exported schema version ${schema.userVersion}"
+                "Snapshot Room identity does not match exported schema version ${schema.userVersion}",
             )
         }
     }
 
-    private fun validateExpectedTables(
-        query: (String) -> Cursor,
-        schema: BackupSchemaContract,
-    ) {
+    private fun validateExpectedTables(query: (String) -> Cursor, schema: BackupSchemaContract) {
         val actual = tableNames(query)
         val missing = schema.expectedTables - actual
         if (missing.isNotEmpty()) {
             throw BackupSnapshotException(
-                "Snapshot is missing expected Room tables: ${missing.sorted().joinToString()}"
+                "Snapshot is missing expected Room tables: ${missing.sorted().joinToString()}",
             )
         }
     }
 
-    private fun singleInt(query: (String) -> Cursor, sql: String): Int =
-        query(sql).use { cursor ->
-            if (!cursor.moveToFirst() || cursor.columnCount < 1) {
-                throw BackupSnapshotException("Snapshot did not return a value for $sql")
-            }
-            cursor.getInt(0)
+    private fun singleInt(query: (String) -> Cursor, sql: String): Int = query(sql).use { cursor ->
+        if (!cursor.moveToFirst() || cursor.columnCount < 1) {
+            throw BackupSnapshotException("Snapshot did not return a value for $sql")
         }
+        cursor.getInt(0)
+    }
 
     /**
      * Shared with [LiveDatabaseVersionReader]: the same `sqlite_master` query

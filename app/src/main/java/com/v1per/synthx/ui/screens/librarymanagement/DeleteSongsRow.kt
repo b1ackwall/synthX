@@ -27,10 +27,7 @@ import com.v1per.synthx.ui.theme.TextTertiary
  * this isn't one of.
  */
 @Composable
-internal fun DeleteSongsRow(
-    enabled: Boolean,
-    onToggle: (Boolean) -> Unit,
-) {
+internal fun DeleteSongsRow(enabled: Boolean, onToggle: (Boolean) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

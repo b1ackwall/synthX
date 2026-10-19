@@ -62,8 +62,11 @@ internal object RestoreCoordinator {
                 check(!released) { "Restore reactive permit released twice" }
                 released = true
                 val remainingForOwner = checkNotNull(reactiveJobs[owner]) - 1
-                if (remainingForOwner == 0) reactiveJobs.remove(owner)
-                else reactiveJobs[owner] = remainingForOwner
+                if (remainingForOwner == 0) {
+                    reactiveJobs.remove(owner)
+                } else {
+                    reactiveJobs[owner] = remainingForOwner
+                }
                 activeReactive -= 1
                 check(activeReactive >= 0) { "Restore reactive operation counter underflow" }
                 if (activeReactive == 0) reactiveDrained.complete(Unit)
@@ -94,10 +97,13 @@ internal object RestoreCoordinator {
                         admitted = ReactivePermit(owner)
                         null
                     }
+
                     Mode.RESTORE_PREPARING -> admissionChanged
+
                     Mode.RESTORE_CLOSED,
                     Mode.RESTART_REQUIRED,
-                    Mode.EMERGENCY -> error("Reactive database access is unavailable after Room close")
+                    Mode.EMERGENCY,
+                    -> error("Reactive database access is unavailable after Room close")
                 }
             }
             admitted?.let { return it }
@@ -174,6 +180,7 @@ internal object RestoreCoordinator {
             _terminal.value = Terminal.EMERGENCY
         }
     }
+
     /** Only startup and a failure before Room close may reopen normal admission. */
     fun markNormal() {
         synchronized(lock) {
@@ -186,7 +193,9 @@ internal object RestoreCoordinator {
             _terminal.value = Terminal.NORMAL
         }
     }
-    fun requireNormal() { check(currentMode() == Mode.NORMAL) { "Restore requires synthX to be closed and reopened" } }
+    fun requireNormal() {
+        check(currentMode() == Mode.NORMAL) { "Restore requires synthX to be closed and reopened" }
+    }
 
     internal fun activeOperationCountForTest(): Int = synchronized(lock) {
         activeFinite + activeReactive

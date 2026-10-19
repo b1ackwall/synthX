@@ -17,10 +17,7 @@ import com.v1per.synthx.ui.theme.SurfaceVariant
  * as [ArtPlaceholder] — never an empty hole.
  */
 @Composable
-fun DetailHeroArt(
-    coverUri: String?,
-    modifier: Modifier = Modifier,
-) {
+fun DetailHeroArt(coverUri: String?, modifier: Modifier = Modifier) {
     val placeholder = remember { ColorPainter(SurfaceVariant) }
     AsyncImage(
         model = crossfadeModel(coverUri),

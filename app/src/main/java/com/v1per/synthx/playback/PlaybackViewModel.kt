@@ -32,20 +32,18 @@ import kotlin.random.Random
  * [startIndex]. Keeping [tappedSong] as its own field rather than making the UI index back
  * into the list is what stops the two from drifting apart.
  */
-data class QueuePromptEvent(
-    val tappedSong: Song,
-    val contextSongs: List<Song>,
-    val startIndex: Int,
-)
+data class QueuePromptEvent(val tappedSong: Song, val contextSongs: List<Song>, val startIndex: Int)
 
 /** Outcome of [PlaybackViewModel.playNext]/[PlaybackViewModel.addToQueue]. */
 sealed class QueueAddResult {
     /** The controller call went through. */
     data object Added : QueueAddResult()
+
     /** The song is already in the position ([playNext]'s next slot, [addToQueue]'s last
      *  slot) that would make this call a likely-accidental duplicate — the caller should
      *  ask the user to confirm, then retry with `force = true`. */
     data object NeedsConfirmation : QueueAddResult()
+
     /** The engine refused the insert because it is not connected to the playback session; it
      *  has already reported that on [PlaybackViewModel.errors], so callers show nothing more. */
     data object Unavailable : QueueAddResult()
@@ -234,7 +232,7 @@ class PlaybackViewModel(
                     tappedSong = tapped,
                     contextSongs = filteredSongs,
                     startIndex = filteredIndex,
-                )
+                ),
             )
         } else {
             playQueue(filteredSongs, filteredIndex)
@@ -346,12 +344,10 @@ class PlaybackViewModel(
         songId == currentSongId.value || upcomingQueue.value.any { it.song.id == songId }
 
     /** True when [songId] matches [upcomingQueue]'s first entry — the slot [playNext] targets. */
-    private fun isNextInQueue(songId: String): Boolean =
-        upcomingQueue.value.firstOrNull()?.song?.id == songId
+    private fun isNextInQueue(songId: String): Boolean = upcomingQueue.value.firstOrNull()?.song?.id == songId
 
     /** True when [songId] matches [upcomingQueue]'s last entry — the slot [addToQueue] targets. */
-    private fun isLastInQueue(songId: String): Boolean =
-        upcomingQueue.value.lastOrNull()?.song?.id == songId
+    private fun isLastInQueue(songId: String): Boolean = upcomingQueue.value.lastOrNull()?.song?.id == songId
 
     /**
      * Moves the [upcomingQueue] entry identified by [slotId] to [toIndex] — the Up Next

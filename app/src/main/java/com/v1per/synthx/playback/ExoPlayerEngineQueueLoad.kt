@@ -190,11 +190,7 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
  * starting item and leaves `play()`/`prepare()` sequencing to the caller, so the restore path
  * can come up paused.
  */
-private fun ExoPlayerEngine.seedWindow(
-    startIndex: Int,
-    positionMs: Long,
-    startArtwork: ByteArray,
-) {
+private fun ExoPlayerEngine.seedWindow(startIndex: Int, positionMs: Long, startArtwork: ByteArray) {
     val ctrl = controller ?: return
     val startSlotId = orderStore.slotAt(startIndex)?.slotId ?: return
     val window = computeWindow(

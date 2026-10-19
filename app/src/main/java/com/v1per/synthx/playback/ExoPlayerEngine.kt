@@ -271,7 +271,8 @@ class ExoPlayerEngine(
         }
     }
 
-    override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) = playQueueInternal(songs, startIndex, shuffle)
+    override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) =
+        playQueueInternal(songs, startIndex, shuffle)
 
     override suspend fun restoreSavedQueue() = restoreSavedQueueInternal()
 
@@ -323,10 +324,12 @@ class ExoPlayerEngine(
                 applyIdleRecovery(ctrl)
                 ctrl.seekTo(/* positionMs = */ 0)
             }
+
             is PreviousAction.SeekLoaded -> {
                 applyIdleRecovery(ctrl)
                 ctrl.seekTo(action.loadedIndex, C.TIME_UNSET)
             }
+
             is PreviousAction.SeekOrder -> seekToLiveIndex(action.orderIndex, play = false)
         }
     }

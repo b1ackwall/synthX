@@ -49,10 +49,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 import kotlin.math.roundToInt
 
 @Composable
-internal fun BlobBackgroundDebugSheet(
-    sheetState: RefinedBottomSheetState,
-    onDismissRequest: () -> Unit,
-) {
+internal fun BlobBackgroundDebugSheet(sheetState: RefinedBottomSheetState, onDismissRequest: () -> Unit) {
     var debugState by HomeBlobDebugStateHolder.state
     val baseSurfaceColor = Color.hsl(
         debugState.baseSurfaceHue,
@@ -110,11 +107,7 @@ internal fun BlobBackgroundDebugSheet(
 }
 
 @Composable
-private fun BlobDebugSection(
-    index: Int,
-    blob: BlobParams,
-    onChange: ((BlobParams) -> BlobParams) -> Unit,
-) {
+private fun BlobDebugSection(index: Int, blob: BlobParams, onChange: ((BlobParams) -> BlobParams) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Column {
         Row(

@@ -19,10 +19,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
  * existing confirmation dialogs — so all of them read as the same object.
  */
 @Composable
-fun PlayNextDuplicateDialog(
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
+fun PlayNextDuplicateDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     QueueDuplicateConfirmDialog(
         title = stringResource(R.string.play_next_duplicate_title),
         message = stringResource(R.string.play_next_duplicate_message),
@@ -34,10 +31,7 @@ fun PlayNextDuplicateDialog(
 
 /** Same shape as [PlayNextDuplicateDialog], for the Add to Queue action's last-slot case. */
 @Composable
-fun AddToQueueDuplicateDialog(
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
+fun AddToQueueDuplicateDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     QueueDuplicateConfirmDialog(
         title = stringResource(R.string.add_to_queue_duplicate_title),
         message = stringResource(R.string.add_to_queue_duplicate_message),

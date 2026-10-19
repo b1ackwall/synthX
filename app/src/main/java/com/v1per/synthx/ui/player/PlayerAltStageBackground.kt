@@ -140,18 +140,16 @@ private val ReducedResolution = Modifier.layout { measurable, constraints ->
 }
 
 /** The scrim drawn over the finished background, or null while [alpha] is 0. */
-internal fun altStageScrimColor(alpha: Float): Color? =
-    if (alpha > 0f) Background.copy(alpha = alpha) else null
+internal fun altStageScrimColor(alpha: Float): Color? = if (alpha > 0f) Background.copy(alpha = alpha) else null
 
-private fun Modifier.altStageScrim(color: Color?): Modifier =
-    if (color == null) {
-        this
-    } else {
-        drawWithContent {
-            drawContent()
-            drawRect(color)
-        }
+private fun Modifier.altStageScrim(color: Color?): Modifier = if (color == null) {
+    this
+} else {
+    drawWithContent {
+        drawContent()
+        drawRect(color)
     }
+}
 
 /** Draws the base layer, then the copies largest first, each spinning about its own center. */
 private fun DrawScope.drawAltStageArt(art: ImageBitmap, angles: AltStageAngles) {
@@ -164,7 +162,9 @@ private fun DrawScope.drawAltStageArt(art: ImageBitmap, angles: AltStageAngles) 
         val side = (copy.sizeFraction * width).roundToInt()
         if (side <= 0) continue
         val slot = PlayerAltStageStyle.OrbitingCopies.indexOf(index)
-        val position = if (slot < 0) center else {
+        val position = if (slot < 0) {
+            center
+        } else {
             val angle = angles.orbit[slot]
             val r = copy.orbitRadius * width
             center + Offset(cos(angle) * r, sin(angle) * r)

@@ -19,10 +19,7 @@ internal object BackupStagingCoordinator {
         RegexOption.IGNORE_CASE,
     )
 
-    internal class Lease internal constructor(
-        val file: File,
-        private val id: String,
-    ) : Closeable {
+    internal class Lease internal constructor(val file: File, private val id: String) : Closeable {
         override fun close() {
             deleteFileSet(file)
             synchronized(lock) { activeIds.remove(id) }

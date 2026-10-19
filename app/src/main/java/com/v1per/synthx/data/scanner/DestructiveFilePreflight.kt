@@ -33,16 +33,10 @@ sealed interface ReplacementFilePreflightResult {
     data object IdentityMismatch : Blocking
 }
 
-internal data class ConfiguredAudioRoots(
-    val music: String?,
-    val newArrivals: String?,
-)
+internal data class ConfiguredAudioRoots(val music: String?, val newArrivals: String?)
 
 /** A configured root together with the user-facing role it owns. */
-internal data class OwnedAudioRoot(
-    val role: KnownAudioRoot,
-    val uri: String,
-)
+internal data class OwnedAudioRoot(val role: KnownAudioRoot, val uri: String)
 
 internal sealed interface SourceDocumentResolution {
     data class Present(val uri: String) : SourceDocumentResolution
@@ -77,8 +71,10 @@ internal suspend fun resolveOwningAudioRoot(
 ): OwnedAudioRoot? = when {
     roots.music != null && probe.isUnderRoot(documentUri, roots.music) ->
         OwnedAudioRoot(KnownAudioRoot.Music, roots.music)
+
     roots.newArrivals != null && probe.isUnderRoot(documentUri, roots.newArrivals) ->
         OwnedAudioRoot(KnownAudioRoot.NewArrivals, roots.newArrivals)
+
     else -> null
 }
 
@@ -96,10 +92,7 @@ class DestructiveFilePreflight internal constructor(
     private val probe: AudioDocumentPreflightProbe,
     private val configuredRoots: () -> ConfiguredAudioRoots,
 ) {
-    suspend fun checkDestructive(
-        filePath: String,
-        expectedSongId: String,
-    ): DestructiveFilePreflightResult {
+    suspend fun checkDestructive(filePath: String, expectedSongId: String): DestructiveFilePreflightResult {
         val sourceUri = when (val resolution = probe.resolve(filePath)) {
             SourceDocumentResolution.Gone -> return DestructiveFilePreflightResult.SourceGone
             SourceDocumentResolution.Ambiguous -> return DestructiveFilePreflightResult.Ambiguous
@@ -112,7 +105,9 @@ class DestructiveFilePreflight internal constructor(
         when (probe.rootWriteState(owner.uri)) {
             RootWriteState.GrantNotWritable ->
                 return DestructiveFilePreflightResult.GrantNotWritable(owner.role)
+
             RootWriteState.Ambiguous -> return DestructiveFilePreflightResult.Ambiguous
+
             RootWriteState.Writable -> Unit
         }
 
@@ -131,10 +126,7 @@ class DestructiveFilePreflight internal constructor(
         }
     }
 
-    suspend fun checkReplacement(
-        filePath: String,
-        expectedSongId: String,
-    ): ReplacementFilePreflightResult {
+    suspend fun checkReplacement(filePath: String, expectedSongId: String): ReplacementFilePreflightResult {
         val sourceUri = when (val resolution = probe.resolve(filePath)) {
             SourceDocumentResolution.Gone -> return ReplacementFilePreflightResult.SourceGone
             SourceDocumentResolution.Ambiguous -> return ReplacementFilePreflightResult.Ambiguous
@@ -166,9 +158,7 @@ class DestructiveFilePreflight internal constructor(
     }
 }
 
-internal class AndroidAudioDocumentPreflightProbe(
-    private val context: Context,
-) : AudioDocumentPreflightProbe {
+internal class AndroidAudioDocumentPreflightProbe(private val context: Context) : AudioDocumentPreflightProbe {
     override fun resolve(filePath: String): SourceDocumentResolution {
         val uri = runCatching { filePath.toUri() }.getOrNull()
             ?: return SourceDocumentResolution.Gone
@@ -187,8 +177,11 @@ internal class AndroidAudioDocumentPreflightProbe(
                 null,
                 null,
             )?.use { cursor ->
-                if (cursor.count > 0) SourceDocumentResolution.Present(document.uri.toString())
-                else SourceDocumentResolution.Gone
+                if (cursor.count > 0) {
+                    SourceDocumentResolution.Present(document.uri.toString())
+                } else {
+                    SourceDocumentResolution.Gone
+                }
             } ?: SourceDocumentResolution.Ambiguous
         } catch (e: Throwable) {
             if (e is CancellationException) throw e

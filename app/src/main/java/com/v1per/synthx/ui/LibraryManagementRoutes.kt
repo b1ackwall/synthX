@@ -15,10 +15,7 @@ import com.v1per.synthx.ui.screens.issues.IssuesViewModel
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementScreen
 import com.v1per.synthx.ui.screens.replacesong.ReplaceSongScreen
 
-fun NavGraphBuilder.libraryManagementRoutes(
-    navController: NavHostController,
-    chromeBottomPadding: Dp,
-) {
+fun NavGraphBuilder.libraryManagementRoutes(navController: NavHostController, chromeBottomPadding: Dp) {
     composable(Screen.LibraryManagement.route) {
         RouteContent(chromeBottomPadding) {
             LibraryManagementScreen(

@@ -43,10 +43,7 @@ internal object ScanFolderGrant {
  * The folder URI is read from preferences at execution time rather than passed as input
  * data, so a replaced scan always picks up the current folder.
  */
-class LibraryScanWorker(
-    appContext: Context,
-    params: WorkerParameters,
-) : CoroutineWorker(appContext, params) {
+class LibraryScanWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
         // WorkManager can launch this process without an Activity. Recovery must settle before
@@ -70,7 +67,7 @@ class LibraryScanWorker(
         // of migration safety. The shared WorkerDatabaseAccess below observes the same already-ready gate.
         runCatching { DatabaseStartupGate.awaitReady() }.getOrElse { error ->
             return Result.failure(
-                workDataOf(KEY_ERROR to (error.message ?: "Database startup maintenance failed"))
+                workDataOf(KEY_ERROR to (error.message ?: "Database startup maintenance failed")),
             )
         }
 
@@ -107,12 +104,12 @@ class LibraryScanWorker(
                     otherRootUris = otherRoots,
                     isNewArrivalsRoot = false,
                 ) { current, total ->
-                val percent = if (total > 0) current * 100 / total else PROGRESS_INDETERMINATE
-                if (percent != lastPercent) {
-                    lastPercent = percent
-                    setProgress(workDataOf(KEY_CURRENT to current, KEY_TOTAL to total))
-                    setForeground(buildForegroundInfo(current, total))
-                }
+                    val percent = if (total > 0) current * 100 / total else PROGRESS_INDETERMINATE
+                    if (percent != lastPercent) {
+                        lastPercent = percent
+                        setProgress(workDataOf(KEY_CURRENT to current, KEY_TOTAL to total))
+                        setForeground(buildForegroundInfo(current, total))
+                    }
                 }
                 songCountAfterScan = repository.getSongCountAlreadyAdmitted()
                 scanResult
@@ -127,8 +124,10 @@ class LibraryScanWorker(
 
             val outputData = scanOutputData(result)
             val isHighImpact = songCountAfterScan > 0 &&
-                (result.totalImpact * 100 > songCountAfterScan * HIGH_IMPACT_PERCENT_THRESHOLD ||
-                    result.totalImpact > HIGH_IMPACT_ABSOLUTE_FLOOR)
+                (
+                    result.totalImpact * 100 > songCountAfterScan * HIGH_IMPACT_PERCENT_THRESHOLD ||
+                        result.totalImpact > HIGH_IMPACT_ABSOLUTE_FLOOR
+                    )
             val finalOutputData = if (isHighImpact) {
                 Log.w(
                     TAG,
@@ -177,7 +176,7 @@ class LibraryScanWorker(
                     applicationContext.getString(R.string.scan_notification_progress, current, total)
                 } else {
                     applicationContext.getString(R.string.scan_notification_preparing)
-                }
+                },
             )
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setOngoing(true)
@@ -212,8 +211,10 @@ class LibraryScanWorker(
 
         /** Present (and `true`) only when this scan's impact tripped the high-impact threshold. */
         const val KEY_HIGH_IMPACT = "high_impact"
+
         /** Total songs deleted/flagged-missing this scan — see [ScanResult.totalImpact]. */
         const val KEY_IMPACT_COUNT = "impact_count"
+
         /** Filename of the pre-scan Auto/RESCAN safety backup, so the user can find it. */
         const val KEY_BACKUP_FILENAME = "backup_filename"
 
@@ -232,8 +233,7 @@ class LibraryScanWorker(
         private const val NOTIFICATION_ID = 1001
         private const val PROGRESS_INDETERMINATE = FolderScanner.PROGRESS_INDETERMINATE
 
-        fun request(): OneTimeWorkRequest =
-            // No Constraints: pure local SAF file I/O, no network dependency — nothing
+        fun request(): OneTimeWorkRequest = // No Constraints: pure local SAF file I/O, no network dependency — nothing
             // here to gate on connectivity, battery, or storage state.
             OneTimeWorkRequestBuilder<LibraryScanWorker>()
                 .setConstraints(Constraints.NONE)
@@ -248,10 +248,7 @@ class LibraryScanWorker(
          * caller that must track *this* request (first-scan onboarding) or tell whether KEEP
          * discarded it (pull-to-refresh) can — see [ScanEnqueueResult].
          */
-        fun enqueue(
-            context: Context,
-            policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
-        ): ScanEnqueueResult {
+        fun enqueue(context: Context, policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP): ScanEnqueueResult {
             val request = request()
             val operation = WorkManager.getInstance(context)
                 .enqueueUniqueWork(UNIQUE_WORK_NAME, policy, request)

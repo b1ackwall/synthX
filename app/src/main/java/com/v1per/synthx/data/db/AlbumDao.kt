@@ -37,7 +37,7 @@ interface AlbumDao {
             WHERE songs.album_id = albums.id AND artists.name_normalized = :artistNormalized
         )
         LIMIT 1
-        """
+        """,
     )
     suspend fun getAlbumByTitleAndArtist(title: String, artistNormalized: String): AlbumEntity?
 
@@ -98,7 +98,7 @@ interface AlbumDao {
             LIMIT 1
         )
         ORDER BY albums.title COLLATE NOCASE ASC
-        """
+        """,
     )
     fun getAllAlbums(): Flow<List<AlbumWithArtist>>
 

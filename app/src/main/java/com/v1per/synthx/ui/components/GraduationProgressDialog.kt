@@ -28,10 +28,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
  * failures remain until [onDismiss] so recovery instructions cannot disappear unread.
  */
 @Composable
-fun GraduationProgressDialog(
-    stage: GraduationStage,
-    onDismiss: () -> Unit,
-) {
+fun GraduationProgressDialog(stage: GraduationStage, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.graduation_dialog_title)) },
@@ -71,10 +68,15 @@ fun GraduationProgressDialog(
 @Composable
 private fun GraduationStage.label(): String = when (this) {
     GraduationStage.Copying -> stringResource(R.string.graduation_stage_copying)
+
     GraduationStage.Verifying -> stringResource(R.string.graduation_stage_verifying)
+
     GraduationStage.DeletingOriginal -> stringResource(R.string.graduation_stage_deleting_original)
+
     GraduationStage.UpdatingDatabase -> stringResource(R.string.graduation_stage_updating_database)
+
     GraduationStage.Done -> stringResource(R.string.graduation_stage_done)
+
     // Composed in the data layer, not a string resource — same convention as
     // BackupPublicationException's messages in SafBackupPublisher.
     is GraduationStage.Failed -> reason

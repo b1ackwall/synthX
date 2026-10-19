@@ -56,12 +56,11 @@ class SynthXPlaybackService : MediaLibraryService() {
     // let its disconnect decrement the engine's count and stop playback while the engine is
     // still bound.
     @OptIn(markerClass = [UnstableApi::class])
-    private fun isOwner(session: MediaSession, controller: MediaSession.ControllerInfo): Boolean =
-        isOwnerController(
-            packageName = controller.packageName,
-            ownPackage = packageName,
-            isNotificationController = session.isMediaNotificationController(controller),
-        )
+    private fun isOwner(session: MediaSession, controller: MediaSession.ControllerInfo): Boolean = isOwnerController(
+        packageName = controller.packageName,
+        ownPackage = packageName,
+        isNotificationController = session.isMediaNotificationController(controller),
+    )
 
     @OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
@@ -87,19 +86,13 @@ class SynthXPlaybackService : MediaLibraryService() {
             this,
             sessionPlayer,
             object : MediaLibrarySession.Callback {
-                override fun onPostConnect(
-                    session: MediaSession,
-                    controller: MediaSession.ControllerInfo,
-                ) {
+                override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
                     if (isOwner(session, controller)) {
                         ownerControllers.connected()
                     }
                 }
 
-                override fun onDisconnected(
-                    session: MediaSession,
-                    controller: MediaSession.ControllerInfo,
-                ) {
+                override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
                     if (!isOwner(session, controller)) return
                     if (ownerControllers.disconnected()) {
                         // No ExoPlayerEngine remains bound to this session — the only owner of
@@ -128,8 +121,7 @@ class SynthXPlaybackService : MediaLibraryService() {
         )
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession =
-        mediaLibrarySession
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = mediaLibrarySession
 
     /**
      * Default media3 MediaSessionService behavior leaves an actively-playing session running
@@ -188,8 +180,7 @@ class SynthXPlaybackService : MediaLibraryService() {
     }
 
     /** Where both exit checkpoints write: the app-wide singleton unless a test overrides it. */
-    private fun exitCheckpointPersistence(): QueuePersistence =
-        exitPersistenceOverride ?: QueuePersistence.create(this)
+    private fun exitCheckpointPersistence(): QueuePersistence = exitPersistenceOverride ?: QueuePersistence.create(this)
 
     private fun releasePlayback() {
         if (released) return
@@ -218,11 +209,8 @@ class SynthXPlaybackService : MediaLibraryService() {
  * service and shares the app's package, so [isNotificationController]
  * (`MediaSession.isMediaNotificationController`) is what excludes it.
  */
-internal fun isOwnerController(
-    packageName: String,
-    ownPackage: String,
-    isNotificationController: Boolean,
-): Boolean = packageName == ownPackage && !isNotificationController
+internal fun isOwnerController(packageName: String, ownPackage: String, isNotificationController: Boolean): Boolean =
+    packageName == ownPackage && !isNotificationController
 
 /**
  * The pure decision behind [SynthXPlaybackService.onDestroy]'s checkpoint,

@@ -56,7 +56,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                 // Default NULL must match SongEntity's @ColumnInfo(defaultValue = "NULL")
                 // exactly or Room's open-time schema validation throws.
                 db.execSQL(
-                    "ALTER TABLE songs ADD COLUMN album_art_full_uri TEXT DEFAULT NULL"
+                    "ALTER TABLE songs ADD COLUMN album_art_full_uri TEXT DEFAULT NULL",
                 )
             }
         }
@@ -75,7 +75,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                         position_ms INTEGER NOT NULL,
                         PRIMARY KEY(id)
                     )
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
             }
         }
@@ -89,10 +89,10 @@ abstract class SynthXDatabase : RoomDatabase() {
         val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "ALTER TABLE playback_cursor ADD COLUMN shuffle_enabled INTEGER NOT NULL DEFAULT 0"
+                    "ALTER TABLE playback_cursor ADD COLUMN shuffle_enabled INTEGER NOT NULL DEFAULT 0",
                 )
                 db.execSQL(
-                    "ALTER TABLE playback_cursor ADD COLUMN repeat_mode INTEGER NOT NULL DEFAULT 0"
+                    "ALTER TABLE playback_cursor ADD COLUMN repeat_mode INTEGER NOT NULL DEFAULT 0",
                 )
             }
         }
@@ -117,13 +117,13 @@ abstract class SynthXDatabase : RoomDatabase() {
                         FOREIGN KEY(song_id) REFERENCES songs(id)
                             ON UPDATE NO ACTION ON DELETE CASCADE
                     )
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 db.execSQL(
-                    "CREATE INDEX index_queue_items_position ON queue_items(position)"
+                    "CREATE INDEX index_queue_items_position ON queue_items(position)",
                 )
                 db.execSQL(
-                    "CREATE INDEX index_queue_items_song_id ON queue_items(song_id)"
+                    "CREATE INDEX index_queue_items_song_id ON queue_items(song_id)",
                 )
 
                 db.execSQL(
@@ -136,15 +136,15 @@ abstract class SynthXDatabase : RoomDatabase() {
                         FOREIGN KEY(song_id) REFERENCES songs(id)
                             ON UPDATE NO ACTION ON DELETE CASCADE
                     )
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 db.execSQL(
                     "CREATE INDEX index_queue_baseline_items_position " +
-                        "ON queue_baseline_items(position)"
+                        "ON queue_baseline_items(position)",
                 )
                 db.execSQL(
                     "CREATE INDEX index_queue_baseline_items_song_id " +
-                        "ON queue_baseline_items(song_id)"
+                        "ON queue_baseline_items(song_id)",
                 )
 
                 db.execSQL(
@@ -157,7 +157,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                         repeat_mode INTEGER NOT NULL DEFAULT 0,
                         PRIMARY KEY(id)
                     )
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 db.execSQL(
                     """
@@ -166,7 +166,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     )
                     SELECT id, NULL, position_ms, shuffle_enabled, repeat_mode
                     FROM playback_cursor
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 db.execSQL("DROP TABLE playback_cursor")
                 db.execSQL("ALTER TABLE playback_cursor_new RENAME TO playback_cursor")
@@ -179,31 +179,31 @@ abstract class SynthXDatabase : RoomDatabase() {
         val MIGRATION_12_13 = object : Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "ALTER TABLE songs ADD COLUMN swatch1_hue REAL DEFAULT NULL"
+                    "ALTER TABLE songs ADD COLUMN swatch1_hue REAL DEFAULT NULL",
                 )
                 db.execSQL(
-                    "ALTER TABLE songs ADD COLUMN swatch1_saturation REAL DEFAULT NULL"
+                    "ALTER TABLE songs ADD COLUMN swatch1_saturation REAL DEFAULT NULL",
                 )
                 db.execSQL(
-                    "ALTER TABLE songs ADD COLUMN swatch1_lightness REAL DEFAULT NULL"
+                    "ALTER TABLE songs ADD COLUMN swatch1_lightness REAL DEFAULT NULL",
                 )
                 db.execSQL(
-                    "ALTER TABLE songs ADD COLUMN swatch2_hue REAL DEFAULT NULL"
+                    "ALTER TABLE songs ADD COLUMN swatch2_hue REAL DEFAULT NULL",
                 )
                 db.execSQL(
-                    "ALTER TABLE songs ADD COLUMN swatch2_saturation REAL DEFAULT NULL"
+                    "ALTER TABLE songs ADD COLUMN swatch2_saturation REAL DEFAULT NULL",
                 )
                 db.execSQL(
-                    "ALTER TABLE songs ADD COLUMN swatch2_lightness REAL DEFAULT NULL"
+                    "ALTER TABLE songs ADD COLUMN swatch2_lightness REAL DEFAULT NULL",
                 )
                 db.execSQL(
-                    "ALTER TABLE songs ADD COLUMN swatch3_hue REAL DEFAULT NULL"
+                    "ALTER TABLE songs ADD COLUMN swatch3_hue REAL DEFAULT NULL",
                 )
                 db.execSQL(
-                    "ALTER TABLE songs ADD COLUMN swatch3_saturation REAL DEFAULT NULL"
+                    "ALTER TABLE songs ADD COLUMN swatch3_saturation REAL DEFAULT NULL",
                 )
                 db.execSQL(
-                    "ALTER TABLE songs ADD COLUMN swatch3_lightness REAL DEFAULT NULL"
+                    "ALTER TABLE songs ADD COLUMN swatch3_lightness REAL DEFAULT NULL",
                 )
             }
         }
@@ -212,10 +212,10 @@ abstract class SynthXDatabase : RoomDatabase() {
         val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "ALTER TABLE playlists ADD COLUMN art_hue INTEGER DEFAULT NULL"
+                    "ALTER TABLE playlists ADD COLUMN art_hue INTEGER DEFAULT NULL",
                 )
                 db.execSQL(
-                    "ALTER TABLE playlists ADD COLUMN art_structure_seed INTEGER DEFAULT NULL"
+                    "ALTER TABLE playlists ADD COLUMN art_structure_seed INTEGER DEFAULT NULL",
                 )
             }
         }
@@ -239,7 +239,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                         phase TEXT NOT NULL,
                         created_at INTEGER NOT NULL
                     )
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
             }
         }
@@ -266,7 +266,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                             LIMIT 1
                         ), '') AS primary_artist
                     FROM albums
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 db.execSQL(
                     """
@@ -282,7 +282,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                     ON identity.title = grouped.title_key COLLATE NOCASE
                         AND identity.primary_artist = grouped.primary_artist
                     WHERE identity.id != grouped.survivor_id
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 db.execSQL(
                     """
@@ -291,7 +291,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                         WHERE duplicate_id = songs.album_id
                     )
                     WHERE album_id IN (SELECT duplicate_id FROM album_case_merges)
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 db.execSQL(
                     """
@@ -312,10 +312,10 @@ abstract class SynthXDatabase : RoomDatabase() {
                             LIMIT 1
                         ))
                     WHERE id IN (SELECT survivor_id FROM album_case_merges)
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 db.execSQL(
-                    "DELETE FROM albums WHERE id IN (SELECT duplicate_id FROM album_case_merges)"
+                    "DELETE FROM albums WHERE id IN (SELECT duplicate_id FROM album_case_merges)",
                 )
                 db.execSQL("DROP TABLE album_case_merges")
                 db.execSQL("DROP TABLE album_case_identity")
@@ -328,16 +328,16 @@ abstract class SynthXDatabase : RoomDatabase() {
                         year INTEGER,
                         album_art_uri TEXT
                     )
-                    """.trimIndent()
+                    """.trimIndent(),
                 )
                 db.execSQL(
                     "INSERT INTO albums_new (id, title, year, album_art_uri) " +
-                        "SELECT id, title, year, album_art_uri FROM albums"
+                        "SELECT id, title, year, album_art_uri FROM albums",
                 )
                 db.execSQL("DROP TABLE albums")
                 db.execSQL("ALTER TABLE albums_new RENAME TO albums")
                 db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS index_albums_title ON albums(title)"
+                    "CREATE INDEX IF NOT EXISTS index_albums_title ON albums(title)",
                 )
             }
         }
@@ -394,22 +394,20 @@ abstract class SynthXDatabase : RoomDatabase() {
             RestoreStartup.await()
             check(
                 com.v1per.synthx.data.backup.RestoreCoordinator.currentMode() ==
-                    com.v1per.synthx.data.backup.RestoreCoordinator.Mode.RESTORE_PREPARING
+                    com.v1per.synthx.data.backup.RestoreCoordinator.Mode.RESTORE_PREPARING,
             ) { "Restore-internal Room access requires restore preparation ownership" }
             return getOrCreate(context)
         }
 
-        private fun getOrCreate(context: Context): SynthXDatabase {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    SynthXDatabase::class.java,
-                    DB_NAME,
-                )
-                    .addMigrations(*ALL_MIGRATIONS)
-                    .build()
-                    .also { INSTANCE = it }
-            }
+        private fun getOrCreate(context: Context): SynthXDatabase = INSTANCE ?: synchronized(this) {
+            INSTANCE ?: Room.databaseBuilder(
+                context.applicationContext,
+                SynthXDatabase::class.java,
+                DB_NAME,
+            )
+                .addMigrations(*ALL_MIGRATIONS)
+                .build()
+                .also { INSTANCE = it }
         }
 
         /** Builds an isolated Room instance for an offline restore candidate, never the singleton. */

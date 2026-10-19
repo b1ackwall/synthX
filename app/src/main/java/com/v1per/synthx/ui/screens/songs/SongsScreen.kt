@@ -135,18 +135,21 @@ private fun SongsScreenContent(
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
             is UiState.Loading -> LoadingIndicator()
+
             is UiState.Empty -> Text(
                 text = stringResource(R.string.empty_no_songs),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
                 color = Error,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             is UiState.Success -> SongList(
                 songs = uiState.data,
                 currentlyPlayingSongId = currentlyPlayingSongId,
@@ -157,11 +160,7 @@ private fun SongsScreenContent(
 }
 
 @Composable
-private fun SongList(
-    songs: ImmutableList<Song>,
-    currentlyPlayingSongId: String?,
-    onSongTap: (Song) -> Unit,
-) {
+private fun SongList(songs: ImmutableList<Song>, currentlyPlayingSongId: String?, onSongTap: (Song) -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = Spacing.md),
@@ -184,11 +183,47 @@ private fun SongList(
 @Composable
 private fun SongsScreenPreview() {
     val sampleSongs = persistentListOf(
-        Song(id = "1", title = "Neon Pulse", artist = "v1per", album = "Ultraviolet", duration = 243000L, filePath = ""),
-        Song(id = "2", title = "Static Bloom", artist = "KNTRL", album = "Fragments", duration = 198000L, filePath = ""),
-        Song(id = "3", title = "Glitch Cascade", artist = "v1per", album = "Ultraviolet", duration = 317000L, filePath = ""),
-        Song(id = "4", title = "Low Orbit", artist = "Null Signal", album = "Deep Cut", duration = 272000L, filePath = ""),
-        Song(id = "5", title = "Severed Link", artist = "KNTRL", album = "Fragments", duration = 205000L, filePath = "", isMissing = true),
+        Song(
+            id = "1",
+            title = "Neon Pulse",
+            artist = "v1per",
+            album = "Ultraviolet",
+            duration = 243000L,
+            filePath = "",
+        ),
+        Song(
+            id = "2",
+            title = "Static Bloom",
+            artist = "KNTRL",
+            album = "Fragments",
+            duration = 198000L,
+            filePath = "",
+        ),
+        Song(
+            id = "3",
+            title = "Glitch Cascade",
+            artist = "v1per",
+            album = "Ultraviolet",
+            duration = 317000L,
+            filePath = "",
+        ),
+        Song(
+            id = "4",
+            title = "Low Orbit",
+            artist = "Null Signal",
+            album = "Deep Cut",
+            duration = 272000L,
+            filePath = "",
+        ),
+        Song(
+            id = "5",
+            title = "Severed Link",
+            artist = "KNTRL",
+            album = "Fragments",
+            duration = 205000L,
+            filePath = "",
+            isMissing = true,
+        ),
     )
     SynthXTheme {
         Surface(

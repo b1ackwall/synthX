@@ -194,6 +194,7 @@ fun PlaylistListScreen(
                 ) {
                     LoadingIndicator(modifier = Modifier.fillMaxWidth())
                 }
+
                 is UiState.Empty -> Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -206,6 +207,7 @@ fun PlaylistListScreen(
                         color = TextSecondary,
                     )
                 }
+
                 is UiState.Success -> LazyColumn {
                     if (state.data.groups.isNotEmpty()) {
                         items(
@@ -248,6 +250,7 @@ fun PlaylistListScreen(
                         }
                     }
                 }
+
                 is UiState.Error -> LoadErrorText(
                     message = state.message,
                     modifier = Modifier.align(Alignment.Center),
@@ -263,11 +266,7 @@ fun PlaylistListScreen(
 }
 
 @Composable
-private fun CreateGroupCard(
-    isCreating: Boolean,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
+private fun CreateGroupCard(isCreating: Boolean, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
     // rememberSaveable: the card's open flag lives in the ViewModel and survives recreation and
     // navigating away and back, so the text has to as well or the card reopens empty.
     var name by rememberSaveable { mutableStateOf("") }
@@ -342,12 +341,7 @@ private fun CreateGroupCard(
 }
 
 @Composable
-private fun GroupRow(
-    group: PlaylistGroup,
-    onClick: () -> Unit,
-    onRename: (String) -> Unit,
-    onDelete: () -> Unit,
-) {
+private fun GroupRow(group: PlaylistGroup, onClick: () -> Unit, onRename: (String) -> Unit, onDelete: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     // rememberSaveable for the same reason as PlaylistRow's rename draft: a lazy-list item.
     var isRenaming by rememberSaveable { mutableStateOf(false) }
@@ -419,11 +413,7 @@ private fun GroupRow(
 }
 
 @Composable
-private fun GroupThreeDotsMenu(
-    groupName: String,
-    onRename: () -> Unit,
-    onDelete: () -> Unit,
-) {
+private fun GroupThreeDotsMenu(groupName: String, onRename: () -> Unit, onDelete: () -> Unit) {
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 

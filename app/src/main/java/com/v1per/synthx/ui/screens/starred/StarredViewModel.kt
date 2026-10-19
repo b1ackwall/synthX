@@ -64,10 +64,8 @@ class StarredViewModel(
         playbackViewModel.requestPlayQueue(songs, index)
     }
 
-    class Factory(
-        private val context: Context,
-        private val playbackViewModel: PlaybackViewModel,
-    ) : ViewModelProvider.Factory {
+    class Factory(private val context: Context, private val playbackViewModel: PlaybackViewModel) :
+        ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (!modelClass.isAssignableFrom(StarredViewModel::class.java)) {
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

@@ -183,7 +183,7 @@ private fun PlaylistThreeDotsMenu(
                                 stringResource(R.string.action_add_to_group)
                             } else {
                                 stringResource(R.string.action_move_to_group)
-                            }
+                            },
                         )
                     },
                     onClick = {

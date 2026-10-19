@@ -21,11 +21,10 @@ internal data class RestoreArtifactNames(
     companion object {
         private val OPERATION_ID = Regex("[0-9a-f]{32}")
         private val ARTIFACT = Regex(
-            "^synthx\\.restore-([0-9a-f]{32})\\.(candidate|old|safety|failed(?:-[0-9]+)?|safety-promotion)\\.db(?:\\.corrupt)?$"
+            "^synthx\\.restore-([0-9a-f]{32})\\.(candidate|old|safety|failed(?:-[0-9]+)?|safety-promotion)\\.db(?:\\.corrupt)?$",
         )
 
-        fun parseOperationId(fileName: String): String? =
-            ARTIFACT.matchEntire(fileName)?.groupValues?.get(1)
+        fun parseOperationId(fileName: String): String? = ARTIFACT.matchEntire(fileName)?.groupValues?.get(1)
     }
 }
 
@@ -73,18 +72,13 @@ internal enum class RestoreEligibility {
     }
 }
 
-internal data class WalCheckpointResult(
-    val busy: Int,
-    val logFrames: Int,
-    val checkpointedFrames: Int,
-) {
+internal data class WalCheckpointResult(val busy: Int, val logFrames: Int, val checkpointedFrames: Int) {
     /** SQLite reports (-1,-1) when the database is not in WAL mode. */
-    fun provesStandaloneMain(): Boolean =
-        busy == 0 && when {
-            logFrames == -1 && checkpointedFrames == -1 -> true
-            logFrames >= 0 && checkpointedFrames >= 0 -> logFrames == checkpointedFrames
-            else -> false
-        }
+    fun provesStandaloneMain(): Boolean = busy == 0 && when {
+        logFrames == -1 && checkpointedFrames == -1 -> true
+        logFrames >= 0 && checkpointedFrames >= 0 -> logFrames == checkpointedFrames
+        else -> false
+    }
 }
 
 internal enum class RestoreFaultPoint {
@@ -183,34 +177,47 @@ internal object RestoreRecoveryPlanner {
         rollbackSource: RestoreTransaction.RollbackSource? = null,
     ): RestoreRecoveryAction = when (phase) {
         RestoreTransaction.Phase.PREPARED,
-        RestoreTransaction.Phase.LIVE_MOVE_INTENT -> {
+        RestoreTransaction.Phase.LIVE_MOVE_INTENT,
+        -> {
             if (facts.liveValid && !facts.oldExists) {
                 RestoreRecoveryAction.CLEAN_PRE_CLOSE_AND_NORMAL
-            } else fallback(facts)
+            } else {
+                fallback(facts)
+            }
         }
 
         RestoreTransaction.Phase.LIVE_MOVED -> fallback(facts)
 
         RestoreTransaction.Phase.INSTALL_INTENT,
-        RestoreTransaction.Phase.CANDIDATE_INSTALLED -> {
+        RestoreTransaction.Phase.CANDIDATE_INSTALLED,
+        -> {
             if (facts.liveIsCandidate) {
                 RestoreRecoveryAction.ACCEPT_INSTALLED_AND_RESTART
-            } else fallback(facts)
+            } else {
+                fallback(facts)
+            }
         }
 
         RestoreTransaction.Phase.POST_VALIDATED -> {
             if (facts.liveIsCandidate) {
                 RestoreRecoveryAction.COMPLETE_INSTALLED_AND_NORMAL
-            } else fallback(facts)
+            } else {
+                fallback(facts)
+            }
         }
 
         RestoreTransaction.Phase.ROLLBACK_INTENT,
-        RestoreTransaction.Phase.STATELESS_RECOVERY_INTENT -> rollback(rollbackSource, facts)
+        RestoreTransaction.Phase.STATELESS_RECOVERY_INTENT,
+        -> rollback(rollbackSource, facts)
 
         RestoreTransaction.Phase.ROLLED_BACK,
-        RestoreTransaction.Phase.STATELESS_RECOVERED -> {
-            if (facts.liveValid) RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL
-            else fallback(facts)
+        RestoreTransaction.Phase.STATELESS_RECOVERED,
+        -> {
+            if (facts.liveValid) {
+                RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL
+            } else {
+                fallback(facts)
+            }
         }
 
         // COMPLETE is durable proof that a prior cold start already confirmed the
@@ -219,8 +226,11 @@ internal object RestoreRecoveryPlanner {
         // recovery authority. A bad current database still fails closed, but it must
         // not reopen rollback from an already completed restore.
         RestoreTransaction.Phase.COMPLETE -> {
-            if (facts.liveValid) RestoreRecoveryAction.ACCEPT_COMPLETE_HISTORY_AND_NORMAL
-            else RestoreRecoveryAction.EMERGENCY
+            if (facts.liveValid) {
+                RestoreRecoveryAction.ACCEPT_COMPLETE_HISTORY_AND_NORMAL
+            } else {
+                RestoreRecoveryAction.EMERGENCY
+            }
         }
     }
 
@@ -239,11 +249,13 @@ internal object RestoreRecoveryPlanner {
             facts.liveMatchesOld -> RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL
             else -> RestoreRecoveryAction.EMERGENCY
         }
+
         RestoreTransaction.RollbackSource.SAFETY -> when {
             facts.safetyValid -> RestoreRecoveryAction.PROMOTE_SAFETY
             facts.liveMatchesSafety -> RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL
             else -> RestoreRecoveryAction.EMERGENCY
         }
+
         null -> fallback(facts)
     }
 }

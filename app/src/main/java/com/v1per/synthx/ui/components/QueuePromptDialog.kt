@@ -20,11 +20,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
  * replaced, and whatever was playing carries on.
  */
 @Composable
-fun QueuePromptDialog(
-    onKeep: () -> Unit,
-    onClear: () -> Unit,
-    onDismiss: () -> Unit,
-) {
+fun QueuePromptDialog(onKeep: () -> Unit, onClear: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.queue_prompt_title)) },

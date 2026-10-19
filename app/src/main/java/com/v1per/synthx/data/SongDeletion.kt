@@ -167,8 +167,7 @@ fun compressedArtFileExists(context: Context, songId: String): Boolean =
 
 /** [compressedArtFileExists] split on the directory argument so it's testable with a plain JVM
  *  temp dir, with no Android [Context] needed. */
-internal fun compressedArtFileExists(artDir: File, songId: String): Boolean =
-    File(artDir, "art_$songId.jpg").exists()
+internal fun compressedArtFileExists(artDir: File, songId: String): Boolean = File(artDir, "art_$songId.jpg").exists()
 
 /**
  * Whether [songId]'s full-resolution copy (`art_full_<id>.<ext>`) is actually present on disk
@@ -200,10 +199,7 @@ internal fun fullResArtFileExists(artDir: File, songId: String): Boolean =
  * [ArtFilePresence.hasCompressed]/[ArtFilePresence.hasFullRes] — so a whole-library sweep and a
  * single-song re-check can never disagree about the same file.
  */
-data class ArtFilePresence(
-    private val compressedSongIds: Set<String>,
-    private val fullResSongIds: Set<String>,
-) {
+data class ArtFilePresence(private val compressedSongIds: Set<String>, private val fullResSongIds: Set<String>) {
     /** Same rule as [compressedArtFileExists]: an exact `art_<id>.jpg` entry. */
     fun hasCompressed(songId: String): Boolean = songId in compressedSongIds
 
@@ -211,8 +207,7 @@ data class ArtFilePresence(
     fun hasFullRes(songId: String): Boolean = songId in fullResSongIds
 }
 
-fun artFilePresence(context: Context): ArtFilePresence =
-    artFilePresence(File(context.filesDir, "art"))
+fun artFilePresence(context: Context): ArtFilePresence = artFilePresence(File(context.filesDir, "art"))
 
 /**
  * [artFilePresence] split on the directory argument, same testability split as the two per-song
@@ -245,11 +240,10 @@ internal fun artFilePresence(artDir: File): ArtFilePresence {
 
 /** Full-res-only counterpart to [songIdOfArtFile] — matches `art_full_<id>.<ext>` exclusively,
  *  so [fullResArtFileExists] can't be satisfied by a compressed-only file. */
-private fun fullResSongIdOfArtFile(name: String): String? =
-    name.takeIf { it.startsWith("art_full_") }
-        ?.removePrefix("art_full_")
-        ?.substringBefore('.')
-        ?.takeIf { it.isNotEmpty() }
+private fun fullResSongIdOfArtFile(name: String): String? = name.takeIf { it.startsWith("art_full_") }
+    ?.removePrefix("art_full_")
+    ?.substringBefore('.')
+    ?.takeIf { it.isNotEmpty() }
 
 /**
  * The song id an art filename belongs to, or null if the name isn't art at all.

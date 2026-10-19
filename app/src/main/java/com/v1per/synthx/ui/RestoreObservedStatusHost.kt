@@ -58,10 +58,7 @@ private fun RestorePendingBanner() {
 }
 
 @Composable
-private fun RestoreObservedOutcomeDialog(
-    terminal: RestoreAppStatus.Terminal,
-    onDismiss: () -> Unit,
-) {
+private fun RestoreObservedOutcomeDialog(terminal: RestoreAppStatus.Terminal, onDismiss: () -> Unit) {
     val succeeded = terminal is RestoreAppStatus.Succeeded
     AlertDialog(
         onDismissRequest = {},
@@ -70,8 +67,11 @@ private fun RestoreObservedOutcomeDialog(
         },
         text = {
             Text(
-                if (terminal is RestoreAppStatus.Failed) terminal.message
-                else stringResource(R.string.restore_done_message),
+                if (terminal is RestoreAppStatus.Failed) {
+                    terminal.message
+                } else {
+                    stringResource(R.string.restore_done_message)
+                },
             )
         },
         confirmButton = {

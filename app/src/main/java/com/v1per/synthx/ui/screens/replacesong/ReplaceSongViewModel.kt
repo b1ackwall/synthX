@@ -52,10 +52,8 @@ enum class ReplaceSongStep { PickOld, PickNew, ReviewAndConfirm }
 sealed class ReplaceSongPreviewState {
     data object Idle : ReplaceSongPreviewState()
     data class Loading(val oldSong: Song, val newSong: Song) : ReplaceSongPreviewState()
-    data class Ready(
-        val preview: ReplaceSongPreview,
-        val membershipSnapshot: ReplaceSongMembershipSnapshot,
-    ) : ReplaceSongPreviewState()
+    data class Ready(val preview: ReplaceSongPreview, val membershipSnapshot: ReplaceSongMembershipSnapshot) :
+        ReplaceSongPreviewState()
     data class Failed(val message: String, val retryable: Boolean) : ReplaceSongPreviewState()
 }
 
@@ -95,6 +93,7 @@ class ReplaceSongViewModel(
     val step: StateFlow<ReplaceSongStep> = _step.asStateFlow()
 
     private val _oldSong = MutableStateFlow<Song?>(null)
+
     /** Locked in by [selectOldSong]; cleared only by stepping back to [ReplaceSongStep.PickOld]. */
     val oldSong: StateFlow<Song?> = _oldSong.asStateFlow()
 
@@ -108,6 +107,7 @@ class ReplaceSongViewModel(
     val preview: StateFlow<ReplaceSongPreviewState> = _preview.asStateFlow()
 
     private val _conflictResolution = MutableStateFlow(PlaylistConflictResolution.KeepOld)
+
     /** Only consulted for playlists both songs are in; see [PlaylistConflictResolution]. */
     val conflictResolution: StateFlow<PlaylistConflictResolution> = _conflictResolution.asStateFlow()
 
@@ -215,10 +215,12 @@ class ReplaceSongViewModel(
                         result.preview,
                         result.membershipSnapshot,
                     )
+
                     ReplaceSongPreviewResult.OldSongMissing -> ReplaceSongPreviewState.Failed(
                         stringResource(R.string.replace_song_failed_old_missing),
                         retryable = false,
                     )
+
                     ReplaceSongPreviewResult.NewSongMissing -> ReplaceSongPreviewState.Failed(
                         stringResource(R.string.replace_song_failed_new_missing),
                         retryable = false,
@@ -265,10 +267,13 @@ class ReplaceSongViewModel(
                     is ReplaceSongResult.Success -> ReplaceSongOutcome.Complete(
                         warning = when (result.oldAudioCleanup) {
                             SongDeletionOutcome.Deleted -> null
+
                             SongDeletionOutcome.FileRemained ->
                                 stringResource(R.string.replace_song_done_file_remained)
+
                             SongDeletionOutcome.CleanupUncertain ->
                                 stringResource(R.string.replace_song_done_cleanup_uncertain)
+
                             is SongDeletionOutcome.Blocked ->
                                 appContext.destructiveFileBlockMessage(result.oldAudioCleanup.reason)
                         },
@@ -277,31 +282,38 @@ class ReplaceSongViewModel(
                                 result.oldAudioCleanup == SongDeletionOutcome.CleanupUncertain
                         },
                     )
+
                     ReplaceSongResult.OldSongMissing -> ReplaceSongOutcome.Failed(
                         stringResource(R.string.replace_song_failed_old_missing),
                     )
+
                     ReplaceSongResult.NewSongMissing -> ReplaceSongOutcome.Failed(
                         stringResource(R.string.replace_song_failed_new_missing),
                     )
+
                     ReplaceSongResult.PreviewStale -> {
                         beginPreview(ready.preview.oldSong, ready.preview.newSong)
                         ReplaceSongOutcome.Failed(
                             stringResource(R.string.replace_song_preview_stale),
                         )
                     }
+
                     is ReplaceSongResult.OldSongBlocked -> ReplaceSongOutcome.Failed(
                         appContext.destructiveFileBlockMessage(result.reason),
                     )
+
                     is ReplaceSongResult.NewSongUnusable -> ReplaceSongOutcome.Failed(
                         stringResource(
                             when (result.reason) {
                                 ReplacementFilePreflightResult.SourceGone ->
                                     R.string.replace_song_new_file_gone
+
                                 ReplacementFilePreflightResult.IdentityMismatch ->
                                     R.string.replace_song_new_file_changed
                             },
                         ),
                     )
+
                     ReplaceSongResult.SameSong -> ReplaceSongOutcome.Failed(
                         stringResource(R.string.replace_song_failed_same_song),
                     )
@@ -323,19 +335,24 @@ class ReplaceSongViewModel(
             _outcome.value = try {
                 when (repository.retryAudioFileDeletion(filePath)) {
                     SongDeletionOutcome.Deleted -> ReplaceSongOutcome.Complete(null)
+
                     SongDeletionOutcome.FileRemained -> ReplaceSongOutcome.Complete(
-                        stringResource(R.string.replace_song_done_file_remained), filePath,
+                        stringResource(R.string.replace_song_done_file_remained),
+                        filePath,
                     )
+
                     SongDeletionOutcome.CleanupUncertain, is SongDeletionOutcome.Blocked ->
                         ReplaceSongOutcome.Complete(
-                            stringResource(R.string.replace_song_done_cleanup_uncertain), filePath,
+                            stringResource(R.string.replace_song_done_cleanup_uncertain),
+                            filePath,
                         )
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Throwable) {
                 ReplaceSongOutcome.Complete(
-                    stringResource(R.string.replace_song_done_cleanup_uncertain), filePath,
+                    stringResource(R.string.replace_song_done_cleanup_uncertain),
+                    filePath,
                 )
             } finally {
                 _cleanupRetryInProgress.value = false

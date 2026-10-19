@@ -84,7 +84,7 @@ interface PlaylistDao {
      */
     @Query(
         "SELECT id FROM playlists WHERE art_hue IS NULL OR art_structure_seed IS NULL " +
-            "ORDER BY created_at ASC, id ASC"
+            "ORDER BY created_at ASC, id ASC",
     )
     suspend fun getPlaylistIdsMissingArt(): List<String>
 
@@ -97,14 +97,14 @@ interface PlaylistDao {
      */
     @Query(
         "UPDATE playlists SET art_hue = :hue, art_structure_seed = :seed " +
-            "WHERE id = :id AND art_hue IS NULL AND art_structure_seed IS NULL"
+            "WHERE id = :id AND art_hue IS NULL AND art_structure_seed IS NULL",
     )
     suspend fun setPlaylistArt(id: String, hue: Int, seed: Long)
 
     // Playlist songs
 
     @Query(
-        "SELECT song_id FROM playlist_songs WHERE playlist_id = :playlistId ORDER BY position ASC"
+        "SELECT song_id FROM playlist_songs WHERE playlist_id = :playlistId ORDER BY position ASC",
     )
     suspend fun getSongIdsForPlaylist(playlistId: String): List<String>
 
@@ -122,7 +122,7 @@ interface PlaylistDao {
     /** Aggregate used by delete preview; one bounded query replaces an N-query count loop. */
     @Query(
         "SELECT playlist_id AS playlistId, COUNT(*) AS memberCount FROM playlist_songs " +
-            "WHERE playlist_id IN (:ids) GROUP BY playlist_id"
+            "WHERE playlist_id IN (:ids) GROUP BY playlist_id",
     )
     suspend fun getPlaylistMemberCounts(ids: List<String>): List<PlaylistMemberCount>
 
@@ -150,7 +150,7 @@ interface PlaylistDao {
 
     @Query(
         "SELECT EXISTS(SELECT 1 FROM playlist_songs " +
-            "WHERE playlist_id = :playlistId AND song_id = :songId)"
+            "WHERE playlist_id = :playlistId AND song_id = :songId)",
     )
     suspend fun containsSong(playlistId: String, songId: String): Boolean
 
@@ -177,7 +177,7 @@ interface PlaylistDao {
                 songId = songId,
                 position = nextPosition,
                 addedAt = addedAt,
-            )
+            ),
         )
         return true
     }

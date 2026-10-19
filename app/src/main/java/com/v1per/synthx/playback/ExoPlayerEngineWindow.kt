@@ -90,11 +90,7 @@ internal fun computeWindow(
  * `loadedAhead >= desiredAhead` short-circuits the true end of a queue with repeat off: there
  * is nothing more to load, so decaying lookahead must not trigger a refill on every transition.
  */
-internal fun windowNeedsRefill(
-    loaded: List<String>,
-    desired: List<QueueSlotRecord>,
-    currentSlotId: String,
-): Boolean {
+internal fun windowNeedsRefill(loaded: List<String>, desired: List<QueueSlotRecord>, currentSlotId: String): Boolean {
     val loadedIndex = loaded.indexOf(currentSlotId)
     if (loadedIndex < 0) return true
     val desiredIndex = desired.indexOfFirst { it.slotId == currentSlotId }
@@ -117,10 +113,7 @@ internal fun windowNeedsRefill(
  * `Remove` plus one `Insert`; a drag-reorder inside the window costs a few `Move`s; nothing
  * ever removes and re-adds the currently-playing item, so playback is never torn down.
  */
-internal fun computeWindowEdits(
-    loaded: List<String>,
-    desired: List<QueueSlotRecord>,
-): List<WindowEdit> {
+internal fun computeWindowEdits(loaded: List<String>, desired: List<QueueSlotRecord>): List<WindowEdit> {
     val edits = mutableListOf<WindowEdit>()
     val desiredIds = desired.mapTo(HashSet()) { it.slotId }
 
@@ -240,23 +233,24 @@ internal fun ExoPlayerEngine.maintainWindow(force: Boolean = false) {
  * [applyWindowEdits] assume every record builds a `MediaItem` — a partial insert would leave
  * the timeline out of step with the indices the remaining edits were computed against.
  */
-private fun ExoPlayerEngine.resolvableWindow(currentIndex: Int): List<QueueSlotRecord> =
-    computeWindow(
-        live = orderStore.live,
-        currentIndex = currentIndex,
-        wrapAround = _repeatMode.value == RepeatMode.All,
-    ).filter { songsBySlotId.containsKey(it.slotId) }
+private fun ExoPlayerEngine.resolvableWindow(currentIndex: Int): List<QueueSlotRecord> = computeWindow(
+    live = orderStore.live,
+    currentIndex = currentIndex,
+    wrapAround = _repeatMode.value == RepeatMode.All,
+).filter { songsBySlotId.containsKey(it.slotId) }
 
 private fun ExoPlayerEngine.applyWindowEdits(ctrl: MediaController, edits: List<WindowEdit>) {
     for (edit in edits) {
         when (edit) {
             is WindowEdit.Remove -> ctrl.removeMediaItems(edit.fromIndex, edit.toIndexExclusive)
+
             is WindowEdit.Insert -> ctrl.addMediaItems(
                 edit.index,
                 edit.records.map { record ->
                     buildMediaItem(record.slotId, songsBySlotId.getValue(record.slotId), null)
                 },
             )
+
             is WindowEdit.Move -> ctrl.moveMediaItem(edit.fromIndex, edit.toIndex)
         }
     }
@@ -292,11 +286,7 @@ internal fun ExoPlayerEngine.seekToLiveIndex(targetIndex: Int, play: Boolean): B
  * variants of this), jumping to an Up Next row outside the window, and the safety net in
  * [ExoPlayerEngine.advancePastWindowEnd].
  */
-internal fun ExoPlayerEngine.rebuildWindowAround(
-    targetIndex: Int,
-    positionMs: Long,
-    play: Boolean,
-): Boolean {
+internal fun ExoPlayerEngine.rebuildWindowAround(targetIndex: Int, positionMs: Long, play: Boolean): Boolean {
     val ctrl = controller ?: return false
     val target = orderStore.slotAt(targetIndex) ?: return false
     val window = resolvableWindow(targetIndex)

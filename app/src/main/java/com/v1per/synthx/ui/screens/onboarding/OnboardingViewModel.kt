@@ -29,9 +29,7 @@ enum class OnboardingStep { Choice, FolderSetup, Scanning, RecoveryFolderSetup, 
  * changes and normal process death, but NOT a user swiping the app away from Recents.
  * Disk-backed state survives both.
  */
-class OnboardingViewModel(
-    private val preferences: PreferencesManager,
-) : ViewModel() {
+class OnboardingViewModel(private val preferences: PreferencesManager) : ViewModel() {
 
     // A pending first scan always resumes at Scanning, whatever step key survived: Done
     // clears the step key when it completes onboarding and only re-writes it a moment later in

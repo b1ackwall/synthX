@@ -8,14 +8,20 @@ import android.util.Log
 /** A one-shot process gate. Room callers block only if startup recovery is still running. */
 internal object RestoreStartup {
     private val ready = CountDownLatch(1)
+
     @Volatile private var result: RestoreRecovery = RestoreRecovery.NORMAL
     fun begin(context: Context) {
         Thread({
             result = runProtectedRecovery(context, onReady = ready::countDown)
         }, "synthx-restore-recovery").start()
     }
-    fun await() { ready.await() }
-    fun result(): RestoreRecovery { await(); return result }
+    fun await() {
+        ready.await()
+    }
+    fun result(): RestoreRecovery {
+        await()
+        return result
+    }
 
     /** The only startup gate normal Room owners may cross. */
     fun requireNormal() {
@@ -38,8 +44,11 @@ internal object RestoreStartup {
     private fun publish(recovery: RestoreRecovery) {
         when (recovery) {
             RestoreRecovery.NORMAL -> RestoreCoordinator.markNormal()
+
             RestoreRecovery.RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(false)
+
             RestoreRecovery.ROLLED_BACK_RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(true)
+
             RestoreRecovery.EMERGENCY -> RestoreCoordinator.markEmergency(
                 RestoreTransaction.diagnosticOperationId(),
             )

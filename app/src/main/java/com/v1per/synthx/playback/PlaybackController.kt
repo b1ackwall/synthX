@@ -33,10 +33,13 @@ class PlaybackController(private val engine: PlaybackEngine) {
     fun setRepeatMode(mode: RepeatMode) = engine.setRepeatMode(mode)
     fun playNext(song: Song): Boolean = engine.playNext(song)
     fun addToQueue(song: Song): Boolean = engine.addToQueue(song)
+
     /** Identity-based, not index-based — see [PlaybackEngine.moveQueueItem] for why. */
     fun moveQueueItem(slotId: String, toIndex: Int) = engine.moveQueueItem(slotId, toIndex)
+
     /** Identity-based, not index-based — see [PlaybackEngine.removeQueueItem] for why. */
     fun removeQueueItem(slotId: String) = engine.removeQueueItem(slotId)
+
     /** Identity-based, not index-based — see [PlaybackEngine.seekToQueueItem] for why. */
     fun seekToQueueItem(slotId: String) = engine.seekToQueueItem(slotId)
     fun pause() = engine.pause()

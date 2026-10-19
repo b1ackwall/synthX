@@ -24,15 +24,15 @@ fun rememberWordmark(): AnnotatedString {
                 SpanStyle(
                     color = TextPrimary,
                     fontFamily = wordmarkFont,
-                    fontWeight = FontWeight.Normal
-                )
+                    fontWeight = FontWeight.Normal,
+                ),
             ) { append("synth") }
             withStyle(
                 SpanStyle(
                     color = Accent,
                     fontFamily = wordmarkFont,
-                    fontWeight = FontWeight.Normal
-                )
+                    fontWeight = FontWeight.Normal,
+                ),
             ) { append("X") }
         }
     }

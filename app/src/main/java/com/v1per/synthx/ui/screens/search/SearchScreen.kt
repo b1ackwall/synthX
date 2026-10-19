@@ -239,20 +239,24 @@ fun SearchScreen(
                             currentSong = currentSong,
                             playbackViewModel = playbackViewModel,
                         )
+
                         SearchFilter.ARTISTS -> artistItems(
                             artists = results.artists,
                             onNavigateToArtistDetail = onNavigateToArtistDetail,
                         )
+
                         SearchFilter.ALBUMS -> albumItems(
                             albums = results.albums,
                             onNavigateToAlbumDetail = onNavigateToAlbumDetail,
                         )
+
                         SearchFilter.PLAYLISTS -> playlistItems(
                             playlists = results.playlists,
                             onNavigateToPlaylistDetail = onNavigateToPlaylistDetail,
                             onRename = viewModel::renamePlaylist,
                             onDelete = viewModel::deletePlaylist,
                         )
+
                         SearchFilter.ALL -> {
                             if (results.playlists.isNotEmpty()) {
                                 sectionHeader(R.string.screen_playlists)
@@ -303,11 +307,7 @@ private fun LazyListScope.sectionHeader(@StringRes titleRes: Int) {
     }
 }
 
-private fun LazyListScope.songItems(
-    songs: List<Song>,
-    currentSong: Song?,
-    playbackViewModel: PlaybackViewModel,
-) {
+private fun LazyListScope.songItems(songs: List<Song>, currentSong: Song?, playbackViewModel: PlaybackViewModel) {
     itemsIndexed(
         songs,
         key = { _, song -> "song_${song.id}" },
@@ -322,10 +322,7 @@ private fun LazyListScope.songItems(
     }
 }
 
-private fun LazyListScope.artistItems(
-    artists: List<Artist>,
-    onNavigateToArtistDetail: (String, String) -> Unit,
-) {
+private fun LazyListScope.artistItems(artists: List<Artist>, onNavigateToArtistDetail: (String, String) -> Unit) {
     items(artists, key = { "artist_${it.id}" }, contentType = { "artist" }) { artist ->
         ArtistResultRow(
             artist = artist,
@@ -334,10 +331,7 @@ private fun LazyListScope.artistItems(
     }
 }
 
-private fun LazyListScope.albumItems(
-    albums: List<Album>,
-    onNavigateToAlbumDetail: (String, String) -> Unit,
-) {
+private fun LazyListScope.albumItems(albums: List<Album>, onNavigateToAlbumDetail: (String, String) -> Unit) {
     items(albums, key = { "album_${it.id}" }, contentType = { "album" }) { album ->
         AlbumResultRow(
             album = album,
@@ -363,10 +357,7 @@ private fun LazyListScope.playlistItems(
 }
 
 @Composable
-private fun ArtistResultRow(
-    artist: Artist,
-    onClick: () -> Unit,
-) {
+private fun ArtistResultRow(artist: Artist, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
 
     Column {
@@ -398,10 +389,7 @@ private fun ArtistResultRow(
 }
 
 @Composable
-private fun AlbumResultRow(
-    album: Album,
-    onClick: () -> Unit,
-) {
+private fun AlbumResultRow(album: Album, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
 
     Column {

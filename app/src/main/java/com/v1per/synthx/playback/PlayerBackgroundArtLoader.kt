@@ -19,11 +19,7 @@ private const val TAG = "PlayerBackgroundArt"
 internal const val PlayerBackgroundArtSidePx = 128
 
 /** One song's identity and art URIs, resolved by the UI before the decode starts. */
-data class PlayerBackgroundArtRequest(
-    val songId: String,
-    val compressedUri: String?,
-    val fullUri: String?,
-) {
+data class PlayerBackgroundArtRequest(val songId: String, val compressedUri: String?, val fullUri: String?) {
     companion object {
         fun from(song: Song): PlayerBackgroundArtRequest =
             PlayerBackgroundArtRequest(song.id, song.albumArtUri, song.albumArtFullUri)
@@ -31,8 +27,7 @@ data class PlayerBackgroundArtRequest(
 }
 
 /** Decode order: the compressed copy first, then the full-resolution original. */
-internal fun PlayerBackgroundArtRequest.decodeSources(): List<String> =
-    listOfNotNull(compressedUri, fullUri).distinct()
+internal fun PlayerBackgroundArtRequest.decodeSources(): List<String> = listOfNotNull(compressedUri, fullUri).distinct()
 
 /** Largest power-of-two sample size that keeps the decoded short side at or above [side]. */
 internal fun backgroundArtSampleSize(width: Int, height: Int, side: Int): Int {
@@ -81,7 +76,10 @@ internal class PlayerBackgroundArtLoader(private val contentResolver: ContentRes
             }
             val decoded = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
             if (decoded == null) {
-                Log.w(TAG, "Player background art failed to decode (${bounds.outWidth}x${bounds.outHeight}): $uriString")
+                Log.w(
+                    TAG,
+                    "Player background art failed to decode (${bounds.outWidth}x${bounds.outHeight}): $uriString",
+                )
                 return null
             }
             val crop = centerSquareCrop(decoded.width, decoded.height)

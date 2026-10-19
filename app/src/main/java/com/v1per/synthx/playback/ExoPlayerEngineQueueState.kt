@@ -206,10 +206,9 @@ internal fun ExoPlayerEngine.refreshUpcomingQueue() {
  * rather than faked; the cache is populated for every slot in the store, so it should never
  * trigger.
  */
-private fun ExoPlayerEngine.hydrate(records: List<QueueSlotRecord>): List<QueueSlot> =
-    records.mapNotNull { record ->
-        songsBySlotId[record.slotId]?.let { song -> QueueSlot(record.slotId, song) }
-    }
+private fun ExoPlayerEngine.hydrate(records: List<QueueSlotRecord>): List<QueueSlot> = records.mapNotNull { record ->
+    songsBySlotId[record.slotId]?.let { song -> QueueSlot(record.slotId, song) }
+}
 
 /**
  * Stateless — takes the controller explicitly rather than as an [ExoPlayerEngine] extension

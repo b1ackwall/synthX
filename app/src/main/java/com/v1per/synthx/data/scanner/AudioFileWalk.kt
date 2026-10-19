@@ -111,17 +111,10 @@ internal suspend fun collectOtherRootPaths(
     return degradations
 }
 
-internal data class DirectoryChild(
-    val document: DocumentFile,
-    val name: String?,
-    val isDirectory: Boolean,
-)
+internal data class DirectoryChild(val document: DocumentFile, val name: String?, val isDirectory: Boolean)
 
 /** A successful prefix may be returned with [complete] false if iteration failed part-way. */
-internal data class DirectoryListing(
-    val children: List<DirectoryChild>,
-    val complete: Boolean,
-)
+internal data class DirectoryListing(val children: List<DirectoryChild>, val complete: Boolean)
 
 internal fun interface DirectoryChildrenQuery {
     fun list(directory: DocumentFile): DirectoryListing
@@ -214,10 +207,7 @@ internal class AndroidDirectoryChildrenQuery(private val context: Context) : Dir
     }
 }
 
-internal data class AudioWalkResult(
-    val files: List<DocumentFile>,
-    val complete: Boolean,
-)
+internal data class AudioWalkResult(val files: List<DocumentFile>, val complete: Boolean)
 
 /**
  * Pure enumeration — no hashing, no metadata, no DB access. Suspending only for the
@@ -225,10 +215,7 @@ internal data class AudioWalkResult(
  * opens, where the per-file `ensureActive` in the ingest loop offers no cover, and a
  * deep tree is thousands of binder round-trips with nothing else to interrupt it.
  */
-internal suspend fun collectAudioFiles(
-    dir: DocumentFile,
-    directoryQuery: DirectoryChildrenQuery,
-): AudioWalkResult {
+internal suspend fun collectAudioFiles(dir: DocumentFile, directoryQuery: DirectoryChildrenQuery): AudioWalkResult {
     currentCoroutineContext().ensureActive()
     val result = mutableListOf<DocumentFile>()
     val listing = directoryQuery.list(dir)

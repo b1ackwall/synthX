@@ -180,10 +180,13 @@ class SongActionsViewModel(
                 // otherwise infer from the UI.
                 when (val outcome = repository.deleteSong(songId)) {
                     SongDeletionOutcome.Deleted -> Unit
+
                     SongDeletionOutcome.FileRemained ->
                         _events.tryEmit(SongActionEvent.DeletedButFileRemained(filePath))
+
                     SongDeletionOutcome.CleanupUncertain ->
                         _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
+
                     is SongDeletionOutcome.Blocked ->
                         _events.tryEmit(SongActionEvent.DeleteBlocked(outcome.reason))
                 }
@@ -200,10 +203,13 @@ class SongActionsViewModel(
             when (repository.retryAudioFileDeletion(filePath)) {
                 SongDeletionOutcome.Deleted ->
                     _events.tryEmit(SongActionEvent.AudioCleanupRetrySucceeded)
+
                 SongDeletionOutcome.FileRemained ->
                     _events.tryEmit(SongActionEvent.DeletedButFileRemained(filePath))
+
                 SongDeletionOutcome.CleanupUncertain ->
                     _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
+
                 is SongDeletionOutcome.Blocked ->
                     _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
             }
@@ -215,8 +221,11 @@ class SongActionsViewModel(
             val added = repository.addSongToPlaylist(playlistId, songId)
             val name = playlists.value.firstOrNull { it.id == playlistId }?.name.orEmpty()
             _events.tryEmit(
-                if (added) SongActionEvent.AddedToPlaylist(name)
-                else SongActionEvent.AlreadyInPlaylist(name)
+                if (added) {
+                    SongActionEvent.AddedToPlaylist(name)
+                } else {
+                    SongActionEvent.AlreadyInPlaylist(name)
+                },
             )
         }
     }
@@ -287,9 +296,11 @@ class SongActionsViewModel(
                                 _events.tryEmit(SongActionEvent.RemovedFromStarred)
                                 scheduleGraduationAutoDismiss()
                             }
+
                             // Recovery instructions remain visible until the dialog's Close action
                             // acknowledges them. Only ordinary success is transient.
                             is GraduationStage.Failed -> graduationAutoDismissJob?.cancel()
+
                             else -> Unit
                         }
                     }

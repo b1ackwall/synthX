@@ -91,6 +91,7 @@ private fun BackupHealthLine(state: BackupHealthState) {
             text = stringResource(R.string.backup_health_unknown),
             isError = false,
         )
+
         is BackupHealthState.Succeeded -> StatusLine(
             text = stringResource(
                 R.string.backup_health_succeeded,
@@ -99,6 +100,7 @@ private fun BackupHealthLine(state: BackupHealthState) {
             ),
             isError = false,
         )
+
         is BackupHealthState.Failed -> StatusLine(
             text = stringResource(
                 R.string.backup_health_failed,
@@ -116,6 +118,7 @@ private fun ExportHealthLine(state: ExportHealthState) {
         // Nothing exported yet is not worth a line — unlike backup health, there is no
         // "you should have one of these by now" expectation for a library with no playlists.
         ExportHealthState.Unknown -> Unit
+
         is ExportHealthState.Succeeded -> StatusLine(
             text = stringResource(
                 R.string.export_health_succeeded,
@@ -123,6 +126,7 @@ private fun ExportHealthLine(state: ExportHealthState) {
             ),
             isError = false,
         )
+
         is ExportHealthState.Failed -> StatusLine(
             text = stringResource(
                 R.string.export_health_failed,

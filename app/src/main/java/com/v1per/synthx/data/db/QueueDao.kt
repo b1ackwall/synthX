@@ -43,7 +43,7 @@ interface QueueDao {
                 positionMs = positionMs,
                 shuffleEnabled = previous?.shuffleEnabled ?: false,
                 repeatMode = previous?.repeatMode ?: 0,
-            )
+            ),
         )
     }
 
@@ -53,16 +53,12 @@ interface QueueDao {
      * [currentSlotId] identifies the exact occurrence the caller wants to resume from.
      */
     @Transaction
-    suspend fun replaceQueueAndCursor(
-        slots: List<QueueSlotRecord>,
-        currentSlotId: String?,
-        positionMs: Long,
-    ) {
+    suspend fun replaceQueueAndCursor(slots: List<QueueSlotRecord>, currentSlotId: String?, positionMs: Long) {
         clearQueue()
         insertQueueItems(
             slots.mapIndexed { index, slot ->
                 QueueItemEntity(slotId = slot.slotId, position = index, songId = slot.songId)
-            }
+            },
         )
         val previous = getCursor()
         upsertCursor(
@@ -71,14 +67,13 @@ interface QueueDao {
                 positionMs = positionMs,
                 shuffleEnabled = previous?.shuffleEnabled ?: false,
                 repeatMode = previous?.repeatMode ?: 0,
-            )
+            ),
         )
     }
 
     /** Reads queue slots and cursor as one consistent snapshot, rather than two separate queries. */
     @Transaction
-    suspend fun getQueueAndCursor(): Pair<List<QueueItemEntity>, PlaybackCursorEntity?> =
-        getQueueItems() to getCursor()
+    suspend fun getQueueAndCursor(): Pair<List<QueueItemEntity>, PlaybackCursorEntity?> = getQueueItems() to getCursor()
 
     @Query("UPDATE playback_cursor SET shuffle_enabled = :enabled WHERE id = 0")
     suspend fun updateShuffleEnabledRaw(enabled: Boolean): Int
@@ -126,7 +121,7 @@ interface QueueDao {
         insertBaselineQueueItems(
             slots.mapIndexed { index, slot ->
                 BaselineQueueItemEntity(slotId = slot.slotId, position = index, songId = slot.songId)
-            }
+            },
         )
     }
 
@@ -153,13 +148,13 @@ interface QueueDao {
         insertQueueItems(
             activeSlots.mapIndexed { index, slot ->
                 QueueItemEntity(slotId = slot.slotId, position = index, songId = slot.songId)
-            }
+            },
         )
         clearBaselineQueue()
         insertBaselineQueueItems(
             baselineSlots.mapIndexed { index, slot ->
                 BaselineQueueItemEntity(slotId = slot.slotId, position = index, songId = slot.songId)
-            }
+            },
         )
         upsertCursor(
             PlaybackCursorEntity(
@@ -167,7 +162,7 @@ interface QueueDao {
                 positionMs = positionMs,
                 shuffleEnabled = shuffleEnabled,
                 repeatMode = repeatMode,
-            )
+            ),
         )
     }
 

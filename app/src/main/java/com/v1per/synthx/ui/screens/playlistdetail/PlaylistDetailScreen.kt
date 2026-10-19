@@ -79,7 +79,10 @@ internal fun PlaylistDetailContent(
     Box(modifier = Modifier.fillMaxSize()) {
         when (val state = uiState) {
             is UiState.Loading -> LoadingIndicator()
-            is UiState.Empty -> Unit // Never produced: an empty playlist is Success with no songs.
+
+            is UiState.Empty -> Unit
+
+            // Never produced: an empty playlist is Success with no songs.
             is UiState.Success -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = Spacing.md),
@@ -124,6 +127,7 @@ internal fun PlaylistDetailContent(
                     )
                 }
             }
+
             is UiState.Error -> Text(
                 text = state.message,
                 style = MaterialTheme.typography.bodyLarge,

@@ -46,10 +46,7 @@ import java.util.concurrent.TimeUnit
  * Silent and unconstrained, same as [VerifyLibraryWorker] — no notification, no foreground
  * service; the Issues screen's own status area is where progress is surfaced.
  */
-class IssuesScanWorker(
-    appContext: Context,
-    params: WorkerParameters,
-) : CoroutineWorker(appContext, params) {
+class IssuesScanWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
         // Idempotent once-per-process guards; already run by SynthXApplication.onCreate, which
@@ -108,14 +105,12 @@ class IssuesScanWorker(
         }
     }
 
-    private fun retryOrFail(e: Exception): Result {
-        return if (runAttemptCount < MAX_TRANSIENT_ATTEMPTS) {
-            Log.w(TAG, "Issues scan failed transiently (attempt ${runAttemptCount + 1}), retrying", e)
-            Result.retry()
-        } else {
-            Log.e(TAG, "Issues scan failed after $MAX_TRANSIENT_ATTEMPTS attempts, giving up", e)
-            Result.failure(workDataOf(KEY_ERROR to (e.message ?: e::class.java.simpleName)))
-        }
+    private fun retryOrFail(e: Exception): Result = if (runAttemptCount < MAX_TRANSIENT_ATTEMPTS) {
+        Log.w(TAG, "Issues scan failed transiently (attempt ${runAttemptCount + 1}), retrying", e)
+        Result.retry()
+    } else {
+        Log.e(TAG, "Issues scan failed after $MAX_TRANSIENT_ATTEMPTS attempts, giving up", e)
+        Result.failure(workDataOf(KEY_ERROR to (e.message ?: e::class.java.simpleName)))
     }
 
     companion object {

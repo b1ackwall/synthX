@@ -68,6 +68,7 @@ private fun StarredScreenContent(
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
             is UiState.Loading -> LoadingIndicator()
+
             // Two lines rather than the one-liners the other screens use: an empty Starred
             // list is the *good* outcome (everything is filed), so the copy explains what
             // the screen is for instead of reading as a failure to find anything.
@@ -80,12 +81,14 @@ private fun StarredScreenContent(
                     .align(Alignment.Center)
                     .padding(horizontal = Spacing.HorizontalPadding),
             )
+
             is UiState.Error -> Text(
                 text = uiState.message,
                 style = MaterialTheme.typography.bodyLarge,
                 color = Error,
                 modifier = Modifier.align(Alignment.Center),
             )
+
             is UiState.Success -> StarredList(
                 songs = uiState.data,
                 currentlyPlayingSongId = currentlyPlayingSongId,
@@ -96,11 +99,7 @@ private fun StarredScreenContent(
 }
 
 @Composable
-private fun StarredList(
-    songs: ImmutableList<Song>,
-    currentlyPlayingSongId: String?,
-    onSongTap: (Song) -> Unit,
-) {
+private fun StarredList(songs: ImmutableList<Song>, currentlyPlayingSongId: String?, onSongTap: (Song) -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = Spacing.md),
@@ -125,9 +124,30 @@ private fun StarredList(
 @Composable
 private fun StarredScreenPreview() {
     val sampleSongs = persistentListOf(
-        Song(id = "1", title = "Neon Pulse", artist = "v1per", album = "Ultraviolet", duration = 243000L, filePath = ""),
-        Song(id = "2", title = "Static Bloom", artist = "KNTRL", album = "Fragments", duration = 198000L, filePath = ""),
-        Song(id = "3", title = "Low Orbit", artist = "Null Signal", album = "Deep Cut", duration = 272000L, filePath = ""),
+        Song(
+            id = "1",
+            title = "Neon Pulse",
+            artist = "v1per",
+            album = "Ultraviolet",
+            duration = 243000L,
+            filePath = "",
+        ),
+        Song(
+            id = "2",
+            title = "Static Bloom",
+            artist = "KNTRL",
+            album = "Fragments",
+            duration = 198000L,
+            filePath = "",
+        ),
+        Song(
+            id = "3",
+            title = "Low Orbit",
+            artist = "Null Signal",
+            album = "Deep Cut",
+            duration = 272000L,
+            filePath = "",
+        ),
     )
     SynthXTheme {
         Surface(

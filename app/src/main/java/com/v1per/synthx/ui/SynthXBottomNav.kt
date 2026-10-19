@@ -254,6 +254,7 @@ private fun SynthXBottomNav(
                             currentRoute == item.screen.route -> {
                                 if (item.screen == Screen.Search) onSearchReselected()
                             }
+
                             // Deeper in this tab's own hierarchy — reset to root instead of
                             // restoring the sub-screen just left.
                             currentRoute in item.hierarchyRoutes -> {
@@ -264,6 +265,7 @@ private fun SynthXBottomNav(
                                     launchSingleTop = true
                                 }
                             }
+
                             // A different tab entirely — standard restore-on-switch.
                             else -> {
                                 navController.navigate(item.screen.route) {

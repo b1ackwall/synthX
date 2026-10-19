@@ -99,11 +99,7 @@ internal object SafetySnapshotPromoter {
      * unreachable — surfaces as a genuine, logged, retryable failure via the exception this
      * throws, rather than being silently and permanently dropped.
      */
-    private fun publishSafetyPromotion(
-        context: Context,
-        staged: File,
-        validated: ValidatedBackupSnapshot,
-    ) {
+    private fun publishSafetyPromotion(context: Context, staged: File, validated: ValidatedBackupSnapshot) {
         if (PreferencesManager(context).backupFolderUri == null) return
         BackupManager.create(context).publishExistingSnapshot(
             tier = BackupTier.Auto,
@@ -139,11 +135,7 @@ internal object SafetySnapshotPromoter {
         ).forEach { it.delete() }
     }
 
-    private fun syncDirectory(
-        dir: File,
-        faultPoint: RestoreFaultPoint,
-        faults: RestoreFaultInjector,
-    ) {
+    private fun syncDirectory(dir: File, faultPoint: RestoreFaultPoint, faults: RestoreFaultInjector) {
         faults.hit(faultPoint)
         val descriptor = Os.open(dir.path, OsConstants.O_RDONLY, 0)
         var primaryFailure: Throwable? = null
