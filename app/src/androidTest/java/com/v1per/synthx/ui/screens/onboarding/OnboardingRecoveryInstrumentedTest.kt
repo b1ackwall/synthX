@@ -1311,21 +1311,6 @@ class OnboardingRecoveryInstrumentedTest {
     private fun gatingStartDestination(): String =
         if (shouldShowOnboarding(preferences)) Screen.Onboarding.route else Screen.Home.route
 
-    /**
-     * Mirrors an older cold-start gate — completion alone. Used only by
-     * [mutationTestCompletionAloneWouldShowHomeMidFirstScan].
-     */
-    private fun completionOnlyStartDestination(): String =
-        if (preferences.onboardingComplete) Screen.Home.route else Screen.Onboarding.route
-
-    /**
-     * Mirrors an older MainActivity gating condition (music folder only), which shows Home
-     * mid-recovery. Used only by [mutationTestLegacyGatingConditionWouldHaveShownHomeInstead] to
-     * prove the acceptance test actually exercises the current gating rather than passing vacuously.
-     */
-    private fun legacyGatingStartDestination(): String =
-        if (preferences.musicFolderUri == null) Screen.Onboarding.route else Screen.Home.route
-
     private fun startWizard(
         library: LibraryManagementViewModel = this.library,
         backups: BackupsAndRestoreViewModel = this.backups,
