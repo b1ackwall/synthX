@@ -15,11 +15,12 @@ interface AlbumDao {
 
     /**
      * Matches on (title, primary artist) rather than title alone, so two different albums
-     * that happen to share a title (different artists) no longer collapse into one row.
+     * that happen to share a title (different artists) stay separate rows.
      * "Primary artist" is resolved by join against an *existing* song already in the
      * candidate album, using the same position-0 convention [getAllAlbums] and
      * `SongDao.getMissingSongs` already use elsewhere — not a stored column on albums, since
-     * that would need backfilling for every album merged under the old title-only match.
+     * that would need backfilling for every existing album, including ones that older
+     * versions merged by title alone.
      * [artistNormalized] must already be lowercase/trimmed the same way
      * `ArtistDao.getOrInsertArtist`'s callers normalize, so it lines up with
      * `artists.name_normalized`.
@@ -68,11 +69,11 @@ interface AlbumDao {
     // rejects window functions and NULLS LAST, so this uses a correlated subquery
     // and the "expr IS NULL" ordering trick instead.
     //
-    // No longer filtered by is_missing — an album whose songs are all missing (or which
+    // Not filtered by is_missing — an album whose songs are all missing (or which
     // has zero songs, e.g. a not-yet-cleaned-up orphan) is still returned, with
     // allSongsMissing = 1, so AlbumListScreen can render it dimmed instead of hiding it,
     // mirroring how a missing song shows dimmed via SongRow rather than vanishing. The
-    // primary-artist subquery below deliberately no longer filters by is_missing either —
+    // primary-artist subquery below deliberately does not filter by is_missing either —
     // an all-missing album still needs a real artist name to display, not a fallback to
     // "Unknown Artist".
     @Query(
@@ -104,8 +105,8 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE id = :id")
     suspend fun getAlbumById(id: String): AlbumEntity?
 
-    // Unfiltered counterpart to getAllAlbums (which excludes albums whose songs are all
-    // missing) — the playlist export needs a missing song's album title too.
+    // One-shot, entity-only read of every album (getAllAlbums is a Flow of AlbumWithArtist):
+    // the playlist export needs a missing song's album title too.
     @Query("SELECT * FROM albums")
     suspend fun getAllAlbumsOnce(): List<AlbumEntity>
 

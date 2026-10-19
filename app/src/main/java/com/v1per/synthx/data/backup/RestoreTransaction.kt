@@ -30,28 +30,25 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 // NOTE: This file intentionally exceeds the project's 500-line
-// guideline. It has been re-evaluated for a split rather than grandfathered in:
-// the pure phase-recovery decision table already left as RestoreRecoveryPlanner
-// (RestorePrimitives.kt), and the safety-snapshot promotion as
-// SafetySnapshotPromoter.kt — that one needing no visibility widening at all.
+// guideline. Its separable pieces live elsewhere: the pure phase-recovery decision
+// table as RestoreRecoveryPlanner (RestorePrimitives.kt), and the safety-snapshot
+// promotion as SafetySnapshotPromoter.kt.
 // What remains is the crash-safety core: execute(), recoverIfNeeded /
 // recoverWithState / recoverWithoutUsableState, completeStartupRollback /
 // rollbackCurrentProcess, checkpointCloseAndProveMain, and writeState's state
-// persistence. That core is irreducibly ~640 lines, and extracting every other
-// genuinely separable piece would still leave ~660 — the 500-line target is not
+// persistence. That core alone is over the 500-line target, so the target is not
 // reachable here without cutting into the core itself.
 //
 // Cutting into it has two real costs. Extracting the rollback pair alone would
-// require widening nine of this file's private FS/state primitives plus an
+// require widening several of this file's private FS/state primitives plus an
 // accessor for lastDiagnosticOperationId — an encapsulation loss, not a
 // line-count nicety. And this file's guarantee is durability ordering: every
 // recovery-critical rename is immediately followed by its own syncDirectory,
-// with nothing able to interleave. The PhaseB instrumented suite injects
-// call-site-specific directory-sync failures and proves that later destructive
-// phases do not run across a failed durability boundary. Treat this as a
-// deliberate, re-examined exception, not an oversight.
+// with nothing able to interleave. Every directory-sync fault point has a device
+// test that injects it by name (RestoreFaultPointCoverageTest enforces the naming).
+// Treat this as a deliberate exception, not an oversight.
 /**
- * P7-T7: coarse, UI-facing progress reported through [RestoreTransaction.execute]'s
+ * Coarse, UI-facing progress reported through [RestoreTransaction.execute]'s
  * `onProgress` callback. Deliberately public and top-level, rather than nested inside
  * [RestoreTransaction] (which is `internal`) — [BackupManager.previewBackup]/`restore` and
  * [com.v1per.synthx.ui.screens.restore.RestoreViewModel] surface it on their own public API,
@@ -952,7 +949,7 @@ internal object RestoreTransaction {
         faults: RestoreFaultInjector = RestoreFaultInjector.NONE,
         sourceOpener: RestoreSourceOpener = RestoreSourceOpener.CONTENT_RESOLVER,
         expectedSizeBytes: Long? = null,
-        // P7-T7: a plain (non-suspend) poll rather than making this function itself suspend —
+        // A plain (non-suspend) poll rather than making this function itself suspend —
         // it is called from several non-coroutine test call sites (see
         // PhaseBRestoreAdmissionInstrumentedTest) that would otherwise need reworking. Callers
         // in a coroutine pass `{ job?.isActive == false }` for real, cooperative cancellation.
@@ -1184,7 +1181,7 @@ internal object RestoreTransaction {
         state: State,
         faults: RestoreFaultInjector,
     ) {
-        // P4.4: only a successful install's safety snapshot is worth keeping around as a
+        // Only a successful install's safety snapshot is worth keeping around as a
         // bonus Auto-tier backup — a rolled-back attempt's safety copy either already became
         // live via completeStartupRollback/rollbackCurrentProcess, or is just ordinary
         // transaction debris with nothing new to preserve. Runs strictly here: this function

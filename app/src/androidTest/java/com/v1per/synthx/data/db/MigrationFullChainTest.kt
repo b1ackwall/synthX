@@ -19,8 +19,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * The N7 "full chain" gap: every other migration test here (Migration8To9Test,
- * Migration9To10Test, Migration10To11Test) validates one adjacent-version leg at a time. None of
+ * Full-chain coverage: the per-leg migration tests here (Migration8To9Test through
+ * Migration15To16Test) each validate one adjacent-version leg at a time. None of
  * them prove the *entire* chain composes correctly end to end the way a real, long-lived install
  * actually experiences it — one process opening a years-old database and Room silently walking
  * every step in [SynthXDatabase.ALL_MIGRATIONS] in a single pass.
@@ -95,7 +95,8 @@ class MigrationFullChainTest {
 
     @Test
     fun fullChainPreservesRealDataFromTheLastDestructiveMigrationOnward() {
-        // MIGRATION_2_3 and MIGRATION_3_4 are the only destructive legs for library data.
+        // MIGRATION_2_3 and MIGRATION_3_4 are the only legs that wipe library data;
+        // MIGRATION_15_16 deletes only duplicate album rows after repointing their songs.
         // MIGRATION_11_12 deliberately wipes transient queue rows, but must still preserve every
         // song and playlist table. Seeding at v4, right where 3_4 lands, and walking the rest of
         // the chain in one pass proves what every real v4+ install actually depends on: a song

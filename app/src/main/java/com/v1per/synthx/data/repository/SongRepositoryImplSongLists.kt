@@ -34,8 +34,8 @@ internal fun SongRepositoryImpl.getSongsForAlbumInternal(albumId: String): Flow<
         details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
     }.flowOn(Dispatchers.Default)
 
-// Sort order (date_added DESC) and the starred/missing filters stay in the DAO query;
-// this only resolves artist order, same as the playlist/album/artist song lists above.
+// Sort order (date_added DESC) and the starred filter stay in the DAO query;
+// this only resolves artist order, same as the other scoped song lists in this file.
 internal fun SongRepositoryImpl.getStarredSongsInternal(): Flow<List<Song>> =
     RepositoryDbFlow.observe { songDao.getStarredSongs() }.map { details ->
         val refsBySongId = details.map { it.song.id }
@@ -44,7 +44,7 @@ internal fun SongRepositoryImpl.getStarredSongsInternal(): Flow<List<Song>> =
         details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
     }.flowOn(Dispatchers.Default)
 
-// Sort order (date_added DESC) and the limit/missing filter stay in the DAO query;
+// Sort order (date_added DESC) and the limit stay in the DAO query;
 // this only resolves artist order, same as the other scoped song lists above.
 internal fun SongRepositoryImpl.getRecentSongsInternal(limit: Int): Flow<List<Song>> =
     RepositoryDbFlow.observe {
@@ -74,8 +74,8 @@ internal fun SongRepositoryImpl.getRecentSongsInternal(limit: Int): Flow<List<So
 //
 // flowOn(Dispatchers.IO) is kept: it still controls the dispatcher channelFlow's own
 // producer coroutine (and therefore graduateSongFile) runs on, same as with flow{} —
-// channelFlow doesn't make it redundant, it just no longer needs to reconcile the
-// same-coroutine constraint too.
+// channelFlow removes only the same-coroutine constraint, so it doesn't make flowOn
+// redundant.
 internal fun SongRepositoryImpl.graduateSongInternal(
     songId: String,
     rootMusicFolderUri: Uri,
@@ -102,7 +102,7 @@ internal fun SongRepositoryImpl.graduateSongInternal(
     }
 }.flowOn(Dispatchers.IO)
 
-// Joins straight to playlist_songs (position order, is_missing filter) rather than
+// Joins straight to playlist_songs (position order) rather than
 // re-fetching/joining the whole library and filtering down in Kotlin.
 internal fun SongRepositoryImpl.getSongsForPlaylistInternal(playlistId: String): Flow<List<Song>> =
     RepositoryDbFlow.observe { songDao.getSongsWithDetailsForPlaylist(playlistId) }.map { details ->

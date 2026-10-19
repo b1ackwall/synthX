@@ -95,9 +95,9 @@ interface SongDao {
 
     // Badge on the Library screen's Starred row. A dedicated COUNT rather than
     // getStarredSongs().map { it.size }: that would materialize and artist-join the whole
-    // starred list just to measure it. Same shape as getMissingSongCount above, and the
-    // predicate is kept identical to getStarredSongs' so the badge can never disagree with
-    // the list it describes.
+    // starred list just to measure it. Same shape as getMissingSongCount below. Unlike
+    // getStarredSongs it also excludes missing songs, so the badge counts only actionable
+    // entries.
     @Query("SELECT COUNT(*) FROM songs WHERE in_inbox = 1 AND is_missing = 0")
     fun getStarredSongCount(): Flow<Int>
 
@@ -143,7 +143,7 @@ interface SongDao {
     @Query("SELECT COUNT(*) FROM songs")
     suspend fun getSongCount(): Int
 
-    // Deliberately unfiltered by is_missing, unlike getSongsWithDetailsForPlaylist — the
+    // Deliberately unfiltered by is_missing, like getSongsWithDetailsForPlaylist — the
     // playlist export needs a missing song's last-known title/artist/filePath too, not just
     // the songs still playable.
     @Query("SELECT * FROM songs WHERE id IN (:ids)")
@@ -217,5 +217,5 @@ interface SongDao {
     @Query("DELETE FROM songs WHERE id = :id")
     suspend fun deleteSongById(id: String)
 
-    // TODO v2.x: verification pass (markVerified), sort variants, missing-song queries
+    // No verification-pass queries: the verified columns were dropped in MIGRATION_6_7.
 }

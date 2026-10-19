@@ -81,7 +81,7 @@ abstract class SynthXDatabase : RoomDatabase() {
         }
 
         // Adds shuffle_enabled/repeat_mode to the single-row playback_cursor table (see
-        // PlaybackCursorEntity's kdoc, data 2.4): both previously lived in SharedPreferences,
+        // PlaybackCursorEntity's kdoc): both previously lived in SharedPreferences,
         // which a restore never touches, so a restored queue could end up paired with a
         // shuffle/repeat mode left over from the pre-restore install. Additive ADD COLUMN,
         // same shape as 7_8/8_9 — defaults must match PlaybackCursorEntity's
@@ -218,7 +218,7 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
-        // Adds pending_cleanups (see P3-T1 / PendingCleanupEntity's kdoc): a durable record of a
+        // Adds pending_cleanups (see PendingCleanupEntity's kdoc): a durable record of a
         // destructive operation's post-commit physical cleanup, so an interruption between the
         // DB commit and file cleanup (delete/replace) or between source deletion and the DB
         // commit (graduation) can be reconciled on next launch. Purely additive, same shape as
@@ -349,10 +349,13 @@ abstract class SynthXDatabase : RoomDatabase() {
          * MIGRATION_2_3 and MIGRATION_3_4 wiped song-derived data for hash-strategy and
          * artist-splitting changes before this app held real user data. MIGRATION_11_12 only
          * wipes the two transient queue-order tables because old rows have no stable slot id;
-         * it preserves the library and playlist data. Destructive treatment must remain an
-         * explicit exception going forward: this app now
-         * manages a 2000+ song, 68-playlist library built from years of hand curation, with
-         * no external backup of future changes beyond what this app itself provides. A
+         * it preserves the library and playlist data. MIGRATION_15_16 merges albums whose
+         * titles match ignoring case and that share a derived primary artist: it repoints their
+         * songs to the surviving row, fills that row's missing year or art from a duplicate,
+         * then deletes the duplicate album rows. Destructive treatment must remain an explicit
+         * exception going forward: this app manages a large library built from years of hand
+         * curation, with no external backup of future changes beyond what this app itself
+         * provides. A
          * migration that deletes or overwrites existing data with no backfill path is an
          * exceptional, deliberately and carefully reviewed decision — never routine practice.
          * See CLAUDE.md's Architecture section for the full pre-migration checklist.

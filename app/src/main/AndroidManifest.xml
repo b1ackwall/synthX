@@ -44,8 +44,9 @@
 
         <!--
             WorkManager's own foreground service ships without a foregroundServiceType.
-            targetSdk 35 enforces Android 14's typed-FGS rule, so the type is merged in
-            here — without it, LibraryScanWorker.setForeground() throws at runtime.
+            Android 14's typed-FGS rule applies to apps targeting SDK 34 or higher, as this
+            one does, so the type is merged in here — without it,
+            LibraryScanWorker.setForeground() throws at runtime.
         -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

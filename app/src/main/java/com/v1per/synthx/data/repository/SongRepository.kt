@@ -46,7 +46,7 @@ interface SongRepository {
 
     /**
      * Same effect as [deleteSong], but the call itself is launched on this repository's own
-     * process-lifetime scope rather than the caller's (P3-T1 / R4-F-D5) — it keeps running to
+     * process-lifetime scope rather than the caller's — it keeps running to
      * completion even if the caller's own coroutine scope is cancelled first, e.g. an
      * `IssuesViewModel` whose `NavBackStackEntry` is popped mid-delete. [onResult] is invoked
      * exactly once, off the caller's scope, once the delete finishes or throws — implementations
@@ -187,7 +187,7 @@ interface SongRepository {
 
     /**
      * [getQueueSnapshot] plus the baseline order, read together as one consistent snapshot
-     * (P4-T6) — see [com.v1per.synthx.data.db.QueueDao.getQueueAndBaselineItems]. Closes the
+     * — see [com.v1per.synthx.data.db.QueueDao.getFullQueueSnapshot]. Closes the
      * split-read window a separate [getBaselineQueueSlots] call would leave against an
      * atomically-written pair.
      */
