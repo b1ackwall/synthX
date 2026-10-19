@@ -81,29 +81,6 @@ class PlaylistArtBenchmarkInstrumentedTest {
         }
     }
 
-    @Test fun drawOpCountBeforeAndAfterBackboneCollapse() {
-        // Analytic, but computed from real models so it reflects the actual lit/diamond mix.
-        // Before: background + one line per unlit segment (144 - lit) + diamonds + one per lit.
-        // After: background + one backbone path + diamonds + one per lit.
-        var before = 0L
-        var after = 0L
-        for (i in 0 until SAMPLES) {
-            val model = playlistArtRenderModel(hues[i], seeds[i], sizePx)
-            val lit = model.lit.size
-            val diamonds = model.diamonds.size
-            before += 1 + (PlaylistArtGeometry.segments.size - lit) + diamonds + lit
-            after += 1 + 1 + diamonds + lit
-        }
-        Log.i(
-            TAG,
-            "draw ops per cover (mean of $SAMPLES): before=%.1f after=%.1f (%.0f%% fewer)".format(
-                before.toDouble() / SAMPLES,
-                after.toDouble() / SAMPLES,
-                100.0 * (before - after) / before,
-            ),
-        )
-    }
-
     @Test fun cacheHitCost() {
         val keys = 100 // under PlaylistArtCache.MAX_ENTRIES, so nothing here is evicted
         for (i in 0 until keys) cachedPlaylistArtRenderModel(hues[i], seeds[i], sizePx)
