@@ -16,9 +16,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Covers R7-F15/P7-T7: [BackupManager.previewBackup] used to stage a candidate's full bytes
- * with no free-space preflight at all — [BackupManager.restore] already checked via
- * [RestoreTransaction.ensureSpace] before ITS own staging copy, but preview had nothing. This
+ * [BackupManager.previewBackup] must run the same [RestoreTransaction.ensureSpace] free-space
+ * preflight [BackupManager.restore] runs before staging a candidate's full bytes. This
  * mirrors [BackupManagerVerificationInstrumentedTest]'s harness (a real, file-backed
  * [BackupInfo] rather than a genuine SAF tree grant).
  */
@@ -90,11 +89,10 @@ class BackupManagerPreviewInstrumentedTest {
     }
 
     /**
-     * The core R7-F15 fix: previewBackup must reject BEFORE it starts copying when the
-     * declared size can't possibly fit — proven here with an impossibly large declared size
-     * against a real, valid, tiny backup file (no StatFs faking needed: no real device has
-     * this much free space). This is also this task's designated mutation test target — see
-     * BackupManager.previewBackup's `ensureSpace` call.
+     * previewBackup must reject BEFORE it starts copying when the declared size can't
+     * possibly fit — proven here with an impossibly large declared size against a real,
+     * valid, tiny backup file (no StatFs faking needed: no real device has this much free
+     * space). Fails if the `ensureSpace` call in previewBackupInternal is removed.
      */
     @Test
     fun previewFailsFastWhenDeclaredSizeCannotPossiblyFit() = runBlocking {

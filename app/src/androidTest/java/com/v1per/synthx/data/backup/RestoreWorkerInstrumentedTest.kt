@@ -119,7 +119,7 @@ class RestoreWorkerInstrumentedTest {
     }
 
     /**
-     * P9-T5 / F19: the restore worker neither waits on nor is gated by POST_NOTIFICATIONS. Same
+     * The restore worker neither waits on nor is gated by POST_NOTIFICATIONS. Same
      * run as [successfulWorkerPersistsGlobalRestartRequired], with the permission denied and no
      * prompt ever answered — it must finish identically.
      */
@@ -172,9 +172,9 @@ class RestoreWorkerInstrumentedTest {
     }
 
     /**
-     * P7-T7/R7-F17: the notification used to be permanently `setProgress(0, 0, true)` — this
-     * proves the worker now publishes at least two distinct, named [RestoreProgressStep]s via
-     * [RestoreWorker.KEY_PROGRESS_STEP], in step order, over the course of a successful run.
+     * The notification is not permanently indeterminate: the worker publishes at least two
+     * distinct, named [RestoreProgressStep]s via [RestoreWorker.KEY_PROGRESS_STEP], in step
+     * order, over the course of a successful run.
      */
     @Test fun successfulWorkerReportsDistinctProgressStepsNotPermanentlyIndeterminate() = runBlocking {
         createDatabaseFile(context.getDatabasePath(SynthXDatabase.DB_NAME), "state-a")
@@ -209,7 +209,7 @@ class RestoreWorkerInstrumentedTest {
     }
 
     /**
-     * P7-T7/R7-F17: the UI cancel affordance calls [RestoreWorker.cancel], which must genuinely
+     * The UI cancel affordance calls [RestoreWorker.cancel], which must genuinely
      * stop the tracked WorkManager request — not just hide the overlay locally.
      */
     @Test fun cancelStopsAnEnqueuedRestoreRequest() = runBlocking {

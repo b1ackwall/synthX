@@ -16,8 +16,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Covers R8-A13/P7-T6's "no backup folder configured" carve-out: unlike a genuinely unreachable
- * folder (now a real, logged, retryable failure — see [BackupManager.publishExistingSnapshot]'s
+ * Covers the "no backup folder configured" carve-out: unlike a genuinely unreachable
+ * folder (a real, logged, retryable failure — see [BackupManager.publishExistingSnapshot]'s
  * doc), a device with backups turned off entirely must not fail restore's cold-start cleanup.
  * [SafetySnapshotPromoter.promoteSafetyToAutoTier] is constructed directly against a hand-built
  * [RestoreTransaction.State] ("the interrupted state directly" technique other Phase B tests use)

@@ -85,7 +85,7 @@ class SongFingerprintInstrumentedTest {
     }
 
     /**
-     * Pinned current behaviour (suspected bug L4, reproduced): between 64 KB and 128 KB only the
+     * Pinned current behaviour (suspected bug, reproduced): between 64 KB and 128 KB only the
      * first 64 KB and the size are hashed, so two same-size files that differ after 64 KB share
      * one id and would collapse into one song.
      */

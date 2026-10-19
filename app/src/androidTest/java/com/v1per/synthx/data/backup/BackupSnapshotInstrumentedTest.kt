@@ -128,9 +128,7 @@ class BackupSnapshotInstrumentedTest {
         // confirms BackupSchemaContracts' current entry matches the real Room-computed
         // identity hash for a freshly built database, not just internal self-consistency.
         // Update this to the new version's exported app/schemas/.../<N>.json identityHash on
-        // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist) — this
-        // literal previously went stale (pinned to v9's hash while VERSION had moved to 11)
-        // without being caught, which is exactly what this comment exists to prevent.
+        // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist).
         assertEquals("3e0e2f38ca17807335cfa847b095f2fd", validated.schema.roomIdentityHash)
         assertTrue(
             validated.schema.expectedTables.containsAll(

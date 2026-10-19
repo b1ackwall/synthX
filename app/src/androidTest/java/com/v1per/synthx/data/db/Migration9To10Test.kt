@@ -20,7 +20,7 @@ import org.junit.runner.RunWith
 
 /**
  * Covers the 9->10 leg specifically: MIGRATION_9_10 creates the single-row `playback_cursor`
- * table (see PlaybackCursorEntity's kdoc, data 2.4) so the resume cursor can be committed in the
+ * table (see PlaybackCursorEntity's kdoc) so the resume cursor can be committed in the
  * same transaction as `queue_items` instead of living independently in SharedPreferences.
  *
  * Purely additive with a brand-new table — there is nothing to migrate data *into* it from, so
@@ -133,7 +133,7 @@ class Migration9To10Test {
 
     @Test
     fun rowsInsertedAfterMigrationDefaultShuffleAndRepeatColumnsDoNotYetExist() {
-        // Guards the *ordering* of the two Phase 5 migrations: shuffle_enabled/repeat_mode must
+        // Guards the *ordering* of the two playback_cursor migrations: shuffle_enabled/repeat_mode must
         // not exist until 10_11 runs. If this ever starts passing for the wrong reason (columns
         // already present at v10), Migration10To11Test's own column-added assertions would also
         // start failing — this test exists so a v9->v10-only regression fails here first.

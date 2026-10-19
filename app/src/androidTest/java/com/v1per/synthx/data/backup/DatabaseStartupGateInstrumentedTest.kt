@@ -221,7 +221,7 @@ class DatabaseStartupGateInstrumentedTest {
 
     @Test
     fun trulyEmptyZeroByteFileReadsAsEmptyFileNotPresentZero() {
-        // R1-F05 open question, resolved: a file that exists but was never touched by any
+        // A file that exists but was never touched by any
         // committed SQLite transaction (the exact state left by a first-ever database creation
         // interrupted before Room's schema-creation transaction commits) is a genuine 0-byte
         // file. SQLite opens a 0-byte file as a brand-new, schema-less database rather than
@@ -238,8 +238,7 @@ class DatabaseStartupGateInstrumentedTest {
 
     @Test
     fun interruptedFirstCreationIsClassifiedAsFreshAndNextLaunchInitializesNormally() = runBlocking {
-        // Fault injection following the P3-T1/P3-T3 pattern: construct the interrupted state
-        // directly (a database file that exists but has never had a schema committed to it)
+        // Fault injection: construct the interrupted state directly (a database file that exists but has never had a schema committed to it)
         // rather than racing real process-death timing.
         live.parentFile?.mkdirs()
         assertTrue(live.createNewFile())
@@ -253,9 +252,9 @@ class DatabaseStartupGateInstrumentedTest {
         )
         DatabaseStartupGate.installForTest(controller)
 
-        // This is the acceptance criterion itself: before the fix this file was misclassified as
-        // BackupBeforeMigration(0) and the snapshot step threw "unknown synthX database version
-        // 0" on every attempt, permanently. Now the very next launch reaches readiness cleanly.
+        // The acceptance criterion: this file is classified as fresh, not as
+        // BackupBeforeMigration(0) (whose snapshot step would throw "unknown synthX database
+        // version 0" on every attempt, permanently), so the very next launch reaches readiness.
         controller.awaitReady()
         assertTrue(controller.isReady())
         assertEquals(0, migrations.get())

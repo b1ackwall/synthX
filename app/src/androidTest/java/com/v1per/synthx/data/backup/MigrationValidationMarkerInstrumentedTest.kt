@@ -24,10 +24,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P3-T3 (R1-F08 + R1-F09): the migration/startup durability gap.
+ * Migration/startup durability: a death between Room's commit and validation, and a failure flag
+ * left set with no snapshot.
  *
  * Real process death cannot be simulated directly in an instrumented test, so — following the
- * same technique established for P3-T1's pending-cleanup tests — each test here constructs the
+ * same technique as [PendingCleanupReconciliationInstrumentedTest] — each test here constructs the
  * exact on-disk/preference state a real death at the relevant point would have left behind,
  * rather than racing real coroutine cancellation timing.
  */
@@ -69,7 +70,7 @@ class MigrationValidationMarkerInstrumentedTest {
         RestorePermitLeakCheck.assertDrainedThenReset()
     }
 
-    // ---------------------------------------------------------------- R1-F08: death before verify
+    // ---------------------------------------------------------------- death before verify
 
     @Test
     fun deathBetweenRoomCommitAndVerifyIsDetectedAsPendingRecoveryNotSilentlyTrusted() = runBlocking {
@@ -121,10 +122,10 @@ class MigrationValidationMarkerInstrumentedTest {
 
     @Test
     fun deathAfterDurableFlagClearButBeforeSnapshotDeletionIsHandledSafely() = runBlocking {
-        // A real migration + snapshot, taken to completion (unlike the F08 tests above): the
-        // live database is genuinely valid and current, and the failure flag/marker are already
-        // correctly clear — only the snapshot's own deletion never ran before the (simulated)
-        // process death right after the durable flag-clear in the new recovery ordering.
+        // A real migration + snapshot, taken to completion (unlike the death-before-verify tests
+        // above): the live database is genuinely valid and current, and the failure flag/marker
+        // are already correctly clear — only the snapshot's own deletion never ran before the
+        // (simulated) process death right after the recovery ordering's durable flag-clear.
         migrationHelper.createDatabase(SynthXDatabase.DB_NAME, fromVersion).close()
         MigrationSnapshotStore.createSnapshot(context, fromVersion, SynthXDatabase.VERSION)
         migrateLiveToCurrentViaRoom()
@@ -148,11 +149,12 @@ class MigrationValidationMarkerInstrumentedTest {
         assertNull(MigrationSnapshotStore.snapshotForCurrentVersion(context))
     }
 
-    // ------------------------------------------------------------ R1-F09: the original lockout
+    // ------------------------------------------------------------ flag set with no snapshot
 
     @Test
     fun selfHealResolvesFlagSetWithNoSnapshotAndValidLiveDatabase() = runBlocking {
-        // Simulates the OLD ordering's exact death window: the snapshot is already gone (as if
+        // Simulates the state an older build's recovery ordering could leave after a death: the
+        // snapshot is already gone (as if
         // MigrationSnapshotStore.clearAfterRecovery ran) but the failure flag never got cleared —
         // yet the live database itself is genuinely fine.
         migrationHelper.createDatabase(SynthXDatabase.DB_NAME, fromVersion).close()

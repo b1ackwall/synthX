@@ -17,7 +17,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Additive pending_cleanups migration (P3-T1): no existing library or playlist data changes. */
+/** Additive pending_cleanups migration: no existing library or playlist data changes. */
 @RunWith(AndroidJUnit4::class)
 class Migration14To15Test {
     @get:Rule(order = TestTimeouts.RULE_ORDER) val testTimeout = TestTimeouts.device()

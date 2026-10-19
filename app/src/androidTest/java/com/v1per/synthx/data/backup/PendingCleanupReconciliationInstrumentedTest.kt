@@ -29,7 +29,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P3-T1: proves the durable-record + startup-reconciliation mechanism itself — a destructive
+ * Proves the durable-record + startup-reconciliation mechanism itself — a destructive
  * operation interrupted between its DB commit and physical completion (delete/replace) or between
  * source deletion and DB commit (graduate) is fully resolved by [PendingCleanupReconciliation] on
  * the next pass, without ever having run the original operation's own cleanup code.

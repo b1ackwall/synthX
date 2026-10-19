@@ -51,12 +51,10 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
         room.openHelper.writableDatabase.query("PRAGMA wal_autocheckpoint=0").use { assertTrue(it.moveToFirst()) }
         // This test proves an update to the existing "marker" row survives via WAL, so it must
         // update that row, not insert a second one. createLive("initial") already committed a
-        // "marker"-id row into this same live database — group()'s default id also being
-        // "marker" made the old insertGroup(group("wal-committed")) here a same-id INSERT
-        // against an already-occupied primary key, which insertGroup's OnConflictStrategy.ABORT
-        // (deliberately not REPLACE, see PlaylistDao.insertGroup's kdoc) rejects outright. Pre
-        // P3-T2's REPLACE, this silently deleted-and-reinserted the row instead of throwing -
-        // renameGroup is the correct, already-existing way to update it in place.
+        // "marker"-id row into this same live database, and group()'s default id is also
+        // "marker", so inserting group(...) here would be a same-id INSERT that insertGroup's
+        // OnConflictStrategy.ABORT (deliberately not REPLACE, see PlaylistDao.insertGroup's
+        // kdoc) rejects outright. renameGroup is the way to update it in place.
         room.playlistDao().renameGroup(id = "marker", name = "wal-committed")
         val wal = File(liveFile().path + "-wal")
         assertTrue(wal.isFile && wal.length() > 0)
@@ -196,9 +194,8 @@ class PhaseBRestoreTransactionInstrumentedTest : PhaseBRestoreTestBase() {
     }
 
     /**
-     * P7-T7/R7-F17: [RestoreTransaction.execute]'s `onProgress` callback is what
-     * [RestoreWorker] threads into its (previously permanently-indeterminate,
-     * `setProgress(0, 0, true)`) foreground notification. Asserts the exact, ordered
+     * [RestoreTransaction.execute]'s `onProgress` callback is what [RestoreWorker] threads
+     * into its foreground notification. Asserts the exact, ordered
      * sequence a successful restore reports.
      */
     @Test fun executeReportsDistinctProgressStepsInOrder() = runBlocking {

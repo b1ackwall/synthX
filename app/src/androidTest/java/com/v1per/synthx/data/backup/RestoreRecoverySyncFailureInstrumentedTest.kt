@@ -56,7 +56,7 @@ class RestoreRecoverySyncFailureInstrumentedTest : RestoreScenarioTestBase() {
         assertEquals("original", readMarker(liveFile()))
     }
 
-    /** PINNED (BUG LIST question Q1): EMERGENCY once although the journal already says COMPLETE. */
+    /** PINNED (open question): EMERGENCY once although the journal already says COMPLETE. */
     @Test fun postCompleteCleanupSyncFailureIsEmergencyThenNextStartIsNormal() {
         val scenario = scenario(RestoreTransaction.Phase.POST_VALIDATED, old = "original", installCandidate = true)
 
@@ -69,7 +69,7 @@ class RestoreRecoverySyncFailureInstrumentedTest : RestoreScenarioTestBase() {
     }
 
     /**
-     * PINNED BUG (BUG LIST B1): when the cleanup sync after a finished restore fails, the album-art
+     * PINNED BUG: when the cleanup sync after a finished restore fails, the album-art
      * recovery sweep flag is never set. This asserts today's wrong result; a fix must flip it.
      */
     @Test fun pinnedArtSweepFlagIsLostWhenPostCompleteCleanupSyncFails() {
@@ -91,7 +91,7 @@ class RestoreRecoverySyncFailureInstrumentedTest : RestoreScenarioTestBase() {
         assertTrue(PreferencesManager(context).artSweepPending)
     }
 
-    /** PINNED (BUG LIST question Q1), like the post-complete cleanup case above. */
+    /** PINNED (open question), like the post-complete cleanup case above. */
     @Test fun safetyPromotionCleanupSyncFailureIsEmergencyThenNextStartIsNormal() {
         val scenario = scenario(RestoreTransaction.Phase.POST_VALIDATED, old = "original", installCandidate = true)
 

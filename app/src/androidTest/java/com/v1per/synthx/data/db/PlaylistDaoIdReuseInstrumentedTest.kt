@@ -18,7 +18,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * R1-F02: `insertGroup`/`insertPlaylist` must ABORT (Room's default) rather than REPLACE on a
+ * `insertGroup`/`insertPlaylist` must ABORT (Room's default) rather than REPLACE on a
  * primary-key conflict. REPLACE deletes the existing parent row first, which cascades away
  * everything under it before the "new" row is inserted — a group's `id` reuse silently orphans
  * every playlist that pointed at it (`playlists.group_id` is `ON DELETE SET NULL`), and a
@@ -58,8 +58,8 @@ class PlaylistDaoIdReuseInstrumentedTest {
         }
 
         // The original group and its playlist's membership in it both survived the aborted
-        // insert untouched. Under the old REPLACE strategy this playlist would have been
-        // silently orphaned (group_id nulled by the cascade) even though the insert then threw.
+        // insert untouched. With a REPLACE conflict strategy this playlist would be silently
+        // orphaned (group_id nulled by the cascade) even though the insert then threw.
         val group = dao.getAllGroups().first().single { it.id == "g1" }
         assertEquals("Original", group.name)
         val playlist = dao.getPlaylistsByIds(listOf("p1")).single()
@@ -96,7 +96,7 @@ class PlaylistDaoIdReuseInstrumentedTest {
             // Expected — ABORT on the primary-key conflict.
         }
 
-        // Under the old REPLACE strategy this membership would have been cascade-deleted the
+        // With a REPLACE conflict strategy this membership would be cascade-deleted the
         // instant the colliding insert replaced the parent playlist row.
         assertTrue(dao.containsSong("p1", "s1"))
         val playlist = dao.getPlaylistsByIds(listOf("p1")).single()

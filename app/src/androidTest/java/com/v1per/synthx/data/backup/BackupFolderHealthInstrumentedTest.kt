@@ -23,7 +23,7 @@ import org.junit.runner.RunWith
 /**
  * The backup-folder health check for the case a test can reach: a saved folder whose write grant
  * is gone. "Healthy" and "Unwritable" need a persisted SAF write grant, which a test cannot hold
- * (see docs/code-work/slice2-implementation.md, NEEDS APP CHANGE).
+ * (see docs/code-work/Safety-Net/slice2-implementation.md, NEEDS APP CHANGE).
  */
 @RunWith(AndroidJUnit4::class)
 class BackupFolderHealthInstrumentedTest {

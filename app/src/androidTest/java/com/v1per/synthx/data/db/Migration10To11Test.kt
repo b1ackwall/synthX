@@ -20,7 +20,7 @@ import org.junit.runner.RunWith
 
 /**
  * Covers the 10->11 leg specifically: MIGRATION_10_11 adds `shuffle_enabled`/`repeat_mode` to the
- * single-row `playback_cursor` table (see PlaybackCursorEntity's kdoc, data 2.4) — both previously
+ * single-row `playback_cursor` table (see PlaybackCursorEntity's kdoc) — both previously
  * lived in SharedPreferences, which a restore never touches, so a restored queue could end up
  * paired with a shuffle/repeat mode left over from the pre-restore install.
  *

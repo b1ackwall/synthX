@@ -19,9 +19,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Covers R8-A12/P7-T6: [BackupManager.enforceRetention]'s deletion callback used to discard both
- * the SAF [DocumentFile.delete] Boolean return and any thrown exception, so a victim that failed
- * to delete (partially or completely) vanished from accounting with no trace. Exercised directly
+ * [BackupManager.enforceRetention]'s deletion callback must surface both the SAF
+ * [DocumentFile.delete] Boolean return and any thrown exception, so a victim that fails to delete
+ * (partially or completely) is recorded rather than vanishing from accounting. Exercised directly
  * against [BackupManager.enforceRetention] (made `internal` for exactly this) with a real,
  * file-backed [DocumentFile] tier directory instead of a genuine SAF tree grant — same technique
  * [BackupListResultInstrumentedTest] uses for [BackupManager.classifyBackupList].
@@ -138,8 +138,8 @@ class BackupRetentionInstrumentedTest {
     fun preExistingOrphanHalfIsCleanedUpOnTheNextRetentionPass() {
         val root = newRoot()
         val current = writePair(root, "00000002", timestamp = 2_000)
-        // A pre-existing orphan: database half with no matching metadata, as R8-A12 describes a
-        // partial pruning deletion or a crash mid-publish would leave behind.
+        // A pre-existing orphan: database half with no matching metadata, as a partial pruning
+        // deletion or a crash mid-publish would leave behind.
         val orphanIdentity = BackupFileNames.create(randomId = "00000001")
         File(root, orphanIdentity.databaseFileName).writeBytes(byteArrayOf(9, 9, 9))
         val tierDirectory = DocumentFile.fromFile(root)

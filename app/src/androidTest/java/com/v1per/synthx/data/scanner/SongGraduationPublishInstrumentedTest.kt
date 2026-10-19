@@ -40,12 +40,12 @@ import org.junit.runner.RunWith
  *    filesystem there is one document per name, so [successfulMovePublishesTheVerifiedTempDocumentDirectly]
  *    publishes into a [DecoyLookupDocumentFile] instead: once the final name exists, its
  *    `findFile` returns a different document, standing in for a SAF provider whose listing lags
- *    the rename. Code that re-resolves the published document by name (the bug F13 fixed)
- *    publishes the decoy and fails that test.
+ *    the rename. Code that re-resolves the published document by name publishes the decoy and
+ *    fails that test.
  *  - Collision-at-rename-time is simulated directly (a `DocumentFile` whose `renameTo` returns
  *    false because a real file already occupies the target name), not via a genuine
  *    check-then-act race against a second concurrent actor — reproducing the actual race
- *    reliably in a synchronous JVM test isn't practical, per the task's own note.
+ *    reliably in a synchronous JVM test isn't practical.
  */
 @RunWith(AndroidJUnit4::class)
 class SongGraduationPublishInstrumentedTest {
@@ -135,7 +135,7 @@ class SongGraduationPublishInstrumentedTest {
         assertEquals("Track.dat", copied.finalName)
 
         // Simulate another writer landing on the target name after resolveCollisionFreeName's
-        // check but before this rename — the TOCTOU race the collision-message fix targets.
+        // check but before this rename — the TOCTOU race that must yield a distinct collision failure.
         val occupant = byteArrayOf(9, 9, 9)
         File(destDir, "Track.dat").writeBytes(occupant)
 

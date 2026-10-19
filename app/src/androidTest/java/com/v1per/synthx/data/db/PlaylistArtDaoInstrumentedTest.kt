@@ -13,7 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P8-T1/R6-C1 and R6-C2: [PlaylistDao.setPlaylistArt]'s idempotence guard and
+ * [PlaylistDao.setPlaylistArt]'s idempotence guard and
  * [PlaylistDao.getPlaylistIdsMissingArt]'s deterministic ordering — both exercised directly at
  * the DAO/SQL level, independent of [com.v1per.synthx.data.playlistart.PlaylistArtBackfill]'s own
  * mutex (that primitive is what stops two passes from wastefully racing in the first place; this

@@ -18,13 +18,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Covers R8-A13/P7-T6: [SafetySnapshotPromoter] used to call [SafBackupPublisher] directly,
- * bypassing [BackupManager]'s normal retention and outcome-recording, and generated a fresh
- * filename on every call with no memory of a prior successful publish — so a crash between a
- * successful publish and local staged-file cleanup caused a retry to republish the same content
- * under a new name. [BackupManager.publishExistingSnapshotTo] is the fix: the same identity ->
- * publish -> retention -> pipeline [BackupManager.createBackup] uses, made idempotent by content
- * (tier + reason + SHA-256) instead of by filename.
+ * [SafetySnapshotPromoter] publishes through [BackupManager.publishExistingSnapshotTo]: the same
+ * identity -> publish -> retention pipeline [BackupManager.createBackup] uses, made idempotent by
+ * content (tier + reason + SHA-256) instead of by filename, so a retry after a crash between a
+ * successful publish and local staged-file cleanup does not republish the same content under a
+ * new name.
  *
  * Exercised directly against the `internal` directory-taking seam (same reason/technique as
  * [BackupRetentionInstrumentedTest] and [BackupListResultInstrumentedTest]: `DocumentFile
@@ -98,8 +96,8 @@ class BackupManagerPublishExistingSnapshotInstrumentedTest {
         val tierDirectory = DocumentFile.fromFile(root)
 
         // BackupTier.Auto's limit is 30 — one more than that many DISTINCT (different-content)
-        // promotions must not leave more than 30 complete pairs behind, per R8-A13's "a successful
-        // restore can leave 31 complete Auto backups" claim.
+        // promotions must not leave more than 30 complete pairs behind (a successful restore
+        // must not leave 31 complete Auto backups).
         repeat(BackupTier.Auto.retention + 1) { index ->
             val staged = stagedSnapshot(root, bytes = ByteArray(64) { (it + index).toByte() })
             backupManager.publishExistingSnapshotTo(

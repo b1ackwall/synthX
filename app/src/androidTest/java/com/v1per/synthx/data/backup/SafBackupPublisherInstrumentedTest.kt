@@ -169,11 +169,11 @@ class SafBackupPublisherInstrumentedTest {
     }
 
     /**
-     * #170: after a successful rename, [DecoyLookupDocumentFile] answers `findFile(finalName)` with
+     * After a successful rename, [DecoyLookupDocumentFile] answers `findFile(finalName)` with
      * a different document holding different bytes. Publication must still succeed, verify and
      * return the renamed documents, and leave the decoy untouched — i.e. never re-resolve the
-     * published document by name. The previous `findFile`-based code verified the decoy's bytes
-     * instead and failed with a SHA-256/byte-count mismatch (then deleted the decoy in cleanup).
+     * published document by name. `findFile`-based code would verify the decoy's bytes instead
+     * and fail with a SHA-256/byte-count mismatch (then delete the decoy in cleanup).
      */
     private fun assertPublicationIgnoresDecoyLookupFor(decoyNameOf: (BackupFileIdentity) -> String) {
         val root = newRoot()

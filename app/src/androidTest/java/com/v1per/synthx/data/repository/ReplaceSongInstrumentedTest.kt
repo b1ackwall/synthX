@@ -389,7 +389,7 @@ class ReplaceSongInstrumentedTest {
     /**
      * Keeps art *and preference* writes out of the installed app's library, as
      * RepositoryDeletionInstrumentedTest's own context does. DestructiveActionTracker's
-     * `resetForTest(context)` zeroes its persisted count too (#169), but the preference
+     * `resetForTest(context)` zeroes its persisted count too, but the preference
      * isolation still keeps BackupOutcomeStore's persisted outcomes and every other preference
      * the repository writes off the installed debug app's real preference file.
      */

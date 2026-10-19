@@ -20,7 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Race coverage for [ArtRecovery.recoverOneSong]'s transactional re-read-merge-write (R1-F01):
+ * Race coverage for [ArtRecovery.recoverOneSong]'s transactional re-read-merge-write:
  * a concurrent write is injected via the extraction seam ([ArtRecovery.recover]'s `extractArt`
  * parameter) so it lands exactly between ArtRecovery's pre-transaction read (for extraction)
  * and its DB write.

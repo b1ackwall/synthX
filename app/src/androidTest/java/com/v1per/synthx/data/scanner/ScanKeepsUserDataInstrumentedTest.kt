@@ -99,7 +99,7 @@ class ScanKeepsUserDataInstrumentedTest {
         assertFalse(fx.requireSongAt(dismissed).isStarred)
     }
 
-    /** Pinned current behaviour (question L1): renaming a starred song in Music clears its star. */
+    /** Pinned current behaviour (open question): renaming a starred song in Music clears its star. */
     @Test fun pinnedRenameInMusicClearsTheStar() = runBlocking {
         val old = write(music, "song.mp3", bytes(2_000, seed = 1))
         fx.scan(music)
@@ -112,7 +112,7 @@ class ScanKeepsUserDataInstrumentedTest {
         assertFalse("pinned: star cleared by a rename", fx.songDao.getSongById(row.id)!!.isStarred)
     }
 
-    /** Pinned current behaviour (question L1): renaming a dismissed song in New Arrivals re-stars it. */
+    /** Pinned current behaviour (open question): renaming a dismissed song in New Arrivals re-stars it. */
     @Test fun pinnedRenameInNewArrivalsReStarsADismissedSong() = runBlocking {
         val old = write(arrivals, "song.mp3", bytes(2_000, seed = 1))
         fx.scan(arrivals, newArrivals = true)
@@ -126,7 +126,7 @@ class ScanKeepsUserDataInstrumentedTest {
         assertTrue("pinned: dismissal undone by a rename", fx.songDao.getSongById(id)!!.isStarred)
     }
 
-    /** Pinned current behaviour (question L1): the star follows the root a file is found in. */
+    /** Pinned current behaviour (open question): the star follows the root a file is found in. */
     @Test fun pinnedMoveBetweenRootsKeepsTheRowAndTheStarFollowsTheRoot() = runBlocking {
         val inMusic = write(music, "song.mp3", bytes(2_000, seed = 1))
         fx.scan(music)
@@ -148,7 +148,7 @@ class ScanKeepsUserDataInstrumentedTest {
     }
 
     /**
-     * Pinned current behaviour (question L2): a FLAC tag edit rewrites bytes inside the hashed first
+     * Pinned current behaviour (open question): a FLAC tag edit rewrites bytes inside the hashed first
      * 64 KB, so the file becomes a new song. The playlist entry and star stay on the old row, which
      * is hidden as missing at a `stale://` path; the new row is in no playlist.
      */

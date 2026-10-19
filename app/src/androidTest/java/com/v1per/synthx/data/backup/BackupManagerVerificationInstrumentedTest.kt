@@ -20,10 +20,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Covers R8-A11/P7-T5: [BackupManager.verifyMostRecentBackup] used to take the first-listed
- * backup regardless of [BackupInfo.restoreEligible], treat an empty/unusable listing as a
- * successful verification, and hardcode `migrationSnapshot = false` (rejecting genuinely
- * supported older-schema backups). Exercised through [BackupManager.verifyBackupList] — split
+ * [BackupManager.verifyMostRecentBackup] must check only a [BackupInfo.restoreEligible] backup,
+ * record an empty/unusable listing as skipped rather than as a successful verification, and
+ * validate with `migrationSnapshot = true` so supported older-schema backups pass. Exercised through [BackupManager.verifyBackupList] — split
  * out from `verifyMostRecentBackup` the same way [BackupManager.classifyBackupList] is split out
  * from `listBackups`, so a [BackupListResult] can be supplied directly without a genuine SAF tree
  * grant.

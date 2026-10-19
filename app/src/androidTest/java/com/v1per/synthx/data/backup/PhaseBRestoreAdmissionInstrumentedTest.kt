@@ -135,8 +135,8 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
     }
 
     /**
-     * P7-T7/R7-F17: the cooperative `isCancelled` poll copySafOnce added so an in-flight
-     * preview/restore copy can actually be interrupted, not just have its overlay hidden.
+     * copySafOnce's cooperative `isCancelled` poll lets an in-flight preview/restore copy
+     * actually be interrupted, not just have its overlay hidden.
      * Polls true only after several iterations to prove the loop genuinely stops mid-stream
      * — not merely refusing to start.
      */
@@ -175,9 +175,9 @@ class PhaseBRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
     }
 
     @Test fun copySafOnceIgnoresCancellationByDefault() {
-        // The default isCancelled always returns false — every existing non-coroutine call
-        // site above (and PhaseBRestoreTransactionInstrumentedTest's) must keep working
-        // unchanged, so this is a regression guard on the new parameter's default.
+        // The default isCancelled always returns false — every non-coroutine call site above
+        // (and PhaseBRestoreTransactionInstrumentedTest's) relies on it, so this guards the
+        // parameter's default.
         val source = newTrustedSource("unaffected-by-default")
         val destination = ownedFile("phaseb-default-not-cancelled.db")
         val digest = RestoreTransaction.copySafOnce(context, Uri.fromFile(source).toString(), destination)

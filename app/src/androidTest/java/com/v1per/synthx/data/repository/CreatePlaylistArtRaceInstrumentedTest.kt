@@ -29,11 +29,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * P8-T1/R1-F07: [SongRepositoryImpl.createPlaylist] used to read [PlaylistDao.getExistingArtHues]
- * and insert the new row as two separate, unguarded statements — two concurrent creators could
- * both read the same used-hue snapshot and pick the same "unused" hue before either write landed.
- * Wrapping the read+insert in [androidx.room.withTransaction] fixes this by making Room serialize
- * the two creators' transactions rather than letting their reads interleave.
+ * [SongRepositoryImpl.createPlaylist] reads [PlaylistDao.getExistingArtHues] and inserts the new
+ * row inside one [androidx.room.withTransaction]. As two separate statements, two concurrent
+ * creators could both read the same used-hue snapshot and pick the same "unused" hue before
+ * either write landed; the transaction makes Room serialize the two creators instead.
  */
 @RunWith(AndroidJUnit4::class)
 class CreatePlaylistArtRaceInstrumentedTest {
@@ -83,8 +82,8 @@ class CreatePlaylistArtRaceInstrumentedTest {
     @Test
     fun concurrentCreatorsNeverPickTheSameHue() = runBlocking {
         // Artificially widens the window between the hue read and the eventual insert for
-        // EVERY caller — without the transaction fix this reliably reproduces the collision
-        // (every concurrent caller reads the same pre-insert snapshot); with the fix, Room
+        // EVERY caller — without the transaction this reliably reproduces the collision
+        // (every concurrent caller reads the same pre-insert snapshot); with it, Room
         // simply can't let a second creator's transaction body run until the first commits,
         // so this delay costs wall-clock time but never changes the outcome.
         val slowReadDao = object : PlaylistDao by database.playlistDao() {

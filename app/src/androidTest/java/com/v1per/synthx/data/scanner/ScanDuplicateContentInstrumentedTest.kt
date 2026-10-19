@@ -19,7 +19,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Pinned current behaviour (suspected bug L3, reproduced): two byte-identical files share one
+ * Pinned current behaviour (suspected bug, reproduced): two byte-identical files share one
  * content id, so they become one song whose path jumps to whichever copy the walk reaches last,
  * on every scan. The walk here is sorted by name, so `b.mp3` is always last.
  */

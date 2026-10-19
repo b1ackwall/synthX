@@ -17,7 +17,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Schema-bump regression coverage for retained COMPLETE restore history (P6-T3 / R8-A05). */
+/** Schema-bump regression coverage for retained COMPLETE restore history. */
 @RunWith(AndroidJUnit4::class)
 class PhaseBRestoreJournalUpgradeInstrumentedTest : PhaseBRestoreTestBase() {
     private var originalBackupFolderUri: String? = null

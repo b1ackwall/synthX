@@ -19,11 +19,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Covers R7-F04: [BackupManager.listBackups] must distinguish the four situations it used to
- * collapse into one identical empty list — no folder configured, an unreachable folder (missing
- * tier directories or a revoked/bogus SAF grant), a genuinely empty folder, and an actual list —
- * plus R7-F07's per-entry ineligibility reasons, exercised through real files rather than the
- * pure fixtures in [BackupIneligibilityReasonTest].
+ * [BackupManager.listBackups] must distinguish four situations — no folder configured, an
+ * unreachable folder (missing tier directories or a revoked/bogus SAF grant), a genuinely empty
+ * folder, and an actual list — plus the per-entry ineligibility reasons, exercised through real
+ * files rather than the pure fixtures in [BackupIneligibilityReasonTest].
  *
  * `classifyBackupList` is tested directly against a `DocumentFile.fromFile`-backed root, the same
  * technique [SafBackupPublisherInstrumentedTest] uses to avoid needing a genuine SAF tree grant
@@ -70,14 +69,13 @@ class BackupListResultInstrumentedTest {
 
     @Test
     fun folderUnreachableWhenTheGrantDoesNotResolveToAnyRealProvider() = runBlocking {
-        // No real content provider backs this authority — simulates a revoked SAF grant, which
-        // R7-F04 found indistinguishable from "no backups" before this fix.
+        // No real content provider backs this authority — simulates a revoked SAF grant.
         preferences.backupFolderUri =
             "content://synthx.test.unreachable/tree/primary%3ABogus".toUri().toString()
         assertEquals(BackupListResult.FolderUnreachable, backupManager.listBackups())
     }
 
-    // ---------------------------------------------------------- classifyBackupList(root) — F04
+    // ---------------------------------------------------------- classifyBackupList(root): folder state
 
     @Test
     fun folderUnreachableWhenTierDirectoriesDoNotExist() {
@@ -94,7 +92,7 @@ class BackupListResultInstrumentedTest {
         assertEquals(BackupListResult.Empty, backupManager.classifyBackupList(root))
     }
 
-    // ---------------------------------------------------------- classifyBackupList(root) — F07
+    // ---------------------------------------------------------- classifyBackupList(root): per-entry reasons
 
     @Test
     fun successListDistinguishesEligibleFromEachIneligibilityCause() {
