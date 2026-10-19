@@ -49,7 +49,12 @@ class PlayerIdleStatesBenchmark {
         const val QueuePaused = "queuePaused"
         const val HomePaused = "homePaused"
         val States = listOf(
-            MiniPaused, MiniPlaying, ExpandedPlaying, ExpandedPaused, QueuePaused, HomePaused,
+            MiniPaused,
+            MiniPlaying,
+            ExpandedPlaying,
+            ExpandedPaused,
+            QueuePaused,
+            HomePaused,
         )
     }
 

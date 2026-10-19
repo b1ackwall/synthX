@@ -75,13 +75,12 @@ internal object DeviceConditions {
      * Below Android 14 without root, Macrobenchmark resets compilation by uninstalling and
      * reinstalling the target, which erases the one-time setup.
      */
-    private fun compilationProblem(): String? =
-        if (Build.VERSION.SDK_INT < 34 && BenchmarkArgs.compilationEnabled()) {
-            "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}): a compilation reset " +
-                "here uninstalls the benchmark app and erases its setup. Run via " +
-                "scripts/perf/run-benchmark.fish, which passes " +
-                "androidx.benchmark.compilation.enabled=false on API 32-33."
-        } else {
-            null
-        }
+    private fun compilationProblem(): String? = if (Build.VERSION.SDK_INT < 34 && BenchmarkArgs.compilationEnabled()) {
+        "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}): a compilation reset " +
+            "here uninstalls the benchmark app and erases its setup. Run via " +
+            "scripts/perf/run-benchmark.fish, which passes " +
+            "androidx.benchmark.compilation.enabled=false on API 32-33."
+    } else {
+        null
+    }
 }

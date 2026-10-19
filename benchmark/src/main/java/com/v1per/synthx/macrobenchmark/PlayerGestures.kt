@@ -59,11 +59,9 @@ internal class PlayerGestures(private val device: UiDevice) {
         player.awaitState(expanded = false, action = "a downward fling")
     }
 
-    private fun miniCenter(): Point =
-        AppReadiness.findOrFail(device, Tags.MiniPlayer, "Mini player").visibleCenter
+    private fun miniCenter(): Point = AppReadiness.findOrFail(device, Tags.MiniPlayer, "Mini player").visibleCenter
 
-    private fun collapseStart(): Point =
-        Point(device.displayWidth / 2, (device.displayHeight * CollapseStart).toInt())
+    private fun collapseStart(): Point = Point(device.displayWidth / 2, (device.displayHeight * CollapseStart).toInt())
 
     private fun travel(start: Point, displayFraction: Float): Point =
         Point(start.x, start.y + (device.displayHeight * displayFraction).toInt())
@@ -71,6 +69,5 @@ internal class PlayerGestures(private val device: UiDevice) {
     private fun slowDrag(start: Point, end: Point) =
         TouchInjector.swipe(start, end, steps = SlowDragSteps, holdMs = HoldMs)
 
-    private fun fling(start: Point, end: Point) =
-        TouchInjector.swipe(start, end, steps = FlingSteps)
+    private fun fling(start: Point, end: Point) = TouchInjector.swipe(start, end, steps = FlingSteps)
 }

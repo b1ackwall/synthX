@@ -139,16 +139,15 @@ internal class QueueDriver(private val device: UiDevice) {
     }
 
     /** Null when a row left the tree between being found and being read. */
-    private fun readTopRows(): List<String>? =
-        try {
-            device.findObjects(By.res(Tags.QueueRow))
-                .map { it.visibleBounds.top to allText(it) }
-                .sortedBy { it.first }
-                .take(SignatureRows)
-                .map { it.second }
-        } catch (_: StaleObjectException) {
-            null
-        }
+    private fun readTopRows(): List<String>? = try {
+        device.findObjects(By.res(Tags.QueueRow))
+            .map { it.visibleBounds.top to allText(it) }
+            .sortedBy { it.first }
+            .take(SignatureRows)
+            .map { it.second }
+    } catch (_: StaleObjectException) {
+        null
+    }
 
     private fun allText(node: UiObject2): String =
         (listOfNotNull(node.text) + node.children.map(::allText)).joinToString("|")

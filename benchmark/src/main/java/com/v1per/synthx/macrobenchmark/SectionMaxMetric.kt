@@ -14,10 +14,7 @@ import androidx.benchmark.traceprocessor.TraceProcessor
  */
 @OptIn(ExperimentalMetricApi::class)
 internal class SectionMaxMetric(private val section: String) : TraceMetric() {
-    override fun getMeasurements(
-        captureInfo: CaptureInfo,
-        traceSession: TraceProcessor.Session,
-    ): List<Measurement> {
+    override fun getMeasurements(captureInfo: CaptureInfo, traceSession: TraceProcessor.Session): List<Measurement> {
         val app = captureInfo.targetPackageName
         val longestNs = traceSession.query(
             """

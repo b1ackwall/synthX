@@ -77,29 +77,25 @@ internal object BenchmarkArgs {
     private val args get() = InstrumentationRegistry.getArguments()
 
     /** `-e synthx.compilation none` measures the uncompiled worst case; default is DEFAULT. */
-    fun compilationMode(): CompilationMode =
-        when (val mode = args.getString("synthx.compilation") ?: "default") {
-            "default" -> CompilationMode.DEFAULT
-            "none" -> CompilationMode.None()
-            else -> error("synthx.compilation must be 'default' or 'none', got '$mode'")
-        }
+    fun compilationMode(): CompilationMode = when (val mode = args.getString("synthx.compilation") ?: "default") {
+        "default" -> CompilationMode.DEFAULT
+        "none" -> CompilationMode.None()
+        else -> error("synthx.compilation must be 'default' or 'none', got '$mode'")
+    }
 
     /** `-e synthx.iterations N` overrides every scenario's own default count. */
-    fun iterations(default: Int = 10): Int =
-        args.getString("synthx.iterations")?.toIntOrNull() ?: default
+    fun iterations(default: Int = 10): Int = args.getString("synthx.iterations")?.toIntOrNull() ?: default
 
     /**
      * `-e synthx.frames slices` takes frame timing from the app's frame slices
      * ([SliceFrameTimingMetric]); the default `timeline` uses FrameTimingMetric.
      */
-    fun sliceFrames(): Boolean =
-        when (val source = args.getString("synthx.frames") ?: "timeline") {
-            "timeline" -> false
-            "slices" -> true
-            else -> error("synthx.frames must be 'timeline' or 'slices', got '$source'")
-        }
+    fun sliceFrames(): Boolean = when (val source = args.getString("synthx.frames") ?: "timeline") {
+        "timeline" -> false
+        "slices" -> true
+        else -> error("synthx.frames must be 'timeline' or 'slices', got '$source'")
+    }
 
     /** Macrobenchmark's own switch; false skips the compilation reset entirely. */
-    fun compilationEnabled(): Boolean =
-        args.getString("androidx.benchmark.compilation.enabled")?.toBoolean() ?: true
+    fun compilationEnabled(): Boolean = args.getString("androidx.benchmark.compilation.enabled")?.toBoolean() ?: true
 }

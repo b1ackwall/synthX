@@ -35,8 +35,7 @@ internal class PlaybackDriver(private val device: UiDevice) {
         }
     }
 
-    private fun UiObject2.hasDescription(text: String): Boolean =
-        contentDescription == text || hasObject(By.desc(text))
+    private fun UiObject2.hasDescription(text: String): Boolean = contentDescription == text || hasObject(By.desc(text))
 
     fun ensurePlaying() = ensure(playing = true)
 
@@ -155,9 +154,8 @@ internal class TrackRestore(private val device: UiDevice) {
     }
 
     /** An unreadable title fails here, so it can never pass for "the track changed". */
-    private fun requireTitle(): String =
-        checkNotNull(player.currentTitle()) {
-            "Could not read the current song title from the player sheet (tag " +
-                "'${Tags.PlayerSheet}'), so a track change cannot be confirmed."
-        }
+    private fun requireTitle(): String = checkNotNull(player.currentTitle()) {
+        "Could not read the current song title from the player sheet (tag " +
+            "'${Tags.PlayerSheet}'), so a track change cannot be confirmed."
+    }
 }

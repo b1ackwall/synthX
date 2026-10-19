@@ -13,10 +13,7 @@ import androidx.test.platform.app.InstrumentationRegistry
  */
 @OptIn(ExperimentalMetricApi::class)
 internal class IdleStateFrameMetric(private val states: List<String>) : TraceMetric() {
-    override fun getMeasurements(
-        captureInfo: CaptureInfo,
-        traceSession: TraceProcessor.Session,
-    ): List<Measurement> {
+    override fun getMeasurements(captureInfo: CaptureInfo, traceSession: TraceProcessor.Session): List<Measurement> {
         val app = captureInfo.targetPackageName
         val bench = InstrumentationRegistry.getInstrumentation().context.packageName
         return states.flatMap { state ->

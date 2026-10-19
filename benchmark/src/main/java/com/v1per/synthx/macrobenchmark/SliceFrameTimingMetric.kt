@@ -18,10 +18,7 @@ import androidx.benchmark.traceprocessor.TraceProcessor
  */
 @OptIn(ExperimentalMetricApi::class)
 internal class SliceFrameTimingMetric : TraceMetric() {
-    override fun getMeasurements(
-        captureInfo: CaptureInfo,
-        traceSession: TraceProcessor.Session,
-    ): List<Measurement> {
+    override fun getMeasurements(captureInfo: CaptureInfo, traceSession: TraceProcessor.Session): List<Measurement> {
         val app = captureInfo.targetPackageName
         val cpuMs = traceSession.query(
             """
