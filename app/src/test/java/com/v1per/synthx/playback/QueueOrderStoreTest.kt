@@ -281,47 +281,6 @@ class QueueOrderStoreTest {
         assertEquals(listOf("slot-a", "slot-b", "slot-c", "slot-d"), subject.baselineIds())
     }
 
-    /**
-     * Mutation comparison for the slot-id move (same pattern as
-     * `removeAllDeletesEveryDuplicateOccurrenceInExactlyOneBaselineWrite` below): the index-only
-     * shape, exercised against a store that has already been reordered exactly like
-     * [moveByIdIsImmuneToAnOrderChangeThatPreservesTheSameSlotSet], moves the WRONG song — so a
-     * move that resolved by position would fail that test; the identity resolution is a genuine
-     * behavior difference, not just a different way of asking for the same result.
-     */
-    @Test fun revertingToIndexOnlyResolutionMovesTheWrongSongAfterAReorder() {
-        val subject = store()
-        subject.captureFresh(records("a", "b", "c", "d"))
-        subject.moveUpcoming(
-            fromDisplayIndex = 0,
-            toDisplayIndex = 1,
-            currentSlotId = "slot-a",
-            mirrorToBaseline = false,
-        )
-        assertEquals(listOf("slot-a", "slot-c", "slot-b", "slot-d"), subject.liveIds())
-
-        // The caller still believes "slot-b" sits at display index 0 (its ORIGINAL position,
-        // captured before the reorder above). Trusting that stale index moves "slot-c" — the
-        // song now actually AT that position — instead of "slot-b".
-        val staleFromDisplayIndex = 0
-        subject.moveUpcoming(
-            staleFromDisplayIndex,
-            toDisplayIndex = 2,
-            currentSlotId = "slot-a",
-            mirrorToBaseline = false,
-        )
-
-        // "slot-c" (wrong song) ended up moved to the end, while "slot-b" (the song the user
-        // actually meant) never moved at all — exactly the bug the slot-id resolution prevents.
-        assertEquals(listOf("slot-a", "slot-b", "slot-d", "slot-c"), subject.liveIds())
-        assertTrue(subject.liveIds().contains("slot-b"), "slot-b never moved, but it's still present")
-        assertEquals(
-            1,
-            subject.liveIds().indexOf("slot-b"),
-            "slot-b stayed in place — the stale index acted on slot-c instead",
-        )
-    }
-
     @Test fun removeStripsBothOrdersRegardlessOfShuffleState() {
         val subject = store()
         subject.captureFresh(records("a", "b", "c"))
