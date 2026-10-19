@@ -1,6 +1,5 @@
 package com.v1per.synthx.data.db
 
-import com.v1per.synthx.data.backup.BackupSchemaContracts
 import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.Rule
 import java.io.File
@@ -12,9 +11,9 @@ import kotlin.test.assertTrue
  * Guards against a migration shipping without its own test. Two independent checks,
  * deliberately not merged into one:
  *
- *  1. [allMigrationsFormAContiguousChainWithMatchingSchemaContracts] — ALL_MIGRATIONS and
- *     BackupSchemaContracts must form a gap-free chain. This catches a missing/duplicated
- *     *migration definition or schema contract*.
+ *  1. [allMigrationsFormAContiguousChainWithMatchingSchemaContracts] — ALL_MIGRATIONS must form
+ *     a gap-free chain. This catches a missing/duplicated *migration definition*; the schema
+ *     contracts are checked by BackupSchemaContractExportTest.
  *  2. [everyMigrationStepHasADedicatedInstrumentedTest] — a dedicated androidTest file that
  *     actually exercises MigrationTestHelper must exist for every single-version step from
  *     [PER_STEP_TEST_COVERAGE_BASELINE_VERSION] onward. Check (1) is fully satisfied by a
@@ -64,10 +63,6 @@ class MigrationCompletenessTest {
             assertTrue(
                 listOf(File(schemaPath), File("app/$schemaPath")).any { it.isFile },
                 "Missing exported Room schema for version $version",
-            )
-            assertTrue(
-                BackupSchemaContracts.forVersion(version) != null,
-                "BackupSchemaContracts has no entry for version $version",
             )
         }
     }
