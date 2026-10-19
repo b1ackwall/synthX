@@ -16,7 +16,7 @@ internal sealed interface LiveDatabaseVersion {
     data object Missing : LiveDatabaseVersion
 
     /**
-     * R1-F05: the file exists and SQLite opens it, but it reports `user_version = 0` AND
+     * The file exists and SQLite opens it, but it reports `user_version = 0` AND
      * `sqlite_master` has zero tables. This is the shape left behind by a first-ever database
      * creation interrupted before Room's schema-creation transaction ever committed (the file
      * was created, but nothing was written into it) — never bumped from a real, previously
@@ -86,7 +86,7 @@ internal object LiveDatabaseVersionReader {
             }
             check(version >= 0) { "SQLite reported an invalid live database user_version" }
 
-            // R1-F05: version 0 is ambiguous on its own — it is both SQLite's default for a
+            // Version 0 is ambiguous on its own — it is both SQLite's default for a
             // file that never had a schema committed to it (interrupted first-ever creation)
             // AND a value a real, populated file could report (pre-Room or corrupted). Only
             // the absence of any table in sqlite_master proves the former; a populated file
@@ -118,7 +118,7 @@ internal class DatabaseStartupController(
     /** True while a previous migration's [MigrationInvariantCheck] failure hasn't been recovered. */
     private val hasPendingMigrationRecovery: suspend () -> Boolean = { false },
     /**
-     * P3-T1: consumes every leftover `pending_cleanups` record before the gate opens, so no
+     * Consumes every leftover `pending_cleanups` record before the gate opens, so no
      * repository/ViewModel code can ever observe a half-reconciled destructive operation. Runs
      * after any pending migration (a fresh/current database has nothing to reconcile either way)
      * and before [onReady].
@@ -261,14 +261,14 @@ internal object DatabaseStartupGate {
     )
 
     /**
-     * The gate's single production migration path (fixes data 2.1 / P2.1 / N6 / P2.3):
+     * The gate's single production migration path:
      *  1. An unconditional internal snapshot — required. Its failure is a genuine storage
      *     problem, not a SAF misconfiguration, and correctly fails the gate closed; there is no
      *     safety net to protect the migration otherwise.
      *  2. A best-effort SAF backup — an extra copy in the user's normal backup folder if one
      *     happens to be configured and reachable. Its failure must never block startup: the
-     *     internal snapshot above is what actually protects the migration now, so a missing or
-     *     broken SAF grant can no longer produce the data 2.1 lockout.
+     *     internal snapshot above is what actually protects the migration, so a missing or
+     *     broken SAF grant cannot lock the app out.
      *  3. The migration itself, forced to run now (inside the gate, before any repository or
      *     ViewModel can touch Room) and immediately validated. A failure here means recovery is
      *     offered from the internal snapshot, never a silent continue or an uncaught crash later.
@@ -280,7 +280,7 @@ internal object DatabaseStartupGate {
         runCatching { BackupManager.create(context).createPreMigrationBackup().getOrThrow() }
             .onFailure { Log.w(TAG, "Best-effort SAF pre-migration backup failed", it) }
 
-        // P3-T3 / R1-F08: durably recorded BEFORE Room's forced open below commits the
+        // Durably recorded BEFORE Room's forced open below commits the
         // migration. A death after that commit but before `verify` runs leaves this marker
         // behind; MigrationRecoveryGate treats its mere presence as proof validation never
         // provably completed, rather than trusting the live file's now-current user_version.
@@ -310,7 +310,7 @@ internal object DatabaseStartupGate {
         synchronized(lock) { controller = value }
     }
 
-    /** Existing restore instrumentation may explicitly model a process whose C1 gate is ready. */
+    /** Lets restore instrumentation model a process whose DatabaseStartupGate is ready. */
     internal fun markReadyForTest() {
         val forced = DatabaseStartupController(
             currentVersion = SynthXDatabase.VERSION,

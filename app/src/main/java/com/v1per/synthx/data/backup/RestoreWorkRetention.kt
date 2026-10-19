@@ -23,7 +23,7 @@ internal suspend fun pruneFinishedWorkIfRestoreAcknowledged(
     preferences: PreferencesManager,
 ): Operation? {
     if (preferences.restoreRequestId != null && !preferences.restoreOutcomeAcknowledged) return null
-    // P9-T1: a fresh-install first scan the wizard has not yet accepted or abandoned still owns its
+    // A fresh-install first scan the wizard has not yet accepted or abandoned still owns its
     // terminal WorkInfo. Pruning it would leave the resumed ScanningStep with an id that resolves
     // to nothing — indistinguishable from a scan that never ran.
     if (preferences.firstScanRequestId != null) return null

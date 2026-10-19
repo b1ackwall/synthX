@@ -55,16 +55,16 @@ internal class SafBackupPublisher(private val context: Context) {
                     "SAF provider cannot publish metadata by renaming a temporary document"
                 )
             }
-            // #170: a successful renameTo mutates the DocumentFile's own Uri to the provider's
+            // A successful renameTo mutates the DocumentFile's own Uri to the provider's
             // post-rename Uri (TreeDocumentFile and RawDocumentFile alike), so the renamed object
             // IS the published document. A tierDirectory.findFile(name) lookup here could resolve
             // a different document (a stale listing, or another document sharing the name) and
-            // verify the wrong bytes — same fix shape as graduation's R2-F13
+            // verify the wrong bytes — same shape as graduation's rename check
             // (verifyAndPublishGraduationTemp).
             val finalMetadata = temporaryMetadata
             requireDocumentName(finalMetadata, identity.metadataFileName)
-            // R8-A10: metadata was, until now, never reread after its rename — a provider that
-            // truncates or alters it post-rename without throwing could publish a "successful"
+            // Metadata is reread after its rename: a provider that truncates or alters it
+            // post-rename without throwing could otherwise publish a "successful"
             // backup whose metadata the restore catalog later rejects. Same reread posture as
             // the database's own re-verification below, just against the metadata bytes.
             verifyExternalBytes(resolver, finalMetadata.uri, metadataDigest, "metadata")
@@ -75,7 +75,7 @@ internal class SafBackupPublisher(private val context: Context) {
                     "SAF provider cannot publish database by renaming a temporary document"
                 )
             }
-            // #170: same rename continuity as the metadata above — no findFile lookup.
+            // Same rename continuity as the metadata above — no findFile lookup.
             val finalDatabase = temporaryDatabase
             requireDocumentName(finalDatabase, identity.databaseFileName)
             // DocumentFile documents that a provider may implement rename by creating a new

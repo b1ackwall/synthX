@@ -1,8 +1,8 @@
 package com.v1per.synthx.data.backup
 
 /**
- * Why a listed backup can't be restored — distinguishing causes that [BackupManager.listBackups]
- * used to collapse into one "Legacy backup" literal (R7-F07). Derived from data already read
+ * Why a listed backup can't be restored, one value per distinct cause found by
+ * [BackupManager.listBackups]. Derived from data already read
  * while listing (metadata presence/contents, actual file size, display-name collisions, schema
  * contract lookup) rather than a value discarded elsewhere — nothing upstream already computes
  * this breakdown. [Unrecognized] is the residual bucket: [BackupManager]'s authoritative eligibility
@@ -41,8 +41,8 @@ internal fun classifyIneligibility(
 }
 
 /**
- * The outcome of listing candidate backups (R7-F04) — distinguishes situations
- * [BackupManager.listBackups] used to collapse into one identical empty list: no folder chosen
+ * The outcome of listing candidate backups ([BackupManager.listBackups]) — distinguishes
+ * situations that would otherwise all look like one identical empty list: no folder chosen
  * yet, a folder that can't currently be read (missing/renamed tier directories or a provider
  * listing failure — merged into one case because both mean the same thing to the user: "we can't
  * see what's in the folder you picked," with the same remedy), a folder that reads fine but

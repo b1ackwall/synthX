@@ -9,8 +9,8 @@ import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
 
 /**
- * The P4.4 promotion of a completed restore's safety snapshot to an Auto-tier backup, moved here
- * verbatim from [RestoreTransaction].
+ * Promotes a completed restore's safety snapshot to an Auto-tier backup, kept apart from
+ * [RestoreTransaction].
  *
  * It is the one part of that file with no stake in the crash-resumable phase machine: it is reached
  * only from cleanupAfterColdValidation, strictly after Phase.COMPLETE is already durable, it reads
@@ -87,9 +87,8 @@ internal object SafetySnapshotPromoter {
     }
 
     /**
-     * R8-A13/P7-T6: routed through [BackupManager.publishExistingSnapshot] instead of calling
+     * Routed through [BackupManager.publishExistingSnapshot] instead of calling
      * [SafBackupPublisher] directly — this is what gives promotion normal Auto-tier retention
-     * (it used to bypass retention entirely, growing the tier unbounded across repeated restores)
      * and crash-safe idempotence (a retry after a crash between publish and local cleanup
      * re-hashes the same staged bytes and finds its own prior publish instead of generating a
      * fresh name and republishing — see that method's doc).
@@ -97,8 +96,8 @@ internal object SafetySnapshotPromoter {
      * "No backup folder configured" is preserved as a deliberate, silent skip (not an error): a
      * device with backups turned off entirely is a valid steady state and must not fail restore's
      * cold-start cleanup. Everything else — including a folder that's configured but currently
-     * unreachable — now surfaces as a genuine, logged, retryable failure via the exception this
-     * throws, rather than being silently and permanently dropped as it was before.
+     * unreachable — surfaces as a genuine, logged, retryable failure via the exception this
+     * throws, rather than being silently and permanently dropped.
      */
     private fun publishSafetyPromotion(
         context: Context,

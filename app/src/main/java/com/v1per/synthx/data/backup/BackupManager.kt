@@ -60,7 +60,7 @@ open class BackupManager(internal val context: Context) {
                 }
             }
         }.also { result ->
-            // N13: every tier/reason funnels through this one function, so recording the
+            // Every tier/reason funnels through this one function, so recording the
             // outcome here — success or failure — is what makes it true for all of them at
             // once, rather than something each of the six call sites has to remember to do.
             BackupOutcomeStore.recordBackupOutcome(context, tier, reason, result)
@@ -68,8 +68,8 @@ open class BackupManager(internal val context: Context) {
     }
 
     /**
-     * C1's only production pre-migration entry point. It retains the complete Phase-A pipeline,
-     * but cannot wait for/cancel the Worker that may itself be the process's first gate caller.
+     * [DatabaseStartupGate]'s only production pre-migration entry point. It runs the complete
+     * createBackup pipeline, but cannot wait for/cancel the Worker that may itself be the process's first gate caller.
      * [BackupReason.MIGRATION] selects [BackupSnapshotter.createForMigration], so this path never
      * obtains Room while the gate is still closed.
      */
@@ -160,7 +160,7 @@ open class BackupManager(internal val context: Context) {
     }
 
     /**
-     * R8-A13/P7-T6: publishes an ALREADY-MATERIALIZED snapshot file (no fresh [BackupSnapshotter]
+     * Publishes an ALREADY-MATERIALIZED snapshot file (no fresh [BackupSnapshotter]
      * capture) through the same identity → [SafBackupPublisher] → [enforceRetention] →
      * [BackupOutcomeStore] pipeline [createBackup] uses for a freshly-captured one. Exists for
      * [SafetySnapshotPromoter], which has a historical, already-hashed/validated file on disk and
@@ -254,19 +254,19 @@ open class BackupManager(internal val context: Context) {
         classifyBackupList(root)
     }
 
-    // ------------------------------------------------------------ verification (P3.2)
+    // ------------------------------------------------------------ verification
 
     /**
      * Re-validates the most recent restore-*eligible* backup's actual bytes against the same
      * ground truth [RestoreTransaction.execute] itself checks: a fresh SHA-256/size compare
-     * against metadata's declared values (R8-A11), not just structural validation — catching
+     * against metadata's declared values, not just structural validation — catching
      * corruption a healthy write wouldn't have (bit rot, a provider that silently truncated the
      * file after publish, a SAF provider that edited a syntactically-valid file in place, etc.).
-     * Only [BackupInfo.restoreEligible] entries are candidates: P7-T4's eligibility check is
+     * Only [BackupInfo.restoreEligible] entries are candidates: the eligibility check is
      * cheap/already computed during listing and correctly excludes duplicate-named, missing-
      * metadata, or size-mismatched entries before this expensive byte-level pass ever runs.
-     * `migrationSnapshot = true` matches restore's own first-pass validation (RestoreTransaction
-     * line ~173) so a genuinely supported older-schema backup is not rejected here just because
+     * `migrationSnapshot = true` matches restore's own first-pass validation (in
+     * RestoreTransaction.execute) so a genuinely supported older-schema backup is not rejected here just because
      * it isn't already at the current schema version.
      *
      * No eligible backup to check (none published yet, or every listed entry is ineligible) is
@@ -279,7 +279,7 @@ open class BackupManager(internal val context: Context) {
     suspend fun verifyMostRecentBackup(): Result<Unit> =
         verifyBackupList(runCatching { listBackups() }.getOrDefault(BackupListResult.FolderUnreachable))
 
-    // ---------------------------------------------------------------- preview (P4.3)
+    // ---------------------------------------------------------------- preview
 
     /**
      * Read-only playlist/song/playlist-membership counts for [backup], obtained by staging the
@@ -306,7 +306,8 @@ open class BackupManager(internal val context: Context) {
     ): Result<Unit> = withContext(Dispatchers.IO) {
         RestoreStartup.await()
         // A pending restore may itself be the first Worker in a new app process. Its safety
-        // snapshot opens live Room, so it must cross C1 just like every other live Room owner.
+        // snapshot opens live Room, so it must cross DatabaseStartupGate just like every other
+        // live Room owner.
         DatabaseStartupGate.awaitReady()
         val metadata = readRestoreMetadata(backup)
             ?: return@withContext Result.failure(
@@ -325,7 +326,7 @@ open class BackupManager(internal val context: Context) {
             RestoreTransaction.executeEmergencyReplacement(context, backup, metadata, requestId)
         }
 
-    /** Phase-A metadata is mandatory for a trustworthy restore, though old files may still list. */
+    /** Backup metadata is mandatory for a trustworthy restore, though old files may still list. */
     internal suspend fun readRestoreMetadata(backup: BackupInfo): BackupMetadata? = withContext(Dispatchers.IO) {
         val metadata = backup.metadataUri?.let(::readMetadata) ?: return@withContext null
         return@withContext runCatching {

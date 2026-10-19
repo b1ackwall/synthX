@@ -44,7 +44,7 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
         createNotificationChannel()
         setForeground(buildForegroundInfo(RestoreProgressStep.COPYING))
         return BackupManager.create(applicationContext).restore(backup, id.toString()) { step ->
-            // P7-T7: coarse phase progress — see RestoreProgressStep's doc
+            // Coarse phase progress — see RestoreProgressStep's doc
             // for why this is a small separate enum rather than the durable journal Phase.
             setProgress(workDataOf(KEY_PROGRESS_STEP to step.name))
             setForeground(buildForegroundInfo(step))
@@ -73,7 +73,7 @@ class RestoreWorker(appContext: Context, params: WorkerParameters) : CoroutineWo
     }
 
     /**
-     * P7-T7: determinate over 4 fixed steps (see [RestoreProgressStep])
+     * Determinate over 4 fixed steps (see [RestoreProgressStep])
      * rather than indeterminate — mirrors LibraryScanWorker's own foreground notification,
      * including its cancel action via [WorkManager.createCancelPendingIntent]. Cancelling only
      * takes effect while the worker is still in the cancellable COPYING/VALIDATING window (see

@@ -93,7 +93,7 @@ internal object BackupSchemaContracts {
                 setOf("queue_items", "queue_baseline_items", "playback_cursor"),
             hasMigrationPathToCurrent = true,
         ),
-        // 10_11 adds shuffle_enabled/repeat_mode to playback_cursor (see data 2.4) — managed
+        // 10_11 adds shuffle_enabled/repeat_mode to playback_cursor — managed
         // table set is unchanged from 10, only the Room identity hash moves.
         BackupSchemaContract(
             userVersion = 11,
@@ -126,7 +126,7 @@ internal object BackupSchemaContracts {
                 setOf("queue_items", "queue_baseline_items", "playback_cursor"),
             hasMigrationPathToCurrent = true,
         ),
-        // 14_15 adds pending_cleanups (see P3-T1) — a new managed table, so it joins the set.
+        // 14_15 adds pending_cleanups — a new managed table, so it joins the set.
         BackupSchemaContract(
             userVersion = 15,
             roomIdentityHash = "3e0e2f38ca17807335cfa847b095f2fd",

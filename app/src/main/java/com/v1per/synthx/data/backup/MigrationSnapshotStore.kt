@@ -7,12 +7,12 @@ import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
 
 /**
- * The unconditional internal safety net for a pending Room migration (fixes for data 2.1 / P2.1).
+ * The unconditional internal safety net for a pending Room migration.
  *
  * Unlike the SAF-based [BackupManager] pipeline, this never depends on a user-configured backup
  * folder or a SAF grant still being valid — it writes to [Context.getNoBackupFilesDir], which is
- * always available to the app itself and is never part of [BackupTier]'s retention system (see
- * N12). Exactly one snapshot is kept at a time: the one guarding whichever migration most
+ * always available to the app itself and is never part of [BackupTier]'s retention system.
+ * Exactly one snapshot is kept at a time: the one guarding whichever migration most
  * recently ran. [recordSuccessfulLaunch] retires it once the new version has proven itself across
  * a few ordinary launches.
  */
@@ -59,7 +59,7 @@ internal object MigrationSnapshotStore {
      * migration attempt (or none at all) is left untouched here.
      */
     fun recordSuccessfulLaunch(context: Context) {
-        // P3-T3 / R1-F08 defense-in-depth: reachable in practice only once a migration attempt
+        // Defense in depth: reachable in practice only once a migration attempt
         // has actually cleared the marker (performProductionMigration rethrows on any failure
         // before onReady ever fires), but this guard makes that guarantee explicit and
         // independent of the surrounding control flow rather than relying solely on it.

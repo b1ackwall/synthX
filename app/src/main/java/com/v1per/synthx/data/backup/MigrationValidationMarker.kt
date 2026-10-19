@@ -10,7 +10,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Durable "validation pending" marker for a migration in flight (P3-T3 / R1-F08).
+ * Durable "validation pending" marker for a migration in flight.
  *
  * [DatabaseStartupGate.performProductionMigration] writes this file *before* Room's forced open
  * commits the migration, and clears it *only* after [MigrationInvariantCheck.verify] has

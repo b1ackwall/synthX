@@ -227,7 +227,7 @@ internal object BackupSnapshotValidator {
         }
 
     /**
-     * Shared with [LiveDatabaseVersionReader] (R1-F05): the same `sqlite_master` query
+     * Shared with [LiveDatabaseVersionReader]: the same `sqlite_master` query
      * distinguishes a genuinely empty/schema-less file from one that merely reports
      * `user_version = 0` while still holding real tables.
      */

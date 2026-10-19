@@ -23,12 +23,12 @@ data class ExportAttemptOutcome(
 )
 
 /**
- * [skippedNoEligibleBackup]: R8-A11/P7-T5 — true only when [BackupManager.verifyMostRecentBackup]
+ * [skippedNoEligibleBackup]: true only when [BackupManager.verifyMostRecentBackup]
  * found no [BackupInfo.restoreEligible] entry to check at all (no backup yet, or every listed
  * entry is ineligible). Distinct from [succeeded]`= true` (a real byte-level check ran and
  * passed) and from [succeeded]`= false` with this flag clear (a real check ran and failed) —
- * collapsing "nothing to verify" into either of those was the false-assurance bug this splits
- * apart. [succeeded] is always `false` alongside this flag; callers that only care whether a
+ * collapsing "nothing to verify" into either of those would give false assurance.
+ * [succeeded] is always `false` alongside this flag; callers that only care whether a
  * real failure occurred should check `!succeeded && !skippedNoEligibleBackup`.
  */
 data class VerificationAttemptOutcome(
@@ -39,7 +39,7 @@ data class VerificationAttemptOutcome(
 )
 
 /**
- * R8-A12/P7-T6: [BackupRetention.prune]'s own accounting, recorded SEPARATELY from
+ * [BackupRetention.prune]'s own accounting, recorded SEPARATELY from
  * [BackupAttemptOutcome] — a prune that had failures must never cause the publish it followed to
  * report as failed (see the "preserve retention's best-effort policy" comment above
  * [BackupManager]'s retention call site). [attempted]`== 0` means there was nothing to prune;
@@ -57,9 +57,9 @@ data class RetentionAttemptOutcome(
 }
 
 /**
- * N13: the missing half of Issue 6.2's [BackupFolderHealth]. That answers "can I write to the
- * backup folder right now" — a pre-condition check. This answers "did the last actual backup or
- * export attempt succeed, and when" — the thing that was never recorded anywhere before this.
+ * The other half of [BackupFolderHealth]. That answers "can I write to the backup folder right
+ * now" — a pre-condition check. This answers "did the last actual backup or export attempt
+ * succeed, and when".
  *
  * [BackupManager.createBackup] is the single choke point every tier/reason (Daily, Rescan,
  * delete-song, delete-playlist, folder-change, manual, migration) already funnels through, so
@@ -197,7 +197,7 @@ object BackupOutcomeStore {
         _lastVerificationOutcome.value = outcome
     }
 
-    /** R8-A11/P7-T5: records "nothing eligible was available to verify", never a false success. */
+    /** Records "nothing eligible was available to verify", never a false success. */
     internal fun recordVerificationSkipped(context: Context) {
         val outcome = VerificationAttemptOutcome(
             timestamp = System.currentTimeMillis(),
@@ -215,10 +215,10 @@ object BackupOutcomeStore {
     }
 
     /**
-     * R8-A12/P7-T6: records retention's own outcome, deliberately separate from
+     * Records retention's own outcome, deliberately separate from
      * [recordBackupOutcome] — see [RetentionAttemptOutcome]'s doc. Logs at warn level whenever a
      * pair failed to fully delete, since this is the one place that can see both inner-swallowed
-     * deletion failures [BackupRetention.prune]'s caller previously had no way to surface.
+     * deletion failures [BackupRetention.prune]'s caller has no other way to surface.
      */
     internal fun recordRetentionOutcome(
         context: Context,

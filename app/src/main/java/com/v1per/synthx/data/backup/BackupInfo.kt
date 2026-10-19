@@ -20,7 +20,7 @@ object BackupReason {
     const val PRE_RESTORE_SAFETY = "pre_restore_safety"
 }
 
-/** Read-only content counts for a candidate backup (P4.3 restore preview), never a live query. */
+/** Read-only content counts for a candidate backup (restore preview), never a live query. */
 data class BackupPreviewCounts(
     val playlistCount: Int,
     val songCount: Int,

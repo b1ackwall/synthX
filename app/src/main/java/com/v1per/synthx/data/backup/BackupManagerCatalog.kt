@@ -103,22 +103,22 @@ internal fun BackupManager.enforceRetention(
         protectedDatabaseName = protected.databaseFileName,
     ) { pair ->
         // Attempt both sides independently and report what actually happened — a thrown
-        // exception or a refused (Boolean false) SAF delete are both now visible to the
-        // caller instead of being discarded, per R8-A12.
+        // exception or a refused (Boolean false) SAF delete are both visible to the
+        // caller instead of being discarded.
         val databaseDeleted = runCatching { pair.database.document.delete() }.getOrDefault(false)
         val metadataDeleted = runCatching { pair.metadataDocument.document.delete() }.getOrDefault(false)
         PairDeletionResult(databaseDeleted, metadataDeleted)
     }
     BackupOutcomeStore.recordRetentionOutcome(context, tier, outcome)
 
-    // R8-A12: fold orphan cleanup into this same directory listing rather than a separate
+    // Folds orphan cleanup into this same directory listing rather than a separate
     // scan — reuses the DocumentFile handles already fetched above; deletions above are
     // reflected live since DocumentFile.exists()/isFile query the provider, not a cache.
     sweepOrphanHalves(children)
 }
 
 /**
- * R8-A12: removes a stray database or metadata file that has no matching other half — either
+ * Removes a stray database or metadata file that has no matching other half — either
  * left behind by a partial pruning deletion above, or from an earlier run that crashed
  * mid-publish/mid-prune. A stray database half is unrestorable through the supported UI (no
  * metadata pointing at it); a stray metadata half references bytes that no longer exist.

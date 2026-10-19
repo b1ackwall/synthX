@@ -53,12 +53,7 @@ internal suspend fun BackupManager.previewBackupInternal(
         val stage = BackupStagingCoordinator.acquire(context, "preview")
         val copy = stage.file
         try {
-            // R7-F15: preview never touches the live database, so liveSize=0 here rather
-            // than the live database's real size — RestoreStorage.requiredBytes' formula
-            // still reserves 2x candidateSize (a bit more than the single copy preview
-            // actually writes), a deliberately conservative reuse of the same shared
-            // free-space policy execute() uses, rather than a second bespoke formula.
-            // R7-F15: preview never touches the live database, so liveSize=0 here rather
+            // Preview never touches the live database, so liveSize=0 here rather
             // than the live database's real size — RestoreStorage.requiredBytes' formula
             // still reserves 2x candidateSize (a bit more than the single copy preview
             // actually writes), a deliberately conservative reuse of the same shared

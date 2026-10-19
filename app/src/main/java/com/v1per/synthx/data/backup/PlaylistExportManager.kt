@@ -77,7 +77,7 @@ class PlaylistExportManager(
 
                 val result = runCatching { writeExport() }
                 result.onFailure { e -> Log.w(TAG, "Playlist export skipped: ${e.message}") }
-                // N13: writeExport() is the single choke point every export request funnels
+                // writeExport() is the single choke point every export request funnels
                 // through (scheduleExport only enqueues), so recording here covers all of them.
                 BackupOutcomeStore.recordExportOutcome(context, result)
             }
@@ -96,8 +96,8 @@ class PlaylistExportManager(
     private suspend fun writeExport(): Unit = withContext(Dispatchers.IO) {
         val treeUri = preferences.backupFolderUri?.let { it.toUri() } ?: return@withContext
 
-        // The database materialization is a finite tracked operation; SAF writing afterwards
-        // no longer keeps Room alive during restore preparation.
+        // The database materialization is a finite tracked operation; SAF writing happens
+        // afterwards, so it does not keep Room alive during restore preparation.
         val export = materializeExport()
         val bytes = json.encodeToString(PlaylistExport.serializer(), export).toByteArray()
 
@@ -131,7 +131,7 @@ class PlaylistExportManager(
             ?: error("Could not open playlist export temp file for writing")
 
         // Rotate existing generations up (oldest pruned, the rest shifted by one, current
-        // moved to generation .1) BEFORE promoting the new write. This is the fix for the old
+        // moved to generation .1) BEFORE promoting the new write. This ordering avoids a
         // both-copies-missing race: the previous "current" file is only ever renamed here,
         // never deleted, ahead of the promotion below — so even if the final rename fails,
         // generation .1 still holds the previous good export. The only unconditional deletion

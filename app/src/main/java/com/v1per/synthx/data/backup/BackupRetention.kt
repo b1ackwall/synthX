@@ -58,7 +58,7 @@ internal data class PairDeletionResult(
 }
 
 /**
- * R8-A12: [BackupRetention.prune]'s accounting of what actually happened, so a caller can tell
+ * [BackupRetention.prune]'s accounting of what actually happened, so a caller can tell
  * "nothing needed pruning," "pruned cleanly," and "pruning attempted but some pair failed" apart
  * — the same three-way distinction [VerificationAttemptOutcome.skippedNoEligibleBackup] draws for
  * verification, applied here to retention.

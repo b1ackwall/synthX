@@ -16,7 +16,7 @@ import com.v1per.synthx.preferences.PendingCleanupReconciliationTracker
 private const val TAG = "PendingCleanupRecon"
 
 /**
- * Startup reconciliation for [PendingCleanupEntity] (P3-T1) — consumes every record left behind
+ * Startup reconciliation for [PendingCleanupEntity] — consumes every record left behind
  * by a destructive operation (delete/replace/graduate) interrupted between its DB commit and its
  * physical completion, most notably a process death.
  *
