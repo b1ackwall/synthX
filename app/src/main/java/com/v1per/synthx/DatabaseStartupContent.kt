@@ -36,10 +36,10 @@ import java.util.UUID
 
 /**
  * Shown when the database gate fails for any reason other than a failed post-migration check.
- * P9-T5: the generic branch can genuinely fire on a first run (Room creating a brand-new
+ * The generic branch can genuinely fire on a first run (Room creating a brand-new
  * database, the pending-cleanup reconcile, disk full), so its copy must not mention
  * restoring, upgrading or migrating — none of which has happened. The newer-database branch
- * cannot occur on a first run (there is no existing database to be newer) and is unchanged.
+ * cannot occur on a first run (there is no existing database to be newer).
  */
 @Composable
 internal fun DatabaseStartupFailureContent(
@@ -69,8 +69,8 @@ internal fun DatabaseStartupFailureContent(
 }
 
 /**
- * Shown when a migration ran but failed [com.v1per.synthx.data.backup.MigrationInvariantCheck]
- * (N6 + P2.3's locked recovery-offer decision). Unlike [DatabaseStartupFailureContent]'s bare
+ * Shown when a migration ran but failed [com.v1per.synthx.data.backup.MigrationInvariantCheck].
+ * Unlike [DatabaseStartupFailureContent]'s bare
  * Retry — which would just re-hit the same pending-recovery flag forever, see
  * [DatabaseStartupController.hasPendingMigrationRecovery] — this offers the one action that can
  * actually resolve it: restoring the internal pre-migration snapshot taken just before the
@@ -80,7 +80,7 @@ internal fun DatabaseStartupFailureContent(
 internal fun MigrationRecoveryContent(
     applicationContext: android.content.Context,
     /**
-     * P9-T5: false when [MigrationSnapshotStore.snapshotForCurrentVersion] found nothing to
+     * False when [MigrationSnapshotStore.snapshotForCurrentVersion] found nothing to
      * restore. Offering "Restore and restart" then could only fail with "No internal
      * pre-migration snapshot is available to restore", so that state shows an honest
      * unavailable message with no restore action instead.
@@ -124,7 +124,7 @@ internal fun MigrationRecoveryContent(
                     onClick = {
                         isRestoring = true
                         scope.launch(Dispatchers.IO) {
-                            // P3-T3 / R1-F09: restoreFromInternalSnapshot's success path already
+                            // restoreFromInternalSnapshot's success path already
                             // clears migrationInvariantFailurePending via a blocking commit()
                             // (and clears the file-based validation marker with its own fsync)
                             // before returning — that synchronous commit()/fsync completion is

@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * P3-T1: how many leftover [com.v1per.synthx.data.db.PendingCleanupEntity] records the most
+ * How many leftover [com.v1per.synthx.data.db.PendingCleanupEntity] records the most
  * recent startup reconciliation pass resolved — surfaced on the Issues screen so a process death
  * mid-delete/replace/graduate leaves visible evidence instead of silently fixing itself. Same
  * persisted-StateFlow-from-a-singleton shape as [DestructiveActionTracker].

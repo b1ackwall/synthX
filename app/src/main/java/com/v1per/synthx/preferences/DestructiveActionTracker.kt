@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * P3.3: counts delete-song/delete-playlist/replace-song mutations — the mutations this codebase
+ * Counts delete-song/delete-playlist/replace-song mutations — the mutations this codebase
  * already treats as destructive enough to back up before performing (see BackupReason.DELETE_SONG
  * / DELETE_PLAYLIST / REPLACE_SONG) — since the last successful backup of any tier. A replace
  * counts once, for the complete delete it ends in. Read directly by

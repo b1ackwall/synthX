@@ -118,7 +118,7 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_LAST_VERIFICATION_ATTEMPT_FAILURE_MESSAGE, null)
         set(value) = prefs.edit { putString(KEY_LAST_VERIFICATION_ATTEMPT_FAILURE_MESSAGE, value) }
 
-    /** R8-A11/P7-T5: true when the last verification found no restore-eligible backup to check
+    /** True when the last verification found no restore-eligible backup to check
      *  at all — distinct from an actual pass/fail, see [lastVerificationAttemptSucceeded]. */
     var lastVerificationAttemptSkippedNoEligibleBackup: Boolean
         get() = prefs.getBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SKIPPED_NO_ELIGIBLE_BACKUP, false)
@@ -126,7 +126,7 @@ class PreferencesManager(context: Context) {
             putBoolean(KEY_LAST_VERIFICATION_ATTEMPT_SKIPPED_NO_ELIGIBLE_BACKUP, value)
         }
 
-    /** R8-A12/P7-T6: epoch millis of the last retention pass of any tier. 0 means none yet. */
+    /** Epoch millis of the last retention pass of any tier. 0 means none yet. */
     var lastRetentionAttemptTimestamp: Long
         get() = prefs.getLong(KEY_LAST_RETENTION_ATTEMPT_TIMESTAMP, 0L)
         set(value) = prefs.edit { putLong(KEY_LAST_RETENTION_ATTEMPT_TIMESTAMP, value) }
@@ -153,14 +153,14 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_LAST_RETENTION_ATTEMPT_FAILED_NAMES, null)
         set(value) = prefs.edit { putString(KEY_LAST_RETENTION_ATTEMPT_FAILED_NAMES, value) }
 
-    // --------------------------------------------------------------- destructive-action counter (P3.3)
+    // --------------------------------------------------------------- destructive-action counter
 
     /** Delete-song/delete-playlist mutations since the last successful backup of any tier. */
     var destructiveActionsSinceBackup: Int
         get() = prefs.getInt(KEY_DESTRUCTIVE_ACTIONS_SINCE_BACKUP, 0)
         set(value) = prefs.edit { putInt(KEY_DESTRUCTIVE_ACTIONS_SINCE_BACKUP, value) }
 
-    // -------------------------------------------- pending-cleanup reconciliation (P3-T1)
+    // -------------------------------------------- pending-cleanup reconciliation
 
     /** Count of leftover [com.v1per.synthx.data.db.PendingCleanupEntity] records the most recent
      *  startup reconciliation pass resolved. 0 means none were found. */
@@ -195,7 +195,7 @@ class PreferencesManager(context: Context) {
      * what the live database's own `user_version` reports (it may already read as "current" —
      * the migration ran, it just failed validation).
      *
-     * Read-only here by design (P3-T3 / R1-F08/F09): both writers of this flag
+     * Read-only here by design: both writers of this flag
      * ([com.v1per.synthx.data.backup.DatabaseStartupGate] on failure,
      * [com.v1per.synthx.data.backup.MigrationRecoveryAction] on recovery) are safety-critical —
      * a process death between an async `apply()` returning and the write actually landing can
@@ -278,14 +278,14 @@ class PreferencesManager(context: Context) {
         return prefs.edit().putBoolean(KEY_RESTORE_OUTCOME_ACKNOWLEDGED, true).commit()
     }
 
-    // --------------------------------------------------------- onboarding/recovery completion (P7-T2)
+    // --------------------------------------------------------- onboarding/recovery completion
 
     /**
      * True only once onboarding has genuinely finished — a fresh-install Done (which starts the
      * first scan; see [firstScanRequestId] for why the wizard still owns the cold start until that
-     * scan is accepted), or (R7-F02) a recovery restore reaching genuine terminal success. Deliberately NOT derived
+     * scan is accepted), or a recovery restore reaching genuine terminal success. Deliberately NOT derived
      * from [musicFolderUri] != null: recovery's first step sets that long before its restore
-     * actually succeeds, which is exactly the bug this flag exists to fix. Read-only here by
+     * actually succeeds, which is exactly why this flag exists. Read-only here by
      * design, same reasoning as [migrationInvariantFailurePending]: the sole writer is
      * [setOnboardingCompleteDurably], which blocks on `commit()` since this flag gates
      * MainActivity's cold-start destination choice — a lost `apply()` write would silently
@@ -312,7 +312,7 @@ class PreferencesManager(context: Context) {
     /**
      * Name of the wizard's current [com.v1per.synthx.ui.screens.onboarding.OnboardingStep],
      * persisted so process death or a swipe-away mid-recovery resumes at the correct step
-     * instead of silently restarting at Choice (R7-F13). Null once onboarding is complete or
+     * instead of silently restarting at Choice. Null once onboarding is complete or
      * has never been started. Read-only here, same reasoning as [onboardingComplete] — the sole
      * writer is [setOnboardingProgressDurably].
      */
@@ -323,7 +323,7 @@ class PreferencesManager(context: Context) {
     val onboardingReturningFromRecovery: Boolean
         get() = prefs.getBoolean(KEY_ONBOARDING_RETURNING_FROM_RECOVERY, false)
 
-    // ------------------------------------------------- notification permission (P9-T5)
+    // ------------------------------------------------- notification permission
 
     /**
      * True once synthX has put its notification rationale (and the system permission prompt behind
@@ -342,7 +342,7 @@ class PreferencesManager(context: Context) {
     fun markNotificationPermissionAskedDurably(): Boolean =
         prefs.edit().putBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, true).commit()
 
-    // ------------------------------------------------- first-scan tracking (P9-T1)
+    // ------------------------------------------------- first-scan tracking
 
     /**
      * WorkManager UUID of the fresh-install first scan the wizard's ScanningStep is observing.

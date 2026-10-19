@@ -38,10 +38,10 @@ import kotlinx.coroutines.withContext
  * The real decision [MainActivity.runLaunchMaintenance] gates on — factored to file scope
  * (rather than inlined) purely so an instrumented test can exercise the actual condition
  * without needing to launch the full Activity. See [MainActivity.runLaunchMaintenance]'s kdoc
- * for why it exists (P7-T3 / R7-F03).
+ * for why it exists.
  */
 internal fun shouldRunLaunchMaintenance(preferences: PreferencesManager): Boolean =
-    // P9-T1: also held off while the wizard's first scan is still pending. onboardingComplete flips
+    // Also held off while the wizard's first scan is still pending. onboardingComplete flips
     // true when that scan starts, so without this a process-death resume into ScanningStep would
     // run the daily backup and the launch scan chain against a library mid-first-scan — the same
     // class of race the gate exists to prevent for recovery.
@@ -50,7 +50,7 @@ internal fun shouldRunLaunchMaintenance(preferences: PreferencesManager): Boolea
 /**
  * Cold-start destination decision, factored to file scope for the same reason as
  * [shouldRunLaunchMaintenance]. The wizard is shown until onboarding is complete *and* no
- * first-scan request is still pending (P9-T1): Done marks onboarding complete at the moment it
+ * first-scan request is still pending: Done marks onboarding complete at the moment it
  * starts the scan, so completion alone would send a process-death resume mid-scan to an empty
  * Home instead of back to ScanningStep. The id is cleared only when the scan is accepted
  * (success) or abandoned (Change folder).
@@ -59,7 +59,7 @@ internal fun shouldShowOnboarding(preferences: PreferencesManager): Boolean =
     !preferences.onboardingComplete || preferences.firstScanRequestId != null
 
 /**
- * P9-T5: the one question [MigrationRecoveryContent] hinges on — is there an internal pre-migration
+ * The one question [MigrationRecoveryContent] hinges on — is there an internal pre-migration
  * snapshot for this build that "Restore and restart" could actually restore? Factored to file
  * scope, like [shouldShowOnboarding], so a test can exercise the real decision.
  */
@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
         databaseStartupAttemptRunning = true
         lifecycleScope.launch {
             val startupFailure = runCatching { DatabaseStartupGate.awaitReady() }.exceptionOrNull()
-            // P9-T5: whether "Restore and restart" can actually do anything is decided here, once
+            // Whether "Restore and restart" can actually do anything is decided here, once
             // per attempt, on IO (a prefs read plus a file check) rather than during composition.
             // Retry re-enters this function, so a changed answer is picked up on the next attempt.
             val migrationSnapshotAvailable = startupFailure is MigrationInvariantFailedException &&
@@ -111,9 +111,9 @@ class MainActivity : ComponentActivity() {
             // Synchronous SharedPreferences read, not a Room/DAO read — safe ahead of the
             // database gate resolving. Onboarding shows for a genuine fresh install, a
             // post-uninstall reinstall, or cleared app data alike: all three collapse to this
-            // one condition. Gated on the explicit completion flag (P7-T2), not merely
+            // one condition. Gated on the explicit completion flag, not merely
             // musicFolderUri == null — recovery's first step sets that folder long before its
-            // restore actually succeeds (R7-F02), and a stale-but-incomplete recovery must still
+            // restore actually succeeds, and a stale-but-incomplete recovery must still
             // resume the wizard rather than bounce straight to an empty Home.
             val startDestination = if (shouldShowOnboarding(PreferencesManager(applicationContext))) {
                 Screen.Onboarding.route
@@ -169,7 +169,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * The foregrounding counterpart of [onStop] above, and the general-purpose recovery hook
-     * P4-T2 needed: re-syncs the playback engine's cache against the current database state,
+     * for the playback cache: re-syncs the playback engine's cache against the current database state,
      * covering a missed/interrupted emission (a worker interrupted after its DB commit but
      * before it finished emitting a remap/deletion notice) that no live collector ever saw.
      * A cold-start `onStart` normally arrives while [resolveDatabaseStartup]'s asynchronous
@@ -208,9 +208,9 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Runs only after C1 has granted process-wide Room permission.
+     * Runs only after DatabaseStartupGate has granted process-wide Room permission.
      *
-     * P7-T3 / R7-F03: also gated on [PreferencesManager.onboardingComplete]. Recovery's own
+     * Also gated on [PreferencesManager.onboardingComplete]. Recovery's own
      * steps persist a music folder (and sometimes a backup folder) long before a restore
      * actually succeeds — without this gate, an interrupted recovery relaunching straight back
      * into the wizard (see [resolveDatabaseStartup]) would still race this function's daily
@@ -233,7 +233,7 @@ class MainActivity : ComponentActivity() {
         // MediaController binding it starts) belongs there, unlike the call below.
         val playback = playbackViewModel
 
-        // P7.2: purely informational, never blocks — see BackupFolderLaunchCheck's kdoc for
+        // Purely informational, never blocks — see BackupFolderLaunchCheck's kdoc for
         // why this can't reuse DatabaseStartupGate, and how it stays a once-per-process check
         // across Activity recreation despite this function re-running on every one of those.
         BackupFolderLaunchCheck.runOnce(applicationContext, lifecycleScope)
@@ -257,7 +257,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * B1/B3: consumes [PreferencesManager.artSweepPending] — set by RestoreTransaction on the
+     * Consumes [PreferencesManager.artSweepPending] — set by RestoreTransaction on the
      * cold boot right after a successful restore — and, if it was set, runs [ArtRecovery]'s
      * full-library sweep silently in the background. Cleared before the sweep runs (not after)
      * so a process death mid-sweep can't re-trigger it forever; a missed sweep is not silent
@@ -336,7 +336,7 @@ class MainActivity : ComponentActivity() {
             .onSuccess { preferences.lastDailyBackupTimestamp = now }
             .onFailure { e -> Log.w(TAG, "Daily backup skipped: ${e.message}") }
 
-        // P3.2: piggybacks on this same once-per-day gate rather than a second, uncoordinated
+        // Piggybacks on this same once-per-day gate rather than a second, uncoordinated
         // timer — re-validates the most recent successful backup file itself (not just today's
         // write), catching corruption a healthy write at the time wouldn't have caught.
         backupManager.verifyMostRecentBackup()
