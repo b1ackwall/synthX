@@ -173,7 +173,9 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
-        // Raw artwork swatches only. Existing rows stay NULL until the Issues palette fix runs.
+        // Raw artwork swatches only. Nothing in the app writes or uses these columns (palette
+        // feature retired; see SongEntity's TODO(schema)): rows stay NULL unless an older build
+        // filled them, and those values are kept but unused.
         val MIGRATION_12_13 = object : Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(

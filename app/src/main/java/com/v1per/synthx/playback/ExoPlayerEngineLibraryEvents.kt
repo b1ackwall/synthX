@@ -4,7 +4,7 @@ import com.v1per.synthx.data.SongRemap
 
 // ExoPlayerEngine's reactions to the library changing under a live queue.
 
-/** The remap-collector body, split out so it can be wrapped in a try/catch above. */
+/** The remap-collector body, split out so ExoPlayerEngine's init can run it inside collectCatching. */
 internal fun ExoPlayerEngine.handleRemap(remap: SongRemap) {
     val affectedSlotIds = songsBySlotId
         .filterValues { it.id == remap.oldId }
@@ -19,7 +19,7 @@ internal fun ExoPlayerEngine.handleRemap(remap: SongRemap) {
     val ctrl = controller
     affectedSlotIds.forEach { slotId ->
         // A null index simply means that slot is not in the loaded window —
-        // an ordinary answer now, not a drift signal. Its refreshed Song is
+        // an ordinary answer, not a drift signal. Its refreshed Song is
         // already in songsBySlotId, so it comes back correct whenever the
         // window next reaches it.
         val index = ctrl?.let { indexOfMediaId(it, slotId) } ?: return@forEach
@@ -114,7 +114,7 @@ internal fun ExoPlayerEngine.removeDeletedSongInternal(songId: String) {
     maintainWindow(force = true)
     // onQueueReordered, not onQueueStructureChanged: this is a system-driven removal, not a hand
     // edit, so it must not flip _isQueueCustomized and trigger the Keep/Clear prompt for a user
-    // who never reordered anything — exactly the distinction that function was split out for.
+    // who never reordered anything — exactly the distinction that function exists for.
     onQueueReordered()
 }
 

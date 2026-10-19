@@ -89,9 +89,10 @@ interface PlaybackEngine {
     val hasPrevious: Flow<Boolean>
 
     /**
-     * True once the queue has been hand-modified since it was last set wholesale — today
-     * by playNext/addToQueue, tomorrow by reorder/remove. In-memory only: a restart or the
-     * next [playQueue] puts it back to false.
+     * True once the queue has been hand-modified since it was last set wholesale — by
+     * [playNext], [addToQueue], [moveQueueItem] or [removeQueueItem]; a shuffle toggle or a song
+     * deletion does not set it. In-memory only: a restart or the next [playQueue] puts it back
+     * to false.
      */
     val isQueueCustomized: Flow<Boolean>
 

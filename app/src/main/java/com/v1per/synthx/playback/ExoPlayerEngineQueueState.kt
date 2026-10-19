@@ -27,11 +27,12 @@ internal fun ExoPlayerEngine.onQueueStructureChanged(fresh: Boolean) {
 
 /**
  * Same refresh/persist/prefetch plumbing as [onQueueStructureChanged], for structural changes
- * that are not a user customisation — currently just a shuffle toggle. A system-driven reorder
- * must not touch [ExoPlayerEngine._isQueueCustomized] in either direction: forcing it true
- * wrongly triggers the Keep/Clear prompt on the next song tap for a user who never hand-reordered
- * anything, and forcing it false would just as wrongly erase a customisation that genuinely
- * happened earlier in the session.
+ * that are not a user customisation. Its only caller is the song-deletion path
+ * ([removeDeletedSongInternal]), which strips a deleted song's slots from the order store. A
+ * system-driven change must not touch [ExoPlayerEngine._isQueueCustomized] in either direction:
+ * forcing it true wrongly triggers the Keep/Clear prompt on the next song tap for a user who
+ * never hand-edited anything, and forcing it false would just as wrongly erase a customisation
+ * that genuinely happened earlier in the session.
  */
 internal fun ExoPlayerEngine.onQueueReordered() {
     refreshQueue()
@@ -192,9 +193,9 @@ internal fun ExoPlayerEngine.refreshCurrentIndex() {
  * Rebuilds `upcomingQueue` — everything after the current slot in the full order, hydrated for
  * the Up Next list. Deliberately the whole remainder, not the loaded window: the store is the
  * source of truth, so the user keeps seeing and scrolling the real queue while the player holds
- * only a slice of it. This is also why the display indices the UI hands back
- * (`moveQueueItem`/`seekToQueueItem`) are order-store offsets now and need no translation into
- * timeline positions.
+ * only a slice of it. This is also why the one display index the UI hands back
+ * (`moveQueueItem`'s `toIndex`; everything else is a slot id) is an order-store offset and needs
+ * no translation into timeline positions.
  */
 internal fun ExoPlayerEngine.refreshUpcomingQueue() {
     _upcomingQueue.value = hydrate(orderStore.upcomingFrom(_currentSlotId.value))

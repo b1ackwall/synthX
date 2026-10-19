@@ -16,10 +16,10 @@ import java.io.ByteArrayOutputStream
  * MediaItems in place. Only the metadata differs (same mediaId, same URI), so media3
  * updates the item without interrupting playback.
  *
- * Already window-safe with no changes: it only ever addresses `currentMediaItemIndex` and
- * `nextMediaItemIndex`, both of which are positions in the loaded window by definition, and
- * the window always keeps the current item plus lookahead. `maintainWindow` calls this after
- * reconciling so a newly loaded next item picks its artwork up.
+ * Window-safe: it only ever addresses `currentMediaItemIndex` and `nextMediaItemIndex`, both of
+ * which are positions in the loaded window by definition, and the window always keeps the
+ * current item plus lookahead. `maintainWindow` deliberately does not call this; its call sites
+ * do, right after it reconciles, so a newly loaded next item picks its artwork up.
  */
 internal fun ExoPlayerEngine.prefetchArtwork() {
     val ctrl = controller ?: return
