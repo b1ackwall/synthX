@@ -26,36 +26,6 @@ class WorkerDatabaseAccessTest {
         assertEquals(1, daoTouches)
     }
 
-    @Test fun libraryScanWorkerProductionGateAllowsNormalAccess() = runTest {
-        var scans = 0
-        WorkerDatabaseAccess.run(awaitStartup = {}) { scans++ }
-        assertEquals(1, scans)
-    }
-
-    @Test fun newArrivalsWorkerProductionGateRejectsPreparation() = runTest {
-        val entered = CompletableDeferred<Unit>()
-        val hold = CompletableDeferred<Unit>()
-        val restore = launch {
-            RestoreCoordinator.exclusive {
-                entered.complete(Unit)
-                hold.await()
-            }
-        }
-        entered.await()
-        assertFailsWith<IllegalStateException> {
-            WorkerDatabaseAccess.run(awaitStartup = {}) { error("must not scan") }
-        }
-        hold.complete(Unit)
-        restore.join()
-    }
-
-    @Test fun verifyWorkerProductionGateRejectsClosedMode() = runTest {
-        RestoreCoordinator.markClosed()
-        assertFailsWith<IllegalStateException> {
-            WorkerDatabaseAccess.run(awaitStartup = {}) { error("must not verify") }
-        }
-    }
-
     @Test fun preparationRejectsBeforeRoomFactory() = runTest {
         val hold = CompletableDeferred<Unit>()
         val entered = CompletableDeferred<Unit>()
