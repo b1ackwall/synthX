@@ -74,7 +74,7 @@ internal object ArtRecovery {
      * than calling the per-song helpers, which would cost a full directory listing per song
      * (see [artFilePresence]'s kdoc). Every caller of this overload — the Issues scan worker,
      * the Issues screen's Fix action and the post-restore sweep, all of which reach it through
-     * [recover] or `SongRepositoryImpl.findMissingArtSongIds` — gets that for free; there is
+     * [recover] or `SongRepositoryImpl.findMissingArtSongIdsAlreadyAdmitted` — gets that for free; there is
      * nothing per-call-site to change.
      */
     fun findMissingArt(context: Context, songs: List<SongEntity>): List<SongEntity> {

@@ -262,7 +262,7 @@ class SongRepositoryImpl(
 
     override fun getMissingSongCount(): Flow<Int> = RepositoryDbFlow.observe { songDao.getMissingSongCount() }
 
-    /** [findMissingArtSongIds] for callers already holding admission — see [verifyLibrary] for
+    /** Ids of songs missing art, for callers already holding admission — see [verifyLibrary] for
      *  the same split, used by the workers that go through [WorkerDatabaseAccess]. */
     internal suspend fun findMissingArtSongIdsAlreadyAdmitted(): List<String> =
         ArtRecovery.findMissingArt(context, songDao.getAllSongsOnce()).map { it.id }
