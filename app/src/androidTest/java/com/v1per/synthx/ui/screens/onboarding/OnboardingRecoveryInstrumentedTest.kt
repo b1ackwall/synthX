@@ -1330,7 +1330,7 @@ class OnboardingRecoveryInstrumentedTest {
      * [gating] lets [mutationTestLegacyGatingConditionWouldHaveShownHomeInstead] substitute the
      * older condition without needing to edit MainActivity.kt itself.
      */
-    private fun relaunchWizardAfterSimulatedProcessDeath(gating: () -> String = ::gatingStartDestination) {
+    private fun relaunchWizardAfterSimulatedProcessDeath() {
         val repository = Proxy.newProxyInstance(
             SongRepository::class.java.classLoader,
             arrayOf(SongRepository::class.java),
@@ -1356,7 +1356,7 @@ class OnboardingRecoveryInstrumentedTest {
             listOf(library, backups, restore, onboarding).forEach { store.put(it.javaClass.name, it) }
         }
         val factory = wizardFactory(library, backups, restore, onboarding)
-        val startDestination = gating()
+        val startDestination = gatingStartDestination()
         composeRule.runOnUiThread {
             composeRule.activity.setContent { WizardContent(factory, startDestination) }
         }
