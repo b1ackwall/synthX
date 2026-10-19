@@ -79,7 +79,8 @@ internal fun RestoreTerminalSurface(
 ) {
     val message = when (restoreTerminal) {
         RestoreCoordinator.Terminal.RESTART_REQUIRED -> "Restore complete. Close and reopen synthX to continue."
-        RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED -> "Restore was rolled back safely. Close and reopen synthX to continue."
+        RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED ->
+            "Restore was rolled back safely. Close and reopen synthX to continue."
         RestoreCoordinator.Terminal.EMERGENCY ->
             "Automatic database recovery could not validate a usable database.\n\n" +
                 "Normal app use is disabled to protect your data.\n\n" +

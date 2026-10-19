@@ -60,7 +60,11 @@ class PlaylistArtBenchmarkInstrumentedTest {
         report("build (walk + brushes/paths/offsets)", build)
         Log.i(TAG, "build minus walk (what a pattern-only cache cannot remove): median %.1f us".format(median(build) - median(walk)))
         val lit = seeds.take(SAMPLES).map { generatePlaylistArt(it).litSegments.size }.sorted()
-        Log.i(TAG, "sample lit segments: median=${lit[lit.size / 2]} mean=%.1f (each lit segment costs one Brush + one draw op)".format(lit.average()))
+        Log.i(
+            TAG,
+            ("sample lit segments: median=${lit[lit.size / 2]} mean=%.1f " +
+                "(each lit segment costs one Brush + one draw op)").format(lit.average()),
+        )
         // What was timed is right: the model keeps exactly the walk's lit segments.
         for (i in 0 until SAMPLES) {
             val expected = generatePlaylistArt(seeds[i]).litSegments.size
@@ -130,8 +134,12 @@ class PlaylistArtBenchmarkInstrumentedTest {
         // What a row scrolling back into view pays: before = build the model, then draw it cold;
         // after = a cache lookup, then draw it warm.
         val build = median(timeEach { playlistArtRenderModel(hues[it], seeds[it] + 5, sizePx) })
-        Log.i(TAG, "row entry, before (build %.0f + cold record %.0f) = %.0f us; after, cache hit (lookup + warm record) = %.0f us".format(
-            build, median(coldRecord), build + median(coldRecord), median(newRecord)))
+        Log.i(
+            TAG,
+            ("row entry, before (build %.0f + cold record %.0f) = %.0f us; " +
+                "after, cache hit (lookup + warm record) = %.0f us").format(
+                build, median(coldRecord), build + median(coldRecord), median(newRecord)),
+        )
     }
 
     @Test fun cacheMissOverheadVersusBareBuild() {

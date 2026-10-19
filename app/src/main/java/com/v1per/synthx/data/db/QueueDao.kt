@@ -178,6 +178,7 @@ interface QueueDao {
      * atomically-written trio. Used by the live-reconnect adoption path.
      */
     @Transaction
-    suspend fun getFullQueueSnapshot(): Triple<List<QueueItemEntity>, List<BaselineQueueItemEntity>, PlaybackCursorEntity?> =
+    suspend fun getFullQueueSnapshot():
+        Triple<List<QueueItemEntity>, List<BaselineQueueItemEntity>, PlaybackCursorEntity?> =
         Triple(getQueueItems(), getBaselineQueueItems(), getCursor())
 }
