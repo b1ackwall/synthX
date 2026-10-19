@@ -27,7 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Real-screen companion of PlaylistRowMenuInstrumentedTest: the playlist row's menu at its three
+ * The playlist row's menu at its three
  * real call sites (Search, Group detail, the Playlists list) inside the real shell, over uniquely
  * named rows seeded into the live debug database and removed afterwards.
  */

@@ -24,7 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Real-screen companion of RemoveFromPlaylistDialogInstrumentedTest: the dialog as the real
+ * The remove-from-playlist dialog as the real
  * SongActionsHost shows it from a Playlist detail screen in the real shell, removing through the
  * real ViewModel and repository. Seeds one song in one playlist in the live debug database.
  */
