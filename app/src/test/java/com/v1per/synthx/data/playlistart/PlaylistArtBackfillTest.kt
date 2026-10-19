@@ -6,6 +6,7 @@ import com.v1per.synthx.data.db.PlaylistGroupEntity
 import com.v1per.synthx.data.db.PlaylistSongEntity
 import com.v1per.synthx.data.repository.PlaylistMembership
 import com.v1per.synthx.ui.testing.TestTimeouts
+import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -70,7 +71,7 @@ class PlaylistArtBackfillTest {
         assertTrue(assigned.none { it in existing }, "Reused an in-use hue: $assigned")
         assertEquals(3, assigned.toSet().size, "Backfilled hues repeated each other: $assigned")
         assertTrue(
-            assigned.all { hue -> existing.minOf { circularHueDistance(hue, it) } > 20 },
+            assigned.all { hue -> existing.minOf { circularDistanceDegrees(hue, it) } > 20 },
             "Backfilled hues should sit clear of the crowded 0..12 block: $assigned",
         )
     }
@@ -126,6 +127,12 @@ class PlaylistArtBackfillTest {
         assertEquals(1, passA.await())
         assertEquals(0, passB.await())
         assertEquals(listOf("A:start", "B:start"), order)
+    }
+
+    /** Shortest distance between two hues on the 360-degree wheel, in raw HSL degrees. */
+    private fun circularDistanceDegrees(a: Int, b: Int): Int {
+        val d = abs(normalizeArtHue(a) - normalizeArtHue(b))
+        return minOf(d, 360 - d)
     }
 
     private data class ArtWrite(val id: String, val hue: Int, val seed: Long)
