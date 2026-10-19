@@ -335,15 +335,6 @@ class DatabaseStartupProductionOrderingTest {
         assertFalse(sources.contains("KEY_LAST_KNOWN_DB_VERSION"))
     }
 
-    private fun productionFile(relative: String): File {
-        val candidates = listOf(
-            File("src/main/java", relative),
-            File("app/src/main/java", relative),
-        )
-        return candidates.firstOrNull(File::isFile)
-            ?: error("Could not locate production source $relative")
-    }
-
     private fun productionDirectory(relative: String): File {
         val candidates = listOf(
             File("src/main/java", relative),
