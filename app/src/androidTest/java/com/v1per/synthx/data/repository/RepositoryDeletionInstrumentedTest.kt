@@ -124,7 +124,7 @@ class RepositoryDeletionInstrumentedTest {
 
     @Test fun playlistDeletionCompletesThroughRealBackupDrain() = runBlocking {
         withTimeout(3_000) { repository.deletePlaylist("playlist") }
-        assertEquals(0, database.playlistDao().getPlaylistCount())
+        assertEquals(0, database.playlistDao().getAllPlaylists().first().size)
         assertTrue(database.playlistDao().getSongIdsForPlaylist("playlist").isEmpty())
         assertNotNull(database.songDao().getSongById("song"))
         assertTrue(File(context.filesDir, "art/art_song.jpg").exists())
@@ -138,7 +138,7 @@ class RepositoryDeletionInstrumentedTest {
         assertEquals(SongDeletionOutcome.CleanupUncertain, outcome)
         assertNull(database.songDao().getSongById("song"))
         assertTrue(database.playlistDao().getSongIdsForPlaylist("playlist").isEmpty())
-        assertEquals(1, database.playlistDao().getPlaylistCount())
+        assertEquals(1, database.playlistDao().getAllPlaylists().first().size)
         assertFalse(File(context.filesDir, "art/art_song.jpg").exists())
         assertBackupAttempt(BackupReason.DELETE_SONG)
         assertEquals(1, PreferencesManager(context).destructiveActionsSinceBackup)

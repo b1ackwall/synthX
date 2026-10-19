@@ -162,7 +162,6 @@ class PlaylistArtBackfillTest {
         override suspend fun deleteGroup(groupId: String) = unused()
         override suspend fun renameGroup(id: String, name: String) = unused()
         override fun getAllPlaylists(): Flow<List<PlaylistEntity>> = unused()
-        override suspend fun getPlaylistCount(): Int = unused()
         override fun getUngroupedPlaylists(): Flow<List<PlaylistEntity>> = unused()
         override fun getPlaylistsForGroup(groupId: String): Flow<List<PlaylistEntity>> = unused()
         override suspend fun insertPlaylist(playlist: PlaylistEntity) = unused()
