@@ -55,32 +55,6 @@ class PlaylistArtHueTest {
     // ------------------------------------------------------------------ distance
 
     @Test
-    fun `hue distance wraps around the wheel rather than running through it`() {
-        assertEquals(8, circularHueDistance(4, 356))
-        assertEquals(8, circularHueDistance(356, 4))
-        assertEquals(180, circularHueDistance(0, 180))
-        assertEquals(0, circularHueDistance(120, 120))
-    }
-
-    @Test
-    fun `hue distance is never negative, whatever range its inputs are in`() {
-        // (400, 4) must give 36, not the unwrapped min(396, 360 - 396) = -36.
-        assertEquals(36, circularHueDistance(400, 4))
-        assertEquals(8, circularHueDistance(-4, 4))
-        assertEquals(0, circularHueDistance(720, 0))
-        assertEquals(0, circularHueDistance(360, 0))
-        val rng = Random(5)
-        repeat(2_000) {
-            val a = rng.nextInt(-2_000, 2_000)
-            val b = rng.nextInt(-2_000, 2_000)
-            val d = circularHueDistance(a, b)
-            assertTrue(d in 0..180, "circularHueDistance($a, $b) = $d")
-            assertEquals(d, circularHueDistance(b, a))
-            assertEquals(d, circularHueDistance(normalizeArtHue(a), normalizeArtHue(b)))
-        }
-    }
-
-    @Test
     fun `normalising reduces any hue to 0 through 359`() {
         assertEquals(40, normalizeArtHue(400))
         assertEquals(350, normalizeArtHue(-10))

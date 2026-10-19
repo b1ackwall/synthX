@@ -1,6 +1,5 @@
 package com.v1per.synthx.data.playlistart
 
-import kotlin.math.abs
 import kotlin.random.Random
 
 /**
@@ -27,17 +26,6 @@ internal val PlaylistArtHues: List<Int> = listOf(
     216, 219, 222, 225, 228, 232, 237, 242, 247, 253, 258, 263, 269, 274, 280, 287, 293, 300, 307, 313,
     319, 324, 329, 333, 338, 342, 345, 349, 353, 356,
 )
-
-/**
- * Shortest distance between two hues on the 360-degree wheel, in raw HSL degrees. Inputs are
- * reduced to 0..359 first, so a value outside that range (restored or hand-edited data) is
- * measured as the hue it wraps to instead of producing a negative distance. Selection uses
- * [perceptualHueDistance] instead; this is the plain-degrees measure.
- */
-internal fun circularHueDistance(a: Int, b: Int): Int {
-    val d = abs(normalizeArtHue(a) - normalizeArtHue(b))
-    return minOf(d, 360 - d)
-}
 
 /**
  * Picks the hue for one new playlist: farthest-point spreading, so a library's covers fan out
