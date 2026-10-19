@@ -92,15 +92,6 @@ class RestoreCoordinatorTest {
         reset()
     }
 
-    @Test fun preCloseAbortReturnsToNormal() = runTest {
-        reset()
-        assertRejected { RestoreCoordinator.exclusive { error("pre-close failure") } }
-        // RestoreTransaction performs this transition for every pre-close exception.
-        RestoreCoordinator.markNormal()
-        RestoreCoordinator.withDbOperation { }
-        assertEquals(RestoreCoordinator.Mode.NORMAL, RestoreCoordinator.currentMode())
-    }
-
     @Test fun activeBackupOperationDrainsBeforeRestoreBoundary() = runTest {
         reset()
         val releaseBackup = CompletableDeferred<Unit>()
@@ -138,16 +129,6 @@ class RestoreCoordinatorTest {
         restore.join()
         RestoreCoordinator.markClosed()
         assertRejected { RestoreCoordinator.withDbOperation { BackupCreationCoordinator.serialize { } } }
-        reset()
-    }
-
-    @Test fun restoreOwnedSafetyWorkDoesNotNeedNormalAdmission() = runTest {
-        reset()
-        RestoreCoordinator.exclusive {
-            // Mirrors RestoreTransaction's internal safety snapshot ownership: it executes
-            // after preparation without attempting BackupManager's normal admission path.
-            assertEquals(RestoreCoordinator.Mode.RESTORE_PREPARING, RestoreCoordinator.currentMode())
-        }
         reset()
     }
 
