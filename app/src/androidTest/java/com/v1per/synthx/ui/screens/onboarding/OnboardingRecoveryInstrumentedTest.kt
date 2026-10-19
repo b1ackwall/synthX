@@ -1327,8 +1327,6 @@ class OnboardingRecoveryInstrumentedTest {
      * quartet, exactly as a real process recreation would produce) and recomposes onto the same
      * Activity with a brand new NavHostController and backstack, while [preferences]' backing
      * SharedPreferences file — the one thing that actually survives — is left untouched.
-     * [gating] lets [mutationTestLegacyGatingConditionWouldHaveShownHomeInstead] substitute the
-     * older condition without needing to edit MainActivity.kt itself.
      */
     private fun relaunchWizardAfterSimulatedProcessDeath() {
         val repository = Proxy.newProxyInstance(
