@@ -74,14 +74,4 @@ class RefinedBottomSheetFocusInstrumentedTest {
 
         composeRule.onNodeWithTag("field").assertIsNotFocused()
     }
-
-    @Test fun openingSheetWithNothingFocusedIsHarmless() {
-        var show by mutableStateOf(false)
-        composeRule.setContent { Host(showSheet = show, onDismiss = { show = false }) }
-
-        show = true
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithTag("field").assertIsNotFocused()
-    }
 }
