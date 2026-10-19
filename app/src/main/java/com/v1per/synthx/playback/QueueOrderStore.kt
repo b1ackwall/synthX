@@ -17,26 +17,24 @@ fun interface BaselineOrderWriter {
  * Owns the **full** intended play order — what "the queue" means everywhere in the app except
  * the live player itself.
  *
- * This is the inversion the windowed player is built on. Previously the ExoPlayer timeline was
- * the source of truth (`refreshQueue` read it back, and `queue_items` was a mirror written
- * *from* it), which forced every song in the queue to exist as a live `MediaItem`. Now this
- * store holds the order and the timeline holds a bounded window into it (see
- * `ExoPlayerEngineWindow.kt`); slot ids are what correlate the two, so an entry keeps its
- * identity whether or not it is currently loaded into the player.
+ * This is the inversion the windowed player is built on: this store, not the ExoPlayer timeline,
+ * is the source of truth, so not every song in the queue has to exist as a live `MediaItem`.
+ * The timeline holds a bounded window into this order (see `ExoPlayerEngineWindow.kt`); slot ids
+ * are what correlate the two, so an entry keeps its identity whether or not it is currently
+ * loaded into the player.
  *
- * Two orders are held, exactly as before:
+ * Two orders are held:
  *  - [live] — the order actually playing right now, shuffled or not.
  *  - [baseline] — the app-managed unshuffled sequence that survives shuffle toggles.
  *
  * Both are [QueueSlotRecord]s (slot id + song id), deliberately not `MediaItem`s and not full
- * `Song`s: 2000 records is ~150KB, which is why holding the whole order in memory was never the
- * problem — media3's per-item `Window`/`Period`/`MediaSourceHolder` objects were. Hydration to
- * real `Song`s for the UI happens in the engine, against its `songsBySlotId` cache.
+ * `Song`s: holding the whole order as records is cheap, while media3's per-item
+ * `Window`/`Period`/`MediaSourceHolder` objects are what get expensive. Hydration to real
+ * `Song`s for the UI happens in the engine, against its `songsBySlotId` cache.
  *
- * Absorbs the whole of the former `QueueBaselineManager` (every method below carrying a "was"
- * note maps 1:1 onto one of its methods) rather than sitting alongside it, so there is exactly
- * one source-of-truth concept and not two competing ones. Like that class, nothing here touches
- * a `MediaController` or the timeline — the engine applies whatever order this produces.
+ * Nothing here touches a `MediaController` or the timeline — the engine applies whatever order
+ * this produces.
+ * Former QueueBaselineManager names: weaveNext = insertAfterCurrent, weaveEnd = append, mirrorMove = mirrorMoveIntoBaseline, computeShuffleTarget = shuffle, computeUnshuffleTarget = unshuffle (the rest are unchanged).
  *
  * Main-thread-confined by the same convention as the engine's `songsBySlotId`: every caller is
  * either a playback mutation or a `Player.Listener` callback, and both run there.
@@ -63,7 +61,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
 
     /**
      * Everything after [currentSlotId] in [live] — the Up Next list, in full. Empty when the
-     * slot is unknown, which is the same "nothing to show" answer the old timeline walk gave.
+     * slot is unknown.
      */
     fun upcomingFrom(currentSlotId: String?): List<QueueSlotRecord> {
         val index = indexOfSlot(currentSlotId)
@@ -71,10 +69,10 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
-     * Was `captureFresh`: a fresh `playQueue` fully replaces both orders, never merges.
+     * A fresh `playQueue` fully replaces both orders, never merges.
      *
-     * [writeBaseline] defaults to true for every existing caller; pass false when the caller is
-     * about to persist baseline itself as part of a larger atomic write (P4-T6 / F11) — a fresh
+     * [writeBaseline] defaults to true; pass false when the caller is
+     * about to persist baseline itself as part of a larger atomic write — a fresh
      * play also writes active order/shuffle/cursor together, and letting this method's own
      * narrow baseline write land independently would reopen the exact torn-write window that
      * unification exists to close.
@@ -86,7 +84,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
-     * [captureFresh], except [liveOrder] and [baselineOrder] can differ — needed for F12: a
+     * [captureFresh], except [liveOrder] and [baselineOrder] can differ — needed because a
      * fresh play issued while shuffle is already on must actually shuffle the incoming order
      * rather than leaving the flag and the (unshuffled) order disagreeing. [baselineOrder] is
      * the queue exactly as handed in; [liveOrder] is that same set of records, reordered.
@@ -101,14 +99,14 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
         if (writeBaseline) persistBaseline()
     }
 
-    /** Was `restore`: both orders were already read from storage, so this just adopts them. */
+    /** Both orders were already read from storage, so this just adopts them. */
     fun restore(live: List<QueueSlotRecord>, baseline: List<QueueSlotRecord>) {
         this.live = live
         this.baseline = baseline
     }
 
     /**
-     * Was `weaveNext`: Play Next. Always inserted into [live] right after the current slot.
+     * Play Next. Always inserted into [live] right after the current slot.
      * [mirrorToBaseline] is "shuffle is off" — while shuffle is on baseline is left alone and
      * the slot is folded in later by [unshuffle], per the locked spec.
      */
@@ -128,7 +126,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
         }
     }
 
-    /** Was `weaveEnd`: Add to Queue — same permanence rule as [insertAfterCurrent], appended. */
+    /** Add to Queue — same permanence rule as [insertAfterCurrent], appended. */
     fun append(record: QueueSlotRecord, mirrorToBaseline: Boolean) {
         live = live + record
         if (mirrorToBaseline) {
@@ -141,10 +139,10 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
      * Drag-reorder. [fromDisplayIndex]/[toDisplayIndex] are positions in the Up Next list, i.e.
      * offsets after the current slot, resolved here against [live] — which is why this works for
      * a row nowhere near the loaded window: the store holds the whole order, so there is no
-     * "real timeline index" to translate into any more, and therefore no position outside the
+     * "real timeline index" to translate into, and therefore no position outside the
      * window that can silently fail to resolve.
      *
-     * Was `mirrorMove` for the baseline half: while shuffle is off the upcoming order is
+     * The baseline half: while shuffle is off the upcoming order is
      * baseline's tail, so the same display offset applies there too. While shuffle is on the
      * reorder is live-only and evaporates on the next unshuffle, per spec.
      */
@@ -165,7 +163,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
-     * Slot-id-identified counterpart of [moveUpcoming] (P4-T8 / R3-F04): [slotId] is resolved
+     * Slot-id-identified counterpart of [moveUpcoming]: [slotId] is resolved
      * against [live] fresh, right here, rather than trusting a caller-supplied
      * `fromDisplayIndex` — a raw display index captured by the UI at drag-start can be stale by
      * the time the command actually executes (an auto-advance, a deletion, or another reorder
@@ -178,7 +176,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
      * [toDisplayIndex] is still a plain positional target, not slot-identified: unlike the
      * *source* (identity is what makes this safe), the destination is inherently "drop it at
      * this position", which has no independent identity of its own to validate against — see
-     * the P4-T8 fix notes on [com.v1per.synthx.ui.components.QueueList] for the accepted
+     * the notes on [com.v1per.synthx.ui.components.QueueList] for the accepted
      * tradeoff this implies.
      */
     fun moveUpcoming(
@@ -218,7 +216,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
-     * Was `remove`: always permanent, regardless of shuffle state — removing a slot means
+     * Always permanent, regardless of shuffle state — removing a slot means
      * "do not play this occurrence again", not "hide it while shuffled", so the exact slot is
      * stripped from both orders. Returns false when nothing matched.
      */
@@ -235,7 +233,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
-     * Batch counterpart of [remove] (P4-T4 / R3-F15): removes every slot id in [slotIds] in a
+     * Batch counterpart of [remove]: removes every slot id in [slotIds] in a
      * single pass over [live]/[baseline] and, if baseline changed at all, exactly one
      * [persistBaseline] call — rather than the O(N) full-list copies and O(N) whole-baseline
      * rewrites that calling [remove] once per id produces for N occurrences of the same deleted
@@ -256,7 +254,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
-     * Was `remapSong`: a rescan can replace one content id while several independently keyed
+     * A rescan can replace one content id while several independently keyed
      * slots reference it. Every matching value is refreshed; no stable slot key changes.
      */
     fun remapSong(oldSongId: String, newSongId: String): Boolean {
@@ -274,8 +272,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
-     * Was `computeShuffleTarget`, except it now applies the result instead of handing a list
-     * back for the caller to push into the timeline: the current slot stays first, everything
+     * Applies the shuffle to [live] directly: the current slot stays first, everything
      * else in baseline (played or not) is reshuffled after it. Baseline itself is untouched.
      *
      * [shuffler] is injectable purely so tests can pin the permutation; production always uses
@@ -291,7 +288,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
-     * Was `computeUnshuffleTarget`: the current slot stays first, followed by whatever comes
+     * The current slot stays first, followed by whatever comes
      * after it in baseline — anything before it is dropped, permanently, from both the new order
      * and baseline itself (accepted, intentional behaviour, not a bug) — plus any slots added
      * via Play Next / Add to Queue during the shuffle-ON session just ending, appended in their
@@ -299,7 +296,7 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
      * The result becomes the new baseline as well as the new live order.
      *
      * [writeBaseline] — see [captureFresh]'s kdoc for why a caller doing its own unified atomic
-     * write (P4-T6 / F11) passes false here instead of letting this method's own narrow write
+     * write passes false here instead of letting this method's own narrow write
      * land independently.
      */
     fun unshuffle(currentSlotId: String?, writeBaseline: Boolean = true): Boolean {

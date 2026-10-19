@@ -1,8 +1,7 @@
 package com.v1per.synthx.playback
 
 /**
- * Pure backoff/attempt-limit arithmetic behind [ExoPlayerEngine]'s connection retry (P4-T3 /
- * R3-F09). Split out purely so the actual policy — not the `MediaController.Builder`/coroutine
+ * Pure backoff/attempt-limit arithmetic behind [ExoPlayerEngine]'s connection retry. Split out purely so the actual policy — not the `MediaController.Builder`/coroutine
  * plumbing around it — is unit-testable.
  */
 internal object ReconnectPolicy {

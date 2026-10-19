@@ -12,7 +12,7 @@ sealed class PlaybackError {
     /**
      * A request that needs the playback session could not reach it: the engine is between
      * connection attempts to [SynthXPlaybackService] and a queue insert can't wait, or a queue
-     * load waited out a whole round of attempts without one succeeding (issue #175).
+     * load waited out a whole round of attempts without one succeeding.
      */
     data object ServiceUnavailable : PlaybackError()
 }
@@ -37,7 +37,7 @@ interface PlaybackEngine {
     /**
      * True from the moment the queue runs out naturally (last song finished, nothing next) until
      * playback moves again. The current song stays published in that state — the player sits
-     * paused on the last track — so "there is a current song" no longer implies "there is a
+     * paused on the last track — so "there is a current song" does not imply "there is a
      * queue still worth prompting about or inserting into". Defaults to never-ended for
      * engines that have no such state.
      */
@@ -130,9 +130,8 @@ interface PlaybackEngine {
     /**
      * Suspend so implementations can order the reorder against the main thread rather than
      * assuming a caller's dispatcher — [ExoPlayerEngine] confines the whole operation to
-     * `Main.immediate`, since it is now a records-only list permutation plus a bounded window
-     * reconciliation. (It no longer builds a MediaItem per song, which is what originally
-     * forced this to be suspend.)
+     * `Main.immediate`, since it is a records-only list permutation plus a bounded window
+     * reconciliation.
      */
     suspend fun setShuffleEnabled(enabled: Boolean)
     fun setRepeatMode(mode: RepeatMode)
@@ -154,7 +153,7 @@ interface PlaybackEngine {
      * live order — and honoured whether or not either position is currently loaded into the
      * player, since both are resolved against the full order rather than a timeline index.
      *
-     * Identified by stable slot id (P4-T8 / R3-F04), like [removeQueueItem] — a position
+     * Identified by stable slot id, like [removeQueueItem] — a position
      * captured by the UI at drag-start can be invalidated by any queue mutation landing before
      * the move actually executes (auto-advance, a deletion, another reorder), and acting on a
      * stale one moves the wrong song. Implementations must resolve [slotId]'s position fresh, at
@@ -176,7 +175,7 @@ interface PlaybackEngine {
     /**
      * Jumps playback to the item identified by [slotId] in [upcomingQueue] and plays it.
      *
-     * Identified by stable slot id (P4-T8 / R3-F04), not a display index — the same
+     * Identified by stable slot id, not a display index — the same
      * argument [removeQueueItem]'s doc comment makes applies here just as much: a position
      * captured at tap time can name a different song by the time this actually executes.
      * Implementations must resolve [slotId] fresh, at call time, and reject the jump outright
@@ -191,7 +190,7 @@ interface PlaybackEngine {
     fun release()
 
     /**
-     * The `onStart`/`onResume` recovery pass (P4-T2): re-verifies the whole cache against the
+     * The `onStart`/`onResume` recovery pass: re-verifies the whole cache against the
      * database regardless of whether anything has actually been missed — the general-purpose
      * backstop for a missed/interrupted event emission that a revision comparison alone cannot
      * catch (see [com.v1per.synthx.data.PlaybackCacheRevision]'s kdoc).

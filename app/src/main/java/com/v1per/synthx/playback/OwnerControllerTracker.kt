@@ -2,7 +2,7 @@ package com.v1per.synthx.playback
 
 /**
  * Pure counting logic behind [SynthXPlaybackService]'s "stop when the last owning controller
- * disconnects" fix (P4-T3 / R3-F08). Split out from the `MediaSession.Callback` that drives it so
+ * disconnects" rule. Split out from the `MediaSession.Callback` that drives it so
  * the actual decision — not just the code that pattern-matches Media3 callback signatures — is
  * unit-testable without a real `MediaSession`/`ControllerInfo`.
  *

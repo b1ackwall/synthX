@@ -21,8 +21,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Everything the playback engine needs to survive a process death: the queue structure,
  * resume cursor (index/position), and shuffle/repeat mode, all together in Room — see
  * [saveQueueRecords] — so a restore's whole-database-file swap carries every one of them
- * atomically (see data 2.4; shuffle/repeat previously lived in SharedPreferences, which a
- * restore never touches).
+ * atomically (SharedPreferences would not do: a restore never touches them).
  *
  * Kept out of [ExoPlayerEngine] so the engine stays a media3 adapter rather than growing a
  * second job. Writes are fire-and-forget from the caller's perspective: the engine mutates
@@ -33,14 +32,14 @@ import java.util.concurrent.ConcurrentHashMap
  * dispatcher, not one confined thread. Out-of-order completion is normally invisible (the
  * next mutation re-persists the correct state anyway) but is wrong if the process dies in
  * the exact window between two writes landing out of order. [writeQueue] plus the single
- * consumer in [init] forces every write to execute strictly in call order instead.
+ * consumer started in the init block forces every write to execute strictly in call order instead.
  *
  * That ordering guarantee only holds within one instance, so [create] hands out a single
  * app-process singleton rather than letting each caller build its own — otherwise a
  * ViewModel-owned [ExoPlayerEngine] and, say, the playback service reacting to a lifecycle
  * event could each get their own [writeQueue]/writer pair with no ordering between the two,
- * and a stale write from one could silently overwrite a fresher write from the other (see
- * general 6.7). The plain constructor stays public for tests that deliberately want isolated,
+ * and a stale write from one could silently overwrite a fresher write from the other. The
+ * plain constructor stays public for tests that deliberately want isolated,
  * independently-draining instances.
  */
 class QueuePersistence(
@@ -196,7 +195,7 @@ class QueuePersistence(
 
     /**
      * The atomic write for a call site that changes more than one of {baseline order, active
-     * order, shuffle flag, repeat mode, cursor} at once (P4-T6 / F11) — a fresh play or a
+     * order, shuffle flag, repeat mode, cursor} at once — a fresh play or a
      * shuffle toggle. Goes through the same serialized [writeQueue] consumer as every other
      * write here, so it can never race or land out of order against them, and — being one
      * commit — can never itself be observed half-landed.
@@ -267,9 +266,9 @@ class QueuePersistence(
     }
 
     /**
-     * [loadQueue] plus [loadBaselineQueue], read together as one consistent snapshot (P4-T6) —
-     * closes the split-read window between the two separate suspending calls this replaces at
-     * the live-reconnect adoption call site (see [com.v1per.synthx.data.db.QueueDao.getFullQueueSnapshot]).
+     * [loadQueue] plus [loadBaselineQueue], read together as one consistent snapshot, so the
+     * live-reconnect adoption call site has no split-read window between two separate
+     * suspending calls (see [com.v1per.synthx.data.db.QueueDao.getFullQueueSnapshot]).
      */
     suspend fun loadQueueWithBaseline(): Pair<RestoredQueue?, List<QueueSlot>> {
         val (snapshot, baseline) = try {
@@ -332,7 +331,7 @@ class QueuePersistence(
 
     /**
      * Permanently stops admission on THIS instance. Not called on ordinary engine/ViewModel
-     * teardown any more — [create] hands out a shared app-process singleton now, so no single
+     * teardown — [create] hands out a shared app-process singleton, so no single
      * owner tearing down should close it out from under whichever other component still holds
      * a reference. Kept for tests that construct a [QueuePersistence] directly and want to
      * exercise the closed-admission path in isolation.
@@ -361,10 +360,9 @@ class QueuePersistence(
         // true app-process singleton so there is exactly one writeQueue/writer for the whole
         // process, regardless of which component (a ViewModel-owned engine, or the playback
         // service reacting to onTaskRemoved) asks for it. Without this, two independent
-        // instances could each accept writes with no ordering guarantee between them (see
-        // general 6.7): the service used to build its own ad-hoc instance in onTaskRemoved,
-        // which could race a still-draining write from the engine's own instance and silently
-        // lose the fresher state. Like SongRepositoryImpl's own singleton, this is not
+        // instances could each accept writes with no ordering guarantee between them: an
+        // ad-hoc instance in onTaskRemoved could race a still-draining write from the engine's
+        // own instance and silently lose the fresher state. Like SongRepositoryImpl's own singleton, this is not
         // invalidated on restore — restore's terminal mode already requires a process restart,
         // which is what rebuilds it.
         fun create(context: Context): QueuePersistence {

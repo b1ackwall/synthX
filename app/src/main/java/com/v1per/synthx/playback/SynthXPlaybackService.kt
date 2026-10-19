@@ -24,8 +24,8 @@ class SynthXPlaybackService : MediaLibraryService() {
     private lateinit var player: ExoPlayer
 
     // What the session actually drives: [player] wrapped so notification / headset / lock-screen
-    // Next and Previous follow the app's full-queue rules instead of media3's window-only ones
-    // (P9-T3). Everything in this service that inspects or stops playback still uses [player].
+    // Next and Previous follow the app's full-queue rules instead of media3's window-only ones.
+    // Everything in this service that inspects or stops playback still uses [player].
     private lateinit var sessionPlayer: SystemNavigationPlayer
     private lateinit var mediaLibrarySession: MediaLibrarySession
 
@@ -41,10 +41,10 @@ class SynthXPlaybackService : MediaLibraryService() {
     // media3's own media-notification controller. The notification controller is NOT
     // distinguishable by package: MediaNotificationManager builds it inside this service, so it
     // connects under this app's own package name and is told apart only by
-    // MediaSession.isMediaNotificationController. Counting it as an owner (as the original
-    // package-only filter did) kept the count above zero forever, so the stop below never fired.
-    // The one ExoPlayerEngine per app process is the only real "owner" this needs to track
-    // (P4-T3 / R3-F08): when it drops to zero after having been positive at least once, the only
+    // MediaSession.isMediaNotificationController. Counting it as an owner (as a package-only
+    // filter would) keeps the count above zero forever, so the stop below never fires.
+    // The one ExoPlayerEngine per app process is the only real "owner" this needs to track:
+    // when it drops to zero after having been positive at least once, the only
     // component that maintained the queue/window/event subscriptions is gone, and playback
     // should stop rather than run unmaintained — matching the existing onTaskRemoved precedent
     // below of stopping rather than continuing ownerless playback. The counting itself lives in
@@ -103,8 +103,8 @@ class SynthXPlaybackService : MediaLibraryService() {
                     if (!isOwner(session, controller)) return
                     if (ownerControllers.disconnected()) {
                         // No ExoPlayerEngine remains bound to this session — the only owner of
-                        // queue maintenance and the remap/deletion event subscriptions is gone
-                        // (P4-T3 / R3-F08). Stop rather than let a long queue keep running
+                        // queue maintenance and the remap/deletion event subscriptions is gone.
+                        // Stop rather than let a long queue keep running
                         // unmaintained until it hits the loaded window's edge.
                         Log.d(TAG, "Last owning controller disconnected; stopping playback")
                         player.stop()
@@ -141,12 +141,10 @@ class SynthXPlaybackService : MediaLibraryService() {
         Log.d(TAG, "onTaskRemoved")
         val index = player.currentMediaItemIndex
         if (index != C.INDEX_UNSET && player.mediaItemCount > 0) {
-            // Cursor only — deliberately NOT the queue structure. This used to iterate the
-            // live player's timeline and persist it as the saved queue, which was correct
-            // while the timeline held the whole queue. It no longer does: the timeline is a
-            // bounded window (see ExoPlayerEngineWindow.kt), so writing it here would replace
-            // a 2000-song saved queue with the ~51 songs that happened to be loaded — silent,
-            // permanent data loss on every swipe-from-Recents. The full order is already
+            // Cursor only — deliberately NOT the queue structure: the timeline is a bounded
+            // window (see ExoPlayerEngineWindow.kt), so writing it here would replace a long
+            // saved queue with the few songs that happened to be loaded — silent, permanent
+            // data loss on every swipe-from-Recents. The full order is already
             // persisted by the engine on every structural change (see persistQueue); the only
             // thing that can still be stale by now is where playback got to.
             //
@@ -154,7 +152,7 @@ class SynthXPlaybackService : MediaLibraryService() {
             // this is the SAME instance/writer any live ExoPlayerEngine already holds — not a
             // second, independently-ordered writer racing it. Without that, a still-draining
             // write from the engine's instance (e.g. a recent updateCursor) could land after
-            // this fresher save and silently overwrite it (see general 6.7).
+            // this fresher save and silently overwrite it.
             exitCheckpointPersistence().updateCursor(
                 currentSlotId = player.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() },
                 positionMs = resumePositionMs(player.playbackState, player.currentPosition),
@@ -166,9 +164,9 @@ class SynthXPlaybackService : MediaLibraryService() {
     }
 
     /**
-     * P4-T7 / R3-F13: a system-initiated destroy with no preceding [onTaskRemoved] (e.g. the
-     * service being stopped directly, without the task ever being swiped from Recents) was
-     * previously never checkpointed at all. Guarded on [released] rather than unconditional:
+     * Checkpoints a system-initiated destroy with no preceding [onTaskRemoved] (e.g. the
+     * service being stopped directly, without the task ever being swiped from Recents).
+     * Guarded on [released] rather than unconditional:
      * when [onTaskRemoved] already ran first, it already checkpointed via this same
      * cursor-only path, and the player has already been stopped/released — reading position off
      * it again here would be reading post-stop state, not a meaningful "where playback actually
@@ -227,7 +225,7 @@ internal fun isOwnerController(
 ): Boolean = packageName == ownPackage && !isNotificationController
 
 /**
- * The pure decision behind [SynthXPlaybackService.onDestroy]'s checkpoint (P4-T7 / R3-F13),
+ * The pure decision behind [SynthXPlaybackService.onDestroy]'s checkpoint,
  * split out so it is unit-testable without a real `Service`/`ExoPlayer` — matching the
  * `IdleRecoveryTest`/`playerErrorLogMessage` precedent for exactly this kind of extraction.
  * `released` covers the "did onTaskRemoved already checkpoint and tear the player down" case;

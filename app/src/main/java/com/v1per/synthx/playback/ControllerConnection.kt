@@ -18,15 +18,14 @@ internal enum class ConnectionPhase {
 }
 
 /**
- * The connection state machine behind [ExoPlayerEngine]'s session (re)connection (issue #175).
+ * The connection state machine behind [ExoPlayerEngine]'s session (re)connection.
  * Split out, like [ReconnectPolicy], so the rules themselves are unit-testable without a real
  * `MediaController`; the engine keeps only the future/coroutine plumbing around it.
  *
- * Replaces the one-shot `controllerReady` deferred, which resolved on the FIRST attempt only: a
- * request arriving after a failed first attempt saw "resolved, no controller" and was silently
- * dropped even though a retry was about to succeed, and a request arriving after a mid-session
- * disconnect saw "resolved, stale controller" and was installed into a controller that ignores
- * every command. [awaitSettled] instead waits out the whole retry round.
+ * [awaitSettled] waits out the whole retry round, not just the first attempt: a one-shot answer
+ * would silently drop a request arriving after a failed first attempt even though a retry is
+ * about to succeed, and would install a request arriving after a mid-session disconnect into a
+ * stale controller that ignores every command.
  *
  * Main-thread only, like the rest of the engine's connection state.
  */

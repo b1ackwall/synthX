@@ -19,8 +19,8 @@ internal sealed interface PreviousAction {
 }
 
 /**
- * The Previous rule, extracted from `ExoPlayerEngine.previous()` so app buttons and system
- * transport (notification, headset, lock screen) share one tested decision (P9-T3).
+ * The Previous rule, kept out of `ExoPlayerEngine.previous()` so app buttons and system
+ * transport (notification, headset, lock screen) share one tested decision.
  *
  *  1. More than [restartThresholdMs] into the item: restart it, whatever else is true.
  *  2. Otherwise step back within the loaded window while there is a loaded item behind this one.

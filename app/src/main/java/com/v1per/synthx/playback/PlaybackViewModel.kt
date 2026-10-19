@@ -54,7 +54,7 @@ sealed class QueueAddResult {
 /**
  * How long [PlaybackViewModel.resume]'s optimistic `_isPlaying = true` is given to be confirmed
  * by the engine's real state before it is force-corrected back to `false` — see
- * [PlaybackViewModel.resume]'s kdoc. Matches the shape of P4-T1-4's deletion handoff barrier: a
+ * [PlaybackViewModel.resume]'s kdoc. Matches the shape of the song-deletion handoff barrier: a
  * short bounded wait rather than an unbounded one.
  */
 private const val RESUME_RECONCILE_TIMEOUT_MS = 1_500L
@@ -246,16 +246,16 @@ class PlaybackViewModel(
      * after the current item and jumped to, so what the user queued up plays after it. The
      * list the song was tapped from is deliberately discarded — only the song matters here.
      *
-     * Uses the same blanket [isAlreadyQueued] dedup [playNext]/[addToQueue] used to use —
-     * this flow answers a queue-replace prompt rather than an ordinary tap, so it keeps the
-     * coarser "anywhere in the queue" guard rather than their newer position-specific one.
+     * Uses the blanket [isAlreadyQueued] dedup, not the position-specific check
+     * [playNext]/[addToQueue] use — this flow answers a queue-replace prompt rather than an
+     * ordinary tap, so it keeps the coarser "anywhere in the queue" guard.
      * Returns `false` without touching the controller when [song] is already the current
      * song or already sits in [upcomingQueue]. Dedup only applies once there's an existing
      * queue to be a duplicate of, matching the [hasActivePlayback] gating on the other two
      * methods.
      *
      * Returns `null` when the engine refused the insert for lack of a session connection
-     * (issue #175) — it has already reported that on [errors], so the caller shows nothing.
+     * — it has already reported that on [errors], so the caller shows nothing.
      */
     fun keepQueueAndPlayNext(song: Song): Boolean? {
         // The queue can have ended between the prompt being raised and answered.
@@ -403,12 +403,12 @@ class PlaybackViewModel(
      * confirms anything. Unlike pause, a genuine failure here (audio focus denied, a
      * player left in a dead state by a prior fatal error) can mean the engine's own
      * `isPlaying` never flips true — and if it was already `false`, the StateFlow collect in
-     * [init] dedupes that as no emission at all, so nothing would ever correct the optimistic
+     * the init block dedupes that as no emission at all, so nothing would ever correct the optimistic
      * `true` on its own. [RESUME_RECONCILE_TIMEOUT_MS] after this call, if nothing has already
      * corrected [_isPlaying] (a real emission from the engine, or a later pause()/resume() tap),
      * the engine's actual current state is checked directly and used to force-correct a
      * still-optimistic `true` that playback never backed up. A genuine late-arriving `true` is
-     * never fought: the [init] collector applies it the moment it lands, before or after this
+     * never fought: the init-block collector applies it the moment it lands, before or after this
      * check runs either way.
      */
     fun resume() {

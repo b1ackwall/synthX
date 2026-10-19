@@ -8,7 +8,7 @@ import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
 
 /**
- * The player [SynthXPlaybackService]'s session is built around (P9-T3). Notification buttons,
+ * The player [SynthXPlaybackService]'s session is built around. Notification buttons,
  * headset/Bluetooth media keys and lock-screen controls all reach the player through the session,
  * and the raw ExoPlayer only knows the ~[WINDOW_SIZE]-slot window it holds — not the queue. Its
  * native Next/Previous therefore diverge from the app's own buttons at the window's edges, and its
@@ -18,7 +18,7 @@ import java.lang.reflect.Proxy
  * attached or ready — never crashes or blocks in that case.
  *
  * Only the four skip commands and their availability are intercepted. Everything else, including
- * seek-to-queue-item and shuffle, is deliberately still the raw player (see the P9-T3 report).
+ * seek-to-queue-item and shuffle, is deliberately still the raw player.
  *
  * The engine's own seeks go through `seekTo(index)` / `seekTo(position)`, which are not overridden
  * here, so the engine calling back into the session cannot re-enter this class's interception.

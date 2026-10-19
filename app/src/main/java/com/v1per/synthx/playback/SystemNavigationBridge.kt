@@ -8,7 +8,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * The full order, the current slot and the repeat-aware navigation rules live in [ExoPlayerEngine],
  * on the client side of the MediaController — the service only holds a bounded window of it. So
  * system transport commands (notification, headset, lock screen) are answered by the engine rather
- * than by media3's native window-only traversal (P9-T3). All members are main-thread only, like
+ * than by media3's native window-only traversal. All members are main-thread only, like
  * the engine itself and the session callbacks that reach them.
  */
 internal interface SystemNavigationHandler {
