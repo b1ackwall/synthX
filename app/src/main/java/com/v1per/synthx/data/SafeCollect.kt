@@ -4,7 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 
 /**
- * `collect` with a per-event exception boundary (P4-T2 / R3-F07): a plain `flow.collect { ... }`
+ * `collect` with a per-event exception boundary: a plain `flow.collect { ... }`
  * loop has its whole body inside the collector coroutine, so an uncaught exception from handling
  * ONE event kills that coroutine permanently — every event of that type after it is silently
  * never processed again for the rest of the process, with `SupervisorJob` doing nothing to help

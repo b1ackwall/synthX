@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.asSharedFlow
  *
  * [revision] is this event's stamp from [com.v1per.synthx.data.PlaybackCacheRevision] — see that
  * object's kdoc for why a global counter, not a tombstone, is what closes the cross-bus ordering
- * gap (P4-T1/P4-T2). [notifyRemap] always stamps a fresh one at the moment of publish, ignoring
+ * gap. [notifyRemap] always stamps a fresh one at the moment of publish, ignoring
  * whatever this constructor was called with — producers that build a `SongRemap` early and queue
  * it for a later, post-commit flush (see [com.v1per.synthx.data.scanner.FolderScanner]'s
  * `pendingRemaps`) are only ever holding [oldId]/[newSong] that way; the default here exists
@@ -57,8 +57,7 @@ data class SongRemap(val oldId: String, val newSong: Song, val revision: Long = 
  * ([com.v1per.synthx.data.scanner.FolderScanner]) runs from a WorkManager Worker with no path
  * back to whatever playback engine instance — if any — is currently alive.
  *
- * **Correction (P4-T2):** despite an earlier version of this KDoc claiming otherwise, a missing
- * subscriber does NOT leave events buffered for one to appear later. `replay = 0` here (the
+ * A missing subscriber does NOT leave events buffered for one to appear later. `replay = 0` here (the
  * default, never overridden) means a subscriber that starts collecting after an event was
  * emitted sees nothing from before it subscribed — [BUFFER_CAPACITY]/[BufferOverflow.SUSPEND]
  * below only smooth a burst against an *already-subscribed* slow collector, they do not retain

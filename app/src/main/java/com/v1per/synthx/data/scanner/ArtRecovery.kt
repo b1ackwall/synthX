@@ -26,7 +26,7 @@ import kotlinx.coroutines.sync.withPermit
 private const val TAG = "SynthXArtRecovery"
 
 /**
- * Same memory-bound reasoning as [ScanExtraction]'s EXTRACTION_PARALLELISM — an in-flight
+ * Same memory-bound reasoning as EXTRACTION_PARALLELISM in ScanExtraction.kt — an in-flight
  * [AlbumArtExtractor.extract] call has the same decode-cost profile, so this recovery pass is
  * capped the same way rather than reusing that private constant across files.
  */

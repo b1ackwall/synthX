@@ -66,13 +66,13 @@ internal enum class ScanBranch {
 /**
  * Everything one audio file's tags and embedded art yield, with none of it yet written.
  *
- * Mirrors the field derivation `SongIngestor.insertNewSong` used to do inline — same title
- * fallback, same year/track parsing, same artist splitting — so a row built from this is
- * byte-for-byte the row the old inline path would have produced.
+ * Uses the same field derivation as `SongIngestor.insertNewSong` — same title fallback, same
+ * year/track parsing, same artist splitting — so a row built from this is byte-for-byte the
+ * row an inline read would produce.
  *
  * [readOk] distinguishes "the file's tags say this" from "the retriever threw and these are
  * fallbacks". The insert path ignores the difference (it wants the filename fallback either
- * way, exactly as before); the retag path must not, since writing fallbacks over tags that
+ * way); the retag path must not, since writing fallbacks over tags that
  * were fine a moment ago would clobber them.
  */
 internal data class ExtractedMetadata(
@@ -96,12 +96,12 @@ internal data class ExtractedMetadata(
  * — only when that branch needs it — its extracted metadata and already-written art.
  *
  * [metadata] is null for the three branches that never read tags ([ScanBranch.HASH_FAILED],
- * [ScanBranch.PATH_MOVED], [ScanBranch.REAPPEARED]), matching what the old inline loop did.
+ * [ScanBranch.PATH_MOVED], [ScanBranch.REAPPEARED]).
  * The write phase treats null as "extract live, right here" rather than as an error, which is
  * what makes a mis-predicted branch safe: the only prediction that can turn into a branch
  * needing metadata is [ScanBranch.PATH_MOVED] becoming an insert (its row got evicted as a
- * path-collision occupant earlier in the same pass), and that falls back to exactly the
- * synchronous extraction the scan used to do for every file.
+ * path-collision occupant earlier in the same pass), and that falls back to a synchronous
+ * extraction inside the write phase.
  */
 internal data class ExtractedSongData(
     val file: DocumentFile,
@@ -116,7 +116,7 @@ internal data class ExtractedSongData(
  * Phase 1 of a scan: hash, identify and read every file in [files], concurrently, with no
  * write transaction open.
  *
- * This is where a scan now spends nearly all of its time. It is deliberately kept free of
+ * This is where a scan spends nearly all of its time. It is deliberately kept free of
  * writes — the only database access is the read-only `getSongById` probe that decides whether
  * a file needs reading at all — so it can run [EXTRACTION_PARALLELISM]-wide without holding
  * Room's single transaction thread hostage, and so a cancellation here costs nothing but the
@@ -127,8 +127,8 @@ internal data class ExtractedSongData(
  *    is cancelled. Files still queued behind the semaphore never start; the at most
  *    [EXTRACTION_PARALLELISM] files already inside a blocking `MediaMetadataRetriever` call
  *    run to the end of *that file* and no further, since native reads cannot be interrupted.
- *    That bounds a cancelled scan's tail at `EXTRACTION_PARALLELISM` files' work rather than
- *    the one file the old sequential loop cost — a deliberate, small trade.
+ *    That bounds a cancelled scan's tail at `EXTRACTION_PARALLELISM` files' work — a
+ *    deliberate, small trade.
  *  - **Admission.** [coroutineScope] runs its children as children of the *caller's* job, and
  *    does not return until all of them are done. The caller is inside
  *    `RestoreCoordinator.withDbOperation`'s permit, so no extraction coroutine can outlive
@@ -139,10 +139,10 @@ internal data class ExtractedSongData(
  * list to clean them up if the write transaction never commits.
  *
  * [onProgress] is invoked with `(filesCompleted, files.size)` as files finish — in completion
- * order, which is no longer walk order. It is throttled to whole-percent changes and
+ * order, which is not walk order. It is throttled to whole-percent changes and
  * serialized through a mutex, so a `suspend` callback that crosses a process boundary (as
  * `LibraryScanWorker`'s `setProgress`/`setForeground` does) still sees one caller at a time
- * and no more updates than the old sequential loop produced.
+ * and at most one update per whole percent.
  */
 internal suspend fun extractScanData(
     context: Context,
@@ -242,8 +242,7 @@ private suspend fun extractOneFile(
 ): ExtractedSongData {
     val path = file.uri.toString()
 
-    // Unreadable file: no identity, nothing we can safely store. Same verdict the old inline
-    // loop reached, just reached before the transaction rather than inside it.
+    // Unreadable file: no identity, nothing we can safely store.
     val id = HashUtils.computeSongId(file, context)
         ?: return ExtractedSongData(file, path, id = null, branch = ScanBranch.HASH_FAILED, metadata = null)
 

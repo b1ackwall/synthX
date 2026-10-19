@@ -47,8 +47,8 @@ internal fun isRootReachable(context: Context, uri: Uri): DocumentFile? {
  * only ever read, and must keep working against a read-only grant. Graduation uses this before
  * creating a file, and [DestructiveFilePreflight] uses it before deleting one.
  *
- * Mirrors [com.v1per.synthx.data.backup.BackupFolderHealth]'s grant check, which has made the
- * same read-vs-write distinction for the backup tree since before this existed. It stops short of
+ * Mirrors [com.v1per.synthx.data.backup.BackupFolderHealth]'s grant check, which makes the
+ * same read-vs-write distinction for the backup tree. It stops short of
  * that class's second step — probing writability by actually creating something — because
  * graduation's very next act *is* the real write, and its failure is already reported distinctly;
  * a speculative probe here would only duplicate it.

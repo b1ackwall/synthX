@@ -4,7 +4,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Process-wide monotonic counter stamped onto every [SongRemapEvents]/[SongDeletionEvents]
- * emission (P4-T1/P4-T2 — one shared revision scheme for both buses, per their combined design).
+ * emission — one shared revision scheme for both buses.
  *
  * Deliberately a single global counter rather than a per-song or per-bus one: the bug this exists
  * to close is cross-bus ordering (a scan's remap and a deletion's notice racing against each

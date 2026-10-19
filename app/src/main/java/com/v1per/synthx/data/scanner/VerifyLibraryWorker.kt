@@ -22,13 +22,12 @@ import java.util.concurrent.TimeUnit
  * known to the DB, as opposed to [LibraryScanWorker]'s full folder walk. Both flag
  * `is_missing` against the same rows, so they cannot be allowed to run concurrently: enqueued
  * under [LibraryScanWorker.UNIQUE_WORK_NAME] with [ExistingWorkPolicy.KEEP], the same
- * unique-work queue that already serializes Rescan against itself now serializes verify
+ * unique-work queue that serializes Rescan against itself serializes verify
  * against Rescan too — whichever is already running wins, the other enqueue is a no-op.
  *
  * No [androidx.work.ForegroundInfo]/notification here, unlike [LibraryScanWorker] — that
  * machinery exists so a long folder walk survives Doze/App Standby; this pass is bounded and
- * fast, so it stays a plain background worker and stays silent, matching what it did as a
- * bare `lifecycleScope` coroutine before this was folded into WorkManager.
+ * fast, so it stays a plain background worker and stays silent.
  */
 class VerifyLibraryWorker(
     appContext: Context,

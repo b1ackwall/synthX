@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * One deletion notice. [revision] is this event's stamp from [PlaybackCacheRevision] — see that
- * object's kdoc (shared with [SongRemapEvents], P4-T1/P4-T2).
+ * object's kdoc (shared with [SongRemapEvents]).
  */
 data class SongDeletion(val songId: String, val revision: Long)
 
@@ -19,7 +19,7 @@ data class SongDeletion(val songId: String, val revision: Long)
  * memory elsewhere — currently just
  * [com.v1per.synthx.playback.ExoPlayerEngine.songsBySlotId] and the order store behind it,
  * neither of which has any other way to learn that a queued (or playing) song no longer exists
- * and, since complete delete landed, no longer has a file to play either.
+ * and has no file to play either.
  *
  * Deliberately a separate bus from [SongRemapEvents] rather than a second event type inside it:
  * a remap keeps every queue slot alive under a new content id, whereas this *removes* slots and
@@ -32,7 +32,7 @@ data class SongDeletion(val songId: String, val revision: Long)
  * alive, and every live engine subscribes independently in its own `init`, so one emission
  * reaches all of them. `replay = 0` (the default, never overridden): a subscriber that starts
  * collecting after an emission sees nothing from before it — see [SongRemapEvents]' KDoc
- * correction, which applies identically here. [BUFFER_CAPACITY] only smooths a burst against an
+ * on missing subscribers, which applies identically here. [BUFFER_CAPACITY] only smooths a burst against an
  * already-subscribed slow collector.
  *
  * [BUFFER_CAPACITY] and [BufferOverflow.SUSPEND] mirror [SongRemapEvents] for the same reason —
@@ -57,7 +57,7 @@ object SongDeletionEvents {
 
 /**
  * The handoff barrier between "a deletion notice was emitted" and "playback has actually left the
- * file" (P4-T4 / R3-F03). `SongDeletionEvents.notifyDeleted`'s suspending `emit` only guarantees
+ * file". `SongDeletionEvents.notifyDeleted`'s suspending `emit` only guarantees
  * the notice was enqueued into a buffered `SharedFlow` — not that any collector has run, nor that
  * the resulting controller commands (skip/stop/remove) have landed. Without this, the repository
  * proceeds straight to deleting the audio file, which can race a still-open file handle.

@@ -8,7 +8,7 @@ import kotlinx.coroutines.sync.Mutex
 /**
  * Mutual exclusion for the operations that physically move, delete or re-point a song's audio
  * file — graduation, delete, replace — against each other, against library scans, and against a
- * folder change revoking a SAF grant one of them is still using (P2-T1 / R2-F14).
+ * folder change revoking a SAF grant one of them is still using.
  *
  * Deliberately separate from [com.v1per.synthx.data.backup.RestoreCoordinator]. That object is a
  * *global* barrier that only knows how many operations are live, so restore can drain them; this

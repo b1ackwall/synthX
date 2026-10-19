@@ -131,14 +131,14 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
     val pendingArtCleanup = mutableListOf<String>()
 
     // Remap notices accumulated mid-transaction, emitted only after the transaction
-    // commits — see the loop after withTransaction. Emitting from inside the loop (as
-    // this used to) would let a consumer (ExoPlayerEngine.songsBySlotId) adopt a newSong.id
+    // commits — see the loop after withTransaction. Emitting from inside the loop
+    // would let a consumer (ExoPlayerEngine.songsBySlotId) adopt a newSong.id
     // that later turns out to never have been persisted, if the transaction rolls back
     // for an unrelated reason later in the same pass.
     val pendingRemaps = mutableListOf<SongRemap>()
 
     // Deletion notices for songs hard-deleted mid-transaction as a path-collision occupant
-    // (P4-T1 / R3-F05) — same post-commit-only emission rule as pendingRemaps above, and for
+    // — same post-commit-only emission rule as pendingRemaps above, and for
     // the same reason: a rollback after the eviction must not have already told a live
     // playback engine the song is gone.
     val pendingDeletions = mutableListOf<String>()
@@ -173,8 +173,8 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
         )
 
         // No per-file denominator from here on — back to indeterminate. The write phase
-        // below reads no files, so it no longer warrants its own progress bar, and the
-        // missing-detection and orphan-cleanup passes after it never had a denominator.
+        // below reads no files, so it gets no progress bar of its own, and the
+        // missing-detection and orphan-cleanup passes after it have no denominator.
         onProgress(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE)
 
         val txnStartMs = System.currentTimeMillis()
@@ -187,15 +187,14 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
             var errors = 0
 
             // Phase 2 — strictly in walk order, strictly sequential. Every ordering
-            // dependency the old inline loop had is still here and still load-bearing:
+            // dependency here is load-bearing:
             // album rows are minted by whichever song reaches them first and keep that
             // song's cover, later files reuse the artists earlier ones created, duplicate
             // content collapses onto the row the first copy inserted, and a path collision
-            // evicts whoever currently holds the path. Only where the metadata comes from
-            // has changed.
+            // evicts whoever currently holds the path.
             for (data in extracted) {
-                // Cooperative cancellation. Far cheaper per file now that the reading is
-                // already done, but the loop is still long enough to abandon early.
+                // Cooperative cancellation. Cheap per file because the reading is
+                // already done, but the loop is long enough to abandon early.
                 currentCoroutineContext().ensureActive()
 
                 val path = data.path
@@ -208,7 +207,7 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
 
                 // Another operation holds this song, or mutated it after this scan began —
                 // this file's extracted data may already be stale. Leave the row for the next
-                // scan rather than blocking on, or overwriting, that operation (P2-T1).
+                // scan rather than blocking on, or overwriting, that operation.
                 if (!claims.claim(id)) continue
 
                 // Re-read rather than trusting the extraction phase's branch prediction.
@@ -233,7 +232,7 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                                 // The evicted occupant's row is hard-deleted right above with
                                 // no remap (it has no successor row — it's simply gone), so a
                                 // live playback engine still holding one of its queue slots
-                                // needs the deletion notice, not a remap (P4-T1 / R3-F05).
+                                // needs the deletion notice, not a remap.
                                 // Deferred to the post-commit flush alongside pendingRemaps,
                                 // for the identical rollback-safety reason documented there.
                                 pendingDeletions.add(occupant.id)
@@ -254,8 +253,7 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                             )
                             // A live playback engine still caches this id's OLD path baked
                             // into a MediaItem — without this remap it never learns the path
-                            // moved (P4-T1 / R3-F05, the nearby counterpart of the fix already
-                            // shipped for graduation's own path-only change). oldId == the
+                            // moved. oldId == the
                             // row's own id: the content hash is unchanged, only file_path
                             // moved, exactly like graduation's same-id case — see
                             // SongRemapEvents' KDoc for why that is legitimate, not degenerate.
@@ -280,7 +278,7 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                         else -> if (ingestor.retagIfChanged(data.file, existing, data.metadata)) {
                             // A currently-playing/queued occurrence of this id has the OLD
                             // title/artist baked into its cached Song and displayed MediaItem
-                            // metadata (P4-T1 / R3-F05) — same-id remap is exactly the
+                            // metadata — same-id remap is exactly the
                             // refresh mechanism graduation's own same-id case already uses.
                             songDao.getDomainSongById(existing.id)?.let { fresh ->
                                 pendingRemaps.add(SongRemap(existing.id, fresh))
@@ -317,7 +315,7 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                 // Null metadata here means phase 1 predicted a branch that needed no read
                 // and live state disagreed — the only way that happens is a row evicted as
                 // a path-collision occupant earlier in this same loop. insertNewSong then
-                // reads the file right here, exactly as every insert used to, which also
+                // reads the file right here, which also
                 // means it writes art inside the transaction; register the id so a later
                 // rollback cleans that art up alongside phase 1's.
                 if (data.metadata == null) artWrittenIds.add(id)
@@ -351,7 +349,7 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                         if (!song.isMissing) {
                             songDao.markMissing(song.id, now)
                         }
-                        // Deliberately no playback event here (P4-T1 — locked policy: leave
+                        // Deliberately no playback event here (locked policy: leave
                         // an already-loaded/playing song alone when it goes missing
                         // mid-session; only prevent it from being added to FUTURE fresh
                         // queues, which PlaybackViewModel.requestPlayQueue already does by

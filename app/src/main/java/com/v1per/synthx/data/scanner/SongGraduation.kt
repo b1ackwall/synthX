@@ -77,7 +77,7 @@ internal const val GRADUATION_ROW_GONE_REASON =
  * reverses (once the original is gone, the destination file is the only surviving copy and
  * must never be deleted on a later failure).
  *
- * **Coordination (P2-T1).** The whole operation — not just the DB write — runs:
+ * **Coordination.** The whole operation — not just the DB write — runs:
  *  1. under [FileOperationCoordinator.withSongLock] for [songId], so delete/replace of this song
  *     wait for it, a second graduation of it queues behind it, and a scan skips its row;
  *  2. under one finite [RestoreCoordinator] permit, so a restore drains it (waits for it to
@@ -197,10 +197,9 @@ private suspend fun graduateAdmitted(
             return fail(sourcePreflight.reason)
         }
 
-        // Write-capable, not merely reachable. Until graduation shipped, nothing ever created a
-        // file under an audio root, so both roots used to be held with a read-only SAF grant —
-        // and any grant taken back then is still read-only, since a persisted grant never
-        // widens on its own. DocumentFile.createFile swallows the resulting
+        // Write-capable, not merely reachable. An audio root granted by an app version that
+        // never created files under it holds a read-only SAF grant, and it stays read-only,
+        // since a persisted grant never widens on its own. DocumentFile.createFile swallows the resulting
         // SecurityException into a bare null, surfacing as the opaque "Could not create
         // destination file" further down. Checked up front instead, so a permission-scope
         // problem says what to do about it, and that downstream message is left to mean what it
@@ -246,7 +245,7 @@ private suspend fun graduateAdmitted(
         // cancellation landing between the two (the caller's scope going away) would otherwise
         // leave the file moved and the row still pointing at the deleted original. NonCancellable
         // only protects against coroutine cancellation, not process death — the durable record
-        // below (P3-T1 / R4-F-D4) is what lets a kill in this exact window be reconciled on the
+        // below is what lets a kill in this exact window be reconciled on the
         // next launch instead of leaving the row silently pointing at a deleted file forever.
         return withContext(NonCancellable) {
             onStage(GraduationStage.DeletingOriginal)
@@ -356,9 +355,9 @@ internal suspend fun commitGraduatedPath(
 /**
  * Turns a landed [GraduationCommit] into graduation's terminal stage and result.
  *
- * [GraduationCommit.RowGone] is a failure, not a success. With delete and replace now waiting on
- * the song lock this should be genuinely exceptional — but the old "the file moved, so it
- * succeeded" reading reported Done while leaving an orphaned file for a future scan to silently
+ * [GraduationCommit.RowGone] is a failure, not a success. With delete and replace waiting on
+ * the song lock this should be genuinely exceptional — but reading it as "the file moved, so it
+ * succeeded" would report Done while leaving an orphaned file for a future scan to silently
  * re-import, undoing a deletion. The file is deliberately *kept* (the row vanishing is no evidence
  * the user wants the audio destroyed); it is logged with its path and the user is told.
  */

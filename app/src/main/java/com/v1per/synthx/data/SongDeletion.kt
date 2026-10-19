@@ -192,9 +192,9 @@ internal fun fullResArtFileExists(artDir: File, songId: String): Boolean =
  * Exists for the same reason [deleteSongArtFiles] exists alongside [deleteSongArtFile]: the
  * per-song helpers above are the right shape for one song, but [fullResArtFileExists] costs a
  * full directory listing each time, so asking it about every song in the library is one listing
- * per song — O(N x N) filename comparisons for a library of ~2000 songs, which is what made
- * [com.v1per.synthx.data.scanner.ArtRecovery.findMissingArt]'s whole-library pass take tens of
- * seconds. Building both lookup sets from one walk makes that pass O(N).
+ * per song — O(N x N) filename comparisons, far too slow for
+ * [com.v1per.synthx.data.scanner.ArtRecovery.findMissingArt]'s whole-library pass. Building
+ * both lookup sets from one walk makes that pass O(N).
  *
  * The membership rules are kept identical to the two per-song helpers on purpose — see
  * [ArtFilePresence.hasCompressed]/[ArtFilePresence.hasFullRes] — so a whole-library sweep and a

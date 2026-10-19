@@ -42,9 +42,7 @@ private val ARTIST_DELIMITERS = listOf(",")
  * [FolderScanner.scanAlreadyAdmitted], whose whole mutation phase runs in one transaction so
  * a cancelled or failed scan rolls back rather than leaving the library half-reconciled. Room
  * carries the active transaction in the coroutine context, so these calls join it implicitly;
- * this class opens no transaction of its own and must not be called outside one. When this
- * logic lived inline in [FolderScanner] that was self-evident from proximity — it is stated
- * explicitly here now that it is not.
+ * this class opens no transaction of its own and must not be called outside one.
  *
  * [extractMetadata] is the deliberate exception, and the reason the split exists: it touches
  * no database at all, so a scan runs it for every file up front, concurrently and outside the
@@ -69,21 +67,21 @@ internal class SongIngestor(
     /**
      * Reads one file's tags — and, when [includeArt], its embedded cover.
      *
-     * **Touches no database.** This is the entire file-in/data-out half of what
-     * [insertNewSong] and [retagIfChanged] used to do inline, lifted out so a scan can run it
+     * **Touches no database.** This is the entire file-in/data-out half of
+     * [insertNewSong] and [retagIfChanged], kept apart so a scan can run it
      * for every file concurrently before its write transaction opens. Nothing here depends on
      * a transaction, a dispatcher, or any state shared with another call: the
      * `MediaMetadataRetriever` is constructed, used and released entirely within this call,
      * and [AlbumArtExtractor] is stateless and writes only to `art_<songId>.*` paths.
      *
-     * Field derivation is deliberately identical to what the two callers did before the split
-     * — same filename title fallback, same 4-char year truncation, same `"5/12"` track
-     * handling, same comma-only artist splitting — so a row written from this result is the
-     * row the old inline path would have written.
+     * Field derivation is deliberately the same for both callers — same filename title
+     * fallback, same 4-char year truncation, same `"5/12"` track handling, same comma-only
+     * artist splitting — so a row written from this result is the row an inline read would
+     * have written.
      *
      * Never throws except for cancellation: an unreadable file degrades to
      * [ExtractedMetadata.readOk] `= false` with filename-derived fallbacks, and an
-     * `OutOfMemoryError` from art decoding degrades to no art, exactly as before.
+     * `OutOfMemoryError` from art decoding degrades to no art.
      *
      * [includeArt] must be `false` for the retag path. Decoding and rewriting a bitmap is
      * precisely the cost that path exists to avoid paying when nothing changed.
@@ -170,8 +168,8 @@ internal class SongIngestor(
      * Writes the song, album and artist rows for a file the library has never seen.
      *
      * [extracted] is this file's already-read tags and art, from the scan's out-of-transaction
-     * extraction phase. Passing `null` makes this read the file live instead — the pre-split
-     * behaviour, kept as the safety net for a branch prediction that turned out wrong (see
+     * extraction phase. Passing `null` makes this read the file live instead — the safety net
+     * for a branch prediction that turned out wrong (see
      * [ScanBranch]). Everything after the read is unchanged and stays order-dependent: album
      * resolution matches against songs already inserted by earlier files in this same pass,
      * and whichever song first mints an album row donates its cover to it.

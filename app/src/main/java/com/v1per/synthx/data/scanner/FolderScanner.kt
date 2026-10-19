@@ -45,7 +45,7 @@ class FolderScanner internal constructor(
     /**
      * Scans [folderUri] and reconciles the library against it.
      *
-     * Concurrency is no longer guarded here — LibraryScanWorker enqueues under a unique
+     * Concurrency is not guarded here — LibraryScanWorker enqueues under a unique
      * work name, so only one scan can be in flight per process.
      *
      * The scan runs in two phases. **Extraction** ([extractScanData]) hashes, identifies and
@@ -53,12 +53,12 @@ class FolderScanner internal constructor(
      * wall-clock cost, and the only part with no cross-file ordering dependency. **Writing**
      * then replays those results into Room strictly in walk order inside one transaction,
      * where the ordering *is* load-bearing (album/artist reuse, duplicate collapse, path
-     * eviction). Splitting them is purely a performance change: the write phase's behaviour
-     * is identical to when it read each file inline.
+     * eviction). The split is purely for performance: the write phase behaves exactly as if
+     * it read each file inline.
      *
      * [onProgress] receives `(current, total)` where `current` is the number of audio
-     * files fully extracted so far — in completion order, which the concurrent extraction
-     * phase no longer guarantees is walk order. Everything outside that phase has no
+     * files fully extracted so far — in completion order, which in the concurrent extraction
+     * phase is not walk order. Everything outside that phase has no
      * meaningful denominator — the file-system walk before the file list exists, and the
      * write, missing-detection and orphan-cleanup passes afterwards — and reports
      * [PROGRESS_INDETERMINATE] for **both** arguments. Callers should treat `total <= 0` as
@@ -92,8 +92,7 @@ class FolderScanner internal constructor(
      * [isNewArrivalsRoot] identifies [folderUri] as the New Arrivals tree rather than the
      * main library root. It drives `isStarred` (the `in_inbox` column) for every song this
      * scan inserts or newly claims a path for — a song currently found under New Arrivals is
-     * starred, one found under the main root is not. Defaults to `false` so every existing
-     * caller (main-root scans, tests) keeps its current behaviour unless it opts in.
+     * starred, one found under the main root is not. Defaults to `false`, the main-root case.
      */
     suspend fun scan(
         folderUri: Uri,
@@ -160,9 +159,9 @@ class FolderScanner internal constructor(
 
             // A song whose path doesn't resolve to any currently-reachable root — either
             // the root it lives under is unreachable, or its stored path is unparseable —
-            // is left untouched this pass rather than treated as gone. Unparseable used to
-            // be treated as "gone" here; that was the same unreachable-vs-deleted
-            // conflation this whole pass now exists to avoid, so it's folded into the same
+            // is left untouched this pass rather than treated as gone. Treating an
+            // unparseable path as "gone" would be the same unreachable-vs-deleted
+            // conflation this whole pass exists to avoid, so it gets the same
             // "can't tell, don't touch" handling.
             val songUri = runCatching { song.filePath.toUri() }.getOrNull() ?: continue
             val owningRoot = reachableRoots.firstOrNull { root ->
@@ -184,7 +183,7 @@ class FolderScanner internal constructor(
             // The snapshot above can be older than a graduation/delete that has since moved or
             // removed this song: its old path failing to resolve proves nothing on its own. Skip
             // a song another operation holds right now; otherwise, holding its lease, re-read the
-            // row and judge the path it has *now* (P2-T1).
+            // row and judge the path it has *now*.
             val lease = FileOperationCoordinator.tryAcquireSong(song.id) ?: continue
             try {
                 val current = songDao.getSongById(song.id) ?: continue

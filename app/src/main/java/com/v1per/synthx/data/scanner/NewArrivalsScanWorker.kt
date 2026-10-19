@@ -98,7 +98,7 @@ class NewArrivalsScanWorker(
          * [ExistingWorkPolicy.APPEND_OR_REPLACE] instead: KEEP would silently discard this
          * request if another scan (a manual rescan, or the launch-time
          * VerifyLibraryWorker->NewArrivalsScanWorker chain) is currently running or queued
-         * under this same unique name — see general 6.4 in the final-sweep audit. APPEND_OR_REPLACE
+         * under this same unique name. APPEND_OR_REPLACE
          * queues this request to run once that work finishes rather than dropping it, while still
          * falling back to a fresh enqueue (same as KEEP/REPLACE would) if nothing is currently
          * running. It's the "_OR_REPLACE" variant rather than plain APPEND specifically because

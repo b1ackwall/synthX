@@ -115,7 +115,7 @@ internal fun verifyAndPublishGraduationTemp(
         )
     }
 
-    // Copy-integrity check (F12) — distinct from the identity check above and NOT a replacement
+    // Copy-integrity check — distinct from the identity check above and NOT a replacement
     // for it. computeSongId only samples the first/last 64KB plus size, by design, for a
     // cross-scan identity role; it can miss corruption confined to the untouched middle of a
     // larger file. This independently re-reads every byte the provider actually persisted at
