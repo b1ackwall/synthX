@@ -21,9 +21,6 @@ interface SongRepository {
     // Issues — songs whose art file(s) are gone from disk despite the row pointing at them
     // (e.g. a restore, since album art is deliberately excluded from backups). See ArtRecovery.
 
-    /** Ids of songs currently missing their art file on disk. Read-only — see [recoverMissingArt]. */
-    suspend fun findMissingArtSongIds(): List<String>
-
     /** Re-extracts art for [songIds], or the whole library when null. */
     suspend fun recoverMissingArt(songIds: List<String>? = null): ArtRecoveryResult
 

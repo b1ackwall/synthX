@@ -262,13 +262,6 @@ class SongRepositoryImpl(
 
     override fun getMissingSongCount(): Flow<Int> = RepositoryDbFlow.observe { songDao.getMissingSongCount() }
 
-    // Read-only filesystem check, same dbOperation gating as checkRootLibraryOrganization above
-    // even though it writes nothing — RestoreCoordinator still needs to know this work is in
-    // flight so a restore can drain it before touching filesDir/art/ or the songs table.
-    override suspend fun findMissingArtSongIds(): List<String> = dbOperation {
-        findMissingArtSongIdsAlreadyAdmitted()
-    }
-
     /** [findMissingArtSongIds] for callers already holding admission — see [verifyLibrary] for
      *  the same split, used by the workers that go through [WorkerDatabaseAccess]. */
     internal suspend fun findMissingArtSongIdsAlreadyAdmitted(): List<String> =
