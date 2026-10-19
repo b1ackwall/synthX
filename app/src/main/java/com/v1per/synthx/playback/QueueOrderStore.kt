@@ -130,9 +130,9 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
-     * Slot-id-identified counterpart of [moveUpcoming]: [slotId] is resolved
+     * Moves the Up Next row identified by [slotId]: the slot is resolved
      * against [live] fresh, right here, rather than trusting a caller-supplied
-     * `fromDisplayIndex` — a raw display index captured by the UI at drag-start can be stale by
+     * source index — a raw display index captured by the UI at drag-start can be stale by
      * the time the command actually executes (an auto-advance, a deletion, or another reorder
      * landing first shifts every row after it), and acting on it blind would move whatever now
      * occupies that position rather than the row the user actually dragged. If [slotId] no

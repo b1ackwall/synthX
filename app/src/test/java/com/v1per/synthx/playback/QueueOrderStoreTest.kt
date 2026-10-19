@@ -161,8 +161,7 @@ class QueueOrderStoreTest {
         subject.captureFresh(records("a", "b", "c", "d"))
 
         // "slot-c" is genuinely 2 positions into Up Next (after current "slot-a"); moved to
-        // the very front — identical net effect to moveMirrorsBaselineOnlyWhileUnshuffled's
-        // (0, 2) case, but requested by identity instead of a trusted index.
+        // the very front, requested by identity instead of a trusted index.
         assertTrue(
             subject.moveUpcoming("slot-c", toDisplayIndex = 0, currentSlotId = "slot-a", mirrorToBaseline = false),
         )
@@ -173,7 +172,7 @@ class QueueOrderStoreTest {
     /**
      * The drag-guard case: the slot SET is unchanged but the ORDER changed underneath the caller
      * (e.g. a reorder or shuffle landing between drag-start and drop). A caller-trusted
-     * `fromDisplayIndex` captured before that reorder would name a different song; resolving by
+     * display index captured before that reorder would name a different song; resolving by
      * slot id instead is immune to it.
      */
     @Test fun moveByIdIsImmuneToAnOrderChangeThatPreservesTheSameSlotSet() {
