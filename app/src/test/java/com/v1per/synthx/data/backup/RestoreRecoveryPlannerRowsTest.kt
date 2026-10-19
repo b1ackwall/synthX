@@ -1,6 +1,5 @@
 package com.v1per.synthx.data.backup
 
-import com.v1per.synthx.data.backup.RestoreTransaction.Outcome
 import com.v1per.synthx.data.backup.RestoreTransaction.Phase
 import com.v1per.synthx.data.backup.RestoreTransaction.RollbackSource
 import com.v1per.synthx.ui.testing.TestTimeouts
@@ -23,7 +22,6 @@ class RestoreRecoveryPlannerRowsTest {
                 RestoreRecoveryAction.COMPLETE_ROLLBACK_AND_NORMAL,
                 RestoreRecoveryPlanner.decide(
                     phase,
-                    Outcome.ROLLED_BACK,
                     facts(liveExists = true, liveValid = true, oldExists = true, oldValid = true),
                     RollbackSource.OLD,
                 ),
@@ -39,7 +37,6 @@ class RestoreRecoveryPlannerRowsTest {
                 RestoreRecoveryAction.PROMOTE_OLD,
                 RestoreRecoveryPlanner.decide(
                     phase,
-                    Outcome.ROLLED_BACK,
                     invalidLive.copy(oldExists = true, oldValid = true),
                     RollbackSource.OLD,
                 ),
@@ -49,7 +46,6 @@ class RestoreRecoveryPlannerRowsTest {
                 RestoreRecoveryAction.PROMOTE_SAFETY,
                 RestoreRecoveryPlanner.decide(
                     phase,
-                    Outcome.ROLLED_BACK,
                     invalidLive.copy(safetyValid = true),
                     RollbackSource.OLD,
                 ),
@@ -57,7 +53,7 @@ class RestoreRecoveryPlannerRowsTest {
             )
             assertEquals(
                 RestoreRecoveryAction.EMERGENCY,
-                RestoreRecoveryPlanner.decide(phase, Outcome.ROLLED_BACK, invalidLive, RollbackSource.OLD),
+                RestoreRecoveryPlanner.decide(phase, invalidLive, RollbackSource.OLD),
                 "$phase, nothing valid",
             )
         }
@@ -68,12 +64,12 @@ class RestoreRecoveryPlannerRowsTest {
             val freshLiveAndOld = facts(liveExists = true, liveValid = true, oldExists = true)
             assertEquals(
                 RestoreRecoveryAction.PROMOTE_OLD,
-                RestoreRecoveryPlanner.decide(phase, Outcome.INSTALLED, freshLiveAndOld.copy(oldValid = true)),
+                RestoreRecoveryPlanner.decide(phase, freshLiveAndOld.copy(oldValid = true)),
                 "$phase with a valid old present",
             )
             assertEquals(
                 RestoreRecoveryAction.PROMOTE_SAFETY,
-                RestoreRecoveryPlanner.decide(phase, Outcome.INSTALLED, freshLiveAndOld.copy(safetyValid = true)),
+                RestoreRecoveryPlanner.decide(phase, freshLiveAndOld.copy(safetyValid = true)),
                 "$phase with an invalid old present",
             )
         }
@@ -85,7 +81,6 @@ class RestoreRecoveryPlannerRowsTest {
                 RestoreRecoveryAction.PROMOTE_OLD,
                 RestoreRecoveryPlanner.decide(
                     phase,
-                    Outcome.ROLLED_BACK,
                     facts(oldExists = true, oldValid = true, safetyValid = true),
                     null,
                 ),
@@ -93,12 +88,12 @@ class RestoreRecoveryPlannerRowsTest {
             )
             assertEquals(
                 RestoreRecoveryAction.PROMOTE_SAFETY,
-                RestoreRecoveryPlanner.decide(phase, Outcome.ROLLED_BACK, facts(safetyValid = true), null),
+                RestoreRecoveryPlanner.decide(phase, facts(safetyValid = true), null),
                 "$phase, null source, safety valid",
             )
             assertEquals(
                 RestoreRecoveryAction.EMERGENCY,
-                RestoreRecoveryPlanner.decide(phase, Outcome.ROLLED_BACK, facts(), null),
+                RestoreRecoveryPlanner.decide(phase, facts(), null),
                 "$phase, null source, nothing valid",
             )
         }

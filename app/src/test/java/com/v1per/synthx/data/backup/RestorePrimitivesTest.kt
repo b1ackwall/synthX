@@ -188,7 +188,6 @@ class RestorePrimitivesTest {
             decide(
                 RestoreTransaction.Phase.ROLLBACK_INTENT,
                 facts(oldExists = true, oldValid = true, safetyValid = true),
-                RestoreTransaction.Outcome.ROLLED_BACK,
                 RestoreTransaction.RollbackSource.OLD,
             ),
         )
@@ -197,7 +196,6 @@ class RestorePrimitivesTest {
             decide(
                 RestoreTransaction.Phase.ROLLBACK_INTENT,
                 facts(safetyValid = true),
-                RestoreTransaction.Outcome.ROLLED_BACK,
                 RestoreTransaction.RollbackSource.SAFETY,
             ),
         )
@@ -206,7 +204,6 @@ class RestorePrimitivesTest {
             decide(
                 RestoreTransaction.Phase.ROLLBACK_INTENT,
                 facts(liveExists = true, liveValid = true, liveMatchesOld = true),
-                RestoreTransaction.Outcome.ROLLED_BACK,
                 RestoreTransaction.RollbackSource.OLD,
             ),
         )
@@ -225,7 +222,6 @@ class RestorePrimitivesTest {
                     safetyValid = false,
                     liveMatchesSafety = true,
                 ),
-                RestoreTransaction.Outcome.ROLLED_BACK,
                 RestoreTransaction.RollbackSource.SAFETY,
             ),
         )
@@ -237,7 +233,6 @@ class RestorePrimitivesTest {
             decide(
                 RestoreTransaction.Phase.STATELESS_RECOVERY_INTENT,
                 facts(liveExists = true, liveValid = true, liveMatchesOld = true),
-                RestoreTransaction.Outcome.ROLLED_BACK,
                 RestoreTransaction.RollbackSource.OLD,
             ),
         )
@@ -260,7 +255,6 @@ class RestorePrimitivesTest {
             decide(
                 RestoreTransaction.Phase.ROLLED_BACK,
                 facts(liveExists = true, liveValid = true),
-                RestoreTransaction.Outcome.ROLLED_BACK,
             ),
         )
         assertEquals(
@@ -268,7 +262,6 @@ class RestorePrimitivesTest {
             decide(
                 RestoreTransaction.Phase.ROLLED_BACK,
                 facts(liveExists = true, liveValid = false, oldExists = true, oldValid = true),
-                RestoreTransaction.Outcome.ROLLED_BACK,
             ),
         )
     }
@@ -286,7 +279,6 @@ class RestorePrimitivesTest {
             decide(
                 RestoreTransaction.Phase.COMPLETE,
                 facts(liveExists = true, liveValid = true),
-                RestoreTransaction.Outcome.ROLLED_BACK,
             ),
         )
     }
@@ -346,9 +338,8 @@ class RestorePrimitivesTest {
     private fun decide(
         phase: RestoreTransaction.Phase,
         facts: RestoreArtifactFacts,
-        outcome: RestoreTransaction.Outcome = RestoreTransaction.Outcome.INSTALLED,
         rollbackSource: RestoreTransaction.RollbackSource? = null,
-    ) = RestoreRecoveryPlanner.decide(phase, outcome, facts, rollbackSource)
+    ) = RestoreRecoveryPlanner.decide(phase, facts, rollbackSource)
 
     private fun facts(
         liveExists: Boolean = false,

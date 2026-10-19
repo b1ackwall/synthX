@@ -172,7 +172,6 @@ internal enum class RestoreRecoveryAction {
 internal object RestoreRecoveryPlanner {
     fun decide(
         phase: RestoreTransaction.Phase,
-        outcome: RestoreTransaction.Outcome,
         facts: RestoreArtifactFacts,
         rollbackSource: RestoreTransaction.RollbackSource? = null,
     ): RestoreRecoveryAction = when (phase) {

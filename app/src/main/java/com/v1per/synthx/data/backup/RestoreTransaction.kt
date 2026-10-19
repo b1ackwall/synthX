@@ -577,7 +577,6 @@ internal object RestoreTransaction {
 
         val action = RestoreRecoveryPlanner.decide(
             state.phase,
-            state.outcome,
             facts,
             state.rollbackSource,
         )
