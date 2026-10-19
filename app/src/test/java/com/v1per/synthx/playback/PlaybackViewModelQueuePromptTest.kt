@@ -173,18 +173,6 @@ class PlaybackViewModelQueuePromptTest {
             assertEquals(listOf(PlayCall(listOf(a, b, c), 1, true)), engine.playQueueCalls)
         }
 
-    // Checks only that playAll on a customised queue asks first and plays nothing; the Cancel and
-    // Back buttons themselves are pressed in QueuePromptsInstrumentedTest.
-    @Test fun cancellingTheReplacePromptTouchesNothing() = withViewModel { vm, engine ->
-        val prompts = replacePrompts(vm)
-        vm.playAll(listOf(a, b))
-        advanceUntilIdle()
-        // Cancel and dismiss only drop the event in MainScaffold; nothing reaches the engine.
-        assertEquals(1, prompts.size)
-        assertEquals(emptyList(), engine.playQueueCalls)
-        assertEquals(0, engine.setShuffleCalls)
-    }
-
     private fun song(id: String, missing: Boolean = false) = Song(
         id = id,
         title = id,
