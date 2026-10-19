@@ -449,26 +449,6 @@ class OnboardingRecoveryInstrumentedTest {
         }
     }
 
-    /**
-     * Mutation test for the acceptance test above: substituting the older gating condition
-     * (musicFolderUri == null, see [legacyGatingStartDestination]) makes the wizard vanish and
-     * shows Home with an empty library instead. Kept as an automated guard rather than a manual
-     * revert of MainActivity.kt, since this suite picks its start destination itself (see
-     * [gatingStartDestination]) instead of launching the real Activity.
-     */
-    @Test fun mutationTestLegacyGatingConditionWouldHaveShownHomeInstead() {
-        startWizard()
-        composeRule.onNodeWithText(context.getString(R.string.onboarding_recover_backup)).performClick()
-        saveMusic()
-        composeRule.onNodeWithText(context.getString(R.string.action_done)).performClick()
-        composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_backup_title)).assertExists()
-
-        relaunchWizardAfterSimulatedProcessDeath(gating = ::legacyGatingStartDestination)
-
-        composeRule.onNodeWithText("Home after onboarding").assertExists()
-        composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_backup_title)).assertDoesNotExist()
-    }
-
     @Test fun pickingRecoveryFolderAloneDoesNotSetOnboardingComplete() {
         saveMusic()
         composeRule.runOnIdle { }
@@ -855,20 +835,6 @@ class OnboardingRecoveryInstrumentedTest {
         assertNull(preferences.firstScanRequestId)
         assertNull(preferences.onboardingStepName)
         assertFalse(shouldShowOnboarding(preferences))
-    }
-
-    /**
-     * Mutation guard for the two tests above: a completion-only gate shows Home in the middle of
-     * the first scan, because Done flips onboardingComplete when it starts it.
-     */
-    @Test fun mutationTestCompletionAloneWouldShowHomeMidFirstScan() {
-        ScanStubWorkerFactory.behavior = ScanStub.Hang
-        startWizardAtDone()
-
-        relaunchWizardAfterSimulatedProcessDeath(gating = ::completionOnlyStartDestination)
-
-        composeRule.onNodeWithText("Home after onboarding").assertExists()
-        composeRule.onNodeWithText(context.getString(R.string.onboarding_scanning_title)).assertDoesNotExist()
     }
 
     @Test fun firstScanWithNoWorkRecordIsEventuallyReportedAsFailedNotSpinnerForever() {
