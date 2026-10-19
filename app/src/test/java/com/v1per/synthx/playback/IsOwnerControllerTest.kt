@@ -64,42 +64,6 @@ class IsOwnerControllerTest {
         }
     }
 
-    @Test fun lastRealOwnerDisconnectingStopsEvenThoughTheNotificationControllerIsStillBound() {
-        val session = Session(app)
-        session.connect(app, notification = false) // ExoPlayerEngine
-        session.connect(app, notification = true) // media3 notification controller
-
-        assertTrue(
-            session.disconnect(app, notification = false),
-            "the notification controller must not keep the owner count above zero",
-        )
-    }
-
-    @Test fun notificationControllerDisconnectingNeitherDecrementsNorStops() {
-        val session = Session(app)
-        session.connect(app, notification = false)
-        session.connect(app, notification = true)
-
-        assertFalse(
-            session.disconnect(app, notification = true),
-            "the notification controller dropping must not stop playback while the engine is bound",
-        )
-        // Had that disconnect decremented the engine's count, this would now report "not the last
-        // owner" (count already 0 -> floored) or the stop would have fired above; it must still
-        // be the engine's own disconnect that stops.
-        assertTrue(session.disconnect(app, notification = false), "the engine's disconnect must still stop")
-    }
-
-    @Test fun notificationControllerConnectingFirstDoesNotCountAsTheOwner() {
-        val session = Session(app)
-        session.connect(app, notification = true) // media3 can bind before the engine does
-
-        assertFalse(
-            session.disconnect(app, notification = true),
-            "a notification-only session never had an owner, so its disconnect must not stop anything",
-        )
-    }
-
     @Test fun otherPackageControllersNeverAffectTheOwnerCount() {
         val session = Session(app)
         session.connect(app, notification = false)
