@@ -12,8 +12,7 @@ class PlayerAdaptiveTextTest {
     val testTimeout = TestTimeouts.jvm()
 
     private fun withMedian(median: Float) = BackgroundBrightness(
-        wcag = BrightnessStats(mean = 0.9f, median = median, p90 = 0.9f),
-        oklab = BrightnessStats(mean = 0.9f, median = 0.9f, p90 = 0.9f),
+        wcag = BrightnessStats(median = median),
     )
 
     private fun dark(brightness: BackgroundBrightness?) = useDarkPlayerTitle(
@@ -49,7 +48,7 @@ class PlayerAdaptiveTextTest {
     }
 
     @Test fun onlyTheLockedMetricAndStatisticDecide() {
-        // Mean, P90 and the OKLab values are all high; the WCAG median is low.
+        // The WCAG median is low.
         assertEquals(false, dark(withMedian(0.1f)))
     }
 

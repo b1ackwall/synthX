@@ -22,8 +22,7 @@ class PlayerContentColorsTest {
     val testTimeout = TestTimeouts.jvm()
 
     private fun withMedian(median: Float) = BackgroundBrightness(
-        wcag = BrightnessStats(mean = 0.9f, median = median, p90 = 0.9f),
-        oklab = BrightnessStats(mean = 0.9f, median = 0.9f, p90 = 0.9f),
+        wcag = BrightnessStats(median = median),
     )
 
     @Test fun lightIsTextPrimaryAndDarkIsBackground() {

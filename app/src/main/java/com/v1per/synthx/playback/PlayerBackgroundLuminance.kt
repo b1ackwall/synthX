@@ -1,7 +1,6 @@
 package com.v1per.synthx.playback
 
 import android.graphics.Bitmap
-import kotlin.math.cbrt
 import kotlin.math.ceil
 import kotlin.math.pow
 
@@ -12,11 +11,11 @@ private const val LumaB = 0.072f
 
 private fun srgbToLinear(c: Float): Float = if (c <= 0.04045f) c / 12.92f else ((c + 0.055f) / 1.055f).pow(2.4f)
 
-/** Mean, median and 90th percentile of one brightness metric, each in 0..1. */
-data class BrightnessStats(val mean: Float, val median: Float, val p90: Float)
+/** Median of one brightness metric, in 0..1. */
+data class BrightnessStats(val median: Float)
 
-/** WCAG relative luminance and OKLab lightness statistics of a background bitmap. */
-data class BackgroundBrightness(val wcag: BrightnessStats, val oklab: BrightnessStats)
+/** WCAG relative luminance statistics of a background bitmap. */
+data class BackgroundBrightness(val wcag: BrightnessStats)
 
 private fun nearestRank(sorted: FloatArray, percentile: Int): Float {
     val rank = ceil(percentile / 100f * sorted.size).toInt().coerceIn(1, sorted.size)
@@ -24,22 +23,18 @@ private fun nearestRank(sorted: FloatArray, percentile: Int): Float {
 }
 
 private fun statsOf(values: FloatArray): BrightnessStats {
-    var sum = 0.0
-    for (v in values) sum += v
-    val mean = (sum / values.size).toFloat()
     values.sort()
-    return BrightnessStats(mean, nearestRank(values, 50), nearestRank(values, 90))
+    return BrightnessStats(nearestRank(values, 50))
 }
 
 /**
- * WCAG relative luminance and OKLab lightness statistics for opaque ARGB [pixels]. Each pixel gets
+ * WCAG relative luminance statistics for opaque ARGB [pixels]. Each pixel gets
  * the background chain's [saturation] boost (as ColorMatrix.setSaturation does), clamped to 0..1
  * and converted to linear sRGB; alpha is ignored. Null for no pixels.
  */
 internal fun backgroundBrightness(pixels: IntArray, saturation: Float): BackgroundBrightness? {
     if (pixels.isEmpty()) return null
     val wcag = FloatArray(pixels.size)
-    val oklab = FloatArray(pixels.size)
     val rr = LumaR + (1f - LumaR) * saturation
     val rg = LumaG * (1f - saturation)
     val rb = LumaB * (1f - saturation)
@@ -58,12 +53,8 @@ internal fun backgroundBrightness(pixels: IntArray, saturation: Float): Backgrou
         val lg = srgbToLinear((gr * r + gg * g + gb * b).coerceIn(0f, 1f))
         val lb = srgbToLinear((br * r + bg * g + bb * b).coerceIn(0f, 1f))
         wcag[i] = 0.2126f * lr + 0.7152f * lg + 0.0722f * lb
-        val l = cbrt(0.4122214708f * lr + 0.5363325363f * lg + 0.0514459929f * lb)
-        val m = cbrt(0.2119034982f * lr + 0.6806995451f * lg + 0.1073969566f * lb)
-        val s = cbrt(0.0883024619f * lr + 0.2817188376f * lg + 0.6299787005f * lb)
-        oklab[i] = (0.2104542553f * l + 0.7936177850f * m - 0.0040720468f * s).coerceIn(0f, 1f)
     }
-    return BackgroundBrightness(statsOf(wcag), statsOf(oklab))
+    return BackgroundBrightness(statsOf(wcag))
 }
 
 /** [backgroundBrightness] of this bitmap's pixels. */

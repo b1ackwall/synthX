@@ -41,8 +41,7 @@ class PlayerBackgroundDebugStateTest {
     }
 
     private val brightness = BackgroundBrightness(
-        wcag = BrightnessStats(mean = 0.1f, median = 0.2f, p90 = 0.3f),
-        oklab = BrightnessStats(mean = 0.4f, median = 0.5f, p90 = 0.6f),
+        wcag = BrightnessStats(median = 0.2f),
     )
 
     @Test fun selectionPicksTheChosenMetricAndStatistic() {
