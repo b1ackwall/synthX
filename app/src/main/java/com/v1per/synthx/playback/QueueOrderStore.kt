@@ -131,33 +131,6 @@ class QueueOrderStore(private val baselineWriter: BaselineOrderWriter) {
     }
 
     /**
-     * Drag-reorder. [fromDisplayIndex]/[toDisplayIndex] are positions in the Up Next list, i.e.
-     * offsets after the current slot, resolved here against [live] — which is why this works for
-     * a row nowhere near the loaded window: the store holds the whole order, so there is no
-     * "real timeline index" to translate into, and therefore no position outside the
-     * window that can silently fail to resolve.
-     *
-     * The baseline half: while shuffle is off the upcoming order is
-     * baseline's tail, so the same display offset applies there too. While shuffle is on the
-     * reorder is live-only and evaporates on the next unshuffle, per spec.
-     */
-    fun moveUpcoming(
-        fromDisplayIndex: Int,
-        toDisplayIndex: Int,
-        currentSlotId: String?,
-        mirrorToBaseline: Boolean,
-    ): Boolean {
-        val currentIndex = indexOfSlot(currentSlotId)
-        if (currentIndex < 0) return false
-        val from = currentIndex + 1 + fromDisplayIndex
-        val to = currentIndex + 1 + toDisplayIndex
-        if (from !in live.indices || to !in live.indices) return false
-        live = live.toMutableList().apply { add(to, removeAt(from)) }
-        if (mirrorToBaseline) mirrorMoveIntoBaseline(fromDisplayIndex, toDisplayIndex, currentSlotId)
-        return true
-    }
-
-    /**
      * Slot-id-identified counterpart of [moveUpcoming]: [slotId] is resolved
      * against [live] fresh, right here, rather than trusting a caller-supplied
      * `fromDisplayIndex` — a raw display index captured by the UI at drag-start can be stale by
