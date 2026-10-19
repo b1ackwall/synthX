@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- app_name is provided per-build-type via resValue in app/build.gradle.kts -->
+    <!-- app_name comes from resValue in app/build.gradle.kts (defaultConfig, overridden by debug and benchmark) -->
 
     <!-- Navigation -->
     <string name="nav_home">Home</string>
@@ -398,7 +398,7 @@
     <string name="action_move_down">Move down</string>
     <string name="action_remove_from_queue">Remove from queue</string>
 
-    <!-- Database startup failure surfaces (MainActivity) -->
+    <!-- Database startup failure surfaces (DatabaseStartupContent.kt, shown by MainActivity) -->
     <string name="action_close">Close</string>
     <string name="action_continue">Continue</string>
     <string name="startup_failure_title">Database startup paused</string>

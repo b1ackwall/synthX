@@ -93,9 +93,9 @@ android {
 
     testOptions {
         unitTests {
-            // android.util.Log is unmocked in local JVM unit tests by default and throws on
-            // any call; retryOnFailure (P1-T6) is the first unit-tested code path that logs
-            // via Log.w, so let unmocked android.* calls return their default value instead.
+            // android.util.Log is unmocked in local JVM unit tests and throws on any call;
+            // retryOnFailure logs via Log.w, so let unmocked android.* calls return their
+            // default value instead.
             isReturnDefaultValues = true
         }
     }
