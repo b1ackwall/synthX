@@ -111,9 +111,20 @@ androidComponents {
     }
 }
 
-composeCompiler {
-    metricsDestination = layout.buildDirectory.dir("compose_metrics")
-    reportsDestination = layout.buildDirectory.dir("compose_reports")
+// Compose compiler reports and metrics are written only with -PcomposeReports (any value but "false"),
+// one folder per Kotlin compilation: build/compose-reports/<compilation>/ (debug, debugUnitTest, ...).
+val composeReports = providers.gradleProperty("composeReports").map { it != "false" }.getOrElse(false)
+if (composeReports) {
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        val compilation = name.removePrefix("compile").removeSuffix("Kotlin").replaceFirstChar { it.lowercase() }
+        val dir = layout.buildDirectory.dir("compose-reports/$compilation").get().asFile
+        compilerOptions.freeCompilerArgs.addAll(
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=$dir",
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=$dir",
+        )
+    }
 }
 
 ksp {
