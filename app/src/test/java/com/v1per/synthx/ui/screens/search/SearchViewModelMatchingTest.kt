@@ -12,10 +12,11 @@ import com.v1per.synthx.ui.testing.TestTimeouts
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -111,7 +112,7 @@ class SearchViewModelMatchingTest {
             try {
                 block(viewModel)
             } finally {
-                viewModel.viewModelScope.cancel()
+                runBlocking { viewModel.viewModelScope.coroutineContext.job.cancelAndJoin() }
             }
         } finally {
             Dispatchers.resetMain()
