@@ -1,6 +1,9 @@
 package com.v1per.synthx.ui
 
+import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
@@ -10,6 +13,7 @@ import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.v1per.synthx.R
 import com.v1per.synthx.data.db.PlaylistEntity
 import com.v1per.synthx.data.db.PlaylistGroupEntity
@@ -149,8 +153,30 @@ class ShellSheetsInstrumentedTest {
     @Test fun groupPickerBackClosesTheSheetAndMovesNothing() {
         openGroupPickerForTheSeededPlaylist()
         shell.pressBackKey()
-        composeRule.waitUntil(ShellTestHost.WAIT_MS) { shell.textCount(text(R.string.action_add_to_group)) == 0 }
+        try {
+            composeRule.waitUntil(ShellTestHost.WAIT_MS) { shell.textCount(text(R.string.action_add_to_group)) == 0 }
+        } catch (e: ComposeTimeoutException) {
+            logWindowDump()
+            throw e
+        }
         assertEquals(Screen.PlaylistList.route, shell.route())
         assertEquals("dismissing must not move the playlist", null, groupOfSeededPlaylist())
+    }
+
+    /** Logs the window manager's window list (tag [DUMP_TAG]) so a stuck sheet shows which window holds focus. */
+    private fun logWindowDump() {
+        val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand("dumpsys window")
+        val lines = ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().use { it.readLines() }
+        val keep =
+            Regex(
+                """^\s*(Window #|mAttrs=|mCurrentFocus|mFocusedApp|mFocusedWindow|mBaseLayer=|mViewVisibility=|Frames:|isVisible=)|package=""",
+            )
+        Log.e(DUMP_TAG, "Windows when the group picker did not close:")
+        lines.filter { keep.containsMatchIn(it) }.forEach { Log.e(DUMP_TAG, it) }
+    }
+
+    private companion object {
+        const val DUMP_TAG = "ShellSheetsWindowDump"
     }
 }
