@@ -40,7 +40,10 @@ jobs:
       - name: Install pinned ktlint
         run: bash -c 'source scripts/ktlint-setup.sh && ktlint_prepare'
 
+      # Every branch writes the Gradle cache, so pushes to code-work also save it.
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       # Lets Gradle find the setup-java JDK 25 for the daemon without a download.
       - name: Point Gradle at JDK 25
