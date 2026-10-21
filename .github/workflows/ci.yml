@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [code-work, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # check.sh writes its step logs here; the failure step uploads them.
+      TMPDIR: ${{ runner.temp }}/synthx-check-logs
+    steps:
+      - uses: actions/checkout@v4
+
+      # The last version listed becomes JAVA_HOME (the launcher). JDK 25 runs the Gradle daemon.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            25
+            17
+
+      # Android platform for compileSdk 37 and the build-tools the local setup uses, from the runner's SDK.
+      - name: Install Android SDK packages
+        run: |
+          test -d "$ANDROID_HOME"
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$sdkmanager" --licenses < <(yes) > /dev/null
+          "$sdkmanager" --install "platforms;android-37.0" "build-tools;36.0.0" \
+            || "$sdkmanager" --install "platforms;android-37" "build-tools;36.0.0"
+
+      # Uses the pinned URL and sha256 in scripts/ktlint-setup.sh; fails on a hash mismatch.
+      - name: Install pinned ktlint
+        run: bash -c 'source scripts/ktlint-setup.sh && ktlint_prepare'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Lets Gradle find the setup-java JDK 25 for the daemon without a download.
+      - name: Point Gradle at JDK 25
+        run: |
+          mkdir -p "$HOME/.gradle"
+          echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64" >> "$HOME/.gradle/gradle.properties"
+
+      - name: Run scripts/check.sh
+        run: |
+          mkdir -p "$TMPDIR"
+          ./scripts/check.sh
+
+      - name: Upload check logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-logs
+          path: ${{ runner.temp }}/synthx-check-logs
+          retention-days: 7
+          if-no-files-found: ignore
