@@ -16,9 +16,6 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      # check.sh writes its step logs here; the failure step uploads them.
-      TMPDIR: ${{ runner.temp }}/synthx-check-logs
     steps:
       - uses: actions/checkout@v4
 
@@ -51,8 +48,10 @@ jobs:
           mkdir -p "$HOME/.gradle"
           echo "org.gradle.java.installations.fromEnv=JAVA_HOME_25_X64" >> "$HOME/.gradle/gradle.properties"
 
+      # check.sh writes its step logs to TMPDIR; the failure step uploads them.
       - name: Run scripts/check.sh
         run: |
+          export TMPDIR="$RUNNER_TEMP/synthx-check-logs"
           mkdir -p "$TMPDIR"
           ./scripts/check.sh
 
