@@ -1,5 +1,7 @@
 package com.v1per.synthx.playback
 
+import android.annotation.SuppressLint
+import android.net.Uri
 import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -89,9 +91,13 @@ internal fun buildMediaItem(slotId: String, song: Song, artworkData: ByteArray?)
         }
         .build()
 
+    // Uri.parse, not toUri(): the JVM unit-test Uri stub returns null, which String.toUri() rejects.
+    @SuppressLint("UseKtx")
+    val uri = Uri.parse(song.filePath)
+
     return MediaItem.Builder()
         .setMediaId(slotId)
-        .setUri(song.filePath.toUri())
+        .setUri(uri)
         .setMediaMetadata(metadata)
         .build()
 }
