@@ -22,10 +22,13 @@ import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.Rule
@@ -134,7 +137,9 @@ class QueuePersistenceB1Test {
     private fun records(vararg ids: String) = ids.map { QueueSlotRecord(slotId = it, songId = it) }
     private fun reset() = RestoreCoordinator.resetForTest()
 
-    @Test fun acceptedWriteDrainsAfterPreparation() = runTest {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun acceptedWriteDrainsAfterPreparation() = runTest {
         reset()
         val repo = QueueRepo()
         repo.gate = CompletableDeferred()
@@ -150,7 +155,8 @@ class QueuePersistenceB1Test {
             }
         yield()
         repo.gate!!.complete(Unit)
-        withTimeout(2_000) { restore.await() }
+        // Real-time guard: the write runs on a real IO thread, which virtual time does not wait for.
+        withContext(Dispatchers.Default.limitedParallelism(1)) { withTimeout(2_000) { restore.await() } }
         assertEquals(listOf(listOf("a")), repo.persisted)
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
     }
