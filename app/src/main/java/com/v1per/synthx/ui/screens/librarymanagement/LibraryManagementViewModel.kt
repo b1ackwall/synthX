@@ -400,7 +400,6 @@ class LibraryManagementViewModel(
     // Only acknowledges a *finished* run — an in-progress scan's WorkInfo is never
     // finished, so leaving mid-scan and coming back always shows its real, live state.
     override fun onCleared() {
-        super.onCleared()
         workInfo.value?.let { info ->
             if (info.state.isFinished) {
                 ScanStatusAcknowledgement.acknowledgedWorkId = info.id

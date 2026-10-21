@@ -431,7 +431,6 @@ class PlaybackViewModel(
     }
 
     override fun onCleared() {
-        super.onCleared()
         controller.release()
     }
 
