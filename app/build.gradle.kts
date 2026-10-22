@@ -163,6 +163,8 @@ dependencies {
     implementation(libs.reorderable)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.collections.immutable)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.tracing)
 
     // JUnit4 variant named explicitly: built-in Kotlin doesn't infer it from kotlin("test").
