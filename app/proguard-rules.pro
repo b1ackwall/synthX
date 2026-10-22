@@ -1,8 +1,5 @@
 # Add project specific ProGuard rules here.
 
-# Keep Room entities
--keep class com.v1per.synthx.data.db.** { *; }
-
 # Kotlin coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
