@@ -1,7 +1,7 @@
 package com.v1per.synthx.ui.screens.library
 
-import android.annotation.SuppressLint
 import android.content.Context
+import androidx.concurrent.futures.await as awaitFuture
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -172,8 +172,6 @@ class LibraryViewModel(
      * reported distinctly ("already scanning") from a scan that ran and failed. The outcome of a
      * scan that did start is then surfaced through [refreshMessages] using the shared status text.
      */
-    // WorkManager's await is restricted API, see #243.
-    @SuppressLint("RestrictedApi")
     fun onPullToRefresh() {
         viewModelScope.launch {
             try {
@@ -183,7 +181,7 @@ class LibraryViewModel(
                     LibraryScanWorker.enqueue(appContext, ExistingWorkPolicy.KEEP)
                 }
                 enqueued.operation.await()
-                if (workManager.getWorkInfoById(enqueued.id).await() == null) {
+                if (workManager.getWorkInfoById(enqueued.id).awaitFuture() == null) {
                     _refreshMessages.emit(appContext.getString(R.string.library_refresh_already_scanning))
                     return@launch
                 }
