@@ -219,7 +219,7 @@ class PreferencesManager(context: Context) {
 
     /**
      * Set the moment a restore's outcome resolves to installed (see RestoreTransaction's
-     * COMPLETE_INSTALLED_AND_NORMAL/ACCEPT_COMPLETE_HISTORY_AND_NORMAL branches), read and
+     * COMPLETE_INSTALLED_AND_NORMAL branch and recoverCompletedHistory), read and
      * cleared once by [MainActivity.runLaunchMaintenance] on the next launch. Album art is
      * deliberately excluded from backups, and a normal rescan can't self-heal a restored song's
      * missing art (identity resolution treats it as "existing, unchanged" — see

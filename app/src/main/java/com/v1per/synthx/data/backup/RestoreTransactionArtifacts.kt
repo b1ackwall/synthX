@@ -120,10 +120,10 @@ internal fun RestoreTransaction.cleanupAfterColdValidation(
     // Only a successful install's safety snapshot is worth keeping around as a
     // bonus Auto-tier backup — a rolled-back attempt's safety copy either already became
     // live via completeStartupRollback/rollbackCurrentProcess, or is just ordinary
-    // transaction debris with nothing new to preserve. Runs strictly here: this function
-    // is only ever reached once Phase.COMPLETE has already been durably written above, so
-    // the safety file has been untouched (available for rollback) through every phase up
-    // to this point.
+    // transaction debris with nothing new to preserve. Runs strictly here: callers write
+    // Phase.COMPLETE durably before calling this function (recoverCompletedHistory finds it
+    // already on disk), so the safety file has been untouched (available for rollback)
+    // through every phase up to this point.
     if (state.outcome == Outcome.INSTALLED) {
         SafetySnapshotPromoter.promoteSafetyToAutoTier(context, dir, state, faults)
     }

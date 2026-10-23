@@ -126,8 +126,8 @@ internal fun assertFollowedBy(
 }
 
 /**
- * The one place device tests touch the journal's internal helpers, so a move of those helpers
- * during a split of RestoreTransaction.kt changes only this object.
+ * Shortcuts to the journal's test seams in RestoreTransactionJournal.kt. Some device tests also call
+ * RestoreTransaction.decodeStateOrNullForTest directly.
  */
 internal object RestoreJournalTestAccess {
     fun write(dir: File, state: RestoreTransaction.State) = RestoreTransaction.writeStateForTest(dir, state)

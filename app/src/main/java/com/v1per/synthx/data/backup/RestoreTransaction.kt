@@ -2,11 +2,6 @@ package com.v1per.synthx.data.backup
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import android.os.StatFs
-import android.system.ErrnoException
-import android.system.Os
-import android.system.OsConstants
-import android.util.Log
 import androidx.work.WorkManager
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.LibraryScanWorker
@@ -14,39 +9,25 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.repository.RepositoryDbFlow
 import com.v1per.synthx.playback.ExoPlayerEngine
 import com.v1per.synthx.playback.QueuePersistence
-import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
-import java.io.FileOutputStream
-import java.io.RandomAccessFile
-import java.security.MessageDigest
-import java.util.UUID
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
-// NOTE: This file intentionally exceeds the project's 500-line
-// guideline. Its separable pieces live elsewhere: the pure phase-recovery decision
-// table as RestoreRecoveryPlanner (RestorePrimitives.kt), and the safety-snapshot
-// promotion as SafetySnapshotPromoter.kt.
-// What remains is the crash-safety core: execute(), recoverIfNeeded /
-// recoverWithState / recoverWithoutUsableState, completeStartupRollback /
-// rollbackCurrentProcess, checkpointCloseAndProveMain, and writeState's state
-// persistence. That core alone is over the 500-line target, so the target is not
-// reachable here without cutting into the core itself.
-//
-// Cutting into it has two real costs. Extracting the rollback pair alone would
-// require widening several of this file's private FS/state primitives plus an
-// accessor for lastDiagnosticOperationId — an encapsulation loss, not a
-// line-count nicety. And this file's guarantee is durability ordering: every
-// recovery-critical rename is immediately followed by its own syncDirectory,
-// with nothing able to interleave. Every directory-sync fault point has a device
-// test that injects it by name (RestoreFaultPointCoverageTest enforces the naming).
-// Treat this as a deliberate exception, not an oversight.
+// This file holds the RestoreTransaction object head (state file names, diagnostic fields, nested
+// types), execute, rollbackCurrentProcess and checkpointCloseAndProveMain. The rest of the object
+// lives in sibling files, mostly as extension functions on it:
+// RestoreTransactionRecovery.kt: startup recovery, from recoverIfNeeded down to startup rollback.
+// RestoreTransactionEmergency.kt: executeEmergencyReplacement, the terminal UI's restore path.
+// RestoreTransactionJournal.kt: the restore-state journal codec and writeState.
+// RestoreTransactionStaging.kt: SAF copy, free-space preflight, candidate migration and proof.
+// RestoreTransactionArtifacts.kt: rename, directory sync, artifact validation, cleanup, archiving.
+// RestoreTransactionIncident.kt: emergency incident IDs and reports.
+// writeState, rename and syncDirectory each hit their fault point before they touch the disk, and
+// execute writes LIVE_MOVE_INTENT and INSTALL_INTENT before the renames they announce.
 /**
  * Coarse, UI-facing progress reported through [RestoreTransaction.execute]'s
  * `onProgress` callback. Deliberately public and top-level, rather than nested inside

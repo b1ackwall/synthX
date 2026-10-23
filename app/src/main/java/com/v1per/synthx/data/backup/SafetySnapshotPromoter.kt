@@ -12,16 +12,13 @@ import java.io.File
  * Promotes a completed restore's safety snapshot to an Auto-tier backup, kept apart from
  * [RestoreTransaction].
  *
- * It is the one part of that file with no stake in the crash-resumable phase machine: it is reached
- * only from cleanupAfterColdValidation, strictly after Phase.COMPLETE is already durable, it reads
- * nothing beyond the [RestoreTransaction.State] handed to it, and failures are retryable from that
- * completed phase (see [promoteSafetyToAutoTier]). Everything else in RestoreTransaction.kt stays
- * put — that coupling is what makes its safety guarantees provable.
+ * It has no stake in the crash-resumable phase machine: it is reached only from
+ * cleanupAfterColdValidation, strictly after Phase.COMPLETE is already durable, it reads nothing
+ * beyond the [RestoreTransaction.State] handed to it, and failures are retryable from that
+ * completed phase (see [promoteSafetyToAutoTier]).
  *
- * Following [MigrationRecoveryAction], this object keeps its own private copies of the three
- * filesystem primitives it needs rather than widening RestoreTransaction's private members to
- * internal — see the note at the top of RestoreTransaction.kt on not weakening encapsulation on
- * safety-critical code.
+ * Like [MigrationRecoveryAction], this object keeps its own private copies of the three filesystem
+ * primitives it needs; the originals are internal extensions in RestoreTransactionArtifacts.kt.
  */
 internal object SafetySnapshotPromoter {
     // Deliberately still "RestoreTransaction": moving this code must not move its logcat output.
@@ -109,9 +106,9 @@ internal object SafetySnapshotPromoter {
         ).exceptionOrNull()?.let { throw it }
     }
 
-    // Verbatim copies of RestoreTransaction's file primitives, kept private here for the same
-    // reason MigrationRecoveryAction keeps its own: neither is worth widening that object's
-    // encapsulation for. Both are pure functions of their arguments with no shared state.
+    // Verbatim copies of RestoreTransaction's file primitives (RestoreTransactionArtifacts.kt),
+    // kept private here as MigrationRecoveryAction keeps its own. They depend only on their
+    // arguments, with no shared state.
 
     private fun rawRename(from: File, to: File) {
         check(from.exists()) { "Missing ${from.name}" }
