@@ -370,6 +370,7 @@ class ReplaceSongViewModel(
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
             val appContext = context.applicationContext
+            // Class<T> is erased; this factory only ever builds ReplaceSongViewModel.
             @Suppress("UNCHECKED_CAST")
             return ReplaceSongViewModel(
                 repository = SongRepositoryImpl.create(appContext),

@@ -135,6 +135,7 @@ class RestoreStatusViewModel internal constructor(
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(RestoreStatusViewModel::class.java))
+            // Class<T> is erased; this factory only ever builds RestoreStatusViewModel.
             @Suppress("UNCHECKED_CAST")
             return RestoreStatusViewModel(
                 context.applicationContext,

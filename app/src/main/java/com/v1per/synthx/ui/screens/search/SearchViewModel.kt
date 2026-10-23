@@ -145,6 +145,7 @@ class SearchViewModel(private val repository: SongRepository, private val appCon
         fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 val repository = SongRepositoryImpl.create(context)
+                // Class<T> is erased; this factory only ever builds SearchViewModel.
                 @Suppress("UNCHECKED_CAST")
                 return SearchViewModel(repository, context.applicationContext) as T
             }

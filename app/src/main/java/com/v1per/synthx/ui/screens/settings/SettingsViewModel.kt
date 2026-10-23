@@ -18,6 +18,7 @@ class SettingsViewModel : ViewModel() {
             if (!modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
+            // Class<T> is erased; this factory only ever builds SettingsViewModel.
             @Suppress("UNCHECKED_CAST")
             return SettingsViewModel() as T
         }

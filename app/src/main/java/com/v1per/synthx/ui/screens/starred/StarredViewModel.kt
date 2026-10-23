@@ -70,6 +70,7 @@ class StarredViewModel(
             if (!modelClass.isAssignableFrom(StarredViewModel::class.java)) {
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
+            // Class<T> is erased; this factory only ever builds StarredViewModel.
             @Suppress("UNCHECKED_CAST")
             return StarredViewModel(
                 SongRepositoryImpl.create(context),
