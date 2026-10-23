@@ -17,14 +17,14 @@ data class BrightnessStats(val median: Float)
 /** WCAG relative luminance statistics of a background bitmap. */
 data class BackgroundBrightness(val wcag: BrightnessStats)
 
-private fun nearestRank(sorted: FloatArray, percentile: Int): Float {
-    val rank = ceil(percentile / 100f * sorted.size).toInt().coerceIn(1, sorted.size)
+private fun nearestRank(sorted: FloatArray): Float {
+    val rank = ceil(0.5f * sorted.size).toInt().coerceIn(1, sorted.size)
     return sorted[rank - 1]
 }
 
 private fun statsOf(values: FloatArray): BrightnessStats {
     values.sort()
-    return BrightnessStats(nearestRank(values, 50))
+    return BrightnessStats(nearestRank(values))
 }
 
 /**
