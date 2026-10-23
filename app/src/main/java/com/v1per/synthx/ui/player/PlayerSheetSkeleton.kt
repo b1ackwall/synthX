@@ -88,7 +88,7 @@ internal fun PlayerSheetSkeleton(
     onProgressChanged: (Float) -> Unit = {},
     collapsePlayerSignal: Int = 0,
     // Whether the sheet is currently the visible/interactive one — false on routes outside
-    // bottomBarRoutes (Settings, Library Management, etc.), where SynthXBottomNav.kt's
+    // bottomBarVisibleRoutes (Settings, Library Management, etc.), where SynthXBottomNav.kt's
     // BottomChromeOverlay zero-sizes this composable via `modifier` instead of removing it
     // from composition, to keep draggableState/QueueModeState alive across the visit. Layout
     // size alone doesn't gate BackHandler below — its registration follows composition

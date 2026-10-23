@@ -134,14 +134,14 @@ private fun NormalShell(
         value
     }
 
-    // Home/Library/Search plus every route in Library's own detail hierarchy — see
-    // Screen.libraryDetailRoutes, also shared by SynthXBottomNav.
-    val bottomBarRoutes = setOf(
+    // Routes where the bottom bar shows: Home, Library, Search and Screen.libraryDetailRoutes
+    // (also shared by SynthXBottomNav).
+    val bottomBarVisibleRoutes = setOf(
         Screen.Home.route,
         Screen.Library.route,
         Screen.Search.route,
     ) + Screen.libraryDetailRoutes
-    val showBottomBar = currentRoute in bottomBarRoutes
+    val showBottomBar = currentRoute in bottomBarVisibleRoutes
 
     val context = LocalContext.current
     val resources = LocalResources.current

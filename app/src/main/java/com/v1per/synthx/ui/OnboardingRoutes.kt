@@ -12,7 +12,7 @@ import java.util.UUID
  * [com.v1per.synthx.preferences.PreferencesManager.musicFolderUri] is null (resolved once in
  * MainActivity, see [SynthXNavHost]'s startDestination parameter). Not wrapped in
  * [RouteContent]/chromeBottomPadding like the other route groups — this route is never in
- * MainScaffold's bottomBarRoutes set, so it never reserves that space in the first place.
+ * MainScaffold's bottomBarVisibleRoutes set, so it never reserves that space in the first place.
  */
 fun NavGraphBuilder.onboardingRoutes(navController: NavHostController, onRestoreTerminalShown: (UUID) -> Unit = {}) {
     composable(Screen.Onboarding.route) {
