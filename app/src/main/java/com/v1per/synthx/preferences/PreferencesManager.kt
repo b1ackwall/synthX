@@ -52,9 +52,8 @@ class PreferencesManager(context: Context) {
      *
      * [backupFolderUri] is deliberately excluded and must stay excluded: it holds database
      * snapshots and is never scanned for audio. Including it would make the scanner walk `.db`
-     * files and, worse, imply that songs could legitimately live there. (Write access is no
-     * longer what sets it apart — all three trees hold one now — but the exclusion never rested
-     * on that.)
+     * files and, worse, imply that songs could legitimately live there. (Write access does not
+     * set it apart, since all three trees hold one; the exclusion does not rest on that.)
      *
      * Exists so missing-detection can reconcile against *all* configured roots rather than
      * only the one being walked — see FolderScanner.scan's `otherRootUris`.
@@ -205,7 +204,7 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_MIGRATION_INVARIANT_FAILURE_PENDING, false)
 
     /**
-     * Synchronous counterpart to [migrationInvariantFailurePending]'s (removed) setter. Blocks
+     * Durable writer for [migrationInvariantFailurePending]. Blocks
      * until the write is committed to disk and reports whether it actually succeeded, so a
      * caller on this critical path can react to a failed commit instead of assuming success the
      * way `apply()` would.
@@ -294,7 +293,7 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
 
     /**
-     * Synchronous counterpart to [onboardingComplete]'s (removed) setter. Also clears any
+     * Durable writer for [onboardingComplete]. Also clears any
      * persisted wizard position in the same commit once [value] is true — that position exists
      * only to resume an in-progress wizard, and becomes stale the instant onboarding is done.
      */

@@ -53,7 +53,7 @@ import java.util.UUID
  * status text. An in-progress run is never recorded here, so it always survives navigating
  * away and back. Cleared implicitly by process death, same as the cold-start prune.
  *
- * Now shared across all three scan workers (not just [LibraryScanWorker]) since [workInfo]
+ * Shared across all three scan workers since [workInfo]
  * below resolves to whichever of the three most recently ran — a single id is still enough,
  * since only one of them can ever be the "current" one at a time.
  */
@@ -164,11 +164,10 @@ class LibraryManagementViewModel(
     // freshly constructed ViewModel observing a scan already in flight sees its real
     // state, not a default.
     //
-    // The unique name is shared by three workers: LibraryScanWorker (the manual rescan this
-    // row historically reported on), VerifyLibraryWorker (a silent launch-time sweep) and
-    // NewArrivalsScanWorker (a silent launch-time worker, chained after Verify). All three are
-    // now surfaced here — see selectRelevantWorkInfo — rather than filtering down to just
-    // LibraryScanWorker's tag, so the status row reflects whichever of the three is actually
+    // The unique name is shared by three workers: LibraryScanWorker (the manual rescan),
+    // VerifyLibraryWorker (a silent launch-time sweep) and NewArrivalsScanWorker (a silent
+    // launch-time worker, chained after Verify). All three are surfaced here — see
+    // selectRelevantWorkInfo — so the status row reflects whichever of the three is actually
     // running or most recently finished.
     private val workInfo: StateFlow<WorkInfo?> = workManager
         .getWorkInfosForUniqueWorkFlow(LibraryScanWorker.UNIQUE_WORK_NAME)
@@ -217,7 +216,7 @@ class LibraryManagementViewModel(
         // read. Watched per-stage, since the two workers share one unique work name.
         viewModelScope.launch {
             workInfo.collect { info ->
-                // workInfo can now resolve to any of the three tagged runs — only react to a
+                // workInfo can resolve to any of the three tagged runs — only react to a
                 // LibraryScanWorker failure here; a NewArrivals/Verify failure has nothing to
                 // do with the main music-folder grant.
                 if (info?.state == WorkInfo.State.FAILED && LIBRARY_SCAN_TAG in info.tags) {

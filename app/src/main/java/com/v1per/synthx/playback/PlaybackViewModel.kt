@@ -287,7 +287,7 @@ class PlaybackViewModel(
 
     fun previous() = controller.previous()
 
-    // Mirrors playQueueJob above: a large-queue reshuffle now dispatches its MediaItem
+    // Mirrors playQueueJob above: a large-queue reshuffle dispatches its MediaItem
     // build off Main (see ExoPlayerEngine.setShuffleEnabled), so a rapid second toggle can
     // land before the first's off-main work finishes. Cancelling the prior job keeps only
     // the most recent tap's result reaching the controller.
@@ -376,10 +376,10 @@ class PlaybackViewModel(
     fun playQueueItem(slotId: String) = controller.seekToQueueItem(slotId)
 
     /**
-     * False both when nothing was ever queued and when a queue ran to its end. A natural end no
-     * longer clears the current song (the player stays up, paused on the last track), so
+     * False both when nothing has been queued and when a queue ran to its end. A natural end
+     * leaves the current song set (the player stays up, paused on the last track), so
      * [isQueueEnded] is what distinguishes "ended" from "paused mid-queue" — the song id and
-     * item count alone would now read as active.
+     * item count alone would read as active.
      */
     private fun hasActivePlayback(): Boolean =
         activeSongId.value != null && queue.value.isNotEmpty() && !isQueueEnded.value

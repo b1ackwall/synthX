@@ -42,7 +42,7 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
         artworkLoadedSlotIds.clear()
         artworkLoadedSlotIds.add(startSlot.slotId)
 
-        // Store before timeline: every queue flow is derived from the store now, so it has to
+        // Store before timeline: every queue flow is derived from the store, so it has to
         // be correct before the transition callback for the starting item can land. A fresh
         // queue always fully replaces both orders — never merges with whatever existed before.
         val baselineRecords = slots.map { QueueSlotRecord(it.slotId, it.song.id) }
@@ -145,8 +145,8 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
         // repeat-all wraparound rule.
         _shuffleEnabled.value = restored.shuffleEnabled
         _repeatMode.value = restored.repeatMode.toRepeatMode()
-        // Populate queue state before publishing cursor identity, preserving the original
-        // pre-windowing ordering guarantee as defense in depth for any legacy consumers.
+        // Populate queue state before publishing cursor identity, as defense in depth for any
+        // consumer that depends on that ordering.
         refreshQueue()
         publishCurrentSlot(startSlot.slotId)
         refreshCurrentIndex()

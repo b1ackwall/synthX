@@ -59,7 +59,7 @@ private data class PartialSources(
  * What the Issues screen's fixed status area renders. Three states, not two, because "we don't
  * know yet whether a scan is running" is genuinely distinct from both: resolving WorkManager's
  * WorkInfo is asynchronous, and showing a last-scan summary during that window would be exactly
- * the stale-summary lie this whole rework exists to remove — briefly, but still a lie.
+ * the stale-summary lie — briefly, but still a lie.
  */
 sealed interface IssuesScanStatus {
     /** WorkManager hasn't reported yet. Sub-frame in practice; the button stays disabled. */
