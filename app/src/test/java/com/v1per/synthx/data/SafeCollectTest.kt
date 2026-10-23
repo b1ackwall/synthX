@@ -20,6 +20,12 @@ class SafeCollectTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)
     val testTimeout = TestTimeouts.jvm()
 
+    /**
+     * This test fails if [collectCatching]'s
+     * per-event try/catch is replaced with a plain `collect { action(it) }` (no boundary at all): the
+     * exception thrown while handling `2` then propagates out of `collect` entirely, so `3` is never
+     * delivered.
+     */
     @Test fun aThrowingHandlerDoesNotStopSubsequentEvents() = runTest {
         val source = flow {
             emit(1)
@@ -49,10 +55,3 @@ class SafeCollectTest {
         }
     }
 }
-
-/**
- * [SafeCollectTest.aThrowingHandlerDoesNotStopSubsequentEvents] fails if [collectCatching]'s
- * per-event try/catch is replaced with a plain `collect { action(it) }` (no boundary at all): the
- * exception thrown while handling `2` then propagates out of `collect` entirely, so `3` is never
- * delivered.
- */

@@ -257,6 +257,15 @@ class QueueOrderStoreTest {
         assertEquals(listOf("slot-a"), subject.liveIds())
     }
 
+    /** Three independently addressable occurrences of the same song, plus two other songs. */
+    private fun queueWithDuplicates() = listOf(
+        QueueSlotRecord("slot-a", "song-a"),
+        QueueSlotRecord("slot-dup-1", "song-dup"),
+        QueueSlotRecord("slot-dup-2", "song-dup"),
+        QueueSlotRecord("slot-dup-3", "song-dup"),
+        QueueSlotRecord("slot-b", "song-b"),
+    )
+
     /**
      * Deleting N duplicate occurrences of one song by calling [remove] once per occurrence
      * copies/filters the FULL live+baseline lists each time and, since every one of these
@@ -268,16 +277,6 @@ class QueueOrderStoreTest {
      * exactly the second assertion group below, run directly against this same store, so that
      * shape stays pinned without hand-editing production code.
      */
-
-    /** Three independently addressable occurrences of the same song, plus two other songs. */
-    private fun queueWithDuplicates() = listOf(
-        QueueSlotRecord("slot-a", "song-a"),
-        QueueSlotRecord("slot-dup-1", "song-dup"),
-        QueueSlotRecord("slot-dup-2", "song-dup"),
-        QueueSlotRecord("slot-dup-3", "song-dup"),
-        QueueSlotRecord("slot-b", "song-b"),
-    )
-
     @Test fun removeAllDeletesEveryDuplicateOccurrenceInExactlyOneBaselineWrite() {
         val batchWriter = RecordingWriter()
         val batchSubject = store(batchWriter)
