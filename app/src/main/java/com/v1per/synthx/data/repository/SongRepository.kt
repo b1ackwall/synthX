@@ -168,7 +168,7 @@ interface SongRepository {
     // Playback queue — persisted so it survives a restart
 
     /** The saved queue, retaining each occurrence's slot identity. */
-    suspend fun getQueueSlots(): List<QueueSlot>
+    suspend fun getQueueSlotsForTest(): List<QueueSlot>
 
     /**
      * The saved queue rows and resume cursor, read as one consistent snapshot (see

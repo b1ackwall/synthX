@@ -63,7 +63,7 @@ class RepositoryQueueRoomInstrumentedTest {
         assertEquals("Song a", snapshot.slots[1].song.title)
         assertEquals("Artist", snapshot.slots[1].song.artist)
         // The single-purpose reads agree with the combined one.
-        assertEquals(snapshot.slots, repository.getQueueSlots())
+        assertEquals(snapshot.slots, repository.getQueueSlotsForTest())
         assertEquals(baseline, repository.getBaselineQueueSlots())
         assertEquals(snapshot, repository.getQueueSnapshot())
     }
@@ -175,7 +175,7 @@ class RepositoryQueueRoomInstrumentedTest {
             QueueCursor("s2", 321, shuffleEnabled = true, repeatMode = 1),
             repository.getQueueSnapshot().cursor,
         )
-        assertEquals(listOf("s1" to "a", "s2" to "b"), repository.getQueueSlots().pairs())
+        assertEquals(listOf("s1" to "a", "s2" to "b"), repository.getQueueSlotsForTest().pairs())
     }
 
     @Test fun modeSavesBeforeAnyQueueCreateTheCursorRow() = runBlocking {

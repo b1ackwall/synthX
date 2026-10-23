@@ -127,7 +127,7 @@ class QueuePersistenceB1Test {
         override suspend fun addSongToPlaylist(playlistId: String, songId: String) = false
         override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) {}
         override suspend fun getSongsByIds(ids: List<String>) = emptyList<Song>()
-        override suspend fun getQueueSlots() = emptyList<QueueSlot>()
+        override suspend fun getQueueSlotsForTest() = emptyList<QueueSlot>()
         override suspend fun getQueueSnapshot() = snapshot
         override suspend fun getBaselineQueueSlots() = emptyList<QueueSlot>()
         override suspend fun getQueueSnapshotWithBaseline() = snapshot to emptyList<QueueSlot>()

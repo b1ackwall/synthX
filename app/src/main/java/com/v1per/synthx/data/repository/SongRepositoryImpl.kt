@@ -325,7 +325,7 @@ class SongRepositoryImpl(
 
     override suspend fun getSongsByIds(ids: List<String>): List<Song> = getSongsByIdsInternal(ids)
 
-    override suspend fun getQueueSlots(): List<QueueSlot> = getQueueSlotsInternal()
+    override suspend fun getQueueSlotsForTest(): List<QueueSlot> = getQueueSlotsInternal()
 
     override suspend fun getQueueSnapshot(): QueueSnapshot = getQueueSnapshotInternal()
 
