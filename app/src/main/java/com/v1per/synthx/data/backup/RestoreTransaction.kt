@@ -65,14 +65,10 @@ enum class RestoreProgressStep { COPYING, VALIDATING, INSTALLING, FINISHING }
 /** The durable, on-disk boundary of a restore. All database artifacts are same-directory. */
 internal object RestoreTransaction {
     private const val TAG = "RestoreTransaction"
-    private const val STATE_FILE = "synthx.restore-state.json"
-    private const val STATE_TEMP_FILE = "synthx.restore-state.tmp"
+    internal const val STATE_FILE = "synthx.restore-state.json"
+    internal const val STATE_TEMP_FILE = "synthx.restore-state.tmp"
     private const val INCIDENT_FILE = "synthx.restore-incident.id"
-    private const val COMPLETED_REQUEST_LIMIT = 64
-    private val json = Json {
-        ignoreUnknownKeys = false
-        explicitNulls = true
-    }
+    internal const val COMPLETED_REQUEST_LIMIT = 64
 
     @Volatile private var lastDiagnosticOperationId: String? = null
 
@@ -981,8 +977,6 @@ internal object RestoreTransaction {
             database.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use(::readCheckpointResult)
         }
 
-    internal fun writeStateForTest(dir: File, state: State) = writeState(dir, state)
-
     private fun readCheckpointResult(cursor: android.database.Cursor): WalCheckpointResult {
         check(cursor.columnCount >= 3 && cursor.moveToFirst()) {
             "SQLite did not return a complete WAL checkpoint result"
@@ -1140,58 +1134,6 @@ internal object RestoreTransaction {
         }
     }
 
-    private fun writeState(dir: File, state: State, faults: RestoreFaultInjector = RestoreFaultInjector.NONE) {
-        validateState(state)
-        faults.hit(RestoreFaultPoint.STATE_PERSISTENCE)
-        val temp = File(dir, STATE_TEMP_FILE)
-        val target = File(dir, STATE_FILE)
-        FileOutputStream(temp).use { output ->
-            output.write(encodeState(state).encodeToByteArray())
-            output.fd.sync()
-        }
-        try {
-            Os.rename(temp.path, target.path)
-        } catch (error: ErrnoException) {
-            throw IllegalStateException("Could not atomically promote restore state", error)
-        }
-        syncDirectory(dir, RestoreFaultPoint.STATE_JOURNAL_DIRECTORY_SYNC, faults)
-    }
-
-    internal fun encodeState(state: State): String {
-        validateState(state)
-        return json.encodeToString(State.serializer(), state)
-    }
-
-    internal fun decodeStateOrNullForTest(encoded: String): State? =
-        runCatching { decodeAndValidateState(encoded) }.getOrNull()
-
-    private fun decodeAndValidateState(encoded: String): State =
-        json.decodeFromString(State.serializer(), encoded).also(::validateState)
-
-    private fun validateState(state: State) {
-        validateStateStructure(state)
-        if (state.phase != Phase.COMPLETE) validateActiveStateVersion(state)
-    }
-
-    private fun validateStateStructure(state: State) {
-        val names = RestoreArtifactNames(state.operationId)
-        require(state.candidateName == names.candidate)
-        require(state.oldName == names.old)
-        require(state.safetyName == names.safety)
-        require(state.failedName == names.failed)
-        require(state.candidateSha256.matches(Regex("[0-9a-f]{64}")))
-        require(state.safetySha256.matches(Regex("[0-9a-f]{64}")))
-        require(state.candidateSize > 0 && state.safetySize > 0)
-        require(state.candidateVersion > 0)
-        require(state.oldSha256 == null || state.oldSha256.matches(Regex("[0-9a-f]{64}")))
-        require(state.oldSize == null || state.oldSize > 0)
-        require(state.oldVersion == null || state.oldVersion > 0)
-        state.requestId?.let { require(normalizeRequestId(it) == it) }
-        require(state.completedRequestIds.size <= COMPLETED_REQUEST_LIMIT)
-        require(state.completedRequestIds.distinct().size == state.completedRequestIds.size)
-        state.completedRequestIds.forEach { require(normalizeRequestId(it) == it) }
-    }
-
     private fun State.withCompletedRequest(): State {
         val consumed = normalizeRequestId(requestId ?: operationId)
         return copy(
@@ -1200,22 +1142,10 @@ internal object RestoreTransaction {
         )
     }
 
-    private fun readCompletedRequestIds(dir: File): List<String> {
-        val state = File(dir, STATE_FILE).takeIf(File::isFile)
-            ?.let { runCatching { decodeAndValidateState(it.readText()) }.getOrNull() }
-            ?: return emptyList()
-        return state.completedRequestIds
-    }
-
-    private fun normalizeRequestId(value: String): String {
+    internal fun normalizeRequestId(value: String): String {
         val normalized = value.lowercase().replace("-", "")
         require(normalized.matches(Regex("[0-9a-f]{32}"))) { "Invalid restore request ID" }
         return normalized
-    }
-
-    private fun validateActiveStateVersion(state: State) {
-        require(state.candidateVersion == SynthXDatabase.VERSION)
-        require(state.oldVersion == null || state.oldVersion == SynthXDatabase.VERSION)
     }
 
     private fun cleanupPreClose(dir: File, state: State, faults: RestoreFaultInjector) {
@@ -1410,7 +1340,7 @@ internal object RestoreTransaction {
 
     fun diagnosticOperationId(): String? = lastDiagnosticOperationId
 
-    private fun syncDirectory(dir: File, faultPoint: RestoreFaultPoint, faults: RestoreFaultInjector) {
+    internal fun syncDirectory(dir: File, faultPoint: RestoreFaultPoint, faults: RestoreFaultInjector) {
         faults.hit(faultPoint)
         val descriptor = Os.open(dir.path, OsConstants.O_RDONLY, 0)
         var primaryFailure: Throwable? = null
