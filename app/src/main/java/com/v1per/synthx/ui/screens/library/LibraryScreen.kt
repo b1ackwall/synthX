@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -87,14 +88,20 @@ fun LibraryScreen(
         viewModel.refreshMessages.collect { message -> snackbarHostState.showSnackbar(message) }
     }
 
+    val currentOnNavigateToSongs by rememberUpdatedState(onNavigateToSongs)
+    val currentOnNavigateToArtistList by rememberUpdatedState(onNavigateToArtistList)
+    val currentOnNavigateToAlbumList by rememberUpdatedState(onNavigateToAlbumList)
+    val currentOnNavigateToPlaylistList by rememberUpdatedState(onNavigateToPlaylistList)
+    val currentOnNavigateToStarred by rememberUpdatedState(onNavigateToStarred)
+
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
             when (event) {
-                NavigationEvent.GoToSongs -> onNavigateToSongs()
-                NavigationEvent.GoToArtistList -> onNavigateToArtistList()
-                NavigationEvent.GoToAlbumList -> onNavigateToAlbumList()
-                NavigationEvent.GoToPlaylistList -> onNavigateToPlaylistList()
-                NavigationEvent.GoToStarred -> onNavigateToStarred()
+                NavigationEvent.GoToSongs -> currentOnNavigateToSongs()
+                NavigationEvent.GoToArtistList -> currentOnNavigateToArtistList()
+                NavigationEvent.GoToAlbumList -> currentOnNavigateToAlbumList()
+                NavigationEvent.GoToPlaylistList -> currentOnNavigateToPlaylistList()
+                NavigationEvent.GoToStarred -> currentOnNavigateToStarred()
             }
         }
     }
