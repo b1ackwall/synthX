@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
  * Guards against a migration shipping without its own test. Two independent checks,
  * deliberately not merged into one:
  *
- *  1. [allMigrationsFormAContiguousChainWithMatchingSchemaContracts] — ALL_MIGRATIONS must form
+ *  1. [allMigrationsFormAContiguousChainWithExportedSchemas] — ALL_MIGRATIONS must form
  *     a gap-free chain. This catches a missing/duplicated *migration definition*; the schema
  *     contracts are checked by BackupSchemaContractExportTest.
  *  2. [everyMigrationStepHasADedicatedInstrumentedTest] — a dedicated androidTest file that
@@ -35,7 +35,7 @@ class MigrationCompletenessTest {
     }
 
     @Test
-    fun allMigrationsFormAContiguousChainWithMatchingSchemaContracts() {
+    fun allMigrationsFormAContiguousChainWithExportedSchemas() {
         val migrations = SynthXDatabase.ALL_MIGRATIONS
         assertTrue(migrations.isNotEmpty(), "ALL_MIGRATIONS must not be empty")
 
