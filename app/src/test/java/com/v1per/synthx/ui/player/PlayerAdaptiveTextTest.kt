@@ -1,7 +1,5 @@
 package com.v1per.synthx.ui.player
 
-import com.v1per.synthx.playback.BackgroundBrightness
-import com.v1per.synthx.playback.BrightnessStats
 import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.Rule
 import kotlin.test.Test
@@ -11,11 +9,9 @@ class PlayerAdaptiveTextTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)
     val testTimeout = TestTimeouts.jvm()
 
-    private fun withMedian(median: Float) = BackgroundBrightness(
-        wcag = BrightnessStats(median = median),
-    )
+    private fun withMedian(median: Float) = median
 
-    private fun dark(brightness: BackgroundBrightness?) = useDarkPlayerTitle(
+    private fun dark(brightness: Float?) = useDarkPlayerTitle(
         enabled = PlayerAltStageStyle.AdaptiveTextEnabled,
         brightness = brightness,
         threshold = PlayerAltStageStyle.AdaptiveTextThreshold,

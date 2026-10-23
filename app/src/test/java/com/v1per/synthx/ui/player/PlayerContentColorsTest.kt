@@ -3,8 +3,6 @@ package com.v1per.synthx.ui.player
 import androidx.compose.runtime.AbstractApplier
 import androidx.compose.runtime.Composition
 import androidx.compose.runtime.Recomposer
-import com.v1per.synthx.playback.BackgroundBrightness
-import com.v1per.synthx.playback.BrightnessStats
 import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Background
@@ -21,9 +19,7 @@ class PlayerContentColorsTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)
     val testTimeout = TestTimeouts.jvm()
 
-    private fun withMedian(median: Float) = BackgroundBrightness(
-        wcag = BrightnessStats(median = median),
-    )
+    private fun withMedian(median: Float) = median
 
     @Test fun lightIsTextPrimaryAndDarkIsBackground() {
         assertEquals(TextPrimary, PlayerContentColors.Light.content)

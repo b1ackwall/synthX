@@ -11,28 +11,17 @@ private const val LumaB = 0.072f
 
 private fun srgbToLinear(c: Float): Float = if (c <= 0.04045f) c / 12.92f else ((c + 0.055f) / 1.055f).pow(2.4f)
 
-/** Median of one brightness metric, in 0..1. */
-data class BrightnessStats(val median: Float)
-
-/** WCAG relative luminance statistics of a background bitmap. */
-data class BackgroundBrightness(val wcag: BrightnessStats)
-
 private fun nearestRank(sorted: FloatArray): Float {
     val rank = ceil(0.5f * sorted.size).toInt().coerceIn(1, sorted.size)
     return sorted[rank - 1]
 }
 
-private fun statsOf(values: FloatArray): BrightnessStats {
-    values.sort()
-    return BrightnessStats(nearestRank(values))
-}
-
 /**
- * WCAG relative luminance statistics for opaque ARGB [pixels]. Each pixel gets
+ * Median WCAG relative luminance, in 0..1, of opaque ARGB [pixels]. Each pixel gets
  * the background chain's [saturation] boost (as ColorMatrix.setSaturation does), clamped to 0..1
  * and converted to linear sRGB; alpha is ignored. Null for no pixels.
  */
-internal fun backgroundBrightness(pixels: IntArray, saturation: Float): BackgroundBrightness? {
+internal fun backgroundBrightness(pixels: IntArray, saturation: Float): Float? {
     if (pixels.isEmpty()) return null
     val wcag = FloatArray(pixels.size)
     val rr = LumaR + (1f - LumaR) * saturation
@@ -54,11 +43,12 @@ internal fun backgroundBrightness(pixels: IntArray, saturation: Float): Backgrou
         val lb = srgbToLinear((br * r + bg * g + bb * b).coerceIn(0f, 1f))
         wcag[i] = 0.2126f * lr + 0.7152f * lg + 0.0722f * lb
     }
-    return BackgroundBrightness(statsOf(wcag))
+    wcag.sort()
+    return nearestRank(wcag)
 }
 
 /** [backgroundBrightness] of this bitmap's pixels. */
-internal fun Bitmap.backgroundBrightness(saturation: Float): BackgroundBrightness? {
+internal fun Bitmap.backgroundBrightness(saturation: Float): Float? {
     val pixels = IntArray(width * height)
     getPixels(pixels, 0, width, 0, 0, width, height)
     return backgroundBrightness(pixels, saturation)

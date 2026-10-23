@@ -1,7 +1,5 @@
 package com.v1per.synthx.ui.player
 
-import com.v1per.synthx.playback.BackgroundBrightness
-import com.v1per.synthx.playback.BrightnessStats
 import com.v1per.synthx.ui.testing.TestTimeouts
 import org.junit.Rule
 import kotlin.test.Test
@@ -40,12 +38,10 @@ class PlayerBackgroundDebugStateTest {
         assertEquals(10f, effectivePlayerBackgroundBlurDp(debug = true, state = tuned))
     }
 
-    private val brightness = BackgroundBrightness(
-        wcag = BrightnessStats(median = 0.2f),
-    )
+    private val brightness = 0.2f
 
     @Test fun selectionPicksTheChosenMetricAndStatistic() {
-        assertEquals(0.2f, brightness.wcag.median)
+        assertEquals(0.2f, brightness)
     }
 
     @Test fun darkTitleNeedsEnabledAValueAndSelectedValueAboveThreshold() {

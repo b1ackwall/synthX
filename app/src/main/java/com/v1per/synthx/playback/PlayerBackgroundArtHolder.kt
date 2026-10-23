@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Decoded player background art for the song with [songId], and its measured brightness if [PlayerBackgroundArtHolder] was given a measure. */
-data class PlayerBackgroundArt<T : Any>(val songId: String, val image: T, val brightness: BackgroundBrightness? = null)
+data class PlayerBackgroundArt<T : Any>(val songId: String, val image: T, val brightness: Float? = null)
 
 /**
  * Holds the player background art for the latest request. A new request cancels the in-flight
@@ -19,7 +19,7 @@ data class PlayerBackgroundArt<T : Any>(val songId: String, val image: T, val br
  */
 internal class PlayerBackgroundArtHolder<T : Any>(
     private val scope: CoroutineScope,
-    private val measure: ((T) -> BackgroundBrightness?)? = null,
+    private val measure: ((T) -> Float?)? = null,
     private val load: suspend (PlayerBackgroundArtRequest) -> T?,
 ) {
     private val _art = MutableStateFlow<PlayerBackgroundArt<T>?>(null)

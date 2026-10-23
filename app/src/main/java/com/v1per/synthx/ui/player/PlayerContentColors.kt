@@ -6,7 +6,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import com.v1per.synthx.playback.BackgroundBrightness
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -37,7 +36,7 @@ internal class PlayerContentColors private constructor(val content: Color) {
 internal val LocalPlayerContentColors = compositionLocalOf<PlayerContentColors?> { null }
 
 /** [PlayerContentColors.Dark] when the locked adaptive-text rule says the background is bright. */
-internal fun playerContentColorsFor(brightness: BackgroundBrightness?): PlayerContentColors {
+internal fun playerContentColorsFor(brightness: Float?): PlayerContentColors {
     val dark = useDarkPlayerTitle(
         enabled = PlayerAltStageStyle.AdaptiveTextEnabled,
         brightness = brightness,
@@ -48,7 +47,7 @@ internal fun playerContentColorsFor(brightness: BackgroundBrightness?): PlayerCo
 
 /** Decides the player's content colors from [brightness] and provides them to [content]. */
 @Composable
-internal fun ProvidePlayerContentColors(brightness: BackgroundBrightness?, content: @Composable () -> Unit) {
+internal fun ProvidePlayerContentColors(brightness: Float?, content: @Composable () -> Unit) {
     val colors = remember(brightness) { playerContentColorsFor(brightness) }
     CompositionLocalProvider(LocalPlayerContentColors provides colors, content = content)
 }

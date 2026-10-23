@@ -18,18 +18,18 @@ class PlayerBackgroundLuminanceTest {
     private fun measure(pixels: IntArray, saturation: Float = 1f) =
         assertNotNull(backgroundBrightness(pixels, saturation))
 
-    private fun assertAll(expected: Float, stats: BrightnessStats, tolerance: Float) {
-        assertEquals(expected, stats.median, tolerance)
+    private fun assertAll(expected: Float, stats: Float, tolerance: Float) {
+        assertEquals(expected, stats, tolerance)
     }
 
     @Test fun allWhiteGivesOne() {
         val result = measure(IntArray(16) { white }, saturation = 1.75f)
-        assertAll(1f, result.wcag, 1e-4f)
+        assertAll(1f, result, 1e-4f)
     }
 
     @Test fun allBlackGivesZero() {
         val result = measure(IntArray(16) { black }, saturation = 1.75f)
-        assertAll(0f, result.wcag, 1e-6f)
+        assertAll(0f, result, 1e-6f)
     }
 
     @Test fun noPixelsYieldsNoValue() {
@@ -37,30 +37,30 @@ class PlayerBackgroundLuminanceTest {
     }
 
     @Test fun alphaIsIgnored() {
-        assertAll(1f, measure(IntArray(4) { 0x00FFFFFF }).wcag, 1e-4f)
+        assertAll(1f, measure(IntArray(4) { 0x00FFFFFF }), 1e-4f)
     }
 
     @Test fun eightyPercentBlackTwentyPercentWhiteSplitsTheStatistics() {
         val result = measure(IntArray(100) { if (it < 80) black else white })
-        assertEquals(0f, result.wcag.median, 1e-6f)
+        assertEquals(0f, result, 1e-6f)
     }
 
     @Test fun medianIsNearestRank() {
         val result = measure(IntArray(100) { if (it < 50) black else white })
-        assertEquals(0f, result.wcag.median, 1e-6f)
-        assertEquals(1f, measure(IntArray(100) { if (it < 49) black else white }).wcag.median, 1e-4f)
+        assertEquals(0f, result, 1e-6f)
+        assertEquals(1f, measure(IntArray(100) { if (it < 49) black else white }), 1e-4f)
     }
 
     @Test fun midGreyMatchesKnownValues() {
         val result = measure(IntArray(10) { 0xFF808080.toInt() })
         // sRGB 0x80 is about 0.2159 linear.
-        assertEquals(0.2159f, result.wcag.median, 2e-3f)
+        assertEquals(0.2159f, result, 2e-3f)
     }
 
     @Test fun saturationLeavesGreyAloneAndChangesAColor() {
         val grey = intArrayOf(0xFF808080.toInt())
-        assertEquals(measure(grey, 1f).wcag.median, measure(grey, 1.75f).wcag.median, 1e-4f)
+        assertEquals(measure(grey, 1f), measure(grey, 1.75f), 1e-4f)
         val muted = intArrayOf(0xFF804040.toInt())
-        assertTrue(measure(muted, 1.75f).wcag.median != measure(muted, 1f).wcag.median)
+        assertTrue(measure(muted, 1.75f) != measure(muted, 1f))
     }
 }
