@@ -2,8 +2,8 @@ package com.v1per.synthx.ui
 
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.unit.dp
-import com.v1per.synthx.ui.components.shouldPauseAmbientMotion
-import com.v1per.synthx.ui.components.shouldReduceAmbientMotion
+import com.v1per.synthx.ui.player.shouldPauseAmbientMotion
+import com.v1per.synthx.ui.player.shouldReduceAmbientMotion
 import com.v1per.synthx.ui.player.queueCompositingStrategy
 import com.v1per.synthx.ui.player.quantizePlayerGlowSize
 import com.v1per.synthx.ui.testing.TestTimeouts

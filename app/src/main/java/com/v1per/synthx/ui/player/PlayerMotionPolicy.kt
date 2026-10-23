@@ -1,4 +1,4 @@
-package com.v1per.synthx.ui.components
+package com.v1per.synthx.ui.player
 
 import android.content.Context
 import android.os.PowerManager

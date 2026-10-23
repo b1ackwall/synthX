@@ -35,7 +35,6 @@ import androidx.tracing.Trace
 import androidx.tracing.trace
 import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.perf.PerfTraceSections
-import com.v1per.synthx.ui.components.rememberSystemReducedMotionActive
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import kotlin.math.ceil
