@@ -451,6 +451,7 @@ class PlaybackViewModel(
      * never calls [create]. Only the Context is held here; it is cheap to rebuild.
      */
     class Factory(private val context: Context) : ViewModelProvider.Factory {
+        // Class<T> is erased; this factory only ever builds PlaybackViewModel.
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (!modelClass.isAssignableFrom(PlaybackViewModel::class.java)) {

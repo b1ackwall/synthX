@@ -59,6 +59,7 @@ class ArtistDetailViewModel(
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     val repository = SongRepositoryImpl.create(context)
+                    // Class<T> is erased; this factory only ever builds ArtistDetailViewModel.
                     @Suppress("UNCHECKED_CAST")
                     return ArtistDetailViewModel(repository, artistId, context.applicationContext) as T
                 }

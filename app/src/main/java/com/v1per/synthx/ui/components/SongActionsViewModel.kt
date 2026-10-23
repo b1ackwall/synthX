@@ -331,6 +331,7 @@ class SongActionsViewModel(
             if (!modelClass.isAssignableFrom(SongActionsViewModel::class.java)) {
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
+            // Class<T> is erased; this factory only ever builds SongActionsViewModel.
             @Suppress("UNCHECKED_CAST")
             return SongActionsViewModel(
                 SongRepositoryImpl.create(context),

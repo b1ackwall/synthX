@@ -37,6 +37,7 @@ class AlbumListViewModel(private val repository: SongRepository, private val app
         fun factory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 val repository = SongRepositoryImpl.create(context)
+                // Class<T> is erased; this factory only ever builds AlbumListViewModel.
                 @Suppress("UNCHECKED_CAST")
                 return AlbumListViewModel(repository, context.applicationContext) as T
             }

@@ -286,6 +286,7 @@ class BackupsAndRestoreViewModel(
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
             val appContext = context.applicationContext
+            // Class<T> is erased; this factory only ever builds BackupsAndRestoreViewModel.
             @Suppress("UNCHECKED_CAST")
             return BackupsAndRestoreViewModel(
                 context = appContext,
