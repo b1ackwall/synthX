@@ -107,8 +107,8 @@ class QueueModeState internal constructor(
     // Refreshed every recomposition by rememberQueueModeState (a plain field write, not
     // `remember`-ed) so onShuffleClickWithScrollReset below always dispatches to the caller's
     // current callback rather than whichever one was live when this object was constructed.
-    // A fresh (non-remembered) wrapper lambda would close over the current onShuffleClick
-    // every time; this object is remembered once, so the field write is what keeps it current.
+    // The object is remembered once, so each composition writes the latest callback here;
+    // the stable wrapper lambda reads this field instead of a stale captured callback.
     internal var onShuffleClick: () -> Unit = {}
 
     // Stable-identity click handler: this object (and therefore this lambda) is remembered
