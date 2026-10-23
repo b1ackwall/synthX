@@ -109,11 +109,10 @@ private fun AlbumListContent(
     }
 }
 
-// Tapping through to an all-missing album's detail screen is still allowed — that screen
-// (AlbumDetailScreen) now shows its missing songs dimmed via SongRow rather than empty, so
+// Tapping through to an all-missing album's detail screen is allowed — that screen
+// (AlbumDetailScreen) shows its missing songs dimmed via SongRow rather than empty, so
 // there's a real destination there. Only the alpha dims here, unlike SongRow's fully
-// disabled row: hiding the whole album was the actual problem being fixed, and a dead end
-// tap target would just reintroduce a milder version of it.
+// disabled row: a dead end tap target would leave the album's missing songs unreachable.
 @Composable
 private fun AlbumRow(album: Album, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }

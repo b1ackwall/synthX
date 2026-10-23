@@ -34,8 +34,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 /**
  * Debug tooling — read-only audit of the root music folder: walks the live filesystem and
  * reports songs not yet in a playlist ("unorganized") plus files on disk with no matching
- * library row ("unindexed"). Non-destructive, unlike the removed
- * SongDao.removeOrganizedFromStarred this replaces — the confirm dialog here only guards
+ * library row ("unindexed"). Non-destructive: the confirm dialog here only guards
  * against an accidental tap starting a redundant walk while one may already be running.
  */
 @Composable

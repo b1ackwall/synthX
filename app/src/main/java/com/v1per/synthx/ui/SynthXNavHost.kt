@@ -62,7 +62,7 @@ internal fun SynthXNavHost(
                 .fillMaxSize()
                 .testTag(ShellTestTags.NavHost)
                 .padding(innerPadding)
-                // Screens render their own TopAppBars now — consume the insets this
+                // Screens render their own TopAppBars — consume the insets this
                 // padding already covers so those bars don't re-apply the status inset.
                 .consumeWindowInsets(innerPadding),
             enterTransition = { EnterTransition.None },

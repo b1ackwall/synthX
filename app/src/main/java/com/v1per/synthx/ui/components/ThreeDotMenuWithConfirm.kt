@@ -29,10 +29,6 @@ import com.v1per.synthx.ui.theme.TextTertiary
  *   destructive action).
  * @param confirmDialog receives `onConfirm`/`onDismiss` that close the confirm dialog; wrap
  *   `onConfirm` with the caller's own destructive action, e.g. `{ onConfirm(); onDelete() }`.
- *
- * There was also an `extraMenuContent` escape hatch here, for a second dropdown anchored at the
- * same button — PlaylistRow's nested "move to group" submenu was its only user, and that is now
- * a bottom sheet ([GroupPickerBottomSheet]), so the hatch is gone with it.
  */
 @Composable
 internal fun ThreeDotMenuWithConfirm(

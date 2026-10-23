@@ -57,7 +57,7 @@ internal fun PlaylistRow(
     // caller doesn't support grouping actions at all — see onShowGroupPicker above.
     onRemoveFromGroup: (() -> Unit)? = null,
     // Read only to decide whether offering a group at all makes sense — the rows themselves are
-    // rendered by the picker sheet now, not by this menu.
+    // rendered by the picker sheet, not by this menu.
     availableGroups: List<PlaylistGroup> = emptyList(),
 ) {
     val interactionSource = remember { MutableInteractionSource() }
