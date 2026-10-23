@@ -18,16 +18,12 @@ class PlayerAdaptiveTextTest {
     private fun dark(brightness: BackgroundBrightness?) = useDarkPlayerTitle(
         enabled = PlayerAltStageStyle.AdaptiveTextEnabled,
         brightness = brightness,
-        metric = PlayerAltStageStyle.LockedAdaptiveTextMetric,
-        statistic = PlayerAltStageStyle.LockedAdaptiveTextStatistic,
         threshold = PlayerAltStageStyle.AdaptiveTextThreshold,
     )
 
     @Test fun lockedConstantsEqualTheTunedValues() {
         assertEquals(true, PlayerAltStageStyle.AdaptiveTextEnabled)
         assertEquals(0.32f, PlayerAltStageStyle.AdaptiveTextThreshold)
-        assertEquals(AdaptiveTextMetric.WcagLuminance, PlayerAltStageStyle.LockedAdaptiveTextMetric)
-        assertEquals(AdaptiveTextStatistic.Median, PlayerAltStageStyle.LockedAdaptiveTextStatistic)
     }
 
     @Test fun equalToTheThresholdStaysLight() {

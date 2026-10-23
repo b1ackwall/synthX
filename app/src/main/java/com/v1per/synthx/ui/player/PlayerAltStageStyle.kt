@@ -70,8 +70,6 @@ internal object PlayerAltStageStyle {
     /** Adaptive title color, on in every build: dark when the median WCAG luminance is above the threshold. */
     const val AdaptiveTextEnabled = true
     const val AdaptiveTextThreshold = 0.32f
-    val LockedAdaptiveTextMetric = AdaptiveTextMetric.WcagLuminance
-    val LockedAdaptiveTextStatistic = AdaptiveTextStatistic.Median
 
     /** Motion updates and redraws at this rate. */
     const val FrameCapFps = 10

@@ -41,8 +41,6 @@ internal fun playerContentColorsFor(brightness: BackgroundBrightness?): PlayerCo
     val dark = useDarkPlayerTitle(
         enabled = PlayerAltStageStyle.AdaptiveTextEnabled,
         brightness = brightness,
-        metric = PlayerAltStageStyle.LockedAdaptiveTextMetric,
-        statistic = PlayerAltStageStyle.LockedAdaptiveTextStatistic,
         threshold = PlayerAltStageStyle.AdaptiveTextThreshold,
     )
     return if (dark) PlayerContentColors.Dark else PlayerContentColors.Light
