@@ -200,7 +200,7 @@ class MainActivity : ComponentActivity() {
      * RestoreViewModel reading RestoreWorker.UNIQUE_WORK_NAME's WorkInfo on a later, unrelated
      * visit to the Restore screen would still see last session's SUCCEEDED state and resurface
      * the "restore complete, reopen synthX" dialog. WorkManager has no per-unique-work prune.
-     * The restore-status observer now deliberately retains an unshown terminal result across
+     * The restore-status observer deliberately retains an unshown terminal result across
      * process death, so the guard below must approve database-wide pruning.
      */
     private suspend fun pruneFinishedWork() {

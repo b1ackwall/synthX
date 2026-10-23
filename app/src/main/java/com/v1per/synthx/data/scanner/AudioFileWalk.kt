@@ -211,7 +211,7 @@ internal data class AudioWalkResult(val files: List<DocumentFile>, val complete:
 
 /**
  * Pure enumeration — no hashing, no metadata, no DB access. Suspending only for the
- * cancellation check: this now also runs against secondary roots before the transaction
+ * cancellation check: this also runs against secondary roots before the transaction
  * opens, where the per-file `ensureActive` in the ingest loop offers no cover, and a
  * deep tree is thousands of binder round-trips with nothing else to interrupt it.
  */

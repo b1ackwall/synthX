@@ -203,7 +203,7 @@ internal suspend fun SongRepositoryImpl.runPostCommitCleanup(
  * `database.withTransaction`, and [replaceSong]'s membership transplant plus row delete have
  * to be a single atomic unit — so the transaction-scoped part ([deleteSongRowWithArtRepoint])
  * and this out-of-transaction part are called separately by each caller, which also keeps the
- * backup-before-permit ordering from the deadlock fix intact on both paths.
+ * backup-before-permit ordering intact on both paths.
  *
  * **Must be called with the deleting transaction already committed.** Order within it is
  * deliberate: live playback is told first so it can skip off the song before its file

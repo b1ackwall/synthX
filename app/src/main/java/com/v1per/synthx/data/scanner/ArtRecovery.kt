@@ -97,8 +97,7 @@ internal object ArtRecovery {
      * swappable so a test can control what a recovery attempt "found" without a real embedded-art
      * audio fixture.
      * Returns null when nothing usable came back (source unresolvable, or extraction produced
-     * neither variant) — both collapse to [RecoveryOutcome.FAILED] the same way the inline
-     * pre-refactor code did.
+     * neither variant) — both collapse to [RecoveryOutcome.FAILED].
      */
     suspend fun recover(
         context: Context,

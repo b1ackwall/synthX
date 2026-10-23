@@ -378,8 +378,8 @@ class SongRepositoryImpl(
         @Volatile
         private var INSTANCE: SongRepositoryImpl? = null
 
-        // Manual DI entry point — everything hangs off the SynthXDatabase singleton. A true
-        // singleton itself now (matching SynthXDatabase.getInstance()'s pattern) so getSongs()'s
+        // Manual DI entry point — everything hangs off the SynthXDatabase singleton. It is a true
+        // singleton itself (matching SynthXDatabase.getInstance()'s pattern) so getSongs()'s
         // cached StateFlow above is actually shared across every caller rather than rebuilt
         // per-caller.
         fun create(context: Context): SongRepositoryImpl = INSTANCE ?: synchronized(this) {

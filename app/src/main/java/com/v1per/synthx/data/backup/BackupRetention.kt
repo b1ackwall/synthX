@@ -71,10 +71,10 @@ internal object BackupRetention {
      * Deletes deterministic oldest unprotected pairs until [limit] is met. The publication name
      * is explicit authority; timestamps and provider ordering can never select it as a victim.
      *
-     * [deletePair] now reports what actually happened to each half instead of returning `Unit` —
-     * a thrown exception from it is still contained here (an uncooperative provider can't stop
-     * later victims from being attempted), but is folded into the returned [RetentionPruneOutcome]
-     * as a complete failure for that victim rather than silently vanishing.
+     * [deletePair] reports what actually happened to each half. A thrown exception from it is
+     * contained here (an uncooperative provider can't stop later victims from being attempted)
+     * and folded into the returned [RetentionPruneOutcome] as a complete failure for that victim
+     * rather than silently vanishing.
      */
     fun <T> prune(
         completed: List<CompletedBackup<T>>,

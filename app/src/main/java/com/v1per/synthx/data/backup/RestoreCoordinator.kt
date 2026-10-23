@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * The small Phase-B maintenance barrier. Normal database work registers for its actual
+ * The small maintenance barrier. Normal database work registers for its actual
  * operation lifetime; restore first closes admission, then waits for the counter to drain.
  */
 internal object RestoreCoordinator {

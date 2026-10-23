@@ -51,8 +51,8 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                 val scanStartMs = System.currentTimeMillis()
                 onProgress(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE)
 
-                // Cleanup: delete old file:// art files from cacheDir. Art now lives in
-                // filesDir/art/; these are orphans from before that move. No-op once drained.
+                // Cleanup: delete file:// art files left in cacheDir; art lives in
+                // filesDir/art/, so these are orphans. No-op once drained.
                 context.cacheDir
                     .listFiles { file -> file.name.startsWith("art_") && file.name.endsWith(".png") }
                     ?.forEach { it.delete() }
@@ -162,7 +162,7 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
 
                 val result = try {
                     // Phase 1 — hash, identify and read every file, concurrently, with no
-                    // transaction open. This is where a scan now spends nearly all of its time, and
+                    // transaction open. This is where a scan spends nearly all of its time, and
                     // it is the part with no order dependency at all: nothing here writes, so no
                     // file's outcome can affect another's.
                     val extracted = extractScanData(
