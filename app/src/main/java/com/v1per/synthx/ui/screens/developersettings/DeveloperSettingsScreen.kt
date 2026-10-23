@@ -22,19 +22,14 @@ fun DeveloperSettingsScreen(
     val rootOrganizationCheckResult by viewModel.rootOrganizationCheckResult.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize(),
-        ) {
-            SettingsDetailScaffold(topBar = topBar) {
-                VerifyRootOrganizationSection(
-                    checkStatus = rootOrganizationCheckStatus,
-                    isChecking = isCheckingRootOrganization,
-                    result = rootOrganizationCheckResult,
-                    onCheckRootLibraryOrganization = viewModel::checkRootLibraryOrganization,
-                    onDismissResult = viewModel::dismissRootOrganizationCheckResult,
-                )
-            }
+        SettingsDetailScaffold(topBar = topBar) {
+            VerifyRootOrganizationSection(
+                checkStatus = rootOrganizationCheckStatus,
+                isChecking = isCheckingRootOrganization,
+                result = rootOrganizationCheckResult,
+                onCheckRootLibraryOrganization = viewModel::checkRootLibraryOrganization,
+                onDismissResult = viewModel::dismissRootOrganizationCheckResult,
+            )
         }
     }
 }
