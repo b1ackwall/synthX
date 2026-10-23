@@ -133,7 +133,7 @@ internal fun BottomChromeOverlay(
                 playbackViewModel.loadPlayerBackgroundArt(backgroundArtRequest)
             }
             val backgroundArt by playbackViewModel.playerBackgroundArt.collectAsState()
-            // Skeleton now renders mini content + expanded transport controls + full
+            // Skeleton renders mini content + expanded transport controls + full
             // queue-mode list (reorder, tap-to-play, swipe-to-remove, shuffle/repeat,
             // real MoreOptionsButton).
             // The light/dark content color is decided once here, from the brightness that travels

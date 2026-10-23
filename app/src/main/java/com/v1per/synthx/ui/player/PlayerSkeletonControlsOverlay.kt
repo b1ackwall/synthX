@@ -112,12 +112,12 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
     // Gates every real control in this overlay (seek bar, transport, queue button) — not
     // just the background shield above. expandedContentEnabled alone only tracks the
     // collapse/expand axis; without overlayVisibleAlpha too, these controls' own gesture
-    // detectors stayed fully live even while scrolled away and faded/gone in queue mode
+    // detectors would stay fully live even while scrolled away and faded/gone in queue mode
     // (alpha is draw-only in Compose, it doesn't disable hit-testing), letting touches in
-    // that region register as real seeks/clicks on invisible controls — the same class of
-    // bug the shield fix addressed, but on real controls the shield's own gating can't
-    // reach (they consume their own touches first, child-before-parent). Same 0.5f
-    // threshold convention as the shield fix, for the same reason.
+    // that region register as real seeks/clicks on invisible controls. The shield's own
+    // gating can't reach real controls (they consume their own touches first,
+    // child-before-parent), so they use the same 0.5f threshold convention as the shield,
+    // for the same reason.
     Trace.beginSection(PerfTraceSections.ControlsOverlay)
     val overlayControlsEnabled = expandedContentEnabled && overlayVisibleAlpha > 0.5f
     val transportGap = 40f.dp
@@ -296,7 +296,7 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 horizontalArrangement = Arrangement.Center,
             ) {
                 // Toggles the queueProgress animation that crossfades between player mode
-                // and queue mode. Same enabled gate now used by the
+                // and queue mode. Same enabled gate as the
                 // transport buttons and PlayerSeekBar (overlayControlsEnabled). onClick is the
                 // remember-ed stable reference from PlayerSheetSkeleton, not an inline closure —
                 // see its doc comment for why.

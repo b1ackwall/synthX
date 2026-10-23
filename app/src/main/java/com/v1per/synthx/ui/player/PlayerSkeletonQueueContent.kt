@@ -65,7 +65,7 @@ private val ControlsMaskFadeHeight = 48.dp
  * (same technique the mini content Row uses), since the art itself is the separately
  * positioned shared element.
  *
- * The header Row and [QueuePlaybackModeRow] now share one real Column, bounded to
+ * The header Row and [QueuePlaybackModeRow] share one real Column, bounded to
  * [headerRegionHeight] (see that constant's doc comment in PlayerSheetSkeleton.kt), anchored
  * at the same artOffsetYQueue anchor the art animates toward. A single `weight(1f)` [Spacer]
  * sits above the header Row, absorbing all of this Column's slack — both the header Row and

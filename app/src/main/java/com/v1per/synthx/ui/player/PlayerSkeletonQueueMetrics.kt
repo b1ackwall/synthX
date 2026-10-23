@@ -80,8 +80,7 @@ val QueuePlaybackModeRowIntrinsicHeight: Dp = 56.dp
  * so the art (positioned independently by `computeArtPosition` in QueueArtPositioning.kt) can
  * compute where the header Row actually renders inside the Column, without the Column itself
  * reporting its real layout back via onGloballyPositioned/onSizeChanged (which would
- * reintroduce a one-frame measurement-lag dependency — see the earlier discovery audit on
- * why that approach was rejected for this exact region).
+ * introduce a one-frame measurement-lag dependency).
  *
  * [Density]-scoped because [QueueHeaderRowIntrinsicHeight] is: the spacer gets whatever the
  * fixed region has left over, so it must shrink by exactly as much as the text row grows.
@@ -97,8 +96,7 @@ val QueuePlaybackModeRowIntrinsicHeight: Dp = 56.dp
  * MUST be kept in sync with the Column's actual structure in PlayerSkeletonQueueContent.kt:
  * if the spacer arrangement changes (e.g. a spacer is reintroduced between the header Row and
  * QueuePlaybackModeRow), this formula needs to change to match — otherwise the art's computed
- * target Y silently stops matching where the header Row visually renders, exactly the bug this
- * value now fixes.
+ * target Y silently stops matching where the header Row visually renders.
  */
 val Density.QueueColumnLeadingSlack: Dp
     get() = (
