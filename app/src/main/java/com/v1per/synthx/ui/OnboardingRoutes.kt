@@ -8,9 +8,10 @@ import com.v1per.synthx.ui.screens.onboarding.OnboardingScreen
 import java.util.UUID
 
 /**
- * First-run wizard route — the [SynthXNavHost] start destination whenever
- * [com.v1per.synthx.preferences.PreferencesManager.musicFolderUri] is null (resolved once in
- * MainActivity, see [SynthXNavHost]'s startDestination parameter). Not wrapped in
+ * First-run wizard route — the [SynthXNavHost] start destination when
+ * [com.v1per.synthx.shouldShowOnboarding] is true (onboarding not complete, or a first-scan
+ * request still pending), Home otherwise. Resolved once in MainActivity, see [SynthXNavHost]'s
+ * startDestination parameter. Not wrapped in
  * [RouteContent]/chromeBottomPadding like the other route groups — this route is never in
  * MainScaffold's bottomBarVisibleRoutes set, so it never reserves that space in the first place.
  */

@@ -42,9 +42,9 @@ internal fun SynthXNavHost(
         currentGroupId: String?,
         onGroupSelected: (groupId: String) -> Unit,
     ) -> Unit,
-    // Resolved once in MainActivity from PreferencesManager.onboardingComplete and threaded
-    // down through MainScaffold/NormalShell — Screen.Onboarding.route on a first run/reinstall/
-    // cleared-data/incomplete-recovery launch, Screen.Home.route otherwise.
+    // Resolved once in MainActivity by shouldShowOnboarding (onboarding not complete, or a
+    // first-scan request pending) and threaded down through MainScaffold/NormalShell —
+    // Screen.Onboarding.route when it is true, Screen.Home.route otherwise.
     startDestination: String = Screen.Home.route,
     onRestoreTerminalShown: (UUID) -> Unit = {},
 ) {

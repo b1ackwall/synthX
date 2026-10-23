@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Internal steps of the wizard shown when [com.v1per.synthx.preferences.PreferencesManager.onboardingComplete]
- * is false — see [OnboardingScreen]. Modeled as state within one screen/route rather than
+ * is false or [com.v1per.synthx.preferences.PreferencesManager.firstScanRequestId] is non-null —
+ * see [OnboardingScreen]. Modeled as state within one screen/route rather than
  * separate nav routes: the flow is short, linear, and one-time, so there is nothing here that
  * needs its own back-stack entry or deep-linkability.
  */

@@ -38,9 +38,10 @@ import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 
 /**
- * First-run wizard shown by [com.v1per.synthx.ui.onboardingRoutes] whenever
- * [com.v1per.synthx.preferences.PreferencesManager.musicFolderUri] is null. Internal steps
- * (see [OnboardingStep]) share one nav route, including the recovery branch.
+ * First-run wizard shown by [com.v1per.synthx.ui.onboardingRoutes] when
+ * [com.v1per.synthx.shouldShowOnboarding] is true: onboarding not complete, or a first-scan
+ * request still pending. Internal steps (see [OnboardingStep]) share one nav route, including
+ * the recovery branch.
  *
  * Deliberately reuses [LibraryManagementViewModel] and [BackupsAndRestoreViewModel] wholesale
  * (constructed here, scoped to this route like any other screen's ViewModel) rather than
