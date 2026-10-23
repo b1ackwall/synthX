@@ -24,7 +24,7 @@ class FolderPickTest {
             events += "take:$uri"
         }
         fun refuse(uri: String) {
-            events += "take:$uri"
+            events += "refuse:$uri"
             throw SecurityException("no persistable grant")
         }
     }
