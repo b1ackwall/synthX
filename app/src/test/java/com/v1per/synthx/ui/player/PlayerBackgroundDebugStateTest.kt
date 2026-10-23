@@ -40,10 +40,6 @@ class PlayerBackgroundDebugStateTest {
 
     private val brightness = 0.2f
 
-    @Test fun selectionPicksTheChosenMetricAndStatistic() {
-        assertEquals(0.2f, brightness)
-    }
-
     @Test fun darkTitleNeedsEnabledAValueAndSelectedValueAboveThreshold() {
         assertEquals(true, useDarkPlayerTitle(true, brightness, 0.15f))
         assertEquals(false, useDarkPlayerTitle(true, brightness, 0.2f))

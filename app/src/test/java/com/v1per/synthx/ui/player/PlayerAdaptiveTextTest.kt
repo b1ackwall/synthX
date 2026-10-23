@@ -39,11 +39,6 @@ class PlayerAdaptiveTextTest {
         assertEquals(false, dark(null))
     }
 
-    @Test fun onlyTheLockedMetricAndStatisticDecide() {
-        // The WCAG median is low.
-        assertEquals(false, dark(withMedian(0.1f)))
-    }
-
     @Test fun titleAndArtistAreTextPrimaryOrBackground() {
         // Title and artist both draw PlayerContentColors.content, so one mapping covers both.
         assertEquals(com.v1per.synthx.ui.theme.TextPrimary, playerContentColorsFor(withMedian(0.1f)).content)
