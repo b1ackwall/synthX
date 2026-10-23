@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tracing.Trace
 import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.perf.PerfTestTags
@@ -24,7 +25,7 @@ import com.v1per.synthx.ui.theme.Spacing
 // Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
 @SuppressLint("UnclosedTrace")
 @Composable
-internal fun HomeScreen() {
+internal fun HomeScreen(viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory())) {
     Trace.beginSection(PerfTraceSections.HomeScreen)
     // Solid app base surface, matching the other tabs' Background.
     Box(Modifier.fillMaxSize().testTag(PerfTestTags.HomeScreen).background(Background)) {

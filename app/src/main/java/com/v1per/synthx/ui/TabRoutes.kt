@@ -10,6 +10,7 @@ import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.SynthXTopBar
 import com.v1per.synthx.ui.screens.home.HomeScreen
+import com.v1per.synthx.ui.screens.home.HomeViewModel
 import com.v1per.synthx.ui.screens.library.LibraryScreen
 import com.v1per.synthx.ui.screens.library.LibraryViewModel
 import com.v1per.synthx.ui.screens.search.SearchScreen
@@ -29,7 +30,10 @@ internal fun NavGraphBuilder.tabRoutes(
 ) {
     composable(Screen.Home.route) {
         RouteContent(chromeBottomPadding) {
-            HomeScreen()
+            val homeViewModel = viewModel<HomeViewModel>(
+                factory = HomeViewModel.Factory(),
+            )
+            HomeScreen(viewModel = homeViewModel)
         }
     }
     composable(Screen.Library.route) {
