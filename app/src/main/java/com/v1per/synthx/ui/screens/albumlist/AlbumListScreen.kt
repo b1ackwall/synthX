@@ -33,7 +33,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.v1per.synthx.R
@@ -44,10 +43,12 @@ import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Alpha
+import com.v1per.synthx.ui.theme.ArtSizes
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -137,11 +138,11 @@ private fun AlbumRow(album: Album, onClick: () -> Unit) {
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(ArtSizes.Album)
                         .clip(MaterialTheme.shapes.small),
                 )
             } else {
-                ArtPlaceholder(size = 44.dp)
+                ArtPlaceholder(size = ArtSizes.Album)
             }
             Spacer(modifier = Modifier.width(Spacing.md))
             Column {
@@ -162,7 +163,7 @@ private fun AlbumRow(album: Album, onClick: () -> Unit) {
             }
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }

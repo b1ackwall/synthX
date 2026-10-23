@@ -24,13 +24,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.screens.librarymanagement.FirstScanState
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementViewModel
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -87,7 +87,7 @@ private fun ScanningProgress(status: String?) {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = TextSecondary, strokeWidth = 2.dp)
+            CircularProgressIndicator(color = TextSecondary, strokeWidth = Strokes.ProgressRing)
             Spacer(modifier = Modifier.height(Spacing.md))
             Text(
                 text = stringResource(R.string.onboarding_scanning_title),

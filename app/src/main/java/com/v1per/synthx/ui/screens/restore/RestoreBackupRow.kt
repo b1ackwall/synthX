@@ -24,15 +24,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupIneligibilityReason
 import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Error
+import com.v1per.synthx.ui.theme.Gaps
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -121,14 +122,14 @@ internal fun BackupRow(
                 }
             }
             if (!backup.restoreEligible) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(Gaps.TextLine))
                 Text(
                     text = stringResource(ineligibilityMessage(backup.restoreIneligibleReason)),
                     style = MaterialTheme.typography.bodySmall,
                     color = Error,
                 )
             }
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(Gaps.TextLine))
             Text(
                 text = backup.reason?.let {
                     stringResource(R.string.restore_tier_with_reason, backup.tier.folderName, it)
@@ -138,7 +139,7 @@ internal fun BackupRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(Gaps.TextLine))
             Text(
                 text = "${backup.fileName} · ${Formatter.formatShortFileSize(context, backup.sizeBytes)}",
                 style = MaterialTheme.typography.bodySmall,
@@ -149,7 +150,7 @@ internal fun BackupRow(
             // Shown once known (cached from a prior preview tap-through) rather than
             // eagerly staged+counted for every row — see BackupManager.previewBackup's doc.
             if (counts != null) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(Gaps.TextLine))
                 Text(
                     text = stringResource(R.string.restore_row_counts, counts.songCount, counts.playlistCount),
                     style = MaterialTheme.typography.bodySmall,
@@ -159,6 +160,6 @@ internal fun BackupRow(
                 )
             }
         }
-        HorizontalDivider(thickness = 1.dp, color = Hairline)
+        HorizontalDivider(thickness = Strokes.Hairline, color = Hairline)
     }
 }

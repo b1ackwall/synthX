@@ -24,11 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.IconSizes
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -86,7 +87,7 @@ internal fun GroupPickerBottomSheet(
                     vertical = Spacing.sm,
                 ),
             )
-            HorizontalDivider(thickness = 1.dp, color = Hairline)
+            HorizontalDivider(thickness = Strokes.Hairline, color = Hairline)
 
             if (groups.isEmpty()) {
                 // Not reachable from either call site today — both gate the menu item on there
@@ -157,7 +158,7 @@ private fun GroupPickerRow(name: String, isCurrent: Boolean, onClick: () -> Unit
                 imageVector = Icons.Default.Check,
                 contentDescription = stringResource(R.string.cd_current_group),
                 tint = TextPrimary,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(IconSizes.Standard),
             )
         }
     }

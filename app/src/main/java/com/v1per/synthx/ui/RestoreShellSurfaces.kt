@@ -20,11 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlin.system.exitProcess
@@ -52,7 +52,7 @@ internal fun RestoreMaintenanceSurface() {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             // TextSecondary, not Accent: the neon is reserved for the five documented contexts.
-            CircularProgressIndicator(color = TextSecondary, strokeWidth = 2.dp)
+            CircularProgressIndicator(color = TextSecondary, strokeWidth = Strokes.ProgressRing)
             Spacer(modifier = Modifier.height(Spacing.md))
             Text(
                 text = stringResource(R.string.restore_maintenance_title),

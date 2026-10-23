@@ -44,15 +44,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.IconSizes
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -219,7 +220,7 @@ private fun ActionsPage(
                 .fillMaxWidth()
                 .padding(bottom = Spacing.sm),
         )
-        HorizontalDivider(thickness = 1.dp, color = Hairline)
+        HorizontalDivider(thickness = Strokes.Hairline, color = Hairline)
 
         if (showDeleteRow) {
             ActionRow(
@@ -320,7 +321,7 @@ private fun SubPage(title: String, items: List<PickableItem>, onSelect: (String)
                 vertical = Spacing.sm,
             ),
         )
-        HorizontalDivider(thickness = 1.dp, color = Hairline)
+        HorizontalDivider(thickness = Strokes.Hairline, color = Hairline)
 
         if (items.isEmpty() && emptyText != null) {
             Text(
@@ -365,7 +366,7 @@ private fun SubPage(title: String, items: List<PickableItem>, onSelect: (String)
                                 imageVector = Icons.Default.Check,
                                 contentDescription = stringResource(R.string.cd_already_in_playlist),
                                 tint = TextPrimary,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(IconSizes.Standard),
                             )
                         }
                     }
@@ -402,7 +403,7 @@ private fun ActionRow(
             imageVector = icon,
             contentDescription = null,
             tint = tint,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(IconSizes.Standard),
         )
         Spacer(modifier = Modifier.width(Spacing.md))
         Text(

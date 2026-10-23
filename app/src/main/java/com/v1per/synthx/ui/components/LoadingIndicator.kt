@@ -7,7 +7,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import com.v1per.synthx.ui.theme.RingSizes
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
@@ -19,9 +20,9 @@ import com.v1per.synthx.ui.theme.TextSecondary
 fun LoadingIndicator(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(
-            modifier = Modifier.size(32.dp),
+            modifier = Modifier.size(RingSizes.Large),
             color = TextSecondary,
-            strokeWidth = 2.dp,
+            strokeWidth = Strokes.ProgressRing,
         )
     }
 }

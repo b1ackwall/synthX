@@ -17,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupAttemptOutcome
 import com.v1per.synthx.data.backup.ExportAttemptOutcome
@@ -26,8 +25,10 @@ import com.v1per.synthx.data.repository.MissingSongInfo
 import com.v1per.synthx.ui.components.DeleteSongDialog
 import com.v1per.synthx.ui.components.DeleteSongPreviewState
 import com.v1per.synthx.ui.components.ThreeDotMenuWithConfirm
+import com.v1per.synthx.ui.theme.Gaps
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -57,7 +58,7 @@ internal fun MissingSongRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(Gaps.TextLine))
                 Text(
                     text = song.artist,
                     style = MaterialTheme.typography.bodySmall,
@@ -65,7 +66,7 @@ internal fun MissingSongRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(Gaps.TextLine))
                 Text(
                     text = stringResource(
                         R.string.issues_missing_since,
@@ -86,7 +87,7 @@ internal fun MissingSongRow(
             )
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }
@@ -158,7 +159,7 @@ private fun ArtworkIssueRow(title: String, subtitle: String, onFix: () -> Unit) 
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(Gaps.TextLine))
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
@@ -170,7 +171,7 @@ private fun ArtworkIssueRow(title: String, subtitle: String, onFix: () -> Unit) 
             ArtworkFixMenu(onFix = onFix)
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }
@@ -211,7 +212,7 @@ private fun SafetyNetIssueRow(title: String, subtitle: String, timestamp: Long?,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(Gaps.TextLine))
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
@@ -220,7 +221,7 @@ private fun SafetyNetIssueRow(title: String, subtitle: String, timestamp: Long?,
                 overflow = TextOverflow.Ellipsis,
             )
             if (timestamp != null) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(Gaps.TextLine))
                 Text(
                     text = relativeTime(timestamp).toString(),
                     style = MaterialTheme.typography.bodySmall,
@@ -231,7 +232,7 @@ private fun SafetyNetIssueRow(title: String, subtitle: String, timestamp: Long?,
             }
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }

@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.R
@@ -31,6 +30,7 @@ import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -117,7 +117,7 @@ internal fun SettingsRow(title: String, enabled: Boolean = true, onClick: () -> 
             )
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }

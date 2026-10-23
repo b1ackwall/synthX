@@ -13,13 +13,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.tracing.Trace
 import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.perf.PerfTestTags
 import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.rememberWordmark
 import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Spacing
 
 // Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
 @SuppressLint("UnclosedTrace")
@@ -34,7 +34,7 @@ internal fun HomeScreen() {
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 Text(
                     text = rememberWordmark(),

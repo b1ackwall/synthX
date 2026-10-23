@@ -27,6 +27,7 @@ import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
 import com.v1per.synthx.ui.screens.librarymanagement.ManagementRow
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
@@ -45,7 +46,7 @@ internal fun VerifyRootOrganizationSection(
     onCheckRootLibraryOrganization: () -> Unit,
     onDismissResult: () -> Unit,
 ) {
-    HorizontalDivider(thickness = 1.dp, color = Hairline)
+    HorizontalDivider(thickness = Strokes.Hairline, color = Hairline)
 
     var showConfirmDialog by remember { mutableStateOf(false) }
 

@@ -29,7 +29,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
@@ -41,6 +40,7 @@ import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -190,7 +190,7 @@ internal fun ScanStatusBar(status: IssuesScanStatus, onScan: () -> Unit) {
             )
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }

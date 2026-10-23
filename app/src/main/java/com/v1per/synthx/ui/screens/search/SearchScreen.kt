@@ -52,7 +52,6 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.v1per.synthx.R
@@ -67,10 +66,12 @@ import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.screens.search.SearchViewModel.SearchFilter
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.ArtSizes
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -382,7 +383,7 @@ private fun ArtistResultRow(artist: Artist, onClick: () -> Unit) {
             )
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }
@@ -411,11 +412,11 @@ private fun AlbumResultRow(album: Album, onClick: () -> Unit) {
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(ArtSizes.Album)
                         .clip(MaterialTheme.shapes.small),
                 )
             } else {
-                ArtPlaceholder(size = 44.dp)
+                ArtPlaceholder(size = ArtSizes.Album)
             }
             Spacer(modifier = Modifier.width(Spacing.md))
             Column(modifier = Modifier.weight(1f)) {
@@ -436,7 +437,7 @@ private fun AlbumResultRow(album: Album, onClick: () -> Unit) {
             }
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }

@@ -44,7 +44,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tracing.Trace
 import com.v1per.synthx.R
@@ -56,7 +55,9 @@ import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.IconSizes
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.collections.immutable.ImmutableList
@@ -274,7 +275,7 @@ internal fun CategoryRow(
                 imageVector = icon,
                 contentDescription = null,
                 tint = TextPrimary,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(IconSizes.Standard),
             )
             Text(
                 text = label,
@@ -293,7 +294,7 @@ internal fun CategoryRow(
             }
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }

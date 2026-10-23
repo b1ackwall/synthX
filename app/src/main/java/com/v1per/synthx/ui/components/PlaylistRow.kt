@@ -29,13 +29,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.ArtSizes
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 
@@ -86,7 +87,7 @@ internal fun PlaylistRow(
             PlaylistArt(
                 hue = playlist.artHue,
                 structureSeed = playlist.artStructureSeed,
-                size = 40.dp,
+                size = ArtSizes.Playlist,
             )
             Spacer(modifier = Modifier.width(Spacing.md))
             if (isRenaming) {
@@ -135,7 +136,7 @@ internal fun PlaylistRow(
             )
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }

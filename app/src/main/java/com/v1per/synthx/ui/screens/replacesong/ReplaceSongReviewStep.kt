@@ -32,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistConflictResolution
 import com.v1per.synthx.data.repository.ReplaceSongPreview
@@ -43,6 +42,7 @@ import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -83,7 +83,7 @@ internal fun ReplaceSongReviewStep(
             SongIdentity(song = preview.newSong, modifier = Modifier.fillMaxWidth())
             Spacer(modifier = Modifier.height(Spacing.md))
 
-            HorizontalDivider(thickness = 1.dp, color = Hairline)
+            HorizontalDivider(thickness = Strokes.Hairline, color = Hairline)
 
             PlaylistSection(
                 labelRes = R.string.replace_song_section_transferring,
@@ -106,7 +106,7 @@ internal fun ReplaceSongReviewStep(
                 )
             }
 
-            HorizontalDivider(thickness = 1.dp, color = Hairline)
+            HorizontalDivider(thickness = Strokes.Hairline, color = Hairline)
             Text(
                 text = stringResource(R.string.replace_song_summary),
                 style = MaterialTheme.typography.bodyMedium,
@@ -291,7 +291,7 @@ internal fun ReplaceSongBusyCover(@StringRes messageRes: Int) {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = TextSecondary, strokeWidth = 2.dp)
+            CircularProgressIndicator(color = TextSecondary, strokeWidth = Strokes.ProgressRing)
             Spacer(modifier = Modifier.height(Spacing.md))
             Text(
                 text = stringResource(messageRes),

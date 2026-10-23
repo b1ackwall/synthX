@@ -32,6 +32,7 @@ import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextTertiary
 
 /**
@@ -114,7 +115,7 @@ internal fun SongRow(
         }
 
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }

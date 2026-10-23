@@ -47,7 +47,9 @@ import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.SettingsDetailScaffold
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.RingSizes
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -186,7 +188,7 @@ fun CreatePlaylistScreen(
                                 }
                             }
                             HorizontalDivider(
-                                thickness = 1.dp,
+                                thickness = Strokes.Hairline,
                                 color = Hairline,
                             )
                         }
@@ -215,9 +217,9 @@ private fun CreateButton(enabled: Boolean, isCreating: Boolean, onClick: () -> U
     ) {
         if (isCreating) {
             CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(RingSizes.Small),
                 color = TextPrimary,
-                strokeWidth = 2.dp,
+                strokeWidth = Strokes.ProgressRing,
             )
         } else {
             Text(

@@ -50,6 +50,7 @@ import com.v1per.synthx.ui.player.PlayerSheetSkeleton
 import com.v1per.synthx.ui.player.ProvidePlayerContentColors
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextSecondary
 
@@ -235,7 +236,7 @@ private fun SynthXBottomNav(
             .graphicsLayer { alpha = 1f - collapseFraction },
     ) {
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
         NavigationBar(

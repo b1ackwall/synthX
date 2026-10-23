@@ -8,12 +8,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
+import com.v1per.synthx.ui.theme.ArtSizes
 import com.v1per.synthx.ui.theme.SurfaceVariant
 
 /** Static album-art placeholder shown wherever a song/album/playlist has no artwork. */
 @Composable
-fun ArtPlaceholder(modifier: Modifier = Modifier, size: Dp = 48.dp) {
+fun ArtPlaceholder(modifier: Modifier = Modifier, size: Dp = ArtSizes.Song) {
     Box(
         modifier = modifier
             .size(size)

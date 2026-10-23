@@ -17,9 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Background
+import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,7 +38,7 @@ internal fun SynthXTopBar(onSettingsClick: () -> Unit) {
         actions = {
             IconButton(
                 onClick = onSettingsClick,
-                modifier = Modifier.padding(end = 4.dp),
+                modifier = Modifier.padding(end = Spacing.xs),
             ) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,

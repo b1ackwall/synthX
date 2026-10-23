@@ -13,11 +13,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.playback.RepeatMode
 import com.v1per.synthx.ui.player.LocalPlayerContentColors
 import com.v1per.synthx.ui.player.PlayerContentColors
+import com.v1per.synthx.ui.theme.IconSizes
 import com.v1per.synthx.ui.theme.Spacing
 
 /**
@@ -53,7 +53,7 @@ fun QueuePlaybackModeRow(
                 imageVector = Icons.Filled.Shuffle,
                 contentDescription = stringResource(R.string.cd_shuffle),
                 tint = if (shuffleEnabled) contentColors.content else contentColors.off,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(IconSizes.Standard),
             )
         }
         DragResistantIconButton(onClick = onRepeatClick, enabled = enabled) {
@@ -65,7 +65,7 @@ fun QueuePlaybackModeRow(
                 },
                 contentDescription = stringResource(R.string.cd_repeat),
                 tint = if (repeatMode != RepeatMode.Off) contentColors.content else contentColors.off,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(IconSizes.Standard),
             )
         }
     }

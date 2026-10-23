@@ -10,11 +10,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.player.LocalPlayerContentColors
 import com.v1per.synthx.ui.player.PlayerContentColors
+import com.v1per.synthx.ui.theme.IconSizes
 
 /**
  * Same [LocalSongActions] trigger in both header modes, just relocated per layout.
@@ -49,7 +49,7 @@ internal fun MoreOptionsButton(song: Song, enabled: Boolean) {
             imageVector = Icons.Default.MoreVert,
             contentDescription = stringResource(R.string.cd_more_options),
             tint = contentColors.content,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(IconSizes.Standard),
         )
     }
 }

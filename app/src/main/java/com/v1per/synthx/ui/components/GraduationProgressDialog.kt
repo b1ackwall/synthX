@@ -13,11 +13,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.ui.theme.Error
+import com.v1per.synthx.ui.theme.RingSizes
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
@@ -38,9 +39,9 @@ fun GraduationProgressDialog(stage: GraduationStage, onDismiss: () -> Unit) {
                     CircularProgressIndicator(
                         modifier = Modifier
                             .padding(bottom = Spacing.sm)
-                            .size(28.dp),
+                            .size(RingSizes.Medium),
                         color = TextPrimary,
-                        strokeWidth = 2.dp,
+                        strokeWidth = Strokes.ProgressRing,
                     )
                 }
                 Text(

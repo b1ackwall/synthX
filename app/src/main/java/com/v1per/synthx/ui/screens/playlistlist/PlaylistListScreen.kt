@@ -76,8 +76,11 @@ import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
+import com.v1per.synthx.ui.theme.IconSizes
 import com.v1per.synthx.ui.theme.Motion
+import com.v1per.synthx.ui.theme.RingSizes
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -132,7 +135,7 @@ fun PlaylistListScreen(
         ) {
             OutlinedButton(
                 onClick = onCreatePlaylistClick,
-                border = BorderStroke(1.dp, TextSecondary),
+                border = BorderStroke(Strokes.Hairline, TextSecondary),
                 shape = MaterialTheme.shapes.small,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
             ) {
@@ -150,7 +153,7 @@ fun PlaylistListScreen(
             }
             OutlinedButton(
                 onClick = viewModel::onCreateGroupClick,
-                border = BorderStroke(1.dp, TextSecondary),
+                border = BorderStroke(Strokes.Hairline, TextSecondary),
                 shape = MaterialTheme.shapes.small,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
             ) {
@@ -327,9 +330,9 @@ private fun CreateGroupCard(isCreating: Boolean, onConfirm: (String) -> Unit, on
                 ) {
                     if (isCreating) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(RingSizes.Small),
                             color = TextPrimary,
-                            strokeWidth = 2.dp,
+                            strokeWidth = Strokes.ProgressRing,
                         )
                     } else {
                         Text(text = stringResource(R.string.action_create), color = TextPrimary)
@@ -364,7 +367,7 @@ private fun GroupRow(group: PlaylistGroup, onClick: () -> Unit, onRename: (Strin
                 imageVector = Icons.Default.Folder,
                 contentDescription = null,
                 tint = TextSecondary,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(IconSizes.Standard),
             )
             Spacer(modifier = Modifier.width(Spacing.md))
             if (isRenaming) {
@@ -406,7 +409,7 @@ private fun GroupRow(group: PlaylistGroup, onClick: () -> Unit, onRename: (Strin
             )
         }
         HorizontalDivider(
-            thickness = 1.dp,
+            thickness = Strokes.Hairline,
             color = Hairline,
         )
     }

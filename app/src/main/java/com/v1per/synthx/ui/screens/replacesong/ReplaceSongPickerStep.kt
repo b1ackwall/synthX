@@ -27,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.components.SongIdentity
@@ -35,6 +34,7 @@ import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
@@ -155,6 +155,6 @@ private fun ReplaceSongPickerRow(song: Song, onClick: () -> Unit) {
                 // composable's kdoc.
                 .alpha(if (song.isMissing) Alpha.Disabled else 1f),
         )
-        HorizontalDivider(thickness = 1.dp, color = Hairline)
+        HorizontalDivider(thickness = Strokes.Hairline, color = Hairline)
     }
 }

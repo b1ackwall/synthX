@@ -21,8 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Gaps
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -69,7 +69,7 @@ internal fun ManagementRow(
                 color = TextPrimary,
             )
             if (subtitle != null) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(Gaps.TextLine))
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,

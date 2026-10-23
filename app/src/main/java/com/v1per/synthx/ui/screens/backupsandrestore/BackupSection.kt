@@ -8,13 +8,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.screens.librarymanagement.ManagementRow
 import com.v1per.synthx.ui.screens.librarymanagement.SectionHeader
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
+import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextSecondary
 
 @Composable
@@ -31,7 +31,7 @@ internal fun BackupSection(
     onBackupNow: () -> Unit,
     onRestoreClick: () -> Unit,
 ) {
-    HorizontalDivider(thickness = 1.dp, color = Hairline)
+    HorizontalDivider(thickness = Strokes.Hairline, color = Hairline)
     SectionHeader(title = stringResource(R.string.section_backups_and_restore))
 
     ManagementRow(

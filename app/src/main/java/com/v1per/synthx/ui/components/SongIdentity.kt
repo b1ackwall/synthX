@@ -15,10 +15,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.player.LocalPlayerContentColors
+import com.v1per.synthx.ui.theme.ArtSizes
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
@@ -46,7 +46,7 @@ fun SongIdentity(song: Song, modifier: Modifier = Modifier) {
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(ArtSizes.Song)
                     .clip(MaterialTheme.shapes.small),
             )
         } else {
