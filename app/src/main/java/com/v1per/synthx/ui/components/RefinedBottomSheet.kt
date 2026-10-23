@@ -5,9 +5,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,7 +57,7 @@ class RefinedBottomSheetState {
     internal val offsetY = Animatable(0f)
     internal val alpha = Animatable(0f)
 
-    /** Distance to fully off-screen — the screen height, so a drag always has room to travel. */
+    /** Distance to fully off-screen — the screen height, which [show] and [hide] slide across. */
     internal var heightPx = 0f
 
     /** True once fully hidden (or never yet shown) — guards [show]/[hide] against re-entry. */
@@ -79,10 +75,8 @@ class RefinedBottomSheetState {
 
     /**
      * Animates out with the tap-outside spec (fade + slide together) and suspends until done.
-     * A no-op if the sheet is already hidden — including when a drag already carried it off
-     * screen via [markHiddenByDrag], so callers that unconditionally call this after their own
-     * dismiss trigger (matching the pre-existing `dismiss()` pattern at call sites) never
-     * double-animate.
+     * A no-op if the sheet is already hidden, so callers that unconditionally call this after
+     * their own dismiss trigger never double-animate.
      */
     suspend fun hide() {
         if (isHidden) return
@@ -91,16 +85,6 @@ class RefinedBottomSheetState {
             launch { alpha.animateTo(0f, tween(Motion.DurationNormal, easing = Motion.EasingAccelerate)) }
             launch { offsetY.animateTo(heightPx, tween(Motion.DurationNormal, easing = Motion.EasingAccelerate)) }
         }
-    }
-
-    /**
-     * Called by [RefinedBottomSheet] once a drag-to-dismiss gesture has finished carrying the
-     * sheet off screen. The drag already moved [offsetY]/[alpha] itself (no fade, velocity-based
-     * slide) — this just marks [hide] as a no-op so a caller's subsequent `hide()` call doesn't
-     * replay the tween on top of it.
-     */
-    internal fun markHiddenByDrag() {
-        isHidden = true
     }
 }
 
@@ -145,20 +129,8 @@ private const val MinHeightFraction = 0.3f
  * Animation contract:
  * - Open and tap-outside-close: fade + slide together, `tween(`[Motion.DurationNormal]`)`,
  *   decelerate/accelerate easing.
- * - Drag-to-dismiss (only when [enableDragToDismiss] is true): velocity-based slide only (no
- *   fade, no fixed duration) — a target-based spring ([Motion.SpringSnappy]) animates to fully
- *   closed with the release velocity fed in as the spring's initial velocity, so a fast flick
- *   still feels fast without ever stalling short of closed the way a pure decay animation can on
- *   a slow release.
  *
- * [enableDragToDismiss] defaults to true to preserve prior behavior for any future consumer that
- * wants it, but every current consumer (SongActionsBottomSheet, GroupPickerBottomSheet,
- * SortBottomSheet) disables it: the drag gesture is applied to the whole outer Column, so it sits
- * underneath any scrollable content() (a LazyColumn on a sub-page or picker) and loses the touch
- * to that list's own scrolling whenever the list can still scroll in that direction — an
- * unresolved nestedScroll conflict that made drag-to-dismiss behave inconsistently depending on
- * list length/scroll position/touch location. Scrim-tap and system back remain the dismiss paths
- * for those consumers, both already independent of this gesture.
+ * Scrim tap and system back are the dismiss paths.
  *
  * Accessibility: the scrim is reachable as a labeled dismiss target and system back closes the
  * sheet via [BackHandler]. Since there's no separate Dialog window to give `ModalBottomSheet`'s
@@ -177,12 +149,9 @@ fun RefinedBottomSheet(
     scrimColor: Color = Color.Black.copy(alpha = 0.32f),
     shape: Shape = MaterialTheme.shapes.small,
     showDragHandle: Boolean = true,
-    enableDragToDismiss: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
-    val scope = rememberCoroutineScope()
-    val velocityThresholdPx = with(density) { 200.dp.toPx() }
     val dismissLabel = stringResource(R.string.cd_close)
 
     BackHandler(onBack = onDismissRequest)
@@ -238,40 +207,6 @@ fun RefinedBottomSheet(
                     translationY = sheetState.offsetY.value
                     alpha = sheetState.alpha.value
                 }
-                .then(
-                    if (enableDragToDismiss) {
-                        Modifier.draggable(
-                            orientation = Orientation.Vertical,
-                            state = rememberDraggableState { delta ->
-                                val next = (sheetState.offsetY.value + delta).coerceIn(0f, heightPx)
-                                scope.launch { sheetState.offsetY.snapTo(next) }
-                            },
-                            onDragStopped = { velocity ->
-                                val positionalThreshold = heightPx * 0.4f
-                                if (sheetState.offsetY.value > positionalThreshold || velocity > velocityThresholdPx) {
-                                    sheetState.markHiddenByDrag()
-                                    // Target-based, not animateDecay: decay has no target position
-                                    // and only coasts on the release velocity, so a slow release
-                                    // with little velocity to coast on stalls short of fully
-                                    // closed. Feeding the release velocity in as the spring's
-                                    // initialVelocity keeps a fast flick feeling fast while
-                                    // guaranteeing every release still animates all the way to
-                                    // fully closed in one continuous motion.
-                                    sheetState.offsetY.animateTo(
-                                        targetValue = heightPx,
-                                        animationSpec = Motion.SpringSnappy,
-                                        initialVelocity = velocity,
-                                    )
-                                    onDismissRequest()
-                                } else {
-                                    sheetState.offsetY.animateTo(0f, Motion.SpringStandard)
-                                }
-                            },
-                        )
-                    } else {
-                        Modifier
-                    },
-                )
                 .clip(shape)
                 .background(containerColor),
         ) {

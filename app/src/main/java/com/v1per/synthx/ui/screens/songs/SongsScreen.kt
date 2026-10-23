@@ -87,7 +87,6 @@ internal fun SortBottomSheet(
         containerColor = SurfaceColor,
         shape = MaterialTheme.shapes.small,
         showDragHandle = false,
-        enableDragToDismiss = false,
     ) {
         Text(
             text = stringResource(R.string.sort_by),

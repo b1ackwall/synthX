@@ -108,7 +108,6 @@ fun SongActionsBottomSheet(
         containerColor = SurfaceColor,
         shape = MaterialTheme.shapes.small,
         showDragHandle = false,
-        enableDragToDismiss = false,
     ) {
         AnimatedContent(
             targetState = page,
