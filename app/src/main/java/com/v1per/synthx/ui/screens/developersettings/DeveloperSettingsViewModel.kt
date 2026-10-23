@@ -73,6 +73,7 @@ class DeveloperSettingsViewModel internal constructor(
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
             val appContext = context.applicationContext
+            // Class<T> is erased; this factory only ever builds DeveloperSettingsViewModel.
             @Suppress("UNCHECKED_CAST")
             return DeveloperSettingsViewModel(
                 repository = SongRepositoryImpl.create(appContext),

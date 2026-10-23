@@ -389,6 +389,7 @@ class IssuesViewModel(
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
             val appContext = context.applicationContext
+            // Class<T> is erased; this factory only ever builds IssuesViewModel.
             @Suppress("UNCHECKED_CAST")
             return IssuesViewModel(
                 context = appContext,

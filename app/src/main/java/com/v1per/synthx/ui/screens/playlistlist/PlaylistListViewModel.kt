@@ -154,6 +154,7 @@ class PlaylistListViewModel(
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 val appContext = context.applicationContext
                 val repository = SongRepositoryImpl.create(appContext)
+                // Class<T> is erased; this factory only ever builds PlaylistListViewModel.
                 @Suppress("UNCHECKED_CAST")
                 return PlaylistListViewModel(repository, appContext) as T
             }

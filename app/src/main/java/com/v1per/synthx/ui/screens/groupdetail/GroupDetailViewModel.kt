@@ -106,6 +106,7 @@ class GroupDetailViewModel(
         fun factory(context: Context, groupId: String): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 val repository = SongRepositoryImpl.create(context)
+                // Class<T> is erased; this factory only ever builds GroupDetailViewModel.
                 @Suppress("UNCHECKED_CAST")
                 return GroupDetailViewModel(repository, groupId, context.applicationContext) as T
             }

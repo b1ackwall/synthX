@@ -413,6 +413,7 @@ class LibraryManagementViewModel(
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
             val appContext = context.applicationContext
+            // Class<T> is erased; this factory only ever builds LibraryManagementViewModel.
             @Suppress("UNCHECKED_CAST")
             return LibraryManagementViewModel(
                 context = appContext,

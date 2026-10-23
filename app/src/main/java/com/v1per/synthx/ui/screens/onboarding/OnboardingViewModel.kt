@@ -90,6 +90,7 @@ class OnboardingViewModel(private val preferences: PreferencesManager) : ViewMod
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(OnboardingViewModel::class.java))
+            // Class<T> is erased; this factory only ever builds OnboardingViewModel.
             @Suppress("UNCHECKED_CAST")
             return OnboardingViewModel(PreferencesManager(context.applicationContext)) as T
         }
