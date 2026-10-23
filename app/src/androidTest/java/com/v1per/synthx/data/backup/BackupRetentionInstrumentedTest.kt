@@ -98,7 +98,7 @@ class BackupRetentionInstrumentedTest {
 
         assertFalse("Past-limit victim database must be deleted", File(root, victim).exists())
         assertTrue("Current publication must survive", File(root, current).exists())
-        val outcome = BackupOutcomeStore.lastRetentionOutcome.value
+        val outcome = BackupOutcomeStore.lastRetentionOutcomeForTest.value
         assertEquals(1, outcome?.attempted)
         assertEquals(1, outcome?.succeeded)
         assertFalse(outcome?.hadFailures ?: true)
@@ -124,7 +124,7 @@ class BackupRetentionInstrumentedTest {
             BackupFileIdentity(current.removeSuffix(".db")),
         )
 
-        val retention = BackupOutcomeStore.lastRetentionOutcome.value
+        val retention = BackupOutcomeStore.lastRetentionOutcomeForTest.value
         assertEquals(1, retention?.attempted)
         assertEquals(0, retention?.succeeded)
         assertEquals(listOf(victimName), retention?.failedDatabaseNames)
@@ -199,7 +199,7 @@ class BackupRetentionInstrumentedTest {
             BackupFileIdentity(current.removeSuffix(".db")),
         )
 
-        val outcome = BackupOutcomeStore.lastRetentionOutcome.value
+        val outcome = BackupOutcomeStore.lastRetentionOutcomeForTest.value
         assertEquals(0, outcome?.attempted)
         assertFalse(outcome?.hadFailures ?: true)
         assertNull(outcome?.failedDatabaseNames?.firstOrNull())

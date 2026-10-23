@@ -81,8 +81,8 @@ object BackupOutcomeStore {
     private val _lastVerificationOutcome = MutableStateFlow<VerificationAttemptOutcome?>(null)
     val lastVerificationOutcome: StateFlow<VerificationAttemptOutcome?> = _lastVerificationOutcome.asStateFlow()
 
-    private val _lastRetentionOutcome = MutableStateFlow<RetentionAttemptOutcome?>(null)
-    val lastRetentionOutcome: StateFlow<RetentionAttemptOutcome?> = _lastRetentionOutcome.asStateFlow()
+    private val _lastRetentionOutcomeForTest = MutableStateFlow<RetentionAttemptOutcome?>(null)
+    val lastRetentionOutcomeForTest: StateFlow<RetentionAttemptOutcome?> = _lastRetentionOutcomeForTest.asStateFlow()
 
     @Volatile private var initialized = false
 
@@ -120,7 +120,7 @@ object BackupOutcomeStore {
             val tier = runCatching { BackupTier.valueOf(prefs.lastRetentionAttemptTier.orEmpty()) }
                 .getOrNull()
             if (tier != null) {
-                _lastRetentionOutcome.value = RetentionAttemptOutcome(
+                _lastRetentionOutcomeForTest.value = RetentionAttemptOutcome(
                     timestamp = prefs.lastRetentionAttemptTimestamp,
                     tier = tier,
                     attempted = prefs.lastRetentionAttemptAttempted,
@@ -228,7 +228,7 @@ object BackupOutcomeStore {
             lastRetentionAttemptOrphanedNames = outcome.orphanedDatabaseNames.joinToString(",")
             lastRetentionAttemptFailedNames = outcome.failedDatabaseNames.joinToString(",")
         }
-        _lastRetentionOutcome.value = outcome
+        _lastRetentionOutcomeForTest.value = outcome
         if (outcome.hadFailures) {
             Log.w(
                 "BackupOutcomeStore",
@@ -244,6 +244,6 @@ object BackupOutcomeStore {
         _lastBackupOutcome.value = null
         _lastExportOutcome.value = null
         _lastVerificationOutcome.value = null
-        _lastRetentionOutcome.value = null
+        _lastRetentionOutcomeForTest.value = null
     }
 }
