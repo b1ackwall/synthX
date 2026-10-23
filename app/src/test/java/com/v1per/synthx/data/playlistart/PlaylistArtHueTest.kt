@@ -52,7 +52,7 @@ class PlaylistArtHueTest {
         assertEquals(1, wraps, "Perceived hue should go round the wheel exactly once")
     }
 
-    // ------------------------------------------------------------------ distance
+    // ------------------------------------------------------------------ hue normalisation
 
     @Test
     fun `normalising reduces any hue to 0 through 359`() {
