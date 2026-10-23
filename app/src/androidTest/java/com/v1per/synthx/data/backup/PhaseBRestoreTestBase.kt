@@ -148,7 +148,7 @@ abstract class PhaseBRestoreTestBase {
     )
 
     internal fun readState(): RestoreTransaction.State {
-        val state = RestoreTransaction.decodeStateOrNull(stateFile().readText())
+        val state = RestoreTransaction.decodeStateOrNullForTest(stateFile().readText())
         assertNotNull(state)
         return requireNotNull(state)
     }

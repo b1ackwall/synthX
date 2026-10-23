@@ -75,7 +75,7 @@ class RestoreJournalCompatibilityTest {
     }
 
     @Test fun activeGoldenFollowsTheCurrentDatabaseVersion() {
-        val decoded = RestoreTransaction.decodeStateOrNull(
+        val decoded = RestoreTransaction.decodeStateOrNullForTest(
             RestoreJournalGoldens.read(RestoreJournalGoldens.ACTIVE_POST_VALIDATED),
         )
         assertNotNull(
@@ -93,7 +93,7 @@ class RestoreJournalCompatibilityTest {
             .replace("\"candidateVersion\":${SynthXDatabase.VERSION}", "\"candidateVersion\":$older")
             .replace("\"oldVersion\":${SynthXDatabase.VERSION}", "\"oldVersion\":$older")
         assertTrue(stale.contains("\"candidateVersion\":$older"))
-        assertNull(RestoreTransaction.decodeStateOrNull(stale))
+        assertNull(RestoreTransaction.decodeStateOrNullForTest(stale))
     }
 
     @Test fun jvmAndDeviceGoldenFoldersAreByteIdentical() {
@@ -106,8 +106,10 @@ class RestoreJournalCompatibilityTest {
         }
     }
 
-    private fun decode(name: String): RestoreTransaction.State =
-        assertNotNull(RestoreTransaction.decodeStateOrNull(RestoreJournalGoldens.read(name)), "$name no longer decodes")
+    private fun decode(name: String): RestoreTransaction.State = assertNotNull(
+        RestoreTransaction.decodeStateOrNullForTest(RestoreJournalGoldens.read(name)),
+        "$name no longer decodes",
+    )
 
     /** Test-only copy of RestoreTransaction.State, Phase and Outcome as shipped in v2.2.0 to v2.4.x. */
     @Serializable

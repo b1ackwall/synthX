@@ -123,7 +123,7 @@ class RestoreWorkerInstrumentedTest {
         WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
         assertEquals(WorkInfo.State.SUCCEEDED, awaitFinished(request.id).state)
         assertEquals(RestoreCoordinator.Terminal.RESTART_REQUIRED, RestoreCoordinator.current())
-        val state = RestoreTransaction.decodeStateOrNull(
+        val state = RestoreTransaction.decodeStateOrNullForTest(
             File(databaseDir, "synthx.restore-state.json").readText(),
         )
         assertEquals(request.id.toString().replace("-", ""), state?.operationId)

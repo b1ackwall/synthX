@@ -58,19 +58,19 @@ class RestorePrimitivesTest {
     @Test fun everyRestoreStatePhaseSerializesAndRoundTrips() {
         RestoreTransaction.Phase.entries.forEach { phase ->
             val state = state(phase)
-            assertEquals(state, RestoreTransaction.decodeStateOrNull(RestoreTransaction.encodeState(state)))
+            assertEquals(state, RestoreTransaction.decodeStateOrNullForTest(RestoreTransaction.encodeState(state)))
         }
     }
 
     @Test fun malformedAndTruncatedStateAreRejected() {
-        assertNull(RestoreTransaction.decodeStateOrNull("{"))
-        assertNull(RestoreTransaction.decodeStateOrNull("not json"))
+        assertNull(RestoreTransaction.decodeStateOrNullForTest("{"))
+        assertNull(RestoreTransaction.decodeStateOrNullForTest("not json"))
     }
 
     @Test fun inconsistentStateFilenamesAreRejected() {
         val encoded = RestoreTransaction.encodeState(state(RestoreTransaction.Phase.PREPARED))
             .replace("synthx.restore-$OP.old.db", "foreign.db")
-        assertNull(RestoreTransaction.decodeStateOrNull(encoded))
+        assertNull(RestoreTransaction.decodeStateOrNullForTest(encoded))
     }
 
     @Test fun trustedCurrentMetadataIsAccepted() {

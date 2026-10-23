@@ -132,7 +132,7 @@ internal fun assertFollowedBy(
 internal object RestoreJournalTestAccess {
     fun write(dir: File, state: RestoreTransaction.State) = RestoreTransaction.writeStateForTest(dir, state)
 
-    fun decode(text: String): RestoreTransaction.State? = RestoreTransaction.decodeStateOrNull(text)
+    fun decode(text: String): RestoreTransaction.State? = RestoreTransaction.decodeStateOrNullForTest(text)
 }
 
 /**

@@ -83,7 +83,7 @@ class PhaseBRestoreJournalUpgradeInstrumentedTest : PhaseBRestoreTestBase() {
             ),
         )
         assertFalse(liveFile().exists())
-        assertNotNull(RestoreTransaction.decodeStateOrNull(stateFile().readText()))
+        assertNotNull(RestoreTransaction.decodeStateOrNullForTest(stateFile().readText()))
 
         assertEquals(
             RestoreRecovery.NORMAL,
@@ -148,10 +148,10 @@ class PhaseBRestoreJournalUpgradeInstrumentedTest : PhaseBRestoreTestBase() {
             "\"oldVersion\":$priorVersion",
         )
         assertTrue(activeJson.contains("\"phase\":\"POST_VALIDATED\""))
-        assertNotNull("the current active golden must decode", RestoreTransaction.decodeStateOrNull(current))
+        assertNotNull("the current active golden must decode", RestoreTransaction.decodeStateOrNullForTest(current))
         stateFile().writeText(activeJson)
 
-        assertNull(RestoreTransaction.decodeStateOrNull(activeJson))
+        assertNull(RestoreTransaction.decodeStateOrNullForTest(activeJson))
         assertEquals(
             RestoreRecovery.EMERGENCY,
             RestoreTransaction.recoverIfNeeded(context, databaseDir),

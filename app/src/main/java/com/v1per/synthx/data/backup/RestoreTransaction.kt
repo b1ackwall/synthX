@@ -1162,7 +1162,7 @@ internal object RestoreTransaction {
         return json.encodeToString(State.serializer(), state)
     }
 
-    internal fun decodeStateOrNull(encoded: String): State? =
+    internal fun decodeStateOrNullForTest(encoded: String): State? =
         runCatching { decodeAndValidateState(encoded) }.getOrNull()
 
     private fun decodeAndValidateState(encoded: String): State =
