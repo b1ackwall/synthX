@@ -1,5 +1,6 @@
 package com.v1per.synthx.data.backup
 
+import android.database.sqlite.SQLiteDatabase
 import android.system.Os
 import androidx.test.platform.app.InstrumentationRegistry
 import com.v1per.synthx.data.db.SynthXDatabase
@@ -75,6 +76,17 @@ abstract class RestoreScenarioTestBase : PhaseBRestoreTestBase() {
     /** Every file in the database folder whose name ends with [suffix]. */
     protected fun filesEndingWith(suffix: String): List<File> =
         databaseDir.listFiles().orEmpty().filter { it.name.endsWith(suffix) }
+
+    internal fun updateMarker(file: File, value: String) {
+        SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE).use { database ->
+            database.execSQL(
+                "UPDATE playlist_groups SET name=? WHERE id='marker'",
+                arrayOf(value),
+            )
+        }
+        assertEquals(value, readMarker(file))
+        BackupSnapshotValidator.validate(file, false)
+    }
 }
 
 /** Fails the first time [point] is hit with "Injected <point>", then lets every later hit pass. */
