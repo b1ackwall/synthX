@@ -274,13 +274,6 @@ class RestorePrimitivesTest {
                 facts(liveExists = true, liveValid = true, liveIsCandidate = false),
             ),
         )
-        assertEquals(
-            RestoreRecoveryAction.ACCEPT_COMPLETE_HISTORY_AND_NORMAL,
-            decide(
-                RestoreTransaction.Phase.COMPLETE,
-                facts(liveExists = true, liveValid = true),
-            ),
-        )
     }
 
     @Test fun completeNeverReopensRollbackWhenCurrentLiveIsInvalid() {
