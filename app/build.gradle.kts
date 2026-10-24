@@ -80,9 +80,9 @@ android {
 
 kotlin {
     compilerOptions {
-        // Pinned: Gradle's default module name ("synthX:app") contains a ':',
-        // which Windows silently truncates in compose_reports output filenames,
-        // producing empty report files.
+        // Pinned: Gradle's default module name ("synthX:app") contains a ':', which Windows
+        // silently truncates in the report filenames under build/compose-reports/<compilation>/
+        // (written only with -PcomposeReports), producing empty report files.
         moduleName.set("synthX-app")
         // Part of scripts/check.sh: a new compiler warning in main, test or androidTest sources fails the build.
         allWarningsAsErrors.set(true)

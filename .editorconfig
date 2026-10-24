@@ -1,5 +1,5 @@
 root = true
-# ktlint style for Kotlin files; see docs/code-work/mechanical-hygiene-formatting-discovery.md
+# ktlint style for Kotlin files
 [*.{kt,kts}]
 ktlint_code_style = android_studio
 max_line_length = 120
