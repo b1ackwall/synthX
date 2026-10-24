@@ -47,8 +47,6 @@ internal object RestoreStartup {
 
             RestoreRecovery.RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(false)
 
-            RestoreRecovery.ROLLED_BACK_RESTART_REQUIRED -> RestoreCoordinator.markRestartRequired(true)
-
             RestoreRecovery.EMERGENCY -> RestoreCoordinator.markEmergency(
                 RestoreTransaction.diagnosticOperationId(),
             )

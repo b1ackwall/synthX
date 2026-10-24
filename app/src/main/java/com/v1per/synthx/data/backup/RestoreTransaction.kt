@@ -466,6 +466,5 @@ internal object RestoreTransaction {
 internal enum class RestoreRecovery {
     NORMAL,
     RESTART_REQUIRED,
-    ROLLED_BACK_RESTART_REQUIRED,
     EMERGENCY,
 }
