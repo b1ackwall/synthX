@@ -150,7 +150,7 @@ class QueueModeState internal constructor(
 /**
  * Remembers and wires up all queue-mode state for [PlayerSheetSkeleton]: the queue-mode
  * toggle + its crossfade [Animatable], the queue list's [LazyListState], and the
- * gesture-derived controls-overlay visibility with its shuffle-reorder scroll-reset fix.
+ * gesture-derived controls-overlay visibility with its shuffle-reorder scroll reset.
  *
  * [scope] is the same [CoroutineScope] PlayerSheetSkeleton already holds via
  * `rememberCoroutineScope()` for its own drag-settle/expand animations — reused here rather

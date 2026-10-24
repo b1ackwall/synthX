@@ -261,9 +261,9 @@ private suspend fun extractOneFile(
     }
 
     val metadata = when (branch) {
-        // Art is extracted only on the insert path, exactly as before: retagIfChanged has
-        // always skipped AlbumArtExtractor deliberately, since decoding and rewriting a
-        // bitmap is the cost that path exists to avoid paying when nothing changed.
+        // Art is extracted only on the insert path: retagIfChanged skips AlbumArtExtractor
+        // deliberately, since decoding and rewriting a bitmap is the cost that path exists
+        // to avoid paying when nothing changed.
         ScanBranch.INSERT -> {
             // Register before extraction: a cancellation after art files are written must
             // still let the caller clean up those files.

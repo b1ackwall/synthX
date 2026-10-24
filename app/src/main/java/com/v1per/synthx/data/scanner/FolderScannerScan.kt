@@ -429,8 +429,8 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                 }
 
                 // Only after the transaction commits — see pendingRemaps' declaration above. A
-                // consumer acting on one of these is now guaranteed the replacement row it names
-                // actually exists.
+                // consumer acting on one of these is guaranteed that the replacement row it
+                // names exists.
                 pendingRemaps.forEach { remap ->
                     SongRemapEvents.notifyRemap(remap.oldId, remap.newSong)
                 }

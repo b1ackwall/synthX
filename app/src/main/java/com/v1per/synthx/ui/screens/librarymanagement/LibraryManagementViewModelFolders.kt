@@ -205,10 +205,10 @@ private suspend fun LibraryManagementViewModel.releaseGrantWhenIdle(uri: Uri) {
 }
 
 /**
- * Both flags, matching what both audio roots are now taken with — graduation writes into the
+ * Both flags, matching what both audio roots are taken with — graduation writes into the
  * music folder and deletes out of New Arrivals, so each picker takes read+write. Releasing
- * only read would strand a superseded root's write grant permanently, against a URI nothing
- * points at any more.
+ * only read would strand a superseded root's write grant permanently, against a URI that
+ * nothing points at.
  *
  * Kept as the wider set rather than something per-root: this one function serves both roots
  * and [rejectIfNested]'s rejected candidate, and naming a flag that was never held is not an

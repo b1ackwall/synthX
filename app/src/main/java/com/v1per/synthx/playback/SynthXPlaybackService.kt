@@ -111,7 +111,7 @@ class SynthXPlaybackService : MediaLibraryService() {
         // The small icon and play/pause/skip actions are left on media3's own default
         // provider — a proper monochrome status-bar icon asset doesn't exist yet in res/
         // (ic_launcher_foreground is full-color, not status-bar-safe), and custom actions
-        // aren't something this pass has a concrete design for. Revisit once a real status-bar
+        // have no concrete design yet. Revisit once a real status-bar
         // icon is designed.
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider.Builder(this)

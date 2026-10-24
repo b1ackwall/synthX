@@ -70,8 +70,8 @@ class LibraryViewModel(
     )
     val refreshMessages: SharedFlow<String> = _refreshMessages.asSharedFlow()
 
-    // Buffered so a click emitted while the screen is between compositions
-    // is delivered on resubscribe instead of being dropped.
+    // Replay is 0: a click emitted while no collector is running is dropped. The one-slot
+    // buffer only serves an active collector, and DROP_OLDEST discards the older event.
     private val _navigationEvents = MutableSharedFlow<NavigationEvent>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
