@@ -33,9 +33,6 @@
     <!-- Raising targetSdk to 37 is tracked in #247. -->
     <issue id="OldTargetApi" severity="ignore" />
 
-    <!-- Enabling isShrinkResources is tracked in #248. -->
-    <issue id="NotShrinkingResources" severity="ignore" />
-
     <!-- A themed (monochrome) launcher icon is tracked in #249. -->
     <issue id="MonochromeLauncherIcon" severity="ignore" />
 </lint>
