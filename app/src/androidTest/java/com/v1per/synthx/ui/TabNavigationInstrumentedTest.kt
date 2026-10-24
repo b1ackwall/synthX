@@ -111,8 +111,7 @@ class TabNavigationInstrumentedTest {
         shell.assertBackWalk(listOf(songs, library, home))
     }
 
-    /** PINNED current behaviour, issue #213 (question): no tab is lit on a sub-screen. */
-    @Test fun pinnedNoTabIsHighlightedOnSubScreens() {
+    @Test fun subScreensOpenedFromLibraryLightTheLibraryTab() {
         shell.startShell()
         shell.clickTab(libraryTab)
         assertEquals("Library root lights Library", listOf(libraryTab), selectedTabs())
@@ -122,7 +121,7 @@ class TabNavigationInstrumentedTest {
             Screen.PlaylistDetail.createRoute("tab-playlist", "Tab Playlist"),
         ).forEach { target ->
             shell.navigate(target)
-            assertEquals("tabs lit on ${shell.route()}", emptyList<String>(), selectedTabs())
+            assertEquals("tabs lit on ${shell.route()}", listOf(libraryTab), selectedTabs())
         }
     }
 

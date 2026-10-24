@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,7 +36,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
+import androidx.navigation.compose.ComposeNavigator
+import androidx.navigation.get
 import androidx.tracing.Trace
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
@@ -53,6 +57,7 @@ import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.Surface
 import com.v1per.synthx.ui.theme.TextSecondary
+import kotlinx.coroutines.flow.MutableStateFlow
 
 // Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
 @SuppressLint("UnclosedTrace")
@@ -95,6 +100,26 @@ internal fun BottomChromeOverlay(
     // place, since neither composable is ever removed from the tree.
     val hiddenModifier = if (showBottomBar) Modifier else Modifier.size(0.dp)
 
+    // The lit tab comes from the back stack, so a sub-screen keeps its parent tab lit.
+    // The navigator's state is only readable once the graph is set, which is when a route first exists.
+    val graphReady = currentRoute != null
+    val backStackFlow = remember(navController, graphReady) {
+        if (graphReady) {
+            navController.navigatorProvider[ComposeNavigator::class].backStack
+        } else {
+            MutableStateFlow(emptyList<NavBackStackEntry>())
+        }
+    }
+    val backStack by backStackFlow.collectAsState()
+    val selectedRoute = remember(currentRoute, backStack, showBottomBar) {
+        if (showBottomBar) {
+            val tabRoutes = setOf(Screen.Home.route, Screen.Library.route, Screen.Search.route)
+            selectedTabRoute(currentRoute, backStack.map { it.destination.route }, tabRoutes)
+        } else {
+            null
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -104,6 +129,7 @@ internal fun BottomChromeOverlay(
         SynthXBottomNav(
             navController = navController,
             currentRoute = currentRoute,
+            selectedRoute = selectedRoute,
             // Fall back to 0f when nothing is playing so a stale progress can't
             // leave the nav slid off screen after the sheet is gone.
             playerProgress = if (currentSong != null) playerProgress else 0f,
@@ -182,6 +208,7 @@ private val libraryTabRoutes = Screen.libraryDetailRoutes
 private fun SynthXBottomNav(
     navController: NavController,
     currentRoute: String?,
+    selectedRoute: String?,
     modifier: Modifier = Modifier,
     playerProgress: Float = 0f,
     onSearchReselected: () -> Unit,
@@ -245,7 +272,7 @@ private fun SynthXBottomNav(
             modifier = Modifier.height(70.dp),
         ) {
             items.forEach { item ->
-                val selected = currentRoute == item.screen.route
+                val selected = selectedRoute == item.screen.route
                 NavigationBarItem(
                     selected = selected,
                     onClick = {
