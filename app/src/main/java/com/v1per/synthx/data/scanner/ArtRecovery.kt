@@ -32,7 +32,10 @@ private const val TAG = "SynthXArtRecovery"
  */
 private val ART_RECOVERY_PARALLELISM = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
 
-/** Outcome of one [ArtRecovery.recover] pass. Public — surfaced through [com.v1per.synthx.data.repository.SongRepository]. */
+/**
+ * Outcome of one [ArtRecovery.recover] pass. Public — surfaced through
+ * [com.v1per.synthx.data.repository.SongRepository].
+ */
 data class ArtRecoveryResult(val checked: Int, val recovered: Int, val skipped: Int)
 
 /**

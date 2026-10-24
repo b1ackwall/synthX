@@ -9,7 +9,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Decoded player background art for the song with [songId], and its measured brightness if [PlayerBackgroundArtHolder] was given a measure. */
+/**
+ * Decoded player background art for the song with [songId], and its measured brightness if
+ * [PlayerBackgroundArtHolder] is given a measure.
+ */
 data class PlayerBackgroundArt<T : Any>(val songId: String, val image: T, val brightness: Float? = null)
 
 /**

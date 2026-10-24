@@ -151,8 +151,9 @@ class ExoPlayerEngine(
 
     // Single 500ms ticker shared by currentPosition and duration below. shareIn (rather
     // than two separate cold flows) means only one timer runs regardless of how many
-    // downstream collectors currentPosition/duration pick up. Collected on the caller's dispatcher (the ViewModel collects on
-    // Main.immediate via stateIn), which satisfies MediaController's main-thread requirement.
+    // downstream collectors currentPosition/duration pick up. Collected on the caller's
+    // dispatcher (the ViewModel collects on Main.immediate via stateIn), which satisfies
+    // MediaController's main-thread requirement.
     private val positionTicker: Flow<Unit> = flow {
         while (true) {
             emit(Unit)

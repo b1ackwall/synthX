@@ -1,8 +1,9 @@
 package com.v1per.synthx.playback
 
 /**
- * Pure backoff/attempt-limit arithmetic behind [ExoPlayerEngine]'s connection retry. Split out purely so the actual policy — not the `MediaController.Builder`/coroutine
- * plumbing around it — is unit-testable.
+ * Pure backoff/attempt-limit arithmetic behind [ExoPlayerEngine]'s connection retry. Split out
+ * purely so the actual policy — not the `MediaController.Builder`/coroutine plumbing around
+ * it — is unit-testable.
  */
 internal object ReconnectPolicy {
     const val MAX_ATTEMPTS = 3

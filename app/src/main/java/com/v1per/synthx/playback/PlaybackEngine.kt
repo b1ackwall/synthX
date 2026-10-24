@@ -117,7 +117,8 @@ interface PlaybackEngine {
     fun next()
 
     /**
-     * Restarts the current item if more than [media3's default 3s][androidx.media3.common.C.DEFAULT_MAX_SEEK_TO_PREVIOUS_POSITION_MS]
+     * Restarts the current item if more than
+     * [media3's default 3s][androidx.media3.common.C.DEFAULT_MAX_SEEK_TO_PREVIOUS_POSITION_MS]
      * into it, otherwise jumps to the actual previous queue item — standard player
      * convention (Apple Music, Spotify), and it likewise falls back to restarting the current
      * item when there is no previous one.

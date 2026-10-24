@@ -44,9 +44,10 @@ interface PlaylistDao {
     fun getPlaylistsForGroup(groupId: String): Flow<List<PlaylistEntity>>
 
     // Deliberately NOT OnConflictStrategy.REPLACE: SongRepositoryImpl.createPlaylist always
-    // inserts a freshly generated UUID, so a conflict here can only mean an id collision bug. REPLACE would silently delete the existing
-    // row first — cascading away every membership under it (playlist_id is ON DELETE CASCADE on
-    // playlist_songs) — which is far worse than the default ABORT throwing loudly.
+    // inserts a freshly generated UUID, so a conflict here can only mean an id collision bug.
+    // REPLACE would silently delete the existing row first — cascading away every membership
+    // under it (playlist_id is ON DELETE CASCADE on playlist_songs) — which is far worse than
+    // the default ABORT throwing loudly.
     @Insert
     suspend fun insertPlaylist(playlist: PlaylistEntity)
 

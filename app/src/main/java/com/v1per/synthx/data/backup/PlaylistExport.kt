@@ -17,8 +17,9 @@ data class PlaylistExport(
     val exportedAt: Long,
     /**
      * Names the song fingerprinting algorithm ([ExportedSong] hashes are the sampled SHA-256 from
-     * HashUtils: first 64KB + last 64KB + file size) as of this export. A future change to the fingerprinting algorithm changes this value, so a
-     * disaster-recovery script can detect a mismatch instead of silently matching wrong songs.
+     * HashUtils: first 64KB + last 64KB + file size) as of this export. A future change to the
+     * fingerprinting algorithm changes this value, so a disaster-recovery script can detect a
+     * mismatch instead of silently matching wrong songs.
      */
     val hashStrategy: String,
     val songs: Map<String, ExportedSong>,

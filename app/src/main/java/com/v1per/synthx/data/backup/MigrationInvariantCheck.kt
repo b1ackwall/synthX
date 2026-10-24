@@ -73,9 +73,10 @@ internal object MigrationRecoveryGate {
 
         // Structurally impossible to recover from (no snapshot) and nothing to recover FROM is
         // needed anyway (the live DB already validates as current) — this is exactly the
-        // stale-flag lockout shape the class doc describes. Clear the stale flag and let the app proceed normally. If the durable
-        // clear itself can't be confirmed, stay conservative and keep prompting rather than
-        // silently claiming a self-heal that might not have landed.
+        // stale-flag lockout shape the class doc describes. Clear the stale flag and let the app
+        // proceed normally. If the durable clear itself can't be confirmed, stay conservative
+        // and keep prompting rather than silently claiming a self-heal that might not have
+        // landed.
         return !preferences.setMigrationInvariantFailurePendingDurably(false)
     }
 }
