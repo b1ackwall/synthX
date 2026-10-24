@@ -148,7 +148,7 @@ class PhaseBRestoreRecoveryInstrumentedTest : RestoreScenarioTestBase() {
         )
 
         assertEquals(
-            RestoreRecovery.EMERGENCY,
+            RestoreRecovery.NORMAL,
             RestoreTransaction.recoverIfNeeded(
                 context,
                 databaseDir,

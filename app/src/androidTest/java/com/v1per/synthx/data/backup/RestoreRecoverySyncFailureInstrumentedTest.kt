@@ -13,8 +13,9 @@ import org.junit.runner.RunWith
 
 /**
  * A failure injected at each startup-recovery durability point that no other test reaches. After
- * each one the start is EMERGENCY, the journal and files show how far recovery got, and the next
- * start is NORMAL with the right data.
+ * each one the journal and files show how far recovery got, and the next start is NORMAL with the
+ * right data. The start itself is EMERGENCY, except for failures in the cleanup that follows a
+ * COMPLETE journal: those are logged and the start is NORMAL.
  */
 @RunWith(AndroidJUnit4::class)
 class RestoreRecoverySyncFailureInstrumentedTest : RestoreScenarioTestBase() {
@@ -56,11 +57,10 @@ class RestoreRecoverySyncFailureInstrumentedTest : RestoreScenarioTestBase() {
         assertEquals("original", readMarker(liveFile()))
     }
 
-    /** PINNED (open question): EMERGENCY once although the journal already says COMPLETE. */
-    @Test fun postCompleteCleanupSyncFailureIsEmergencyThenNextStartIsNormal() {
+    @Test fun postCompleteCleanupSyncFailureStartsNormalWithTheRestoredData() {
         val scenario = scenario(RestoreTransaction.Phase.POST_VALIDATED, old = "original", installCandidate = true)
 
-        assertEquals(RestoreRecovery.EMERGENCY, recoverWith(RestoreFaultPoint.POST_COMPLETE_CLEANUP_DIRECTORY_SYNC))
+        assertEquals(RestoreRecovery.NORMAL, recoverWith(RestoreFaultPoint.POST_COMPLETE_CLEANUP_DIRECTORY_SYNC))
 
         assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
         assertEquals("candidate", readMarker(liveFile()))
@@ -68,18 +68,12 @@ class RestoreRecoverySyncFailureInstrumentedTest : RestoreScenarioTestBase() {
         assertNextStartIsNormalWith("candidate", RestoreTransaction.Outcome.INSTALLED)
     }
 
-    /**
-     * PINNED BUG: when the cleanup sync after a finished restore fails, the album-art
-     * recovery sweep flag is never set. This asserts today's wrong result; a fix must flip it.
-     */
-    @Test fun pinnedArtSweepFlagIsLostWhenPostCompleteCleanupSyncFails() {
+    @Test fun artSweepFlagIsSetWhenPostCompleteCleanupSyncFails() {
         scenario(RestoreTransaction.Phase.POST_VALIDATED, old = "original", installCandidate = true)
 
         recoverWith(RestoreFaultPoint.POST_COMPLETE_CLEANUP_DIRECTORY_SYNC)
-        RestoreCoordinator.resetForTest()
-        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
 
-        assertFalse("PINNED: artSweepPending is lost today", PreferencesManager(context).artSweepPending)
+        assertTrue(PreferencesManager(context).artSweepPending)
     }
 
     /** Control for the pinned bug: the same restore without the failure sets the flag. */
@@ -91,11 +85,10 @@ class RestoreRecoverySyncFailureInstrumentedTest : RestoreScenarioTestBase() {
         assertTrue(PreferencesManager(context).artSweepPending)
     }
 
-    /** PINNED (open question), like the post-complete cleanup case above. */
-    @Test fun safetyPromotionCleanupSyncFailureIsEmergencyThenNextStartIsNormal() {
+    @Test fun safetyPromotionCleanupSyncFailureStartsNormalAndTheNextStartRemovesLeftovers() {
         val scenario = scenario(RestoreTransaction.Phase.POST_VALIDATED, old = "original", installCandidate = true)
 
-        assertEquals(RestoreRecovery.EMERGENCY, recoverWith(RestoreFaultPoint.SAFETY_PROMOTION_CLEANUP_DIRECTORY_SYNC))
+        assertEquals(RestoreRecovery.NORMAL, recoverWith(RestoreFaultPoint.SAFETY_PROMOTION_CLEANUP_DIRECTORY_SYNC))
 
         assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
         assertFalse(File(databaseDir, scenario.state.safetyName).exists())

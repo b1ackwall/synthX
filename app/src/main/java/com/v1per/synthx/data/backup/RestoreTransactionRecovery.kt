@@ -1,6 +1,7 @@
 package com.v1per.synthx.data.backup
 
 import android.content.Context
+import android.util.Log
 import com.v1per.synthx.data.backup.RestoreTransaction.Outcome
 import com.v1per.synthx.data.backup.RestoreTransaction.Phase
 import com.v1per.synthx.data.backup.RestoreTransaction.RollbackSource
@@ -8,8 +9,11 @@ import com.v1per.synthx.data.backup.RestoreTransaction.State
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
 
 // RestoreTransaction's startup recovery: journal-driven and stateless recovery, completed history, startup rollback.
+
+private const val TAG = "RestoreTransaction"
 
 /** Runs before any normal database entrypoint. State is evidence, never sole authority. */
 internal fun RestoreTransaction.recoverIfNeeded(
@@ -122,9 +126,8 @@ private fun RestoreTransaction.recoverWithState(
                 updatedAt = System.currentTimeMillis(),
             ).withCompletedRequest()
             writeState(dir, complete, faults)
-            cleanupAfterColdValidation(context, dir, complete, faults)
-            clearIncident(dir)
             markArtSweepPending(context)
+            if (cleanupCompletedRestore(context, dir, complete, faults)) clearIncident(dir)
             RestoreRecovery.NORMAL
         }
 
@@ -262,10 +265,29 @@ private fun RestoreTransaction.recoverCompletedHistory(
         return RestoreRecovery.NORMAL
     }
 
-    cleanupAfterColdValidation(context, dir, state, faults)
-    clearIncident(dir)
     if (state.outcome == Outcome.INSTALLED) markArtSweepPending(context)
+    if (cleanupCompletedRestore(context, dir, state, faults)) clearIncident(dir)
     return RestoreRecovery.NORMAL
+}
+
+/**
+ * Runs the cleanup that follows a durable COMPLETE journal. The outcome is already validated and
+ * recorded, and each start retries whatever cleanup left behind, so a failure here is logged
+ * instead of blocking startup. Returns whether the cleanup finished.
+ */
+private fun RestoreTransaction.cleanupCompletedRestore(
+    context: Context,
+    dir: File,
+    state: State,
+    faults: RestoreFaultInjector,
+): Boolean = try {
+    cleanupAfterColdValidation(context, dir, state, faults)
+    true
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (failure: Exception) {
+    Log.w(TAG, "Restore cleanup after a COMPLETE journal failed; the next start retries it", failure)
+    false
 }
 
 private fun RestoreTransaction.createStatelessRecoveryState(
