@@ -48,9 +48,8 @@ data class SongEntity(
      * exactly or Room's schema validation fails at open time — same contract as [isMissing].
      */
     @ColumnInfo(name = "in_inbox", defaultValue = "1") val isStarred: Boolean = true,
-    // TODO(schema): swatch1_hue..swatch3_lightness are unused (palette feature retired). Kept to
-    // avoid a schema bump; drop them in the next schema version with a migration (see the
-    // CLAUDE.md schema checklist).
+    // swatch1_hue..swatch3_lightness are kept on purpose and unused: they are not dropped, to
+    // avoid a schema migration.
     @ColumnInfo(name = "swatch1_hue", defaultValue = "NULL") val swatch1Hue: Float? = null,
     @ColumnInfo(name = "swatch1_saturation", defaultValue = "NULL") val swatch1Saturation: Float? = null,
     @ColumnInfo(name = "swatch1_lightness", defaultValue = "NULL") val swatch1Lightness: Float? = null,

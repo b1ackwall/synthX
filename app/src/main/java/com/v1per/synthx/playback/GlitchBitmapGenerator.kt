@@ -15,11 +15,11 @@ object GlitchBitmapGenerator {
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        // Background — SurfaceVariant #0F2E12
+        // Background: literal #0F2E12
         canvas.drawColor("#0F2E12".toColorInt())
 
         for (strip in generateGlitchStrips(songId)) {
-            // Accent #1AE62B @ 60% alpha (153), TextTertiary #D1F0D4 @ 40% (102), SurfaceVariant @ 80% (204)
+            // Strip literals: #1AE62B @ 60% alpha (153), #D1F0D4 @ 40% (102), #0F2E12 @ 80% (204)
             paint.color = when (strip.colorIndex) {
                 0 -> Color.argb(153, 26, 230, 43)
                 1 -> Color.argb(102, 209, 240, 212)

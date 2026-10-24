@@ -173,9 +173,8 @@ abstract class SynthXDatabase : RoomDatabase() {
             }
         }
 
-        // Raw artwork swatches only. Nothing in the app writes or uses these columns (palette
-        // feature retired; see SongEntity's TODO(schema)): rows stay NULL unless an older build
-        // filled them, and those values are kept but unused.
+        // Raw artwork swatches only. Nothing in the app writes or reads these columns, so
+        // their values stay unused (see the note above swatch1_hue in SongEntity).
         val MIGRATION_12_13 = object : Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -349,7 +348,9 @@ abstract class SynthXDatabase : RoomDatabase() {
          * builds its own list. Append new migrations here and nowhere else.
          *
          * MIGRATION_2_3 and MIGRATION_3_4 wiped song-derived data for hash-strategy and
-         * artist-splitting changes before this app held real user data. MIGRATION_11_12 only
+         * artist-splitting changes before this app held real user data. MIGRATION_6_7 drops
+         * the listen_history table and the two never-written songs columns verified and
+         * verified_at. MIGRATION_11_12 only
          * wipes the two transient queue-order tables because old rows have no stable slot id;
          * it preserves the library and playlist data. MIGRATION_15_16 merges albums whose
          * titles match ignoring case and that share a derived primary artist: it repoints their
@@ -357,9 +358,9 @@ abstract class SynthXDatabase : RoomDatabase() {
          * then deletes the duplicate album rows. Destructive treatment must remain an explicit
          * exception going forward: this app manages a large library built from years of hand
          * curation, with no external backup of future changes beyond what this app itself
-         * provides. A
-         * migration that deletes or overwrites existing data with no backfill path is an
-         * exceptional, deliberately and carefully reviewed decision — never routine practice.
+         * provides. A migration that deletes or overwrites existing data with no backfill
+         * path is an exceptional, deliberately and carefully reviewed decision — never
+         * routine practice.
          * See CLAUDE.md's Architecture section for the full pre-migration checklist.
          */
         internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(

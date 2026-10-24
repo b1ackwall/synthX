@@ -90,10 +90,8 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
-// Drops dead schema, confirmed via audit to have zero writers/readers anywhere in
-// the app: listen_history (whole table — ListenHistoryDao was always an empty
-// interface, never written to) and songs.verified/verified_at (declared,
-// queried once via the never-called getUnverifiedSongs, never written).
+// Drops dead schema that nothing in the app writes or reads: listen_history (whole table)
+// and songs.verified/verified_at.
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("DROP TABLE IF EXISTS listen_history")
