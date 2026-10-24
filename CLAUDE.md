@@ -111,7 +111,6 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
   song_artists, playlist_groups, playlists (incl. art_hue, art_structure_seed), playlist_songs,
   queue_items, queue_baseline_items, pending_cleanups,
   playback_cursor (single-row resume cursor + shuffle/repeat mode, see PlaybackCursorEntity).
-  (listen_history was dropped in an earlier version, replaced by queue_items/queue_baseline_items.)
 - ALL_MIGRATIONS in SynthXDatabase.kt is the single canonical migration chain — both the
   normal Room builder and createStandalone() (used for offline restore-candidate validation)
   must reference this same shared list. Never give createStandalone() or any other builder
