@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.screens.playlistdetail
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,6 +11,7 @@ import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.ui.common.LoadError
 import com.v1per.synthx.ui.common.UiState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,6 +46,8 @@ internal fun playlistDetailData(playlist: Playlist?, songs: List<Song>): Playlis
     )
 }
 
+private const val TAG = "SynthXPlaylistDetail"
+
 class PlaylistDetailViewModel(
     private val repository: SongRepository,
     private val playlistId: String,
@@ -51,8 +55,9 @@ class PlaylistDetailViewModel(
     private val stringResource: (Int) -> String = { id -> appContext.getString(id) },
 ) : ViewModel() {
 
-    // An empty playlist is still Success (with no songs) rather than UiState.Empty: the cover
-    // belongs above the empty message, so the screen needs the playlist in that state too.
+    // An empty playlist is still Success (with no songs): the cover belongs above the empty
+    // message, so the screen needs the playlist in that state too. UiState.Empty means the
+    // playlist does not exist and the load is still waiting on a playlist list that has no rows.
     private val _uiState = MutableStateFlow<UiState<PlaylistDetailData>>(UiState.Loading)
     val uiState: StateFlow<UiState<PlaylistDetailData>> = _uiState.asStateFlow()
 
@@ -66,6 +71,25 @@ class PlaylistDetailViewModel(
                     _uiState.value = UiState.Error(LoadError.PlaylistSongs.message(stringResource))
                 }
                 .collect { data -> _uiState.value = UiState.Success(data = data) }
+        }
+        viewModelScope.launch { markEmptyIfPlaylistIsMissing() }
+    }
+
+    /**
+     * With no playlists in the library the load above never emits, so the page would stay on its
+     * loading cover. One existence read tells that apart: a missing row moves a state that is
+     * still Loading to Empty, and any later content from the load takes over. A failed read
+     * leaves the state to the load.
+     */
+    private suspend fun markEmptyIfPlaylistIsMissing() {
+        try {
+            if (!repository.playlistExists(playlistId)) {
+                _uiState.compareAndSet(UiState.Loading, UiState.Empty)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Existence check for playlist $playlistId failed", e)
         }
     }
 

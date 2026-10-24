@@ -315,6 +315,8 @@ class SongRepositoryImpl(
 
     override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> = getSongsForPlaylistInternal(playlistId)
 
+    override suspend fun playlistExists(playlistId: String): Boolean = playlistExistsInternal(playlistId)
+
     override suspend fun getPlaylistIdsForSong(songId: String): List<String> = getPlaylistIdsForSongInternal(songId)
 
     override suspend fun addSongToPlaylist(playlistId: String, songId: String): Boolean =

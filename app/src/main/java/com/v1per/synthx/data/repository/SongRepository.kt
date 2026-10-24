@@ -148,6 +148,9 @@ interface SongRepository {
     // Playlist songs
     fun getSongsForPlaylist(playlistId: String): Flow<List<Song>>
 
+    /** Whether a playlist row with this id exists right now; a one-shot read, not a live query. */
+    suspend fun playlistExists(playlistId: String): Boolean
+
     /** Ids of every playlist [songId] currently belongs to — drives the "already in this
      *  playlist" indicator in the Add-to-Playlist picker. */
     suspend fun getPlaylistIdsForSong(songId: String): List<String>

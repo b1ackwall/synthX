@@ -123,6 +123,7 @@ class QueuePersistenceB1Test {
         override suspend fun movePlaylistToGroup(id: String, groupId: String?) {}
         override suspend fun deletePlaylist(id: String) {}
         override fun getSongsForPlaylist(playlistId: String): Flow<List<Song>> = emptyFlow()
+        override suspend fun playlistExists(playlistId: String) = false
         override suspend fun getPlaylistIdsForSong(songId: String) = emptyList<String>()
         override suspend fun addSongToPlaylist(playlistId: String, songId: String) = false
         override suspend fun removeSongFromPlaylist(playlistId: String, songId: String) {}

@@ -109,6 +109,10 @@ internal suspend fun SongRepositoryImpl.deletePlaylistInternal(id: String) {
     }
 }
 
+internal suspend fun SongRepositoryImpl.playlistExistsInternal(playlistId: String): Boolean = dbOperation {
+    playlistDao.getPlaylistsByIds(listOf(playlistId)).isNotEmpty()
+}
+
 internal suspend fun SongRepositoryImpl.getPlaylistIdsForSongInternal(songId: String): List<String> = dbOperation {
     playlistDao.getPlaylistIdsForSong(songId)
 }

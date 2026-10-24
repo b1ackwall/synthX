@@ -80,9 +80,17 @@ internal fun PlaylistDetailContent(
         when (val state = uiState) {
             is UiState.Loading -> LoadingIndicator()
 
-            is UiState.Empty -> Unit
+            // The playlist does not exist; an empty playlist is Success with no songs.
+            is UiState.Empty -> Text(
+                text = stringResource(R.string.empty_playlist_not_found),
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = Spacing.HorizontalPadding),
+            )
 
-            // Never produced: an empty playlist is Success with no songs.
             is UiState.Success -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = Spacing.md),
