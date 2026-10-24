@@ -20,8 +20,8 @@ import kotlinx.coroutines.launch
 // strings isn't worth the extra constructor parameter. Screen-layer ViewModels elsewhere
 // that already hold a Context resolve through strings.xml instead —
 // this is the one exception, not the new pattern.
-private const val GENERIC_LOAD_ERROR = "Couldn't load your groups. Try again."
-private const val GENERIC_CREATE_ERROR = "Couldn't create this playlist. Try again."
+private const val GENERIC_LOAD_ERROR = "Couldn’t load your groups. Try again."
+private const val GENERIC_CREATE_ERROR = "Couldn’t create this playlist. Try again."
 
 class CreatePlaylistViewModel(private val repository: SongRepository) : ViewModel() {
 

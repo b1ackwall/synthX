@@ -147,7 +147,7 @@ internal fun verifyAndPublishGraduationTemp(
         return GraduationPublishResult.Failed(
             reasonAfterTempCleanup(
                 if (collided) {
-                    "Could not publish: another file named \"$finalName\" was created in the " +
+                    "Could not publish: another file named “$finalName” was created in the " +
                         "library folder at the same time. Try again."
                 } else {
                     "Could not publish destination file."

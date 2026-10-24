@@ -282,7 +282,7 @@ class OnboardingNotificationAndScreensInstrumentedTest : OnboardingRecoveryTestB
 
     @Test fun refusedGrantMessageGivesActionableAdviceInsteadOfRetryAdvice() {
         val message = context.getString(R.string.error_folder_grant_refused)
-        assertTrue(message, message.contains("can't be remembered"))
+        assertTrue(message, message.contains("can’t be remembered"))
         assertTrue(message, message.contains("internal storage"))
         assertFalse(message, message.contains("try again", ignoreCase = true))
     }

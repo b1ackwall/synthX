@@ -18,7 +18,7 @@ internal class GraduationSourcePreflight(
     suspend fun check(documentUri: String): GraduationSourcePreflightResult {
         val owner = resolveOwningAudioRoot(probe, documentUri, roots)
             ?: return GraduationSourcePreflightResult.Failed(
-                "This song's file is outside your configured Music and New Arrivals folders.",
+                "This song’s file is outside your configured Music and New Arrivals folders.",
             )
         val rootName = when (owner.role) {
             KnownAudioRoot.Music -> "Music"
@@ -26,12 +26,12 @@ internal class GraduationSourcePreflight(
         }
         when (probe.rootWriteState(owner.uri)) {
             RootWriteState.GrantNotWritable -> return GraduationSourcePreflightResult.Failed(
-                "synthX doesn't have write access to your $rootName folder. Reselect it in " +
+                "synthX doesn’t have write access to your $rootName folder. Reselect it in " +
                     "Settings > Library Management. Nothing was copied.",
             )
 
             RootWriteState.Ambiguous -> return GraduationSourcePreflightResult.Failed(
-                "synthX couldn't verify write access to your $rootName folder. Nothing was copied.",
+                "synthX couldn’t verify write access to your $rootName folder. Nothing was copied.",
             )
 
             RootWriteState.Writable -> Unit
@@ -40,12 +40,12 @@ internal class GraduationSourcePreflight(
             true -> GraduationSourcePreflightResult.Passed
 
             false -> GraduationSourcePreflightResult.Failed(
-                "The file in your $rootName folder can't be deleted by its storage provider. " +
+                "The file in your $rootName folder can’t be deleted by its storage provider. " +
                     "Nothing was copied.",
             )
 
             null -> GraduationSourcePreflightResult.Failed(
-                "synthX couldn't confirm that the file in your $rootName folder can be deleted. " +
+                "synthX couldn’t confirm that the file in your $rootName folder can be deleted. " +
                     "Nothing was copied.",
             )
         }

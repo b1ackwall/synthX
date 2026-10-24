@@ -84,7 +84,7 @@ class DatabaseStartupContentInstrumentedTest {
     @Test fun genericFailureCopyIsTheNewFirstRunSafeTextAndMentionsNoRestoreOrUpgrade() {
         val generic = str(R.string.startup_failure_message_generic)
         assertEquals(
-            "synthX couldn't finish setting up its database. Nothing has been lost. " +
+            "synthX couldn’t finish setting up its database. Nothing has been lost. " +
                 "Retry, or close and reopen the app.",
             generic,
         )

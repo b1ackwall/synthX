@@ -166,6 +166,36 @@ class SongGraduationPublishInstrumentedTest {
     }
 
     @Test
+    fun renameCollisionFailureQuotesTheTakenNameWithTypographicQuotes() {
+        val (sourceDir, destDir) = twoRoots()
+        val source = writeSourceFile(sourceDir, "Track.dat", ByteArray(1024) { it.toByte() })
+        val destinationRoot = CollidingRenameDocumentFile(destDir, "Track.dat")
+        val songId = checkNotNull(HashUtils.computeSongId(source, context))
+        val copied =
+            copyToGraduationTemp(context, source, destinationRoot, "Track.dat") as? GraduationCopyOutcome.Copied
+                ?: error("Expected a successful copy")
+        File(destDir, "Track.dat").writeBytes(byteArrayOf(9, 9, 9))
+
+        val result = verifyAndPublishGraduationTemp(
+            context,
+            destinationRoot,
+            copied.temp,
+            copied.finalName,
+            songId,
+            copied.sourceDigest,
+        )
+
+        val failed = result as? GraduationPublishResult.Failed ?: error("Expected a failure, got $result")
+        assertTrue(
+            "Unexpected message: ${failed.reason}",
+            failed.reason.contains(
+                "Could not publish: another file named \u201CTrack.dat\u201D was created in the " +
+                    "library folder at the same time. Try again.",
+            ),
+        )
+    }
+
+    @Test
     fun tempCleanupRefusalIsCarriedInTheFailureReason() {
         val (sourceDir, destDir) = twoRoots()
         val bytes = ByteArray(65536 * 3) { (it % 251).toByte() }

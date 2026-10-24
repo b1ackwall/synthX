@@ -21,9 +21,6 @@
     <!-- Job.cancel() resolving to the member is intended; the extension import is needed for CoroutineScope.cancel(). -->
     <issue id="MemberExtensionConflict" severity="ignore" />
 
-    <!-- UI copy uses straight quotes; typographic quotes are tracked in #245. -->
-    <issue id="TypographyQuotes" severity="ignore" />
-
     <!-- Dependency and toolchain updates are tracked in #246. -->
     <issue id="GradleDependency" severity="ignore" />
 

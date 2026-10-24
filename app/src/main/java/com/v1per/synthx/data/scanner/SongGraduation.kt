@@ -209,7 +209,7 @@ private suspend fun graduateAdmitted(
                 // Distinguished deliberately: a readable-but-unwritable root is the user's to
                 // fix by re-picking the folder, an unreachable one is not.
                 if (isRootReachable(context, rootMusicFolderUri) != null) {
-                    "synthX doesn't have write access to your library folder. Reselect it in " +
+                    "synthX doesn’t have write access to your library folder. Reselect it in " +
                         "Settings > Library Management."
                 } else {
                     "Library folder is unreachable"
