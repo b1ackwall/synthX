@@ -53,7 +53,7 @@ internal fun PlaylistArt(hue: Int?, structureSeed: Long?, size: Dp, modifier: Mo
     Canvas(
         modifier = modifier
             .size(size)
-            // Same 2dp corner as the placeholder this replaces, so a mixed list stays flush.
+            // Same corner as ArtPlaceholder (shapes.small), so a mixed list stays flush.
             .clip(MaterialTheme.shapes.small),
     ) {
         drawPlaylistArt(model)

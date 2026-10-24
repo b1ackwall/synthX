@@ -109,12 +109,12 @@ class MainActivity : ComponentActivity() {
             val migrationSnapshotAvailable = startupFailure is MigrationInvariantFailedException &&
                 withContext(Dispatchers.IO) { isMigrationSnapshotAvailable(applicationContext) }
             // Synchronous SharedPreferences read, not a Room/DAO read — safe ahead of the
-            // database gate resolving. Onboarding shows for a genuine fresh install, a
-            // post-uninstall reinstall, or cleared app data alike: all three collapse to this
-            // one condition. Gated on the explicit completion flag, not merely
-            // musicFolderUri == null — recovery's first step sets that folder long before its
-            // restore actually succeeds, and a stale-but-incomplete recovery must still
-            // resume the wizard rather than bounce straight to an empty Home.
+            // database gate resolving. shouldShowOnboarding is true when onboarding is not
+            // complete or a first-scan request is still pending. A fresh install, a reinstall
+            // and cleared app data all collapse to that one condition. It is gated on the
+            // explicit completion flag, not merely musicFolderUri == null: recovery's first
+            // step sets that folder long before its restore succeeds, and an incomplete
+            // recovery must still resume the wizard rather than land on an empty Home.
             val startDestination = if (shouldShowOnboarding(PreferencesManager(applicationContext))) {
                 Screen.Onboarding.route
             } else {

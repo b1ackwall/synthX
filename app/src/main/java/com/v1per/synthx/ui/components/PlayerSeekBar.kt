@@ -39,8 +39,8 @@ import java.util.Locale
 import kotlin.math.abs
 
 /**
- * Height of the invisible touch-capture area around the 4dp visual line. The visual line
- * itself stays drawn at [TrackHeight], centered inside this box.
+ * Height of the invisible touch-capture area around the visual line. The line itself
+ * stays drawn at [TrackHeight], centered inside this box.
  */
 private val TouchTargetHeight = 16.dp
 private val TrackHeight = 6.dp
@@ -96,7 +96,7 @@ fun PlayerSeekBar(
             .padding(horizontal = Spacing.lg),
     ) {
         // Invisible touch-capture area, taller than the visual line for a reliable hit
-        // target; the 4dp line stays drawn at its normal size, centered within it.
+        // target; the line stays drawn at TrackHeight, centered within it.
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier

@@ -236,8 +236,8 @@ fun PlaylistListScreen(
                             // Every playlist in this section is ungrouped by definition
                             // (getUngroupedPlaylists), so the picker opens with no current
                             // selection and the row's menu offers only "Add to group" —
-                            // onRemoveFromGroup is left at its no-op default because the item
-                            // that would call it never renders for a null groupId.
+                            // onRemoveFromGroup is left at its null default, which hides the
+                            // "Remove from group" menu item.
                             PlaylistRow(
                                 playlist = playlist,
                                 onClick = { onPlaylistClick(playlist.id, playlist.name) },

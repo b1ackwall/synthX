@@ -4,7 +4,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
-// 2dp across all categories — sharp, machine-like intentionally
+// 2dp for small, medium, large and extraLarge (extraSmall is not set) — sharp, machine-like intentionally
 val SynthXShapes = Shapes(
     small = RoundedCornerShape(2.dp),
     medium = RoundedCornerShape(2.dp),
