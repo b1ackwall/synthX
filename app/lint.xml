@@ -21,13 +21,13 @@
     <!-- Job.cancel() resolving to the member is intended; the extension import is needed for CoroutineScope.cancel(). -->
     <issue id="MemberExtensionConflict" severity="ignore" />
 
-    <!-- Dependency and toolchain updates are tracked in #246. -->
+    <!-- Newer versions are not reported; Coil 2.7.0 is held back on purpose (#354). -->
     <issue id="GradleDependency" severity="ignore" />
 
-    <!-- Dependency and toolchain updates are tracked in #246. -->
+    <!-- Newer versions are not reported; Coil 2.7.0 is held back on purpose (#354). -->
     <issue id="NewerVersionAvailable" severity="ignore" />
 
-    <!-- Dependency and toolchain updates are tracked in #246. -->
+    <!-- Newer versions are not reported; Coil 2.7.0 is held back on purpose (#354). -->
     <issue id="AndroidGradlePluginVersion" severity="ignore" />
 
     <!-- Raising targetSdk to 37 is tracked in #247. -->
