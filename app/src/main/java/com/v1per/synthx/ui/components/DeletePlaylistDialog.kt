@@ -8,6 +8,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.v1per.synthx.R
 import com.v1per.synthx.preferences.DestructiveActionTracker
@@ -32,8 +33,9 @@ fun DeletePlaylistDialog(playlistName: String, onConfirm: () -> Unit, onDismiss:
                 Text(stringResource(R.string.delete_playlist_dialog_message, playlistName))
                 if (destructiveActionCount > 0) {
                     Text(
-                        text = stringResource(
-                            R.string.destructive_action_warning,
+                        text = pluralStringResource(
+                            R.plurals.destructive_action_warning_count,
+                            destructiveActionCount,
                             destructiveActionCount,
                         ),
                         color = Error,

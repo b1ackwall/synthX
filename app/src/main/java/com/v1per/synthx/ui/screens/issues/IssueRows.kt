@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.v1per.synthx.R
@@ -135,7 +136,7 @@ private fun MissingSongMenu(
 @Composable
 internal fun MissingArtRow(songIds: List<String>, onFix: () -> Unit) {
     ArtworkIssueRow(
-        title = stringResource(R.string.issues_missing_art_title, songIds.size),
+        title = pluralStringResource(R.plurals.issues_missing_art_title_count, songIds.size, songIds.size),
         subtitle = stringResource(R.string.issues_missing_art_subtitle),
         onFix = onFix,
     )
@@ -274,7 +275,7 @@ internal fun VerificationFailedRow(outcome: VerificationAttemptOutcome, onClick:
 @Composable
 internal fun DestructiveActionsRow(count: Int, onClick: () -> Unit) {
     SafetyNetIssueRow(
-        title = stringResource(R.string.issues_destructive_actions_title, count),
+        title = pluralStringResource(R.plurals.issues_destructive_actions_title_count, count, count),
         subtitle = stringResource(R.string.issues_backup_unhealthy_subtitle_generic),
         timestamp = null,
         onClick = onClick,
@@ -285,7 +286,7 @@ internal fun DestructiveActionsRow(count: Int, onClick: () -> Unit) {
 @Composable
 internal fun ReconciledPendingCleanupsRow(count: Int, timestamp: Long) {
     SafetyNetIssueRow(
-        title = stringResource(R.string.issues_reconciled_pending_cleanups_title, count),
+        title = pluralStringResource(R.plurals.issues_reconciled_pending_cleanups_title_count, count, count),
         subtitle = relativeTime(timestamp).toString(),
         timestamp = timestamp,
         onClick = {},

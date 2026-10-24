@@ -25,8 +25,10 @@ class ScanStatusTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)
     val testTimeout = TestTimeouts.jvm()
 
-    private val strings = ScanStatusStrings { id, args ->
-        if (args.isEmpty()) "$id" else "$id${args.toList()}"
+    private val strings = object : ScanStatusStrings {
+        override fun get(id: Int, vararg args: Any) = if (args.isEmpty()) "$id" else "$id${args.toList()}"
+
+        override fun getQuantity(id: Int, quantity: Int, vararg args: Any) = "$id#$quantity${args.toList()}"
     }
 
     private fun info(
@@ -122,7 +124,7 @@ class ScanStatusTest {
             tag = NEW_ARRIVALS_TAG,
             output = workDataOf(LibraryScanWorker.KEY_ADDED to 3),
         )
-        assertEquals("${R.string.scan_status_new_arrivals_found}[3]", scanStatusFor(found, strings))
+        assertEquals("${R.plurals.scan_status_new_arrivals_found_count}#3[3]", scanStatusFor(found, strings))
         assertEquals(
             "${R.string.scan_status_new_arrivals_none}",
             scanStatusFor(info(WorkInfo.State.SUCCEEDED, tag = NEW_ARRIVALS_TAG), strings),
@@ -135,7 +137,7 @@ class ScanStatusTest {
             tag = VERIFY_TAG,
             output = workDataOf(VerifyLibraryWorker.KEY_NEWLY_MISSING to 5),
         )
-        assertEquals("${R.string.scan_status_verify_missing}[5]", scanStatusFor(missing, strings))
+        assertEquals("${R.plurals.scan_status_verify_missing_count}#5[5]", scanStatusFor(missing, strings))
     }
 
     @Test fun succeededFromUnknownWorkerHasNoStatus() {

@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -205,8 +206,9 @@ private fun scanStatusText(status: IssuesScanStatus): String = when (status) {
     is IssuesScanStatus.Idle -> if (status.lastScanTimestamp == 0L) {
         stringResource(R.string.issues_scan_status_never)
     } else {
-        stringResource(
-            R.string.issues_scan_status_last,
+        pluralStringResource(
+            R.plurals.issues_scan_status_last_count,
+            status.issueCount,
             relativeTime(status.lastScanTimestamp).toString(),
             status.issueCount,
         )

@@ -173,7 +173,7 @@ class LibraryScanWorker(appContext: Context, params: WorkerParameters) : Corouti
             .setContentTitle(applicationContext.getString(R.string.scan_notification_title))
             .setContentText(
                 if (determinate) {
-                    applicationContext.getString(R.string.scan_notification_progress, current, total)
+                    progressText(applicationContext, current, total)
                 } else {
                     applicationContext.getString(R.string.scan_notification_preparing)
                 },
@@ -198,6 +198,11 @@ class LibraryScanWorker(appContext: Context, params: WorkerParameters) : Corouti
 
     companion object {
         private const val TAG = "SynthXScan"
+
+        /** "3 of 12 songs" for the foreground notification; the noun's number follows the total. */
+        @VisibleForTesting
+        internal fun progressText(context: Context, current: Int, total: Int): String =
+            context.resources.getQuantityString(R.plurals.scan_notification_progress_count, total, current, total)
 
         const val UNIQUE_WORK_NAME = "library_scan"
 

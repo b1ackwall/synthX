@@ -60,7 +60,12 @@ class LibraryViewModel(
 
     // Status text comes from the shared pure helper in ui/common — this ViewModel still has zero
     // coupling to LibraryManagementViewModel's richer scan-status machinery.
-    private val strings = ScanStatusStrings { id, args -> appContext.getString(id, *args) }
+    private val strings = object : ScanStatusStrings {
+        override fun get(id: Int, vararg args: Any) = appContext.getString(id, *args)
+
+        override fun getQuantity(id: Int, quantity: Int, vararg args: Any) =
+            appContext.resources.getQuantityString(id, quantity, *args)
+    }
 
     // One-shot results of a pull-to-refresh, shown as a snackbar. Buffered so a result that lands
     // while the screen is between compositions is delivered on resubscribe.

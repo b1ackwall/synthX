@@ -180,7 +180,9 @@ class RestoreContentInstrumentedTest {
                 )
             }
         }
-        composeRule.onNodeWithText(context.getString(R.string.restore_row_counts, 42, 3)).assertExists()
+        composeRule.onNodeWithText(
+            context.getString(R.string.restore_row_counts, "42 songs", "3 playlists"),
+        ).assertExists()
     }
 
     @Test
@@ -193,7 +195,9 @@ class RestoreContentInstrumentedTest {
         }
         // 0/0 would be a plausible-looking but wrong placeholder; assert it never appears
         // rather than only asserting some positive case, to actually rule that out.
-        composeRule.onNodeWithText(context.getString(R.string.restore_row_counts, 0, 0)).assertDoesNotExist()
+        composeRule.onNodeWithText(
+            context.getString(R.string.restore_row_counts, "0 songs", "0 playlists"),
+        ).assertDoesNotExist()
     }
 
     // ---------------------------------------------------------------- typed restore confirmation

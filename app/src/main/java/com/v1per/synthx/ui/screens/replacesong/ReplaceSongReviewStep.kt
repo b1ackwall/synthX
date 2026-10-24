@@ -31,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistConflictResolution
@@ -118,8 +119,9 @@ internal fun ReplaceSongReviewStep(
             )
             if (destructiveActionCount > 0) {
                 Text(
-                    text = stringResource(
-                        R.string.destructive_action_warning,
+                    text = pluralStringResource(
+                        R.plurals.destructive_action_warning_count,
+                        destructiveActionCount,
                         destructiveActionCount,
                     ),
                     style = MaterialTheme.typography.bodyMedium,

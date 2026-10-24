@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.v1per.synthx.R
@@ -152,7 +153,15 @@ internal fun BackupRow(
             if (counts != null) {
                 Spacer(modifier = Modifier.height(Gaps.TextLine))
                 Text(
-                    text = stringResource(R.string.restore_row_counts, counts.songCount, counts.playlistCount),
+                    text = stringResource(
+                        R.string.restore_row_counts,
+                        pluralStringResource(R.plurals.stats_song_count, counts.songCount, counts.songCount),
+                        pluralStringResource(
+                            R.plurals.restore_playlist_count,
+                            counts.playlistCount,
+                            counts.playlistCount,
+                        ),
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = TextTertiary,
                     maxLines = 1,

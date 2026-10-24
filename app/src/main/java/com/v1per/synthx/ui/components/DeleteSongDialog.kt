@@ -16,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.v1per.synthx.R
 import com.v1per.synthx.preferences.DestructiveActionTracker
@@ -133,7 +134,11 @@ internal fun DeleteSongDisclosure(
     }
     if (destructiveActionCount > 0) {
         Text(
-            stringResource(R.string.destructive_action_warning, destructiveActionCount),
+            pluralStringResource(
+                R.plurals.destructive_action_warning_count,
+                destructiveActionCount,
+                destructiveActionCount,
+            ),
             color = Error,
         )
     }

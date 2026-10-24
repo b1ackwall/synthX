@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.screens.librarymanagement.ManagementRow
@@ -72,7 +73,11 @@ internal fun BackupSection(
     // actions" line every time the user opens this screen would be noise, not a warning.
     if (destructiveActionCount > 0) {
         StatusLine(
-            text = stringResource(R.string.destructive_action_warning, destructiveActionCount),
+            text = pluralStringResource(
+                R.plurals.destructive_action_warning_count,
+                destructiveActionCount,
+                destructiveActionCount,
+            ),
             isError = true,
         )
     }

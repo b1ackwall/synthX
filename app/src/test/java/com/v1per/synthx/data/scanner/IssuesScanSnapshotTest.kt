@@ -6,7 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * The status line's "N issue(s) found" summary and the cached missing-art ordering — the two
+ * The status line's "N issues found" summary and the cached missing-art ordering — the two
  * pieces of the issues-scan cache that are pure enough to pin down without WorkManager or
  * SharedPreferences in the way.
  */

@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.BackupInfo
@@ -51,9 +52,17 @@ internal fun ConfirmRestoreDialog(
                 Text(
                     stringResource(
                         R.string.restore_confirm_counts,
-                        counts.playlistCount,
-                        counts.songCount,
-                        counts.playlistEntryCount,
+                        pluralStringResource(
+                            R.plurals.restore_playlist_count,
+                            counts.playlistCount,
+                            counts.playlistCount,
+                        ),
+                        pluralStringResource(R.plurals.stats_song_count, counts.songCount, counts.songCount),
+                        pluralStringResource(
+                            R.plurals.restore_playlist_entry_count,
+                            counts.playlistEntryCount,
+                            counts.playlistEntryCount,
+                        ),
                     ),
                 )
                 Spacer(modifier = Modifier.height(Spacing.md))

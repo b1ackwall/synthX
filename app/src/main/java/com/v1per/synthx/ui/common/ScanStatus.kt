@@ -22,9 +22,14 @@ internal val LIBRARY_SCAN_TAG: String = LibraryScanWorker::class.java.name
 internal val NEW_ARRIVALS_TAG: String = NewArrivalsScanWorker::class.java.name
 internal val VERIFY_TAG: String = VerifyLibraryWorker::class.java.name
 
-/** Resolves a string resource with format args — `context.getString(id, *args)` in production. */
-fun interface ScanStatusStrings {
+/**
+ * Resolves string and plural resources with format args — `context.getString(id, *args)` and
+ * `resources.getQuantityString(id, quantity, *args)` in production.
+ */
+interface ScanStatusStrings {
     fun get(id: Int, vararg args: Any): String
+
+    fun getQuantity(id: Int, quantity: Int, vararg args: Any): String
 }
 
 /** Preparing/running label for whichever worker [info] belongs to. */
@@ -121,8 +126,11 @@ fun scanStatusFor(info: WorkInfo?, strings: ScanStatusStrings): String? = when (
             val added = info.outputData.getInt(LibraryScanWorker.KEY_ADDED, 0)
             val warning = degradationMessage(info.outputData.scanDegradations(), strings)
             when {
-                warning != null -> strings.get(R.string.scan_status_new_arrivals_degraded, added, warning)
-                added > 0 -> strings.get(R.string.scan_status_new_arrivals_found, added)
+                warning != null ->
+                    strings.getQuantity(R.plurals.scan_status_new_arrivals_degraded_count, added, added, warning)
+
+                added > 0 -> strings.getQuantity(R.plurals.scan_status_new_arrivals_found_count, added, added)
+
                 else -> strings.get(R.string.scan_status_new_arrivals_none)
             }
         }
@@ -131,8 +139,20 @@ fun scanStatusFor(info: WorkInfo?, strings: ScanStatusStrings): String? = when (
             val newlyMissing = info.outputData.getInt(VerifyLibraryWorker.KEY_NEWLY_MISSING, 0)
             val warning = degradationMessage(info.outputData.scanDegradations(), strings)
             when {
-                warning != null -> strings.get(R.string.scan_status_verify_degraded, newlyMissing, warning)
-                newlyMissing > 0 -> strings.get(R.string.scan_status_verify_missing, newlyMissing)
+                warning != null ->
+                    strings.getQuantity(
+                        R.plurals.scan_status_verify_degraded_count,
+                        newlyMissing,
+                        newlyMissing,
+                        warning,
+                    )
+
+                newlyMissing > 0 -> strings.getQuantity(
+                    R.plurals.scan_status_verify_missing_count,
+                    newlyMissing,
+                    newlyMissing,
+                )
+
                 else -> strings.get(R.string.scan_status_verify_none)
             }
         }

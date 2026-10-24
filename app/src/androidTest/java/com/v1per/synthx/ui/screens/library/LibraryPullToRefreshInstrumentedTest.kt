@@ -101,7 +101,7 @@ class LibraryPullToRefreshInstrumentedTest {
 
         val message = pullAndAwaitMessage()
 
-        assertEquals(context.getString(R.string.scan_status_new_arrivals_found, 3), message)
+        assertEquals(context.resources.getQuantityString(R.plurals.scan_status_new_arrivals_found_count, 3, 3), message)
         assertEquals(listOf(NewArrivalsScanWorker::class.java.name), scanTagsUnderUniqueName())
     }
 
@@ -186,8 +186,8 @@ class LibraryPullToRefreshInstrumentedTest {
         val second = pullAndAwaitMessage()
 
         // KEEP only discards against *unfinished* work. Both pulls ran; neither is "already scanning".
-        assertEquals(context.getString(R.string.scan_status_new_arrivals_found, 1), first)
-        assertEquals(context.getString(R.string.scan_status_new_arrivals_found, 1), second)
+        assertEquals(context.resources.getQuantityString(R.plurals.scan_status_new_arrivals_found_count, 1, 1), first)
+        assertEquals(context.resources.getQuantityString(R.plurals.scan_status_new_arrivals_found_count, 1, 1), second)
     }
 
     @Test fun keepIgnoredPullLeavesNoResultToBeMistakenForASuccess() {

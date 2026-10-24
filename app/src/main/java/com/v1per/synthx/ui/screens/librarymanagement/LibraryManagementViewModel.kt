@@ -88,7 +88,12 @@ class LibraryManagementViewModel(
 
     internal val workManager = WorkManager.getInstance(context)
 
-    private val strings = ScanStatusStrings { id, args -> context.getString(id, *args) }
+    private val strings = object : ScanStatusStrings {
+        override fun get(id: Int, vararg args: Any) = context.getString(id, *args)
+
+        override fun getQuantity(id: Int, quantity: Int, vararg args: Any) =
+            context.resources.getQuantityString(id, quantity, *args)
+    }
 
     /** Drives the Issues row badge. Counted in SQL rather than by collecting the list. */
     val missingSongCount: StateFlow<Int> = repository.getMissingSongCount()
