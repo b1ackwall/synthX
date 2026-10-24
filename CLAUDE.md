@@ -1,41 +1,42 @@
 # synthX — Claude Code Instructions
 
 ## Git
-- On the `claude-branch` branch: Claude Code may use any git command (add, commit, push,
-  fetch, pull, merge, etc.) as needed for the task. Check the current branch first
-  (`git branch --show-current`); this permission applies only while on `claude-branch`.
-- Read-only git (status, diff, log, show, ls-files, archive, `apply --check`) is fine on any branch.
-- On any other branch, git writes (add, commit, push, checkout, branch, stash, mv, etc.) are
-  's, done manually. A task prompt may grant them for that task only; the grant ends with
-  the task. Report changes made; do not stage or commit them.
+- The working branch is `code-work`. Check the current branch first (`git branch --show-current`).
+- Agents never run git write commands (add, commit, push, checkout, branch, stash, mv, reset,
+  merge, etc.) and never run `gh` write commands (issue/PR create, edit, comment, close, etc.).
+  The owner () commits and pushes. A task prompt may grant a scoped exception for that task
+  only; the grant ends with the task. Report changes made; do not stage or commit them.
+- Read-only git (status, diff, log, show, ls-files, archive, `apply --check`) and read-only `gh`
+  are fine on any branch.
+- Dated task reports live in docs/code-work/ and docs/perf/. They are history, not documentation;
+  their numbers are not current.
 
 ## Connected Device — VERIFY BEFORE TOUCHING
-Run `adb devices -l` to see what's actually connected before running any adb command that
-touches app data or packages — do not assume which device is plugged in.
-- Known devices (as of the last environment check):
-  - Redmi Note 7 Pro (serial ``, `device:violet`): only `com.v1per.synthx.debug` is
-    installed. Dev-only device, safe to reinstall and test on.
-  - Samsung Galaxy S25 Ultra (`SM_S938U`): has BOTH `com.v1per.synthx.debug` AND the production
-    package `com.v1per.synthx`. The production package must NEVER be touched, uninstalled, or
-    have its data cleared.
-  - Emulator `emulator-5554` (Pixel_9a AVD): the safe default for all instrumented test runs.
+Every device task starts with a gate: run `adb devices -l` and confirm the Redmi Note 7 Pro is
+listed. If it is missing, STOP and report; do not fall back to the emulator.
+- Devices:
+  - Redmi Note 7 Pro (serial ``, `device:violet`): the main judge for instrumented
+    tests. Only `com.v1per.synthx.debug` is installed. Dev-only device, safe to reinstall and
+    test on.
+  - Samsung Galaxy S25 Ultra (serial ``): OFF-LIMITS to agents. It holds the
+    production package `com.v1per.synthx`.
+  - Emulator `emulator-5554` (Pixel_9a AVD): used only when the owner says so. Known unreliable
+    at API 37.
 - Rules:
-  1. Run `adb devices -l` and confirm the targeted device(s) before ANY adb or Gradle
-     instrumented command.
-  2. `connectedDebugAndroidTest` does NOT respect `ANDROID_SERIAL` and runs on every attached
-     device. For instrumented Gradle runs, only the emulator may be attached — disconnect the
-     physical devices or turn off USB debugging on them first.
-  3. Plain `adb` commands DO respect `ANDROID_SERIAL`, but always pass `-s <serial>` (or set it
-     explicitly) rather than relying on it.
+  1. Run `adb devices -l` and confirm the targeted device before ANY adb command.
+  2. Always pass `-s <serial>` to `adb`; never rely on `ANDROID_SERIAL` or on a single attached
+     device.
+  3. Never run Gradle `connected*` tasks (for example `connectedDebugAndroidTest`): they ignore
+     `ANDROID_SERIAL` and run on every attached device.
   4. Never run any command that targets `com.v1per.synthx` (production).
 - `com.v1per.synthx` (no suffix) = PRODUCTION, wherever it is actually installed. NEVER run
   `adb shell pm clear`, `adb uninstall`, `adb shell pm uninstall`, or any other
   destructive/data-touching adb command against this package, under any circumstances, even to
   "rule out stale state" while debugging a test.
 - `com.v1per.synthx.debug` (note the `.debug` suffix) = the debug build package
-  (`applicationIdSuffix`), used by `assembleDebug` / `connectedDebugAndroidTest` / instrumented
-  tests. This one is fair game — clear it, uninstall it, wipe it, reinstall it freely as needed
-  for debugging or testing, no need to ask first.
+  (`applicationIdSuffix` in app/build.gradle.kts), used by `assembleDebug` and instrumented
+  tests. This one is fair game on the Redmi — clear it, uninstall it, wipe it, reinstall it
+  freely as needed for debugging or testing, no need to ask first.
 - Before any adb command that touches app data or packages, double-check the package name
   argument is the `.debug`-suffixed one. If a command's target package is ambiguous, or more
   than one device is attached, or you're about to run something broad (e.g. an adb command
@@ -43,7 +44,9 @@ touches app data or packages — do not assume which device is plugged in.
 
 ## Environment Setup (machine-aware)
 
-The shell is fish, so set env vars with `set -gx VAR value`, not `export`.
+The owner's terminal is fish, so set env vars there with `set -gx VAR value`, not `export`.
+The agent tool shell varies by session (zsh or fish): do not rely on `$SHELL`. Write helper
+scripts with a bash shebang and run them by absolute path.
 
 Check that the JDK exists, then set JAVA_HOME for this session:
     ls -d /usr/lib/jvm/java-17-openjdk
@@ -65,39 +68,44 @@ do not attempt alternate JDK paths on your own.
 
 ## Project Structure
 
-Single-module Android project. Root: app/
+Two Gradle modules: app/ (the application) and benchmark/ (macrobenchmarks).
 
-Top-level packages under app/src/main/java/com/v1per/synthx/:
+Packages under app/src/main/java/com/v1per/synthx/:
 
-- MainActivity.kt, DatabaseStartupContent.kt (startup-failure composables MainActivity shows), SynthXApplication.kt
-- data/backup/ - BackupManager (model types in BackupInfo.kt/BackupListResult.kt, folder reads and retention in BackupManagerCatalog.kt, verify/preview in BackupManagerVerification.kt), RestoreCoordinator, RestoreTransaction, DatabaseStartupGate, RepositoryDbFlow/RepositoryDbOperation (see Architecture section - do not bypass these)
-- data/db/ - Room entities, DAOs, SynthXDatabase (v16, see Architecture), SynthXLegacyMigrations (frozen MIGRATION_1_2 to MIGRATION_7_8; the chain itself stays in SynthXDatabase.ALL_MIGRATIONS)
-- data/playlistart/ - generated playlist cover art support: PlaylistArtHue (perceptually spaced hue selection), PlaylistArtColor (OkLab palette helpers), PlaylistArtBackfill (fills art for playlists that predate the art columns). The drawing itself lives in ui/components/PlaylistArt*.kt
-- data/repository/ - domain models + SongRepository/SongRepositoryImpl (override bodies in SongRepositoryImpl{Deletion,Replace,SongLists,Playlists,Queue}.kt)
-- data/scanner/ - FolderScanner (scan body in FolderScannerScan.kt), HashUtils (SHA-256 fingerprinting)
-- glitch/ - GlitchPattern.kt
+- Root: MainActivity.kt, DatabaseStartupContent.kt (startup-failure composables MainActivity shows), SynthXApplication.kt
+- data/ (root files) - shared data-layer helpers: file-operation coordination, song deletion/remap events, safe flow collection
+- data/backup/ - backup, restore and startup gating: BackupManager (catalog and verification in BackupManager*.kt siblings), RestoreCoordinator (the admission authority), RestoreTransaction, DatabaseStartupGate
+- data/db/ - Room entities, DAOs, SynthXDatabase (see Architecture), SynthXLegacyMigrations (frozen MIGRATION_1_2 to MIGRATION_7_8; the chain itself stays in SynthXDatabase.ALL_MIGRATIONS)
+- data/playlistart/ - generated playlist cover art support (hue selection, palette helpers, backfill for playlists that predate the art columns). The drawing itself lives in ui/components/PlaylistArt*.kt
+- data/repository/ - domain models, SongRepository/SongRepositoryImpl (override bodies in SongRepositoryImpl*.kt siblings), and the admission wrappers RepositoryDbOperation/RepositoryDbFlow (see Architecture - do not bypass these)
+- data/scanner/ - FolderScanner (scan body in FolderScannerScan.kt), scan workers, HashUtils (SHA-256 fingerprinting)
+- glitch/ - glitch pattern generation
 - navigation/ - Screen.kt (nav routes)
-- playback/ - PlaybackEngine -> ExoPlayerEngine (split across ExoPlayerEngine*.kt siblings, incl. Session, LibraryEvents, QueueLoad, QueueOps) -> PlaybackController -> PlaybackViewModel, SynthXPlaybackService, QueuePersistence, GlitchBitmapGenerator
-- preferences/ - PreferencesManager
-- ui/MainScaffold.kt - shell-level gating on RestoreCoordinator.Mode/Terminal; switches between normal nav graph, restore-maintenance surface, and terminal (restart-required) surface (the two restore surfaces live in ui/RestoreShellSurfaces.kt)
-- ui/common/ - UiState.kt
+- perf/ - perf trace section names and test tags shared by app code and benchmarks
+- playback/ - PlaybackEngine -> ExoPlayerEngine (split across ExoPlayerEngine*.kt siblings) -> PlaybackController -> PlaybackViewModel, SynthXPlaybackService, QueuePersistence
+- preferences/ - PreferencesManager and the small trackers/gates built on it
+- ui/ (root files) - MainScaffold.kt does shell-level gating on RestoreCoordinator.Mode/Terminal and switches between the normal nav graph, the restore-maintenance surface and the terminal (restart-required) surface (the two restore surfaces live in RestoreShellSurfaces.kt); SynthXNavHost.kt plus the *Routes.kt files hold the nav graph
+- ui/common/ - UiState and small shared UI helpers
 - ui/components/ - shared composables (SongRow, TopBars, Wordmark, etc.)
-- ui/player/ - PlayerSheetSkeleton + 18 sibling files: the live player UI, float-lerp based (hand-lerp pattern per namida/Tear Music reference), independent of the ReadinessCoverOverlay standard below - known, deliberate gap, not yet reconciled
-- ui/screens/ - one dir per screen, each with <Name>Screen.kt + <Name>ViewModel.kt: albumdetail, albumlist, artistdetail, artistlist, backupsandrestore, createplaylist, developersettings, groupdetail, home, issues, librarymanagement, library, onboarding, playlistdetail, playlistlist, replacesong, restore, search, settings, songs, starred
-- ui/theme/ - Color, Motion, Shape, Spacing, Theme, Type (design tokens)
+- ui/player/ - the live player UI (PlayerSheetSkeleton and its siblings), float-lerp based (hand-lerp pattern per namida/Tear Music reference), independent of the ReadinessCoverOverlay standard below - known, deliberate gap, not yet reconciled
+- ui/screens/ - one dir per screen, each with <Name>Screen.kt + <Name>ViewModel.kt
+- ui/theme/ - design tokens, one file per token family (Color.kt is the source of truth for colours)
 
 res/: drawable/, font/, mipmap-anydpi/, values/, xml/ - fully Compose, no layout/ XML.
 
-Single Activity (MainActivity), one foreground service (SynthXPlaybackService) for media playback. Versions centralized in gradle/libs.versions.toml.
+Single Activity (MainActivity). Foreground services in the app manifest: SynthXPlaybackService
+(mediaPlayback) and WorkManager's SystemForegroundService (dataSync), which the manifest
+re-declares to add the missing type. Versions centralized in gradle/libs.versions.toml.
 
 ## Architecture (do not violate)
 - Strict MVVM throughout.
 - Playback chain: PlaybackEngine (interface) → ExoPlayerEngine (impl) → PlaybackController → PlaybackViewModel.
   Never bypass this chain or call ExoPlayer APIs directly from ViewModels or UI.
 - Manual DI ONLY — no Hilt, no Dagger, no other DI framework.
-  Current pattern: each ViewModel has a companion object Factory that builds its own
-  dependency graph, typically via SongRepositoryImpl.create(context) →
-  SynthXDatabase.getInstance(context).
+  Current pattern: each ViewModel builds its own dependency graph in a factory, typically via
+  SongRepositoryImpl.create(context) → SynthXDatabase.getInstance(context). Two shapes exist:
+  a nested `class Factory` (ViewModelProvider.Factory) or a companion `fun factory(...)`
+  returning one (used where the route passes an id). Follow the shape of the neighbouring screen.
   There is intentionally no di/ package — do not add one unless explicitly instructed.
 - Room DB, version 16. Entities: songs (incl. album_art_full_uri, in_inbox), artists, albums,
   song_artists, playlist_groups, playlists (incl. art_hue, art_structure_seed), playlist_songs,
@@ -108,15 +116,20 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
   normal Room builder and createStandalone() (used for offline restore-candidate validation)
   must reference this same shared list. Never give createStandalone() or any other builder
   its own independent migration list — this has caused a real production bug before.
-- Backup/restore admission model (data/backup/): every production path that touches live
-  Room must route through one of: DatabaseStartupGate (startup/open gating),
-  RepositoryDbOperation.run (finite writes/mutations), or RepositoryDbFlow.observe
-  (reactive Flow-returning reads) — the DAO Flow/operation must be constructed *inside*
-  the lambda passed to these wrappers, never built outside and captured. This lets
-  RestoreCoordinator safely quiesce/drain live DB work during a restore. The only
-  legitimate bypasses are restore's own internal machinery (getInstanceForRestore,
-  createStandalone, RestoreTransaction) operating under RestoreCoordinator.exclusive —
-  never bypass these gates for ordinary application/repository/scanner/worker code.
+- Backup/restore admission model: all DB access that can overlap a restore must go through
+  RestoreCoordinator admission (withDbOperation, acquireOperation, acquireReactiveOperation).
+  Use the named entry points: DatabaseStartupGate (data/backup, startup/open gating),
+  RepositoryDbOperation.run (data/repository, finite writes/mutations), or
+  RepositoryDbFlow.observe (data/repository, reactive Flow-returning reads) — the DAO
+  Flow/operation must be constructed *inside* the lambda passed to these wrappers, never
+  built outside and captured. Other direct entry points that call RestoreCoordinator
+  themselves: WorkerDatabaseAccess.run (workers), PlaylistExportMaterialization.run,
+  FolderScannerAdmission.direct, FolderScanner.verify, BackupManager, SongGraduation and
+  QueuePersistence. This lets RestoreCoordinator safely quiesce/drain live DB work during a
+  restore. The only legitimate bypasses are restore's own internal machinery
+  (getInstanceForRestore, createStandalone, RestoreTransaction) operating under
+  RestoreCoordinator.exclusive — never bypass these gates for ordinary
+  application/repository/scanner/worker code.
 - BackupSchemaContracts (data/backup/BackupSchemaContract.kt) must have an entry for
   every schema version — current database version must always resolve via
   BackupSchemaContracts.current, or backup creation, safety snapshots, and restore
@@ -142,33 +155,47 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
     7. Never write a destructive migration (one that deletes or overwrites existing data
        with no backfill path) unless there is a genuinely unavoidable reason — see the
        note above ALL_MIGRATIONS in SynthXDatabase.kt. Treat it as an exceptional,
-       carefully reviewed decision, not routine practice: every migration since
-       MIGRATION_4_5 has been additive-only, and this app now holds years of hand-curated
-       user data with no external backup of future changes.
+       carefully reviewed decision, not routine practice. Existing destructive legs: 2-to-3
+       and 3-to-4 wipe song-derived data (before the app held real user data), 6-to-7 drops
+       listen_history and two songs columns, 11-to-12 recreates the two queue tables empty,
+       15-to-16 merges case-duplicate albums. All other legs are additive. This app now
+       holds years of hand-curated user data with no external backup of future changes.
     Also grep for tests that hardcode the *current* schema's Room identity hash as a
     literal (e.g. BackupPrimitivesTest's "schema contracts resolve current and known
     migration versions", BackupSnapshotInstrumentedTest's
     "productionSchemaSnapshotPassesFullLocalValidation") and update them too — those
     literals go stale on every version bump exactly like a skipped BackupSchemaContracts
     entry would, and neither MigrationFullChainTest nor MigrationCompletenessTest catches it.
-- SHA-256 song fingerprinting: first 64KB + last 64KB + file size (via HashUtils.kt).
-- Compose compiler reports are enabled (`composeCompiler { reportsDestination }` in
-  app/build.gradle.kts) — regenerate via a fresh `compileDebugKotlin`; reports land in
-  app/build/compose_reports/ (composables list, classes list, stability summary).
+- SHA-256 song fingerprinting: first 64KB + file size, plus the last 64KB only when the file is
+  large enough to have a distinct tail (more than 128KB); via HashUtils.kt.
+- Compose compiler reports are off by default. Pass `-PcomposeReports` to a Gradle compile
+  (via freeCompilerArgs in app/build.gradle.kts); reports land in
+  app/build/compose-reports/<compilation>/ (composables list, classes list, stability summary).
+- Lazy-flow trap: reading `.value` of a `WhileSubscribed` or `Lazily` StateFlow that nobody is
+  collecting returns the stale initial value. Collect it, or use `Eagerly` when code reads
+  `.value` (see the Eagerly copy of activeSongId in PlaybackViewModel).
+- `UiState<T>.isReady()` (ui/common/UiState.kt) exists to gate destination-level readiness
+  covers (ReadinessCoverOverlay): everything past the initial load, success or failure, is ready.
 
 ## Design System (locked — no scope creep)
 - Dark-only theme.
-- #1AE62B neon accent used ONLY in these 4 contexts — never elsewhere:
+- #1AE62B neon accent (`Accent` in ui/theme/Color.kt, the source of truth for all colours)
+  used ONLY in these 5 contexts — never elsewhere:
   1. Wordmark "X"
   2. Selected bottom nav item
-  3. Playing indicator bar
+  3. Playing indicator bar in song rows
   4. Ripple on clickable rows
+  5. Hairline (Color.kt: Accent at 8% alpha) for dividers, borders and the theme outline
+- The theme's primary and secondary are Accent, so a TextButton or other primary-coloured
+  control without an explicit colour inherits it.
 - Outfit font (body/UI), Bitcount Grid Double (wordmark only).
 - 2dp corner radius via MaterialTheme.shapes.small — single source of truth, don't hardcode radii.
 - Apple Music-inspired UX: smooth navigation, instant cut transitions (not slow fades).
-- "refined-instant-cut" navigation standard (ReadinessCoverOverlay in SynthXNavHost) is the
-  locked standard for applicable destinations — note the live player UI (ui/player/) is a
-  known, deliberate exception, see Project Structure above.
+- "refined-instant-cut" navigation standard: ReadinessCoverOverlay (ui/components) wraps the
+  detail and create destinations that load data on entry, applied per route in BrowseRoutes
+  (ArtistDetail, AlbumDetail) and PlaylistRoutes (CreatePlaylist, GroupDetail, PlaylistDetail).
+  Other destinations show their own loading state or LoadingIndicator. The live player UI
+  (ui/player/) is a known, deliberate exception, see Project Structure above.
 
 ## File Size
 - No source file should exceed 500 raw lines (as counted by `wc -l`).
@@ -177,12 +204,14 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
 
 ## Checks
 - After editing Kotlin, run `scripts/format.sh` (formats the changed files with the pinned ktlint 1.8.0).
-- Before finishing any task that changed code, run `scripts/check.sh`: ktlint, compile with warnings
-  as errors, Lint (`checkAllWarnings`, warnings as errors), unit tests. It stops at the first failure.
-  No device is involved.
+- Before finishing any task that changed code, run `scripts/check.sh`: ktlint (app, benchmark,
+  *.kts), compile of all source sets (including androidTest and the benchmark module) with
+  warnings as errors, `:app:lintDebug` (`checkAllWarnings`, warnings as errors), and the quick
+  unit suite. It stops at the first failure. No device is involved.
 - No baselines and no blanket suppressions. Fix the finding, or record a narrow, commented
   ignore (`@SuppressLint` with a reason line, or an entry in `app/lint.xml`).
-- The emulator suite stays a manual proof for risky changes; `scripts/check.sh` does not replace it.
+- The instrumented suite on the Redmi (see Connected Device) stays a manual proof for risky
+  changes; `scripts/check.sh` does not replace it.
 
 ## Gesture and Animation Rules
 - Use `rememberUpdatedState` for callbacks read inside no-key `remember` blocks — frozen
@@ -190,13 +219,17 @@ Single Activity (MainActivity), one foreground service (SynthXPlaybackService) f
 - Never gate `anchoredDraggable`'s `enabled` parameter on dynamic conditions — it tears down
   the gesture node.
 - When an element must leave hit-testing, compose it conditionally instead of alpha-fading it.
+  Accepted exception: ui/player fades content with alpha while deriving `enabled` from that alpha.
 - Resolve song identity at the UI layer before async boundaries.
 - Prefer reactive `LaunchedEffect` keying over timer-based self-healing.
 
 ## Working Style
 - Gesture and animation work: small changes, one variable at a time.
-- Design tokens only — no raw `dp` literals in new code.
-- In-code comments are short and describe current behavior only.
+- Design tokens only — no raw `dp` literals in new code. Accepted exception: ui/player may use
+  raw dp literals for its own geometry (sizes, thresholds, corner targets). New screens still
+  use design tokens.
+- Comments: KDoc on non-trivial APIs and safety rationale may be long; inline `//` comments stay
+  short; every comment describes current behaviour only (no history, no planning IDs).
 
 ## Conventions
 - Files importing `androidx.annotation.OptIn` shadow Kotlin's own `OptIn`; use the fully qualified
