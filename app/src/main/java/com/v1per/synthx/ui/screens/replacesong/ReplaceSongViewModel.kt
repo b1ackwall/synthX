@@ -16,6 +16,8 @@ import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
 import com.v1per.synthx.ui.common.destructiveFileBlockMessage
+import com.v1per.synthx.ui.common.searchKey
+import com.v1per.synthx.ui.common.searchKeyed
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -31,6 +33,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -129,34 +132,30 @@ class ReplaceSongViewModel(
      * so scrolling to a song is a legitimate way to find it.
      */
     val results: StateFlow<ImmutableList<Song>> = combine(
-        repository.getSongs(),
+        repository.getSongs().map { songs -> songs.searchKeyed({ it.title }, { it.artist }) },
         _query.debounce(QueryDebounceMs),
         _oldSong,
         _step,
     ) { songs, query, excluded, step ->
+        val queryKey = searchKey(query.trim())
         songs.asSequence()
-            .filter { song ->
+            .filter { keyed ->
                 // Cached scan state keeps known-missing songs out of the replacement picker, and
                 // the old song cannot replace itself. This is only a convenience filter: the
                 // repository live-validates the selected replacement's document and content when
                 // the user confirms. A missing song remains valid as the song being replaced.
                 when (step) {
                     ReplaceSongStep.PickOld -> true
-                    else -> !song.isMissing && song.id != excluded?.id
+                    else -> !keyed.item.isMissing && keyed.item.id != excluded?.id
                 }
             }
-            .filter { song -> song.matches(query) }
+            .filter { keyed -> keyed.matches(queryKey) }
+            .map { keyed -> keyed.item }
             .toPersistentList()
     }
         .flowOn(Dispatchers.Default)
         .catch { emit(persistentListOf()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), persistentListOf())
-
-    private fun Song.matches(query: String): Boolean {
-        if (query.isBlank()) return true
-        val needle = query.trim().lowercase()
-        return title.lowercase().contains(needle) || artist.lowercase().contains(needle)
-    }
 
     fun onQueryChange(value: String) {
         _query.value = value

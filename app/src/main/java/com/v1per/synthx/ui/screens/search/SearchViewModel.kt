@@ -11,6 +11,8 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.ui.common.LoadError
+import com.v1per.synthx.ui.common.searchKey
+import com.v1per.synthx.ui.common.searchKeyed
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @OptIn(FlowPreview::class)
@@ -79,24 +82,18 @@ class SearchViewModel(private val repository: SongRepository, private val appCon
         viewModelScope.launch {
             combine(
                 _query.debounce(300),
-                repository.getSongs(),
-                repository.getArtists(),
-                repository.getAlbums(),
-                repository.getAllPlaylists(),
+                repository.getSongs().map { songs -> songs.searchKeyed({ it.title }, { it.artist }) },
+                repository.getArtists().map { artists -> artists.searchKeyed({ it.name }) },
+                repository.getAlbums().map { albums -> albums.searchKeyed({ it.title }, { it.artist }) },
+                repository.getAllPlaylists().map { playlists -> playlists.searchKeyed({ it.name }) },
             ) { query, songs, artists, albums, playlists ->
                 if (query.isBlank()) return@combine SearchResults()
-                val q = query.trim().lowercase()
+                val q = searchKey(query.trim())
                 SearchResults(
-                    songs = songs.filter {
-                        it.title.lowercase().contains(q) ||
-                            it.artist.lowercase().contains(q)
-                    },
-                    artists = artists.filter { it.name.lowercase().contains(q) },
-                    albums = albums.filter {
-                        it.title.lowercase().contains(q) ||
-                            it.artist.lowercase().contains(q)
-                    },
-                    playlists = playlists.filter { it.name.lowercase().contains(q) },
+                    songs = songs.filter { it.matches(q) }.map { it.item },
+                    artists = artists.filter { it.matches(q) }.map { it.item },
+                    albums = albums.filter { it.matches(q) }.map { it.item },
+                    playlists = playlists.filter { it.matches(q) }.map { it.item },
                 )
             }
                 .flowOn(Dispatchers.Default)
