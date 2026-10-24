@@ -239,8 +239,8 @@ class DatabaseStartupGateInstrumentedTest {
 
     @Test
     fun interruptedFirstCreationIsClassifiedAsFreshAndNextLaunchInitializesNormally() = runBlocking {
-        // Fault injection: construct the interrupted state directly (a database file that exists but has never had a schema committed to it)
-        // rather than racing real process-death timing.
+        // Fault injection: construct the interrupted state directly (a database file that exists
+        // but has never had a schema committed to it) rather than racing real process-death timing.
         live.parentFile?.mkdirs()
         assertTrue(live.createNewFile())
 

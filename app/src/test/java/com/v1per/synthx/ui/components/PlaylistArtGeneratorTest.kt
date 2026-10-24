@@ -66,9 +66,9 @@ class PlaylistArtGeneratorTest {
     @Test
     fun `different seeds do not all collapse onto one picture`() {
         val patterns = (0L until 200L).map(::generatePlaylistArt)
-        // Measured 190 of 200 after P8-T4 (169 before it), so 180 leaves room for noise while
-        // still failing on a return to the old concentration. The old `> 20` bar would have
-        // passed a generator four times more concentrated than the one it replaced.
+        // Measured 190 of 200, so 180 leaves room for noise while still failing on a more
+        // concentrated generator. A `> 20` bar would pass a generator four times more
+        // concentrated than the current one.
         assertTrue(
             patterns.toSet().size >= 180,
             "Seeds produced only ${patterns.toSet().size} distinct patterns of 200",
@@ -80,8 +80,8 @@ class PlaylistArtGeneratorTest {
     @Test
     fun `the structure space is wide rather than concentrated on a few common shapes`() {
         // 1/sum(p^2) estimated without the sampling bias: sum of c*(c-1) counts ordered colliding
-        // pairs. Measured ~1,825 after P8-T4 and ~260 before it, so 1,000 sits well inside the new
-        // behaviour and far outside the old.
+        // pairs. Measured ~1,825, so 1,000 sits well inside current behaviour and far from the
+        // ~260 of a concentrated generator.
         val counts = sample.groupingBy { it }.eachCount().values
         val collidingPairs = counts.sumOf { it.toDouble() * (it - 1) }
         val effective = SAMPLE_SIZE.toDouble() * (SAMPLE_SIZE - 1) / collidingPairs

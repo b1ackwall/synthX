@@ -10,9 +10,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The picker-callback rules: a refused persistable grant, a cancelled picker, and the mandatory-folder Done gate. The URI
- * type is a plain String here — the helpers are generic precisely so `android.net.Uri` (a stub on
- * the JVM) is not needed.
+ * The picker-callback rules: a refused persistable grant, a cancelled picker, and the
+ * mandatory-folder Done gate. The URI type is a plain String here — the helpers are generic
+ * precisely so `android.net.Uri` (a stub on the JVM) is not needed.
  */
 class FolderPickTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)

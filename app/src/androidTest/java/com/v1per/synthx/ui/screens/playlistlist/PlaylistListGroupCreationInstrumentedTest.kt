@@ -76,7 +76,10 @@ class PlaylistListGroupCreationInstrumentedTest {
         )
     }
 
-    /** The one call site every install shares: rememberSaveable restoration keys off it (see CreatePlaylistRecreationInstrumentedTest). */
+    /**
+     * The one call site every install shares: rememberSaveable restoration keys off it (see
+     * CreatePlaylistRecreationInstrumentedTest).
+     */
     private fun install() {
         composeRule.runOnUiThread { composeRule.activity.setContent { Screen() } }
     }

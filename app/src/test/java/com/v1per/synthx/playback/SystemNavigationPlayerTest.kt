@@ -13,9 +13,9 @@ import kotlin.test.assertTrue
 
 /**
  * [SystemNavigationPlayer] against a recording proxy in place of the wrapped ExoPlayer — no
- * service, no Android runtime. Covers the routing (engine when ready, native otherwise) and that the listener wrapper forwards
- * everything. The command-set rewriting needs a real `Player.Commands`, so it is covered on-device
- * in SystemNavigationPlayerInstrumentedTest.
+ * service, no Android runtime. Covers the routing (engine when ready, native otherwise) and
+ * that the listener wrapper forwards everything. The command-set rewriting needs a real
+ * `Player.Commands`, so it is covered on-device in SystemNavigationPlayerInstrumentedTest.
  */
 class SystemNavigationPlayerTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)

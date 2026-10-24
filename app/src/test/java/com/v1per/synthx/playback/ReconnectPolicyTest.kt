@@ -8,8 +8,8 @@ import kotlin.test.assertNull
 
 /**
  * The retry backoff behind ExoPlayerEngine's connection retry: a failed initial connection is
- * retried rather than terminal for the rest of the engine's lifetime. Covers "a simulated initial failure gets a retry scheduled" at the level of
- * the actual policy decision.
+ * retried rather than terminal for the rest of the engine's lifetime. Covers "a simulated
+ * initial failure gets a retry scheduled" at the level of the actual policy decision.
  */
 class ReconnectPolicyTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)

@@ -217,5 +217,5 @@ interface SongDao {
     @Query("DELETE FROM songs WHERE id = :id")
     suspend fun deleteSongById(id: String)
 
-    // No verification-pass queries: the verified columns were dropped in MIGRATION_6_7.
+    // No verification-pass queries: the songs table has no verified or verified_at column.
 }

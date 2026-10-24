@@ -176,8 +176,9 @@ abstract class OnboardingRecoveryTestBase {
 
     /**
      * The dialog's confirm button stays disabled until the required word is typed exactly, so a
-     * bare click on it is a silent no-op that never enqueues the restore. Once typed, the field's own text also reads the required word
-     * and is itself clickable — exclude anything with a set-text action to isolate the button.
+     * bare click on it is a silent no-op that never enqueues the restore. Once typed, the field's
+     * own text also reads the required word and is itself clickable — exclude anything with a
+     * set-text action to isolate the button.
      */
     protected fun confirmRestoreWithTypedWord() {
         val requiredWord = context.getString(R.string.restore_confirm_action)
