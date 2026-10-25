@@ -81,9 +81,9 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
 }
 
 /**
- * Restores without playing: `MediaController.prepare` buffers to STATE_READY but playWhenReady
- * stays false, so the mini player comes up loaded and paused (Apple Music's behaviour) and the
- * user starts it.
+ * Restores without playing, whatever the player's playWhenReady held before: it is cleared ahead of
+ * the new timeline, so `MediaController.prepare` buffers to STATE_READY and the mini player comes up
+ * loaded and paused (Apple Music's behaviour) and the user starts it.
  */
 internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     Log.d(TAG, "Queue restore begin")
@@ -151,6 +151,8 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
         publishCurrentSlot(startSlot.slotId)
         refreshCurrentIndex()
 
+        // The session player outlives the Activity, so it can still be set to play.
+        ctrl.playWhenReady = false
         seedWindow(restored.startIndex, restored.positionMs, startArtwork)
         ctrl.repeatMode = restored.repeatMode
 

@@ -38,10 +38,6 @@ class QueueColdStartInstrumentedTest : PlaybackServiceTestBase() {
 
     @Test fun restoresTheSavedQueuePausedAtTheSavedSlotAndPosition() {
         val live = serveShuffledQueueWithADroppedSong()
-        // A cold start meets a fresh player. The shared one can still be set to play from an
-        // earlier test; restore does not clear that (BUG LIST, slice1-implementation.md).
-        onMain { extraController.playWhenReady = false }
-        await("fresh player not set to play") { onMain { !extraController.playWhenReady } }
 
         runBlocking { engine.restoreSavedQueue() }
 
@@ -64,6 +60,28 @@ class QueueColdStartInstrumentedTest : PlaybackServiceTestBase() {
         assertFalse("restored paused", onMain { extraController.isPlaying })
         assertFalse("not set to play", onMain { extraController.playWhenReady })
         assertEquals("session repeat", Player.REPEAT_MODE_ALL, onMain { extraController.repeatMode })
+    }
+
+    /** The shared player is still set to play from earlier use, with nothing loaded. */
+    @Test fun restoresPausedWhenThePlayerIsStillSetToPlayOnAnEmptyTimeline() {
+        val live = serveShuffledQueueWithADroppedSong()
+        onMain { extraController.playWhenReady = true }
+        await("player set to play") { onMain { extraController.playWhenReady } }
+        assertEquals("precondition: empty timeline", 0, onMain { extraController.mediaItemCount })
+
+        runBlocking { engine.restoreSavedQueue() }
+
+        await("session on slot-4 near 12 s") {
+            onMain {
+                extraController.currentMediaItem?.mediaId == "slot-4" &&
+                    abs(extraController.currentPosition - 12_000L) < 1_000L
+            }
+        }
+        settle()
+        assertEquals("restored queue order", live.slotIds(), onMain { engine.queue.now().slotIds() })
+        assertFalse("restored paused", onMain { extraController.isPlaying })
+        assertFalse("not set to play", onMain { extraController.playWhenReady })
+        assertFalse("engine reports not playing", onMain { engine.isPlaying.now() })
     }
 
     @Test fun aDroppedSongRewritesTheSavedRowsOnceFromTheFullOrder() {
