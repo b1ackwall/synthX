@@ -65,7 +65,7 @@ data class SongRemap(val oldId: String, val newSong: Song, val revision: Long = 
  * collector coroutine was down) has no way to learn about it from this bus alone; recovering from
  * that is exactly why every live-engine cache also gets independently re-verified against the
  * database (see [com.v1per.synthx.data.PlaybackCacheRevision] and
- * [com.v1per.synthx.playback.ExoPlayerEngine]'s `onStart`/`onResume`-driven reconciliation pass)
+ * [com.v1per.synthx.playback.ExoPlayerEngine]'s re-sync each time the Activity reaches STARTED)
  * rather than relying solely on this bus ever delivering.
  *
  * [BUFFER_CAPACITY] is sized for a burst of retags within a single scan pass — plenty for the

@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
 import com.v1per.synthx.data.backup.BackupFolderLaunchCheck
@@ -92,6 +93,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         resolveDatabaseStartup()
+        resyncPlaybackOnEveryStart()
     }
 
     /**
@@ -172,24 +174,29 @@ class MainActivity : ComponentActivity() {
 
     /**
      * The foregrounding counterpart of [onStop] above, and the general-purpose recovery hook
-     * for the playback cache: re-syncs the playback engine's cache against the current database state,
-     * covering a missed/interrupted emission (a worker interrupted after its DB commit but
-     * before it finished emitting a remap/deletion notice) that no live collector ever saw.
-     * A cold-start `onStart` normally arrives while [resolveDatabaseStartup]'s asynchronous
+     * for the playback cache: each time the Activity reaches STARTED, re-syncs the playback
+     * engine's cache against the current database state, covering a missed/interrupted emission
+     * (a worker interrupted after its DB commit but before it finished emitting a remap/deletion
+     * notice) that no live collector ever saw. Skipped once a restore has ended the session.
+     *
+     * Launched once, from [onCreate]: [repeatOnLifecycle] re-runs its block on every STARTED entry
+     * and cancels it on every stop, so a launch per `onStart` would stack collectors and re-sync
+     * several times per start. The Activity is still CREATED while `onStart` runs, which is why
+     * the check cannot live there.
+     *
+     * A cold start normally reaches STARTED while [resolveDatabaseStartup]'s asynchronous
      * inspection/migration is still running. Resolving [playbackViewModel] before that completes
      * constructs QueuePersistence -> SongRepositoryImpl -> SynthXDatabase, whose synchronous
      * factory correctly fails closed. Join the same process-wide single-flight gate here; a
      * failed startup is rendered by [resolveDatabaseStartup] and must not create playback state.
      */
-    override fun onStart() {
-        super.onStart()
+    private fun resyncPlaybackOnEveryStart() {
         lifecycleScope.launch {
-            val startupReady = runCatching { DatabaseStartupGate.awaitReady() }.isSuccess
-            if (startupReady &&
-                lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) &&
-                RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL
-            ) {
-                playbackViewModel.reconcileWithDatabase()
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val startupReady = runCatching { DatabaseStartupGate.awaitReady() }.isSuccess
+                if (startupReady && RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL) {
+                    playbackViewModel.reconcileWithDatabase()
+                }
             }
         }
     }

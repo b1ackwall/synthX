@@ -179,12 +179,7 @@ class MainActivityLaunchMaintenanceInstrumentedTest {
         assertEquals("one re-sync per start", 1, engine.reconcileCalls.get())
     }
 
-    /**
-     * PINNED current behaviour, confirmed bug (see slice3-implementation.md): with the gate already
-     * open, onStart's check runs before the lifecycle reaches STARTED, so returning to the app
-     * never re-syncs playback. The count is final when moveToState returns: nothing suspends.
-     */
-    @Test fun pinnedReturningToTheAppDoesNotResyncPlayback() {
+    @Test fun returningToTheAppResyncsPlayback() {
         val engine = FakePlaybackEngine()
         launchSeededBehindAHeldGate(engine).release()
         composeRule.waitUntil(MainActivityLauncher.WAIT_MS) { engine.reconcileCalls.get() >= 1 }
@@ -192,9 +187,44 @@ class MainActivityLaunchMaintenanceInstrumentedTest {
 
         launcher.scenarioOrFail().moveToState(Lifecycle.State.CREATED)
         launcher.scenarioOrFail().moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitUntil(MainActivityLauncher.WAIT_MS) { engine.reconcileCalls.get() >= 2 }
         composeRule.waitForIdle()
 
-        assertEquals("a correct return would re-sync a second time", 1, engine.reconcileCalls.get())
+        assertEquals("cold start re-syncs once and the return re-syncs once", 2, engine.reconcileCalls.get())
+    }
+
+    @Test fun returningDuringARestoreTerminalStateDoesNotResyncPlayback() {
+        val engine = FakePlaybackEngine()
+        launchSeededBehindAHeldGate(engine).release()
+        composeRule.waitUntil(MainActivityLauncher.WAIT_MS) { engine.reconcileCalls.get() >= 1 }
+        launcher.awaitShell()
+        // A restore that closed Room, as RestoreTransaction does it.
+        runBlocking {
+            RestoreCoordinator.exclusive { }
+            RestoreCoordinator.quiesceReactiveOperations()
+        }
+        RestoreCoordinator.markClosed()
+
+        launcher.scenarioOrFail().moveToState(Lifecycle.State.CREATED)
+        launcher.scenarioOrFail().moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitForIdle()
+
+        assertEquals("re-synced after a restore terminal state", 1, engine.reconcileCalls.get())
+    }
+
+    @Test fun leavingAndReturningBeforeTheGateOpensResyncsOnceAfterItOpens() {
+        val engine = FakePlaybackEngine()
+        val gate = launchSeededBehindAHeldGate(engine)
+        try {
+            launcher.scenarioOrFail().moveToState(Lifecycle.State.CREATED)
+            launcher.scenarioOrFail().moveToState(Lifecycle.State.RESUMED)
+            assertEquals("re-synced before the database gate opened", 0, engine.reconcileCalls.get())
+        } finally {
+            gate.release()
+        }
+        composeRule.waitUntil(MainActivityLauncher.WAIT_MS) { engine.reconcileCalls.get() >= 1 }
+        launcher.awaitShell()
+        assertEquals("one re-sync for the one start the gate opened under", 1, engine.reconcileCalls.get())
     }
 
     private companion object {

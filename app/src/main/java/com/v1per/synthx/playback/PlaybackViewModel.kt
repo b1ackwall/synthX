@@ -435,9 +435,10 @@ class PlaybackViewModel(
     }
 
     /**
-     * The `onStart`/`onResume` recovery pass — see [PlaybackEngine.reconcileWithDatabase]'s kdoc.
-     * [MainActivity] is the only caller, since this single-Activity app treats `onStart` as its
-     * one foregrounding signal (see its own kdoc for why it does not use `ProcessLifecycleOwner`).
+     * The re-sync each time the Activity reaches STARTED — see
+     * [PlaybackEngine.reconcileWithDatabase]'s kdoc. [MainActivity] is the only caller, since this
+     * single-Activity app treats reaching STARTED as its one foregrounding signal (see its own kdoc
+     * for why it does not use `ProcessLifecycleOwner`).
      */
     fun reconcileWithDatabase() {
         viewModelScope.launch { controller.reconcileWithDatabase() }

@@ -32,7 +32,7 @@ internal suspend fun ExoPlayerEngine.reconcileIfRevisionChanged(revisionBefore: 
 /**
  * Re-derives every cached [Song] this engine holds directly from the database, rather than
  * trusting whatever bus events did or didn't arrive. Used both by [reconcileIfRevisionChanged]
- * and by the `onStart`/`onResume` recovery pass (the general-purpose recovery mechanism
+ * and by the re-sync each time the Activity reaches STARTED (the general-purpose recovery mechanism
  * for a missed emission, e.g. a worker interrupted after its DB commit but before it finished
  * emitting).
  *

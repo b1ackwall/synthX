@@ -182,9 +182,9 @@ class SongRepositoryImpl(
 
     /**
      * Batched by-id fetch used purely for playback-cache reconciliation: a queue-loading
-     * path that suspended across a cache-invalidating event (or the `onStart`/`onResume` recovery
-     * pass) re-derives truth directly from the database with this rather than trusting a bus
-     * event's payload. An id with no matching row (deleted, or never existed) is simply absent
+     * path that suspended across a cache-invalidating event (or the re-sync each time the Activity
+     * reaches STARTED) re-derives truth directly from the database with this rather than trusting
+     * a bus event's payload. An id with no matching row (deleted, or never existed) is simply absent
      * from the result — the caller treats that the same way an explicit deletion notice would.
      */
     internal suspend fun getSongsByIdsForReconciliation(ids: List<String>): List<Song> = dbOperation {

@@ -194,7 +194,7 @@ interface PlaybackEngine {
     fun release()
 
     /**
-     * The `onStart`/`onResume` recovery pass: re-verifies the whole cache against the
+     * The re-sync each time the Activity reaches STARTED: re-verifies the whole cache against the
      * database regardless of whether anything has actually been missed — the general-purpose
      * backstop for a missed/interrupted event emission that a revision comparison alone cannot
      * catch (see [com.v1per.synthx.data.PlaybackCacheRevision]'s kdoc).

@@ -421,14 +421,14 @@ class ExoPlayerEngine(
     }
 
     /**
-     * The `onStart`/`onResume` recovery pass: re-verifies this engine's whole cache
+     * The re-sync each time the Activity reaches STARTED: re-verifies this engine's whole cache
      * against the database, independent of whether [PlaybackCacheRevision] moved at all — this is
      * the general-purpose backstop for a missed emission (a worker interrupted after its DB
      * commit but before it finished emitting; a collector that was down when an event fired),
      * which a revision comparison alone cannot catch since it only proves "an event was
-     * published", not "every live engine received it". [MainActivity] calls this from `onStart`,
-     * the one foregrounding signal this single-Activity app has (see its own kdoc for why it does
-     * not use `ProcessLifecycleOwner`).
+     * published", not "every live engine received it". [MainActivity] calls this each time it
+     * reaches STARTED, the one foregrounding signal this single-Activity app has (see its own kdoc
+     * for why it does not use `ProcessLifecycleOwner`).
      */
     override suspend fun reconcileWithDatabase() {
         reconcileCacheWithDatabase()
