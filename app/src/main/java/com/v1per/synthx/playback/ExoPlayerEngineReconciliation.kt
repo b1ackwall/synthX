@@ -4,6 +4,7 @@ import android.util.Log
 import com.v1per.synthx.data.PlaybackCacheRevision
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepositoryImpl
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -80,4 +81,17 @@ internal suspend fun ExoPlayerEngine.reconcileCacheWithDatabase() {
             prefetchArtwork()
         }
     }
+}
+
+/**
+ * Whether [songId] has a database row, or null when the lookup itself failed. A failure is never
+ * read as "gone": callers that act on a missing row must not act on an unknown one.
+ */
+internal suspend fun ExoPlayerEngine.songRowExists(songId: String): Boolean? = try {
+    SongRepositoryImpl.create(appContext).getSongsByIdsForReconciliation(listOf(songId)).isNotEmpty()
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Exception) {
+    Log.w(ExoPlayerEngine.TAG, "Song row lookup failed for $songId; treating its existence as unknown", e)
+    null
 }

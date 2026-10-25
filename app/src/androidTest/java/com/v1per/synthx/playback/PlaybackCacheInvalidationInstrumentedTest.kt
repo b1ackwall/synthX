@@ -24,9 +24,9 @@ import org.junit.runner.RunWith
  * reaches the reconcile path, because that path reads the live table, not the stubbed persistence.
  *
  * These tests document what the engine *actually* does:
- *  - [aRemapArrivingAfterItsTargetsDeletionIsNotRejectedAndIsRepairedOnlyByReconciliation]: the
- *    events carry a revision, but no consumer rejects a stale/out-of-order one. That ordering
- *    corrupts the cache, and the next `reconcileWithDatabase()` (MainActivity.onStart) repairs it.
+ *  - [aRemapWhoseTargetWasDeletedIsRejectedAndNeverCachesTheDeletedSong]: the engine checks the
+ *    database for a remap's target before applying it, so a remap that arrives after its target's
+ *    deletion is dropped instead of caching the deleted song.
  *  - The two `queueLoadSuspended...` tests: the revision guard `reconcileIfRevisionChanged` is what
  *    protects a queue load whose suspension straddles an event. Those are the tests a
  *    bypass-the-guard mutation must fail.
@@ -62,19 +62,12 @@ class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {
     // --- the recorded A->B / delete-B ordering ------------------------------------------
 
     /**
-     * PINNED CURRENT BEHAVIOUR OF A KNOWN BUG (BUG LIST in docs/code-work/Safety-Net/slice1-implementation.md).
-     * The first half asserts the buggy state on purpose; a fix for the bug turns it red, and this
-     * test must then be updated to assert the fixed behaviour.
-     *
      * The recorded failing order: a scan commits A->B; B's deletion is handled while the engine
-     * still caches A (nothing to do, so ignored); the delayed A->B remap then arrives and caches
-     * the already-deleted B.
-     *
-     * Asserts the CURRENT behaviour, not the intended rule ("engine rejects an event older than
-     * what it has applied"): nothing rejects the stale remap, so the cache is wrong until the
-     * foregrounding reconcile repairs it against the database.
+     * still caches A (nothing to do, so ignored); the delayed A->B remap then arrives. The engine
+     * finds no row for B, drops the remap and never caches the deleted song, with no reconcile
+     * call from outside.
      */
-    @Test fun aRemapArrivingAfterItsTargetsDeletionIsNotRejectedAndIsRepairedOnlyByReconciliation() {
+    @Test fun aRemapWhoseTargetWasDeletedIsRejectedAndNeverCachesTheDeletedSong() {
         engine = newEngine()
         val a = song("order-A")
         val b = song("order-B")
@@ -89,19 +82,138 @@ class PlaybackCacheInvalidationInstrumentedTest : PlaybackServiceTestBase() {
         assertEquals("the ignored deletion changed nothing", listOf(a.id, c.id), liveSongIds())
 
         runBlocking { SongRemapEvents.notifyRemap(a.id, b) }
-        await("the remap was applied") { onMain { engine._currentSongId.value == b.id } }
         settle()
 
-        // Current behaviour: the deleted song is now cached, current, and stays that way — no
-        // revision/tombstone check on the event path rejects it, and nothing self-repairs.
-        assertEquals("stale remap accepted; deleted B is queued", listOf(b.id, c.id), liveSongIds())
-        assertEquals(b.id, onMain { engine._currentSongId.value })
+        assertEquals("stale remap rejected; deleted B is not queued", listOf(a.id, c.id), liveSongIds())
+        assertEquals("B is not current", a.id, onMain { engine._currentSongId.value })
+        assertTrue("B is not cached", onMain { engine.songsBySlotId.values.none { it.id == b.id } })
+        assertEquals("both items stay loaded", 2, onMain { engine.controller!!.mediaItemCount })
+    }
 
-        reconcileOnMain()
+    /**
+     * The same order when the scan also removed A's row (the realistic case): the dropped remap
+     * leaves A's slot pointing at a missing song, so the engine strips it the way a deletion
+     * would and the cursor moves onto C.
+     */
+    @Test fun aRejectedRemapAlsoClearsTheOldIdWhenItsRowIsGone() {
+        engine = newEngine()
+        val a = song("gone-A")
+        val b = song("gone-B")
+        val c = song("gone-C")
+        seed.seed(c) // neither A nor B has a row
+        playQueueAndAwait(listOf(a, c), 0)
 
-        await("reconciliation stripped the deleted B") { onMain { liveSongIds() == listOf(c.id) } }
-        await("the cursor moved off the deleted song onto C") { onMain { engine._currentSongId.value == c.id } }
+        runBlocking { SongRemapEvents.notifyRemap(a.id, b) }
+
+        await("A's slot was stripped and B never queued") { onMain { liveSongIds() == listOf(c.id) } }
+        await("the cursor moved onto C") { onMain { engine._currentSongId.value == c.id } }
+        assertTrue("B is not cached", onMain { engine.songsBySlotId.values.none { it.id == b.id } })
         assertEquals("only C's item remains loaded", 1, onMain { engine.controller!!.mediaItemCount })
+    }
+
+    // --- remaps that must still apply -----------------------------------------------------
+
+    /** A rescan replaced A's row with B's: the slot, the cache and the loaded item follow. */
+    @Test fun aRemapToAnExistingSongRewritesTheSlotAndTheLoadedItem() {
+        engine = newEngine()
+        val a = song("apply-A")
+        val b = song("apply-B")
+        val c = song("apply-C")
+        seed.seed(a)
+        seed.seed(b)
+        seed.seed(c)
+        playQueueAndAwait(listOf(a, c), 0)
+
+        runBlocking { SongRemapEvents.notifyRemap(a.id, b) }
+
+        await("the remap was applied") { onMain { engine._currentSongId.value == b.id } }
+        settle()
+        assertEquals(listOf(b.id, c.id), liveSongIds())
+        assertEquals(
+            b.filePath,
+            onMain { engine.controller!!.getMediaItemAt(0).localConfiguration!!.uri.toString() },
+        )
+    }
+
+    /** Graduation keeps the id and moves the path: the same-id remap refreshes path and item. */
+    @Test fun aSameIdRemapRefreshesThePathAndKeepsTheSlot() {
+        engine = newEngine()
+        val a = song("same-A")
+        val c = song("same-C")
+        seed.seed(a)
+        seed.seed(c)
+        playQueueAndAwait(listOf(a, c), 0)
+        val moved = a.copy(filePath = a.filePath + "&moved=1")
+        seed.seed(moved)
+
+        runBlocking { SongRemapEvents.notifyRemap(a.id, moved) }
+
+        await("the moved path reached the cache") {
+            onMain { engine.songsBySlotId.values.first { it.id == a.id }.filePath == moved.filePath }
+        }
+        settle()
+        assertEquals(listOf(a.id, c.id), liveSongIds())
+        assertEquals(a.id, onMain { engine._currentSongId.value })
+        assertEquals(
+            moved.filePath,
+            onMain { engine.controller!!.getMediaItemAt(0).localConfiguration!!.uri.toString() },
+        )
+    }
+
+    /** A remap for an id no slot holds changes nothing, even when its target is also unknown. */
+    @Test fun aRemapForASongThatIsNotQueuedChangesNothing() {
+        engine = newEngine()
+        val a = song("idle-A")
+        val c = song("idle-C")
+        val other = song("idle-other")
+        seed.seed(a)
+        seed.seed(c)
+        playQueueAndAwait(listOf(a, c), 0)
+
+        runBlocking { SongRemapEvents.notifyRemap(other.id, song("idle-target")) }
+        settle()
+
+        assertEquals(listOf(a.id, c.id), liveSongIds())
+        assertEquals(a.id, onMain { engine._currentSongId.value })
+        assertEquals(2, onMain { engine.controller!!.mediaItemCount })
+    }
+
+    /** Two remaps in a row: A->B then B->D, both targets alive, ends on D. */
+    @Test fun twoRemapsInARowBothApply() {
+        engine = newEngine()
+        val a = song("chain-A")
+        val b = song("chain-B")
+        val d = song("chain-D")
+        val c = song("chain-C")
+        listOf(a, b, d, c).forEach(seed::seed)
+        playQueueAndAwait(listOf(a, c), 0)
+
+        runBlocking {
+            SongRemapEvents.notifyRemap(a.id, b)
+            SongRemapEvents.notifyRemap(b.id, d)
+        }
+
+        await("both remaps were applied") { onMain { engine._currentSongId.value == d.id } }
+        settle()
+        assertEquals(listOf(d.id, c.id), liveSongIds())
+    }
+
+    /** A remap that applied, then its target's deletion: the ordinary deletion path still strips it. */
+    @Test fun aDeletionAfterAnAppliedRemapStillStripsTheTarget() {
+        engine = newEngine()
+        val a = song("then-A")
+        val b = song("then-B")
+        val c = song("then-C")
+        listOf(a, b, c).forEach(seed::seed)
+        playQueueAndAwait(listOf(a, c), 0)
+        runBlocking { SongRemapEvents.notifyRemap(a.id, b) }
+        await("the remap was applied") { onMain { engine._currentSongId.value == b.id } }
+
+        seed.delete(b.id)
+        runBlocking { SongDeletionEvents.notifyDeleted(b.id) }
+
+        await("deleted B stripped") { onMain { liveSongIds() == listOf(c.id) } }
+        await("the cursor moved onto C") { onMain { engine._currentSongId.value == c.id } }
     }
 
     // --- the revision guard on a suspended queue load ------------------------------------

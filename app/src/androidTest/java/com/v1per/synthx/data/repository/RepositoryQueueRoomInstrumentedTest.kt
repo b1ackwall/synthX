@@ -125,6 +125,19 @@ class RepositoryQueueRoomInstrumentedTest {
         assertEquals(listOf("s2" to "b"), baseline.pairs())
     }
 
+    @Test fun savingASlotForASongWithNoRowFailsAndKeepsThePreviousQueue() = runBlocking {
+        repository.setQueueState(slots("k1" to "a", "k2" to "b"), currentSlotId = "k1", positionMs = 5)
+
+        val failure = runCatching {
+            repository.setQueueState(slots("k1" to "a", "k3" to "no-such-song"), currentSlotId = "k1", positionMs = 9)
+        }.exceptionOrNull()
+
+        assertTrue("the foreign key rejects a slot whose song has no row", failure != null)
+        val (snapshot, _) = repository.getQueueSnapshotWithBaseline()
+        assertEquals(listOf("k1" to "a", "k2" to "b"), snapshot.slots.pairs())
+        assertEquals(5L, snapshot.cursor?.positionMs)
+    }
+
     @Test fun queueSaveKeepsTheSavedShuffleAndRepeatModes() = runBlocking {
         repository.setUnifiedQueueState(slots("s1" to "a"), slots("s1" to "a"), "s1", 0, true, 1)
 

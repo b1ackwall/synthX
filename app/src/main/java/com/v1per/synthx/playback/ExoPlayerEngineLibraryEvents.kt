@@ -1,11 +1,36 @@
 package com.v1per.synthx.playback
 
+import com.v1per.synthx.data.PlaybackCacheRevision
 import com.v1per.synthx.data.SongRemap
 
 // ExoPlayerEngine's reactions to the library changing under a live queue.
 
-/** The remap-collector body, split out so ExoPlayerEngine's init can run it inside collectCatching. */
-internal fun ExoPlayerEngine.handleRemap(remap: SongRemap) {
+/**
+ * The remap-collector body, split out so ExoPlayerEngine's init can run it inside collectCatching.
+ *
+ * A remap is applied only while its target still has a database row. A remap can reach the engine
+ * after the deletion of its target has been handled against a cache that only held the old id,
+ * and applying it then would queue (and show as current) a song with no file. The target is looked
+ * up before anything is touched; a missing row drops the remap and reconciles the cache against the
+ * database, which also strips the old id's slots when their row is gone too. A failed lookup applies
+ * the remap, and the next reconciliation corrects the cache if the target turned out to be gone.
+ *
+ * The lookup suspends, so an event published while it runs may concern the target: a changed
+ * [PlaybackCacheRevision] after the apply triggers one reconciliation, the same guard queue loads use.
+ */
+internal suspend fun ExoPlayerEngine.handleRemap(remap: SongRemap) {
+    if (songsBySlotId.values.none { it.id == remap.oldId }) return
+    val revisionBefore = PlaybackCacheRevision.current()
+    if (songRowExists(remap.newSong.id) == false) {
+        reconcileCacheWithDatabase()
+        return
+    }
+    applyRemap(remap)
+    reconcileIfRevisionChanged(revisionBefore)
+}
+
+/** Rewrites every slot holding the old id to the new song, keeping each slot key. */
+private fun ExoPlayerEngine.applyRemap(remap: SongRemap) {
     val affectedSlotIds = songsBySlotId
         .filterValues { it.id == remap.oldId }
         .keys
