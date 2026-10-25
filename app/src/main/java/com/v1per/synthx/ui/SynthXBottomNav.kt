@@ -276,6 +276,8 @@ private fun SynthXBottomNav(
                 NavigationBarItem(
                     selected = selected,
                     onClick = {
+                        // Tabs pop up to Home, not the graph's start destination: that is the wizard
+                        // when the session began there, and it is off the stack once the wizard ends.
                         when {
                             // Search root reselect focuses its existing field; other roots remain
                             // no-ops.
@@ -287,7 +289,7 @@ private fun SynthXBottomNav(
                             // restoring the sub-screen just left.
                             currentRoute in item.hierarchyRoutes -> {
                                 navController.navigate(item.screen.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
+                                    popUpTo(Screen.Home.route) {
                                         saveState = false
                                     }
                                     launchSingleTop = true
@@ -297,7 +299,7 @@ private fun SynthXBottomNav(
                             // A different tab entirely — standard restore-on-switch.
                             else -> {
                                 navController.navigate(item.screen.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
+                                    popUpTo(Screen.Home.route) {
                                         saveState = true
                                     }
                                     launchSingleTop = true

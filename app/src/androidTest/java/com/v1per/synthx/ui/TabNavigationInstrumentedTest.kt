@@ -156,11 +156,10 @@ class TabNavigationInstrumentedTest {
     }
 
     /**
-     * PINNED current behaviour, issue #211: after the wizard finishes in the same session, the
-     * graph's start is still `onboarding`, so every tab switch adds to the back stack. Replays the
-     * wizard's own navigate call from OnboardingRoutes.
+     * Replays the wizard's own navigate call from OnboardingRoutes on a shell whose graph starts at
+     * `onboarding`, so the start destination is no longer on the back stack.
      */
-    @Test fun pinnedFirstRunSessionTabSwitchesGrowTheBackStack() {
+    private fun finishWizardInTheFirstSession() {
         shell.startShell(start = Screen.Onboarding.route)
         composeRule.runOnUiThread {
             shell.navController.navigate(Screen.Home.route) {
@@ -170,15 +169,52 @@ class TabNavigationInstrumentedTest {
         composeRule.waitForIdle()
         assertEquals(home, shell.route())
         assertFalse(shell.onStack(Screen.Onboarding.route))
+    }
+
+    /** After the wizard, tab switches behave as in a session that started at Home. */
+    @Test fun firstRunSessionTabSwitchesDoNotGrowTheBackStack() {
+        finishWizardInTheFirstSession()
 
         repeat(3) {
             shell.clickTab(libraryTab)
             shell.clickTab(homeTab)
         }
 
-        // A correct stack would be just [home]; today it is home, library x3 interleaved.
-        shell.assertBackWalk(listOf(home, library, home, library, home, library, home))
-        assertNull("the oldest entry is the first Home", shell.previousRoute())
+        assertEquals(home, shell.route())
+        assertNull("Home is the only entry", shell.previousRoute())
+
+        shell.clickTab(libraryTab)
+        shell.assertBackWalk(listOf(library, home))
+        assertNull("Back from a tab ends at the only Home", shell.previousRoute())
+    }
+
+    /** After the wizard, a tab keeps its place when the user switches away and back. */
+    @Test fun firstRunSessionSwitchingTabsKeepsEachTabsPlace() {
+        finishWizardInTheFirstSession()
+        shell.clickTab(libraryTab)
+        shell.navigate(songs)
+
+        shell.clickTab(homeTab)
+        assertEquals(home, shell.route())
+        assertNull("Home is the only entry", shell.previousRoute())
+
+        shell.clickTab(libraryTab)
+        assertEquals("Library comes back where it was left", songs, shell.route())
+    }
+
+    /** After the wizard, the Library tab from deep inside Library resets to its root, as at cold start. */
+    @Test fun firstRunSessionLibraryTabFromDeepInsideLibraryResetsToItsRoot() {
+        finishWizardInTheFirstSession()
+        shell.clickTab(libraryTab)
+        shell.navigate(songs)
+
+        shell.clickTab(libraryTab)
+
+        assertEquals(library, shell.route())
+        assertEquals(home, shell.previousRoute())
+        assertFalse("Songs must not stay under Library's root", shell.onStack(songs))
+        shell.assertBackWalk(listOf(library, home))
+        assertNull("Back from Library ends at the only Home", shell.previousRoute())
     }
 
     private fun selectedTabs(): List<String> {
