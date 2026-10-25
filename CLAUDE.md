@@ -165,8 +165,9 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
     "productionSchemaSnapshotPassesFullLocalValidation") and update them too — those
     literals go stale on every version bump exactly like a skipped BackupSchemaContracts
     entry would, and neither MigrationFullChainTest nor MigrationCompletenessTest catches it.
-- SHA-256 song fingerprinting: first 64KB + file size, plus the last 64KB only when the file is
-  large enough to have a distinct tail (more than 128KB); via HashUtils.kt.
+- SHA-256 song fingerprinting: the whole file up to 64KB, the first 64KB from 64KB to 128KB, the first
+  and last 64KB above 128KB; the file size is always included; via HashUtils.kt. Accepted limitation:
+  distinct files of 64KB to 128KB with the same size and first 64KB share an id.
 - Compose compiler reports are off by default. Pass `-PcomposeReports` to a Gradle compile
   (via freeCompilerArgs in app/build.gradle.kts); reports land in
   app/build/compose-reports/<compilation>/ (composables list, classes list, stability summary).

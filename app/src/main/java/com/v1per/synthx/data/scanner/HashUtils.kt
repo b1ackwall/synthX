@@ -10,13 +10,16 @@ object HashUtils {
     private const val SAMPLE_SIZE = 65536 // 64KB
 
     /**
-     * Song identity = SHA-256 of the first 64KB + the last 64KB + the file size,
-     * as a lowercase hex string. Sampling both ends plus the size keeps identity
-     * stable across metadata rewrites while separating files that happen to share
-     * a header (same encoder settings, same leading silence, padded ID3 tags).
+     * Song identity = SHA-256 of the sampled bytes + the file size, as a lowercase hex
+     * string. Sampling both ends plus the size keeps identity stable across metadata
+     * rewrites while separating files that happen to share a header (same encoder
+     * settings, same leading silence, padded ID3 tags).
      *
-     * The tail is only mixed in when the file is larger than two samples, so it
-     * never overlaps the head. Returns null for empty files, if the stream cannot
+     * Size bands: up to 64KB the whole file is hashed; from 64KB to 128KB only the first
+     * 64KB; above 128KB the first and the last 64KB. The tail is only mixed in when the
+     * file is larger than two samples, so it never overlaps the head. Known, accepted
+     * limitation: distinct files of 64KB to 128KB with the same size and the same first
+     * 64KB share an id. Returns null for empty files, if the stream cannot
      * be opened, or if the tail can't be read even after one retry — a hash
      * computed from head+size alone is weaker and more collision-prone than the
      * full identity, so it is never returned silently; a file whose tail genuinely

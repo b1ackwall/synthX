@@ -22,7 +22,7 @@ import androidx.room.PrimaryKey
     ],
 )
 data class SongEntity(
-    // SHA-256 of the first 64KB + last 64KB + file size, lowercase hex
+    // SHA-256 of the sampled bytes (see HashUtils) + file size, lowercase hex
     @PrimaryKey val id: String,
     val title: String,
     @ColumnInfo(name = "album_id") val albumId: String?,
