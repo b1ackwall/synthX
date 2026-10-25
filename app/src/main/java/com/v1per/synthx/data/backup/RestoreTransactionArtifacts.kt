@@ -1,16 +1,20 @@
 package com.v1per.synthx.data.backup
 
 import android.content.Context
+import android.util.Log
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
 import com.v1per.synthx.data.backup.RestoreTransaction.Outcome
+import com.v1per.synthx.data.backup.RestoreTransaction.Phase
 import com.v1per.synthx.data.backup.RestoreTransaction.State
 import com.v1per.synthx.data.db.SynthXDatabase
 import java.io.File
 import java.io.RandomAccessFile
 
 // RestoreTransaction's file primitives: rename, directory sync, artifact validation, cleanup and archiving.
+
+private const val TAG = "RestoreTransaction"
 
 internal fun RestoreTransaction.validateInstalled(live: File, state: State) {
     check(live.isFile && live.length() == state.candidateSize) {
@@ -134,6 +138,49 @@ internal fun RestoreTransaction.cleanupAfterColdValidation(
         deleteFileSet(File(dir, it))
     }
     syncDirectory(dir, RestoreFaultPoint.POST_COMPLETE_CLEANUP_DIRECTORY_SYNC, faults)
+}
+
+/**
+ * Deletes the candidate, old and safety files of every operation other than [currentOperationId],
+ * so leftovers of a completion cleanup that keeps failing do not stay behind once a newer restore
+ * starts. The single newest safety copy that still validates, whether `safety` or a staged
+ * `safety-promotion`, is kept as the last pre-restore snapshot. Failed live copies, `.recovered`
+ * archives, the journal and the incident report are never touched, nor is the operation of an
+ * unfinished journal. Nothing is deleted when the journal cannot be read. A failure is logged
+ * and never fails the restore that follows.
+ */
+internal fun RestoreTransaction.sweepStrandedArtifacts(dir: File, currentOperationId: String) {
+    try {
+        val stateFile = File(dir, STATE_FILE)
+        val unfinishedOperationId = if (stateFile.isFile) {
+            val state = runCatching { decodeAndValidateState(stateFile.readText()) }.getOrNull() ?: return
+            state.operationId.takeIf { state.phase != Phase.COMPLETE }
+        } else {
+            null
+        }
+        val strandedNames = dir.listFiles().orEmpty()
+            .mapNotNull { RestoreArtifactNames.parseOperationId(it.name) }
+            .toSet()
+            .minus(setOfNotNull(currentOperationId, unfinishedOperationId))
+            .map(::RestoreArtifactNames)
+        val keptSafety = strandedNames
+            .flatMap { listOf(it.safety, it.safetyPromotion) }
+            .map { File(dir, it) }
+            .filter(File::isFile)
+            .sortedByDescending(File::lastModified)
+            .firstOrNull { validateStandalone(it, currentOnly = false) }
+        strandedNames.forEach { names ->
+            listOf(names.candidate, names.old, names.safety, names.safetyPromotion)
+                .map { File(dir, it) }
+                .filter { it != keptSafety }
+                .forEach { file ->
+                    deleteFileSet(file)
+                    deleteFileSet(File(file.path + ".corrupt"))
+                }
+        }
+    } catch (failure: Exception) {
+        Log.w(TAG, "Could not sweep restore leftovers of earlier operations", failure)
+    }
 }
 
 internal fun RestoreTransaction.archiveOperationArtifacts(

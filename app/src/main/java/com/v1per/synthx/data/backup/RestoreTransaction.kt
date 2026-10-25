@@ -143,6 +143,7 @@ internal object RestoreTransaction {
 
             val completedRequestIds = readCompletedRequestIds(dir)
             if (normalizedRequestId in completedRequestIds) return@runCatching
+            sweepStrandedArtifacts(dir, normalizedRequestId)
 
             val op = normalizedRequestId
             val names = RestoreArtifactNames(op)
