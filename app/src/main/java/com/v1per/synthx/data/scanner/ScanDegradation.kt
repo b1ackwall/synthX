@@ -27,7 +27,7 @@ internal fun Data.Builder.putScanDegradations(degradations: Collection<ScanDegra
 }
 
 internal fun Data.scanDegradations(): Set<ScanDegradation> =
-    getNullableStringArray(KEY_SCAN_DEGRADATIONS).orEmpty().filterNotNull().mapNotNullTo(linkedSetOf()) { encoded ->
+    getStringArray(KEY_SCAN_DEGRADATIONS).orEmpty().mapNotNullTo(linkedSetOf()) { encoded ->
         val parts = encoded.split(':', limit = 2)
         if (parts.size != 2) return@mapNotNullTo null
         val root = runCatching { KnownAudioRoot.valueOf(parts[0]) }.getOrNull()

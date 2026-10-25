@@ -208,7 +208,7 @@ abstract class OnboardingRecoveryTestBase {
     protected fun keepNoticeHot(): kotlinx.coroutines.Job =
         CoroutineScope(Dispatchers.Default).launch { library.newArrivalsFolderNotice.collect { } }
 
-    protected fun awaitState(id: UUID, state: WorkInfo.State) = runBlocking {
+    protected fun awaitState(id: UUID, state: WorkInfo.State): WorkInfo? = runBlocking {
         withTimeout(10_000) {
             workManager.getWorkInfoByIdFlow(id).first { it?.state == state }
         }
