@@ -266,6 +266,14 @@ internal enum class StatelessRecoveryAction {
     EMERGENCY,
 }
 
+/** Shape of [StatelessRecoveryPlanner.decide]; startup recovery takes it as a parameter so tests can force it. */
+internal typealias StatelessPlan = (
+    operationCount: Int,
+    liveValid: Boolean,
+    oldValid: Boolean,
+    safetyValid: Boolean,
+) -> StatelessRecoveryAction
+
 /** Decision table for recovery when no trustworthy state journal exists. */
 internal object StatelessRecoveryPlanner {
     fun decide(

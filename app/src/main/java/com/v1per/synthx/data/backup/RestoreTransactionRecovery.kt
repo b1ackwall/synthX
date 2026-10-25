@@ -20,6 +20,7 @@ internal fun RestoreTransaction.recoverIfNeeded(
     context: Context,
     dir: File,
     faults: RestoreFaultInjector = RestoreFaultInjector.NONE,
+    statelessPlanner: StatelessPlan = StatelessRecoveryPlanner::decide,
 ): RestoreRecovery {
     lastDiagnosticOperationId = null
     lastRecoveryDecision = null
@@ -29,7 +30,7 @@ internal fun RestoreTransaction.recoverIfNeeded(
             runCatching { decodeAndValidateState(file.readText()) }.getOrNull()
         }
         val recovery = if (state == null) {
-            recoverWithoutUsableState(context, dir, stateFile.isFile, faults)
+            recoverWithoutUsableState(context, dir, stateFile.isFile, faults, statelessPlanner)
         } else {
             recoverWithState(context, dir, state, faults)
         }
@@ -183,6 +184,7 @@ private fun RestoreTransaction.recoverWithoutUsableState(
     dir: File,
     malformedStateExists: Boolean,
     faults: RestoreFaultInjector,
+    statelessPlanner: StatelessPlan,
 ): RestoreRecovery {
     val artifacts = dir.listFiles().orEmpty().filter {
         RestoreArtifactNames.parseOperationId(it.name) != null
@@ -206,12 +208,7 @@ private fun RestoreTransaction.recoverWithoutUsableState(
     val oldValid = validateStandalone(old, currentOnly = true)
     val safetyValid = validateStandalone(safety, currentOnly = true)
     val liveValid = validateStandalone(live, currentOnly = true)
-    val action = StatelessRecoveryPlanner.decide(
-        operationCount = operationIds.size,
-        liveValid = liveValid,
-        oldValid = oldValid,
-        safetyValid = safetyValid,
-    )
+    val action = statelessPlanner(operationIds.size, liveValid, oldValid, safetyValid)
     lastRecoveryDecision = RecoveryDecisionSnapshot(
         "operationCount=${operationIds.size}, liveValid=$liveValid, oldValid=$oldValid, safetyValid=$safetyValid",
         action.name,
@@ -224,24 +221,37 @@ private fun RestoreTransaction.recoverWithoutUsableState(
             RestoreRecovery.NORMAL
         }
 
-        StatelessRecoveryAction.PROMOTE_OLD,
-        StatelessRecoveryAction.PROMOTE_SAFETY,
-        -> {
-            val rollbackSource = if (oldValid) RollbackSource.OLD else RollbackSource.SAFETY
-            val source = if (rollbackSource == RollbackSource.OLD) old else safety
-            if (malformedStateExists) archiveCorruptState(dir, op, faults)
-            val state = createStatelessRecoveryState(
-                op = op,
-                names = names,
-                source = source,
-                rollbackSource = rollbackSource,
-            )
-            writeState(dir, state, faults)
-            completeStartupRollback(context, dir, live, state, rollbackSource, faults)
-        }
+        StatelessRecoveryAction.PROMOTE_OLD ->
+            promoteStatelessSource(context, dir, live, op, names, RollbackSource.OLD, malformedStateExists, faults)
+
+        StatelessRecoveryAction.PROMOTE_SAFETY ->
+            promoteStatelessSource(context, dir, live, op, names, RollbackSource.SAFETY, malformedStateExists, faults)
 
         StatelessRecoveryAction.EMERGENCY -> RestoreRecovery.EMERGENCY
     }
+}
+
+/** Promotes the copy the stateless planner named; the planner's action is the only choice between them. */
+private fun RestoreTransaction.promoteStatelessSource(
+    context: Context,
+    dir: File,
+    live: File,
+    op: String,
+    names: RestoreArtifactNames,
+    rollbackSource: RollbackSource,
+    malformedStateExists: Boolean,
+    faults: RestoreFaultInjector,
+): RestoreRecovery {
+    val source = File(dir, if (rollbackSource == RollbackSource.OLD) names.old else names.safety)
+    if (malformedStateExists) archiveCorruptState(dir, op, faults)
+    val state = createStatelessRecoveryState(
+        op = op,
+        names = names,
+        source = source,
+        rollbackSource = rollbackSource,
+    )
+    writeState(dir, state, faults)
+    return completeStartupRollback(context, dir, live, state, rollbackSource, faults)
 }
 
 /**

@@ -100,8 +100,8 @@ class RestoreRecoveryPlannerRowsTest {
     }
 
     /**
-     * On a device this row is invisible: the stateless caller re-decides old versus safety
-     * itself and ignores the planner's answer (noted in the BUG LIST). Only this JVM row guards it.
+     * The planner's order of live, old and safety. Startup follows the action it returns, so
+     * the device tests in RestoreRecoveryTableInstrumentedTest see a reordering as well.
      */
     @Test fun statelessRecoveryPrefersOldOverSafety() {
         assertEquals(

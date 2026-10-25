@@ -66,9 +66,8 @@ class RestoreRecoveryTableInstrumentedTest : RestoreScenarioTestBase() {
     }
 
     /**
-     * Stateless recovery with both copies valid picks `old`. Today this stays GREEN even if the
-     * planner's order is swapped, because the caller re-decides itself (see
-     * RestoreRecoveryPlannerRowsTest.statelessRecoveryPrefersOldOverSafety, which does catch it).
+     * Stateless recovery with both copies valid picks `old` through the planner's PROMOTE_OLD
+     * (see RestoreRecoveryPlannerRowsTest.statelessRecoveryPrefersOldOverSafety for the table itself).
      */
     @Test fun statelessWithBothCopiesValidPrefersOld() {
         val names = RestoreArtifactNames(newOp())
@@ -78,5 +77,39 @@ class RestoreRecoveryTableInstrumentedTest : RestoreScenarioTestBase() {
         assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
 
         assertEquals("old", readMarker(liveFile()))
+    }
+
+    /** The caller promotes the copy the planner names, even when both copies are valid. */
+    @Test fun statelessRecoveryPromotesSafetyWhenThePlannerSaysSafety() {
+        val names = RestoreArtifactNames(newOp())
+        createDatabaseFile(File(databaseDir, names.old), "old")
+        createDatabaseFile(File(databaseDir, names.safety), "safety")
+
+        val result = RestoreTransaction.recoverIfNeeded(
+            context,
+            databaseDir,
+            statelessPlanner = { _, _, _, _ -> StatelessRecoveryAction.PROMOTE_SAFETY },
+        )
+
+        assertEquals(RestoreRecovery.NORMAL, result)
+        assertEquals("safety", readMarker(liveFile()))
+        assertEquals(RestoreTransaction.RollbackSource.SAFETY, readState().rollbackSource)
+    }
+
+    /** The mirror of the test above: a forced PROMOTE_OLD promotes `old`. */
+    @Test fun statelessRecoveryPromotesOldWhenThePlannerSaysOld() {
+        val names = RestoreArtifactNames(newOp())
+        createDatabaseFile(File(databaseDir, names.old), "old")
+        createDatabaseFile(File(databaseDir, names.safety), "safety")
+
+        val result = RestoreTransaction.recoverIfNeeded(
+            context,
+            databaseDir,
+            statelessPlanner = { _, _, _, _ -> StatelessRecoveryAction.PROMOTE_OLD },
+        )
+
+        assertEquals(RestoreRecovery.NORMAL, result)
+        assertEquals("old", readMarker(liveFile()))
+        assertEquals(RestoreTransaction.RollbackSource.OLD, readState().rollbackSource)
     }
 }
