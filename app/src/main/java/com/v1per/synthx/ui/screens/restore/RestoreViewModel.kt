@@ -277,7 +277,7 @@ class RestoreViewModel(
         }
     }
 
-    /** Called by RestoreScreen only once a terminal dialog is in the composition. */
+    /** Called by RestoreScreen when the user dismisses a terminal dialog. */
     fun terminalOutcomeWasShown(onShown: (UUID) -> Unit = {}) {
         val requestId = _requestId.value ?: return
         if (preferencesManager.acknowledgeRestoreOutcomeDurably(requestId.toString())) {

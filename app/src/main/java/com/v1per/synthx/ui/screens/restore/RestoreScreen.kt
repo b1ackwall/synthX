@@ -19,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -66,12 +65,6 @@ fun RestoreScreen(
     val previewProgress by viewModel.previewProgress.collectAsState()
     val restoreProgress by viewModel.restoreProgress.collectAsState()
     val notificationGate = rememberNotificationPermissionGate()
-
-    LaunchedEffect(outcome) {
-        if (outcome is RestoreOutcome.Complete || outcome is RestoreOutcome.Failed) {
-            viewModel.terminalOutcomeWasShown(onTerminalOutcomeShown)
-        }
-    }
 
     val isRestoring = outcome is RestoreOutcome.InProgress
     val isPreviewing = preview !is RestorePreview.Idle
@@ -131,6 +124,12 @@ fun RestoreScreen(
         RestorePreview.Idle -> Unit
     }
 
+    // Outside tap, Back and OK all end here; only a dismiss by the user acknowledges the result.
+    val dismissFailedOutcome: () -> Unit = {
+        viewModel.terminalOutcomeWasShown(onTerminalOutcomeShown)
+        viewModel.dismissFailure()
+    }
+
     when (val current = outcome) {
         is RestoreOutcome.InProgress -> RestoreProgressOverlay(
             step = restoreProgress,
@@ -157,7 +156,13 @@ fun RestoreScreen(
             text = { Text(stringResource(R.string.restore_done_message)) },
             confirmButton = {
                 TextButton(
-                    onClick = { exitProcess(0) },
+                    onClick = {
+                        try {
+                            viewModel.terminalOutcomeWasShown(onTerminalOutcomeShown)
+                        } finally {
+                            exitProcess(0)
+                        }
+                    },
                     colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
                 ) {
                     Text(stringResource(R.string.action_ok))
@@ -169,12 +174,12 @@ fun RestoreScreen(
         )
 
         is RestoreOutcome.Failed -> AlertDialog(
-            onDismissRequest = viewModel::dismissFailure,
+            onDismissRequest = dismissFailedOutcome,
             title = { Text(stringResource(R.string.restore_failed_title)) },
             text = { Text(current.message) },
             confirmButton = {
                 TextButton(
-                    onClick = viewModel::dismissFailure,
+                    onClick = dismissFailedOutcome,
                     colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
                 ) {
                     Text(stringResource(R.string.action_ok))

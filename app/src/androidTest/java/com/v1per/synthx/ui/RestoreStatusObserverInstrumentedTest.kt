@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.lifecycle.ViewModelStore
@@ -98,7 +99,8 @@ class RestoreStatusObserverInstrumentedTest {
         }
 
         composeRule.onNodeWithText(base.getString(R.string.restore_failed_title)).assertExists()
-        composeRule.waitUntil(10_000) { preferences.restoreOutcomeAcknowledged }
+        assertFalse(preferences.restoreOutcomeAcknowledged)
+        // OK dismisses the result and leaves the status Idle, so the status is read before the tap.
         assertTrue(viewModel.status.value is RestoreAppStatus.Failed)
         // The raw exception message (see BackupManager.restore) is wrapped by
         // RestoreFailureFormatter.describe with a "restore failed: <ExceptionType>: " prefix.
@@ -106,6 +108,8 @@ class RestoreStatusObserverInstrumentedTest {
             (viewModel.status.value as RestoreAppStatus.Failed).message
                 .contains(base.getString(R.string.restore_ineligible_missing_metadata)),
         )
+        composeRule.onNodeWithText(base.getString(R.string.action_ok)).performClick()
+        composeRule.waitUntil(10_000) { preferences.restoreOutcomeAcknowledged }
     }
 
     /**
@@ -128,12 +132,15 @@ class RestoreStatusObserverInstrumentedTest {
         awaitFinished(requestId)
 
         composeRule.onNodeWithText(base.getString(R.string.restore_failed_title)).assertExists()
-        composeRule.waitUntil(10_000) { preferences.restoreOutcomeAcknowledged }
+        assertFalse(preferences.restoreOutcomeAcknowledged)
+        // OK dismisses the result and leaves the status Idle, so the status is read before the tap.
         assertTrue(viewModel.status.value is RestoreAppStatus.Failed)
         assertTrue(
             (viewModel.status.value as RestoreAppStatus.Failed).message
                 .contains(base.getString(R.string.restore_ineligible_missing_metadata)),
         )
+        composeRule.onNodeWithText(base.getString(R.string.action_ok)).performClick()
+        composeRule.waitUntil(10_000) { preferences.restoreOutcomeAcknowledged }
     }
 
     @Test fun pruningRetainsUnshownTerminalWorkThenRemovesAcknowledgedWork() {

@@ -6,6 +6,8 @@ import android.content.ContextWrapper
 import android.content.SharedPreferences
 import android.net.Uri
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
@@ -173,9 +175,10 @@ class ShellEventsInstrumentedTest {
         shell.startShell(restoreStatusViewModel = viewModel)
 
         shell.awaitText(text(R.string.restore_failed_title))
+        assertFalse("not acknowledged before the user taps OK", isolatedPreferences.restoreOutcomeAcknowledged)
+        composeRule.onNodeWithText(text(R.string.action_ok)).performClick()
         composeRule.waitUntil(ShellTestHost.WAIT_MS) { isolatedPreferences.restoreOutcomeAcknowledged }
 
-        composeRule.onNodeWithText(text(R.string.action_ok)).performClick()
         composeRule.waitForIdle()
 
         assertEquals(RestoreAppStatus.Idle, viewModel.status.value)
@@ -203,15 +206,110 @@ class ShellEventsInstrumentedTest {
     }
 
     /**
-     * PINNED current behaviour (suspected bug, see slice3-implementation.md): on the very first
-     * frame no route is known yet, so the shell treats the result as its own and marks it shown,
-     * even though the wizard is the start screen and never showed it.
+     * On the very first frame no route is known yet, so the shell composes its own dialog for that
+     * frame. Only the user dismissing a result acknowledges it, so the flag stays false on the
+     * wizard, where nothing shows the result.
      */
-    @Test fun pinnedFirstFrameMarksTheResultShownEvenOnTheWizard() {
+    @Test fun firstFrameDoesNotMarkTheResultShownUntilTheUserDismisses() {
         val viewModel = finishedFailedRestore()
         shell.startShell(start = Screen.Onboarding.route, restoreStatusViewModel = viewModel)
         composeRule.waitForIdle()
-        assertTrue("acknowledged on the wizard's first frame", isolatedPreferences.restoreOutcomeAcknowledged)
+        assertFalse("not acknowledged on the wizard's first frame", isolatedPreferences.restoreOutcomeAcknowledged)
+    }
+
+    @Test fun firstFrameOnTheRestoreRouteLeavesTheResultUnacknowledged() {
+        val viewModel = finishedFailedRestore()
+        shell.startShell(start = Screen.Restore.route, restoreStatusViewModel = viewModel)
+        composeRule.waitForIdle()
+        assertFalse(
+            "not acknowledged on the Restore route's first frame",
+            isolatedPreferences.restoreOutcomeAcknowledged,
+        )
+    }
+
+    /** A result the wizard route suppresses stays pending, then shows once the route no longer owns it. */
+    @Test fun resultSuppressedOnTheWizardShowsAfterLeavingTheRouteAndOkAcknowledges() {
+        val viewModel = finishedFailedRestore()
+        shell.startShell(start = Screen.Onboarding.route, restoreStatusViewModel = viewModel)
+        composeRule.waitForIdle()
+        assertTrue("the result must stay pending", viewModel.status.value is RestoreAppStatus.Failed)
+
+        shell.navigate(Screen.Home.route)
+        shell.awaitText(text(R.string.restore_failed_title))
+        assertFalse("showing the dialog does not acknowledge", isolatedPreferences.restoreOutcomeAcknowledged)
+
+        composeRule.onNodeWithText(text(R.string.action_ok)).performClick()
+        composeRule.waitUntil(ShellTestHost.WAIT_MS) { isolatedPreferences.restoreOutcomeAcknowledged }
+        assertEquals(RestoreAppStatus.Idle, viewModel.status.value)
+    }
+
+    /** A result nobody dismissed is reported again by a fresh observer, as after a process restart. */
+    @Test fun unacknowledgedResultIsReportedAgainByARecreatedObserver() {
+        val first = finishedFailedRestore()
+        shell.startShell(restoreStatusViewModel = first)
+        shell.awaitText(text(R.string.restore_failed_title))
+        assertFalse(isolatedPreferences.restoreOutcomeAcknowledged)
+
+        val second = RestoreStatusViewModel(isolated, isolatedPreferences, pendingGraceMillis = 50L)
+        restoreStores += androidx.lifecycle.ViewModelStore().also { it.put("restore-again", second) }
+        composeRule.waitUntil(ShellTestHost.WAIT_MS) { second.status.value is RestoreAppStatus.Failed }
+        assertFalse(isolatedPreferences.restoreOutcomeAcknowledged)
+    }
+
+    /** A cancelled restore is reported like a failure and is acknowledged only by the user's OK. */
+    @Test fun cancelledRestoreIsReportedAndAcknowledgedOnlyByOk() {
+        val requestId = runBlocking {
+            RestoreWorker.enqueue(
+                isolated,
+                BackupInfo(
+                    databaseUri = Uri.EMPTY,
+                    metadataUri = null,
+                    fileName = "missing.db",
+                    tier = BackupTier.Manual,
+                    timestamp = System.currentTimeMillis(),
+                    reason = null,
+                    sizeBytes = 1L,
+                    restoreEligible = true,
+                ),
+            )
+        }
+        workManager.cancelWorkById(requestId).result.get()
+        val viewModel = RestoreStatusViewModel(isolated, isolatedPreferences, pendingGraceMillis = 50L)
+        restoreStores += androidx.lifecycle.ViewModelStore().also { it.put("restore", viewModel) }
+        composeRule.waitUntil(ShellTestHost.WAIT_MS) { viewModel.status.value is RestoreAppStatus.Failed }
+        shell.startShell(restoreStatusViewModel = viewModel)
+
+        shell.awaitText(text(R.string.restore_failed_title))
+        shell.awaitText(text(R.string.restore_error_cancelled))
+        assertFalse(isolatedPreferences.restoreOutcomeAcknowledged)
+        composeRule.onNodeWithText(text(R.string.action_ok)).performClick()
+        composeRule.waitUntil(ShellTestHost.WAIT_MS) { isolatedPreferences.restoreOutcomeAcknowledged }
+        assertEquals(RestoreAppStatus.Idle, viewModel.status.value)
+    }
+
+    /** The Restore screen's own dialog acknowledges the result when the user taps OK, not before. */
+    @Test fun restoreScreenDialogAcknowledgesOnlyWhenOkIsTapped() {
+        val viewModel = finishedFailedRestore()
+        // The Restore screen builds its own ViewModel from LocalContext, so that context must share
+        // the isolated preferences and still reach the Activity for the permission gate.
+        val screenContext = object : ContextWrapper(composeRule.activity) {
+            override fun getApplicationContext(): Context = this
+            override fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
+                base.getSharedPreferences("$preferenceName-$name", mode)
+        }
+        shell.startShell(
+            start = Screen.Restore.route,
+            restoreStatusViewModel = viewModel,
+            wrap = { content ->
+                CompositionLocalProvider(LocalContext provides screenContext) { content() }
+            },
+        )
+        shell.awaitText(text(R.string.restore_failed_title))
+        assertFalse("showing the dialog does not acknowledge", isolatedPreferences.restoreOutcomeAcknowledged)
+
+        composeRule.onNodeWithText(text(R.string.action_ok)).performClick()
+        composeRule.waitUntil(ShellTestHost.WAIT_MS) { isolatedPreferences.restoreOutcomeAcknowledged }
+        assertEquals(RestoreAppStatus.Idle, viewModel.status.value)
     }
 
     // ------------------------------------------------------------ Go to Album

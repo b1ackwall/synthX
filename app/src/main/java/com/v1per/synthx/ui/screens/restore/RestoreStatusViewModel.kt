@@ -31,7 +31,7 @@ sealed class RestoreAppStatus {
 /**
  * Activity-scoped projection of durable restore work. WorkManager owns execution state;
  * PreferencesManager contributes only the exact request identity, submission clock and whether
- * a terminal result has actually been shown. No Room-backed object is created here.
+ * a terminal result has been dismissed by the user. No Room-backed object is created here.
  */
 class RestoreStatusViewModel internal constructor(
     context: Context,

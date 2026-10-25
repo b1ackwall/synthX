@@ -10,7 +10,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -31,10 +30,12 @@ internal fun RestoreObservedStatusHost(
 
     val terminal = status as? RestoreAppStatus.Terminal
     if (terminal != null && !routeOwnsRestoreOutcome) {
-        LaunchedEffect(terminal.requestId) { viewModel?.terminalWasShown(terminal.requestId) }
         RestoreObservedOutcomeDialog(
             terminal = terminal,
-            onDismiss = { viewModel?.dismissTerminal(terminal.requestId) },
+            onDismiss = {
+                viewModel?.terminalWasShown(terminal.requestId)
+                viewModel?.dismissTerminal(terminal.requestId)
+            },
         )
     }
 }
