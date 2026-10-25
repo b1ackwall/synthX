@@ -2,6 +2,7 @@ package com.v1per.synthx.data.repository
 
 import android.net.Uri
 import com.v1per.synthx.data.db.queryInBatches
+import com.v1per.synthx.data.repository.RepositoryDbFlow.retryOnFailure
 import android.util.Log
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.data.scanner.graduateSong as graduateSongFile
@@ -36,13 +37,15 @@ internal fun SongRepositoryImpl.getSongsForAlbumInternal(albumId: String): Flow<
 
 // Sort order (date_added DESC) and the starred filter stay in the DAO query;
 // this only resolves artist order, same as the other scoped song lists in this file.
+// A failed query or mapping is retried with backoff, so a collector keeps receiving updates
+// after a transient error instead of ending with it.
 internal fun SongRepositoryImpl.getStarredSongsInternal(): Flow<List<Song>> =
     RepositoryDbFlow.observe { songDao.getStarredSongs() }.map { details ->
         val refsBySongId = details.map { it.song.id }
             .queryInBatches(songDao::getSongArtistRefsForSongs)
             .groupBy { it.songId }
         details.map { it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
-    }.flowOn(Dispatchers.Default)
+    }.retryOnFailure(TAG, "starredFlow").flowOn(Dispatchers.Default)
 
 // Sort order (date_added DESC) and the limit stay in the DAO query;
 // this only resolves artist order, same as the other scoped song lists above.

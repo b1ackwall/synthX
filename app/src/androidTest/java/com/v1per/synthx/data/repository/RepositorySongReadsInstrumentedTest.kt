@@ -118,6 +118,47 @@ class RepositorySongReadsInstrumentedTest {
         assertEquals("the failed query was retried once", 2, calls.get())
     }
 
+    @Test fun starredListRecoversAfterOneDatabaseError() = runBlocking {
+        fx.song("s", title = "Survivor")
+        val calls = AtomicInteger()
+        val flakyDao = object : SongDao by fx.songDao {
+            override fun getStarredSongs(): Flow<List<SongWithDetails>> = if (calls.getAndIncrement() == 0) {
+                flow { throw IllegalStateException("simulated database error") }
+            } else {
+                fx.songDao.getStarredSongs()
+            }
+        }
+
+        val starred = awaitEmission(fx.repositoryWith(flakyDao).getStarredSongs(), "starred after one error") {
+            it.isNotEmpty()
+        }
+
+        assertEquals(listOf("Survivor"), starred.titles())
+        assertEquals("the failed query was retried once", 2, calls.get())
+    }
+
+    @Test fun starredListRecoversWhenTheQueryFailsAfterItHasEmitted() = runBlocking {
+        fx.song("s", title = "Survivor")
+        val calls = AtomicInteger()
+        val flakyDao = object : SongDao by fx.songDao {
+            override fun getStarredSongs(): Flow<List<SongWithDetails>> = if (calls.getAndIncrement() == 0) {
+                flow {
+                    emit(emptyList())
+                    throw IllegalStateException("simulated database error")
+                }
+            } else {
+                fx.songDao.getStarredSongs()
+            }
+        }
+
+        val starred = awaitEmission(fx.repositoryWith(flakyDao).getStarredSongs(), "starred after a late error") {
+            it.isNotEmpty()
+        }
+
+        assertEquals(listOf("Survivor"), starred.titles())
+        assertEquals("the failed query was retried once", 2, calls.get())
+    }
+
     @Test fun starredListHoldsOnlyStarredSongsNewestFirstMissingIncluded() = runBlocking {
         fx.song("old", dateAdded = 10)
         fx.song("filed", dateAdded = 20, starred = false)
