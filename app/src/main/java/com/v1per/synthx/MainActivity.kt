@@ -36,10 +36,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The real decision [MainActivity.runLaunchMaintenance] gates on — factored to file scope
- * (rather than inlined) purely so an instrumented test can exercise the actual condition
- * without needing to launch the full Activity. See [MainActivity.runLaunchMaintenance]'s kdoc
- * for why it exists.
+ * The decision [MainActivity.runLaunchMaintenance] gates on: onboarding is complete and no
+ * first-scan request is pending. Factored to file scope so a test can call the rule directly.
+ * MainActivityLaunchMaintenanceInstrumentedTest launches the real MainActivity and observes the
+ * effects. While the wizard is up, the art sweep flag stays set and no Issues scan is enqueued.
+ * Once onboarding is complete, the flag is consumed, a due Issues scan is enqueued, and launch
+ * scans are enqueued when a music folder is set. Those tests mark the daily backup as not due,
+ * so none asserts that the backup is skipped. See [MainActivity.runLaunchMaintenance]'s kdoc
+ * for why the gate exists.
  */
 internal fun shouldRunLaunchMaintenance(preferences: PreferencesManager): Boolean =
     // Also held off while the wizard's first scan is still pending. onboardingComplete flips
@@ -220,8 +224,8 @@ class MainActivity : ComponentActivity() {
     /**
      * Runs only after DatabaseStartupGate has granted process-wide Room permission.
      *
-     * Also gated on [PreferencesManager.onboardingComplete]. Recovery's own
-     * steps persist a music folder (and sometimes a backup folder) long before a restore
+     * Also gated by [shouldRunLaunchMaintenance]: onboarding complete and no first scan pending.
+     * Recovery's own steps persist a music folder (and sometimes a backup folder) long before a restore
      * actually succeeds — without this gate, an interrupted recovery relaunching straight back
      * into the wizard (see [resolveDatabaseStartup]) would still race this function's daily
      * backup and launch-scan chain against the just-picked folders on the very same launch,
