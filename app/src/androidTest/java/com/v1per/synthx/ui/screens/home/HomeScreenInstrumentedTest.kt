@@ -2,7 +2,7 @@ package com.v1per.synthx.ui.screens.home
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.perf.PerfTestTags
 import com.v1per.synthx.ui.testing.TestTimeouts
@@ -22,6 +22,6 @@ class HomeScreenInstrumentedTest {
     @Test fun homeShowsTheWordmark() {
         composeRule.setContent { SynthXTheme { HomeScreen() } }
         composeRule.onNodeWithTag(PerfTestTags.HomeScreen).assertExists()
-        composeRule.onNodeWithText("synthX").assertExists()
+        composeRule.onNodeWithContentDescription("synthX").assertExists()
     }
 }

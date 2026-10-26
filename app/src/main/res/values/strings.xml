@@ -29,6 +29,7 @@
     <string name="screen_artists">Artists</string>
     <string name="screen_albums">Albums</string>
     <string name="screen_playlists">Playlists</string>
+    <string name="cd_wordmark">synthX</string>
     <string name="screen_settings">Settings</string>
     <string name="screen_library_management">Library Management</string>
     <string name="screen_backups_and_restore">Backups and Restore</string>

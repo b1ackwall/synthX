@@ -193,7 +193,7 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
   5. Hairline (Color.kt: Accent at 8% alpha) for dividers, borders and the theme outline
 - The theme's primary and secondary are Accent, so a TextButton or other primary-coloured
   control without an explicit colour inherits it.
-- Outfit font (body/UI), Bitcount Grid Double (wordmark only).
+- Outfit font (body/UI). The wordmark is the fixed-colour vector drawable ic_wordmark (no font).
 - 2dp corner radius via MaterialTheme.shapes.small — single source of truth, don't hardcode radii.
 - Apple Music-inspired UX: smooth navigation, instant cut transitions (not slow fades).
 - "refined-instant-cut" navigation standard: ReadinessCoverOverlay (ui/components) wraps the

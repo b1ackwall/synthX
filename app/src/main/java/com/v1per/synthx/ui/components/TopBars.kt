@@ -15,8 +15,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.font.FontWeight
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Spacing
@@ -27,13 +25,7 @@ import com.v1per.synthx.ui.theme.TextPrimary
 internal fun SynthXTopBar(onSettingsClick: () -> Unit) {
     TopAppBar(
         title = {
-            Text(
-                text = rememberWordmark(),
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    platformStyle = PlatformTextStyle(includeFontPadding = false),
-                ),
-            )
+            Wordmark(heightStyle = MaterialTheme.typography.titleLarge)
         },
         actions = {
             IconButton(

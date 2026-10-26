@@ -7,18 +7,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tracing.Trace
 import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.perf.PerfTestTags
 import com.v1per.synthx.perf.PerfTraceSections
-import com.v1per.synthx.ui.components.rememberWordmark
+import com.v1per.synthx.ui.components.Wordmark
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Spacing
 
@@ -37,10 +35,7 @@ internal fun HomeScreen(viewModel: HomeViewModel = viewModel(factory = HomeViewM
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                Text(
-                    text = rememberWordmark(),
-                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                )
+                Wordmark(heightStyle = MaterialTheme.typography.titleLarge)
             }
         }
         if (BuildConfig.DEBUG) PlayerBackgroundDebugControls()
