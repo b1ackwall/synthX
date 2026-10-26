@@ -8,14 +8,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * The smoke scenario on the Home tab: tap the mini player to expand, system back to collapse.
- * Home's animated background keeps running under the mini player and stops only once the sheet
- * fully covers it, so this measures the sheet competing with that animation. The Library tab is
- * selected again afterwards.
- *
- * Moderately flaky: the background is time-driven, so frame counts differ between iterations;
- * if the system's animation scale is off, or the app's ambient motion policy holds the
- * background still, the result matches the Library variant instead.
+ * The expand/collapse smoke scenario on the Home tab: select Home once, then per iteration tap the
+ * mini player to expand the sheet and press system back to collapse it. Home fills with the solid
+ * `Background` colour and the wordmark, so nothing animated draws under the mini player; this
+ * measures the sheet over a static screen. The shared baseline selects the Library tab again after
+ * the run.
  */
 @RunWith(AndroidJUnit4::class)
 class PlayerHomeBenchmark {
