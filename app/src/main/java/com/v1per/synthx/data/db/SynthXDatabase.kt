@@ -250,6 +250,13 @@ abstract class SynthXDatabase : RoomDatabase() {
          */
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // Rebuilding albums with foreign keys on would set every songs.album_id to NULL.
+                // Room runs migrations with them off; a caller that did not fails here, not silently.
+                val foreignKeysOn = db.query("PRAGMA foreign_keys").use { it.moveToFirst() && it.getInt(0) == 1 }
+                check(!foreignKeysOn) {
+                    "MIGRATION_15_16 must run with PRAGMA foreign_keys = OFF; refusing to rebuild albums " +
+                        "because that would set songs.album_id to NULL for every song"
+                }
                 db.execSQL(
                     """
                     CREATE TEMP TABLE album_case_identity AS

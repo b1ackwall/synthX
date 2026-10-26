@@ -21,6 +21,8 @@ import com.v1per.synthx.ui.testing.TestTimeouts
 import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -113,9 +115,9 @@ class Migration15To16PinnedBehaviourTest {
         }
     }
 
-    /** PINNED (filed "foreign keys off"): the same step with foreign keys on unlinks every song. */
+    /** With foreign keys on, the step fails loudly before it touches anything: no song is unlinked. */
     @Test
-    fun pinnedStepWithForeignKeysOnWouldUnlinkEverySongFromItsAlbum() {
+    fun stepWithForeignKeysOnFailsLoudlyAndUnlinksNoSong() {
         val name = databaseName("fk-on")
         helper.createDatabase(name, 15).use(::seedLinkedSongs)
         val openHelper = FrameworkSQLiteOpenHelperFactory().create(
@@ -132,14 +134,31 @@ class Migration15To16PinnedBehaviourTest {
             db.execSQL("PRAGMA foreign_keys = ON")
             assertEquals(1, db.singleInt("PRAGMA foreign_keys"))
             db.beginTransaction()
-            try {
-                SynthXDatabase.MIGRATION_15_16.migrate(db)
-                db.setTransactionSuccessful()
+            val failure = try {
+                assertThrows(IllegalStateException::class.java) { SynthXDatabase.MIGRATION_15_16.migrate(db) }
             } finally {
                 db.endTransaction()
             }
-            assertEquals(mapOf("s1" to null, "s2" to null, "s3" to null), db.songAlbums())
+            assertTrue(failure.message.orEmpty(), failure.message.orEmpty().contains("foreign_keys"))
+            assertEquals(mapOf("s1" to "a-one", "s2" to "b-one", "s3" to "c-two"), db.songAlbums())
+            assertEquals(3, db.singleInt("SELECT COUNT(*) FROM albums"))
+        }
+    }
+
+    /** The restore-candidate builder runs the step with foreign keys off, so the guard does not fire. */
+    @Test
+    fun restoreCandidateBuilderRunsTheStepWithForeignKeysOffAndAlbumLinksSurvive() {
+        val name = databaseName("fk-standalone")
+        helper.createDatabase(name, 15).use(::seedLinkedSongs)
+        val standalone = SynthXDatabase.createStandalone(context, name)
+        try {
+            val db = standalone.openHelper.writableDatabase
+            assertEquals(16, db.singleInt("PRAGMA user_version"))
+            assertEquals(1, db.singleInt("PRAGMA foreign_keys"))
+            assertEquals(mapOf("s1" to "a-one", "s2" to "a-one", "s3" to "c-two"), db.songAlbums())
             assertEquals(2, db.singleInt("SELECT COUNT(*) FROM albums"))
+        } finally {
+            standalone.close()
         }
     }
 
