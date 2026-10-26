@@ -8,7 +8,7 @@ val Surface = Color(0xFF101811)
 val SurfaceVariant = Color(0xFF182519)
 
 // Brand
-val Accent = Color(0xFF1AE62B) // HSL(125, 80%, 50%) — electric neon green, the sacred color
+val Accent = Color(0xFF32CC3F) // HSL(125, 60%, 50%) — electric neon green, the sacred color
 val OnAccent = Color(0xFF0F2E12)
 
 // Text
