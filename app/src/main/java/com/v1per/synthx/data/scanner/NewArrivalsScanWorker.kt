@@ -54,10 +54,13 @@ class NewArrivalsScanWorker(appContext: Context, params: WorkerParameters) : Cor
             return Result.failure(workDataOf(KEY_ERROR to GRANT_REVOKED_MESSAGE))
         }
 
+        // Not walked (reconcileMissing is false); only lets the scan tell a Music copy from this root's.
+        val otherRoots = preferences.configuredAudioRootUris().filter { it != uri }
+
         return try {
             val result = WorkerDatabaseAccess.run {
                 SongRepositoryImpl.create(applicationContext)
-                    .scanLibrary(uri, reconcileMissing = false, isNewArrivalsRoot = true)
+                    .scanLibrary(uri, reconcileMissing = false, otherRootUris = otherRoots, isNewArrivalsRoot = true)
             }
             Log.d(TAG, "New arrivals scan complete: ${result.added} added, ${result.updated} updated")
             Result.success(scanOutputData(result, includeMissing = false))

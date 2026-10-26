@@ -24,13 +24,17 @@ import kotlin.random.Random
  *
  * Roots are ordinary directories. The scanner reaches them through its existing constructor
  * seams: [FolderScanner.rootResolver] maps a root's `file://` URI back to the directory, and the
- * directory query lists children sorted by name so walk order is fixed.
+ * directory query lists children sorted by name so walk order is fixed ([reverseWalk] flips it).
+ * Existence and root membership are answered from the plain files and `file://` prefixes.
  */
 internal class ScanTestFixture(private val context: Context) {
     val database: SynthXDatabase =
         Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
     private val base = File(context.cacheDir, "scan-fixture-${System.nanoTime()}").also { it.mkdirs() }
     private val roots = mutableMapOf<String, File>()
+
+    /** Lists children in descending name order, to prove outcomes do not depend on walk order. */
+    var reverseWalk = false
 
     val songDao get() = database.songDao()
     val playlistDao get() = database.playlistDao()
@@ -64,12 +68,22 @@ internal class ScanTestFixture(private val context: Context) {
         directoryQuery = DirectoryChildrenQuery { directory ->
             val dir = File(requireNotNull(directory.uri.path))
             DirectoryListing(
-                dir.listFiles().orEmpty().sortedBy { it.name }.map { child ->
+                dir.listFiles().orEmpty().sortedBy {
+                    it.name
+                }.let { if (reverseWalk) it.reversed() else it }.map { child ->
                     DirectoryChild(DocumentFile.fromFile(child), child.name, child.isDirectory)
                 },
                 complete = true,
             )
         },
+        documentExistenceProbe = DocumentExistenceProbe { uri ->
+            if (File(requireNotNull(uri.path)).exists()) {
+                DocumentExistence.Present
+            } else {
+                DocumentExistence.ConfirmedAbsent
+            }
+        },
+        rootMembership = { document, root -> document.toString().startsWith("$root/") },
     )
 
     /** Scans [root] the way the Music worker does, unless told it is New Arrivals. */

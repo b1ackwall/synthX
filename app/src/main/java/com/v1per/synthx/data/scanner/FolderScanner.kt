@@ -28,8 +28,8 @@ class FolderScanner internal constructor(
     internal val scanBodyForTest: (suspend () -> ScanResult)? = null,
     internal val rootResolver: (Uri) -> DocumentFile? = { isRootReachable(context, it) },
     internal val directoryQuery: DirectoryChildrenQuery = AndroidDirectoryChildrenQuery(context),
-    private val documentExistenceProbe: DocumentExistenceProbe = AndroidDocumentExistenceProbe(context),
-    private val rootMembership: suspend (Uri, Uri) -> Boolean = { document, root ->
+    internal val documentExistenceProbe: DocumentExistenceProbe = AndroidDocumentExistenceProbe(context),
+    internal val rootMembership: suspend (Uri, Uri) -> Boolean = { document, root ->
         RootNesting.isUnderRoot(context, document, root)
     },
 ) {

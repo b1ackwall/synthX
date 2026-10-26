@@ -188,6 +188,17 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                         var hashMismatchFlagged = 0
                         var errors = 0
 
+                        // Byte-identical copies share one id; the row follows one deterministic copy.
+                        val duplicateWinners = lowestPathPerDuplicatedId(extracted)
+                        val duplicateCopies = DuplicateCopyContext(
+                            scannedRootIsMusic = !isNewArrivalsRoot,
+                            primaryRoot = folderUri,
+                            otherRoots = otherRootUris,
+                            knownPresentPaths = foundPaths,
+                            existenceProbe = documentExistenceProbe,
+                            rootMembership = rootMembership,
+                        )
+
                         // Phase 2 — strictly in walk order, strictly sequential. Every ordering
                         // dependency here is load-bearing:
                         // album rows are minted by whichever song reaches them first and keep that
@@ -204,6 +215,12 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                             val id = data.id
                             if (id == null) {
                                 errors++
+                                continue
+                            }
+
+                            // A losing copy of content found twice in this scan: the winner is processed.
+                            if (duplicateWinners[id]?.let { it != path } == true) {
+                                unchanged++
                                 continue
                             }
 
@@ -224,6 +241,12 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                             if (existing != null) {
                                 when {
                                     existing.filePath != path -> {
+                                        // The stored copy still exists and outranks this one: leave the row.
+                                        val verdict = duplicateCopies.compare(existing, path)
+                                        if (verdict == DuplicateCopyVerdict.StoredCopyOutranks) {
+                                            unchanged++
+                                            continue
+                                        }
                                         // Check if another song already occupies this path — remove it
                                         // first to avoid UNIQUE constraint violation on file_path index
                                         val occupant = songDao.getSongByPath(path)
@@ -250,7 +273,12 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                                                 // content shows up at a new path, including a file
                                                 // moving between the main root and New Arrivals, and
                                                 // the flag must reflect where it lives *now*.
-                                                isStarred = isNewArrivalsRoot,
+                                                isStarred = if (verdict == DuplicateCopyVerdict.ScannedCopyOutranks) {
+                                                    // Both copies exist, so nothing moved: keep the user's star.
+                                                    existing.isStarred
+                                                } else {
+                                                    isNewArrivalsRoot
+                                                },
                                             ),
                                         )
                                         // A live playback engine still caches this id's OLD path baked
