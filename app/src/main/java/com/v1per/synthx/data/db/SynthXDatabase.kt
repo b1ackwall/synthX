@@ -247,6 +247,7 @@ abstract class SynthXDatabase : RoomDatabase() {
          * Makes album identity's case-insensitive title comparison index-backed. Before the
          * rebuild, confidently equivalent rows (same NOCASE title and derived primary artist)
          * are folded into the lexicographically first id and every song is repointed first.
+         * A survivor missing its year or art takes it from the lowest-id duplicate that has one.
          */
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -307,6 +308,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                             INNER JOIN album_case_merges AS merge
                                 ON merge.duplicate_id = duplicate.id
                             WHERE merge.survivor_id = albums.id AND duplicate.year IS NOT NULL
+                            ORDER BY duplicate.id
                             LIMIT 1
                         )),
                         album_art_uri = COALESCE(album_art_uri, (
@@ -315,6 +317,7 @@ abstract class SynthXDatabase : RoomDatabase() {
                                 ON merge.duplicate_id = duplicate.id
                             WHERE merge.survivor_id = albums.id
                                 AND duplicate.album_art_uri IS NOT NULL
+                            ORDER BY duplicate.id
                             LIMIT 1
                         ))
                     WHERE id IN (SELECT survivor_id FROM album_case_merges)

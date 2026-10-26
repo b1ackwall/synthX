@@ -80,16 +80,36 @@ class Migration15To16PinnedBehaviourTest {
     }
 
     /**
-     * PINNED (suspected "LIMIT 1 ordering"): with two duplicates that both have a year, the
-     * survivor's year comes from whichever duplicate SQLite reaches first, not from a rule.
-     * The same albums inserted in the opposite order give the survivor the other year.
+     * With two duplicates that both have a year, the survivor takes the year of the duplicate with
+     * the lowest id, whatever order the rows were inserted in.
      */
     @Test
-    fun pinnedYearDonorDependsOnRowOrderWhenSeveralDuplicatesHaveOne() {
-        val forward = mergedYear(listOf("b-dup" to 2001, "c-dup" to 2005))
-        val reverse = mergedYear(listOf("c-dup" to 2005, "b-dup" to 2001))
-        assertEquals("forward insertion order donor", 2001, forward)
-        assertEquals("reverse insertion order donor", 2005, reverse)
+    fun yearDonorIsTheLowestIdDuplicateInEitherInsertionOrder() {
+        val forward = mergedDonation(listOf(Donor("b-dup", year = 2001), Donor("c-dup", year = 2005)))
+        val reverse = mergedDonation(listOf(Donor("c-dup", year = 2005), Donor("b-dup", year = 2001)))
+        assertEquals("forward insertion order donor", 2001, forward.first)
+        assertEquals("reverse insertion order donor", 2001, reverse.first)
+    }
+
+    /** Same rule for the cover: the lowest-id duplicate that has one donates it, in either order. */
+    @Test
+    fun artDonorIsTheLowestIdDuplicateInEitherInsertionOrder() {
+        val forward =
+            mergedDonation(listOf(Donor("b-dup", art = "content://b-art"), Donor("c-dup", art = "content://c-art")))
+        val reverse =
+            mergedDonation(listOf(Donor("c-dup", art = "content://c-art"), Donor("b-dup", art = "content://b-art")))
+        assertEquals("forward insertion order donor", "content://b-art", forward.second)
+        assertEquals("reverse insertion order donor", "content://b-art", reverse.second)
+    }
+
+    /** Duplicates without a value are skipped: the lowest id that has one donates it. */
+    @Test
+    fun donorSkipsLowerIdDuplicatesThatHaveNoValue() {
+        val merged = mergedDonation(
+            listOf(Donor("b-dup"), Donor("d-dup", 2007, "content://d-art"), Donor("c-dup", 2005, "content://c-art")),
+        )
+        assertEquals(2005, merged.first)
+        assertEquals("content://c-art", merged.second)
     }
 
     /** PINNED (filed "foreign keys off"): Room runs the step with foreign keys off. */
@@ -162,22 +182,25 @@ class Migration15To16PinnedBehaviourTest {
         }
     }
 
-    private fun mergedYear(duplicates: List<Pair<String, Int>>): Int? {
+    private class Donor(val id: String, val year: Int? = null, val art: String? = null)
+
+    /** Merges the survivor "a-dup" (no year, no art) with [duplicates] and returns its year and art. */
+    private fun mergedDonation(duplicates: List<Donor>): Pair<Int?, String?> {
         val name = databaseName("donor")
         helper.createDatabase(name, 15).use { db ->
             db.insertArtist("one", "artist one")
             db.insertAlbum("a-dup", "Donor", null, null)
             db.insertSong("song-a", "a-dup")
             db.linkArtist("song-a", "one")
-            duplicates.forEach { (id, year) ->
-                db.insertAlbum(id, "DONOR", year, null)
-                db.insertSong("song-$id", id)
-                db.linkArtist("song-$id", "one")
+            duplicates.forEach { donor ->
+                db.insertAlbum(donor.id, "DONOR", donor.year, donor.art)
+                db.insertSong("song-${donor.id}", donor.id)
+                db.linkArtist("song-${donor.id}", "one")
             }
         }
         return migrate(name).use { db ->
             assertEquals(setOf("a-dup"), db.albums().keys)
-            db.albums().getValue("a-dup").second
+            db.albums().getValue("a-dup").let { it.second to it.third }
         }
     }
 
