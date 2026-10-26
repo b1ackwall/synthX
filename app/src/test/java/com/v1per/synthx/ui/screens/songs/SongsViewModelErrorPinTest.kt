@@ -8,7 +8,7 @@ import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.testing.FailOnceFlow
 import com.v1per.synthx.ui.testing.RecordingPlaybackEngine
 import com.v1per.synthx.ui.testing.TestTimeouts
-import com.v1per.synthx.ui.testing.withUncaughtExceptionsCaptured
+import com.v1per.synthx.ui.testing.withStubbedStringLookups
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -37,7 +37,7 @@ class SongsViewModelErrorPinTest {
     val testTimeout = TestTimeouts.jvm()
 
     @Test
-    fun pinnedAfterOneSongsFlowErrorTheListStopsUpdating() = withUncaughtExceptionsCaptured {
+    fun pinnedAfterOneSongsFlowErrorTheListStopsUpdating() = withStubbedStringLookups {
         val first = listOf(
             listSong("a", title = "b-title", artist = "A", album = "A", dateAdded = 2L),
             listSong("b", title = "a-title", artist = "A", album = "A", dateAdded = 1L),

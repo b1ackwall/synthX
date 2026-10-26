@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.testing.FailOnceFlow
 import com.v1per.synthx.ui.testing.TestTimeouts
-import com.v1per.synthx.ui.testing.withUncaughtExceptionsCaptured
+import com.v1per.synthx.ui.testing.withStubbedStringLookups
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -33,7 +33,7 @@ class SearchViewModelErrorPinTest {
     val testTimeout = TestTimeouts.jvm()
 
     @Test
-    fun pinnedAfterOneSongsFlowErrorSearchStopsAnsweringNewQueries() = withUncaughtExceptionsCaptured {
+    fun pinnedAfterOneSongsFlowErrorSearchStopsAnsweringNewQueries() = withStubbedStringLookups {
         val library = SearchLibrary()
         val drive = searchSong("s-drive", title = "Night Drive", artist = "Kavinsky")
         val songs = FailOnceFlow<List<Song>>(first = library.songs.value, afterRetry = library.songs.value + drive)

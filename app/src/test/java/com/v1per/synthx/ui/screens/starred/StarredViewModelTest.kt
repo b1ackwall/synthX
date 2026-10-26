@@ -10,7 +10,7 @@ import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.testing.FailOnceFlow
 import com.v1per.synthx.ui.testing.RecordingPlaybackEngine
 import com.v1per.synthx.ui.testing.TestTimeouts
-import com.v1per.synthx.ui.testing.withUncaughtExceptionsCaptured
+import com.v1per.synthx.ui.testing.withStubbedStringLookups
 import java.lang.reflect.Proxy
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.Dispatchers
@@ -84,7 +84,7 @@ class StarredViewModelTest {
 
     /** PINNED (bug "Search, Songs and Starred stop updating after one error"); see the Songs pin. */
     @Test
-    fun pinnedAfterOneStarredFlowErrorTheListStopsUpdating() = withUncaughtExceptionsCaptured {
+    fun pinnedAfterOneStarredFlowErrorTheListStopsUpdating() = withStubbedStringLookups {
         val songs = FailOnceFlow(first = starred, afterRetry = starred + starredSong("new", dateAdded = 9L))
         withViewModel(songs.flow) { vm, _ ->
             val before = awaitLoaded(vm)
