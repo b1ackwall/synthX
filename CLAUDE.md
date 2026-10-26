@@ -156,8 +156,9 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
        note above ALL_MIGRATIONS in SynthXDatabase.kt. Treat it as an exceptional,
        carefully reviewed decision, not routine practice. Existing destructive legs: 2-to-3
        and 3-to-4 wipe song-derived data (before the app held real user data), 6-to-7 drops
-       listen_history and two songs columns, 11-to-12 recreates the two queue tables empty,
-       15-to-16 merges case-duplicate albums. All other legs are additive. This app now
+       listen_history and two songs columns, 11-to-12 recreates the two queue tables empty
+       and clears the cursor's slot id (position and shuffle/repeat are kept), 15-to-16 merges
+       case-duplicate albums (repoints their songs, deletes the duplicate rows). All other legs are additive. This app now
        holds years of hand-curated user data with no external backup of future changes.
     Also grep for tests that hardcode the *current* schema's Room identity hash as a
     literal (e.g. BackupPrimitivesTest's "schema contracts resolve current and known

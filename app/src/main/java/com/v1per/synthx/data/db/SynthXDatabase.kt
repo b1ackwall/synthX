@@ -360,9 +360,10 @@ abstract class SynthXDatabase : RoomDatabase() {
          * MIGRATION_2_3 and MIGRATION_3_4 wiped song-derived data for hash-strategy and
          * artist-splitting changes before this app held real user data. MIGRATION_6_7 drops
          * the listen_history table and the two never-written songs columns verified and
-         * verified_at. MIGRATION_11_12 only
-         * wipes the two transient queue-order tables because old rows have no stable slot id;
-         * it preserves the library and playlist data. MIGRATION_15_16 merges albums whose
+         * verified_at. MIGRATION_11_12 recreates the two transient queue-order tables empty
+         * because old rows have no stable slot id, and rebuilds playback_cursor with its slot id
+         * NULL (position and shuffle/repeat are kept); the library and playlist data are
+         * preserved. MIGRATION_15_16 merges albums whose
          * titles match ignoring case and that share a derived primary artist: it repoints their
          * songs to the surviving row, fills that row's missing year or art from a duplicate,
          * then deletes the duplicate album rows. Destructive treatment must remain an explicit
