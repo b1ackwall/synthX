@@ -32,7 +32,4 @@
 
     <!-- Raising targetSdk to 37 is tracked in #247. -->
     <issue id="OldTargetApi" severity="ignore" />
-
-    <!-- A themed (monochrome) launcher icon is tracked in #355. -->
-    <issue id="MonochromeLauncherIcon" severity="ignore" />
 </lint>

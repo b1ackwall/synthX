@@ -108,17 +108,14 @@ class SynthXPlaybackService : MediaLibraryService() {
 
         // Branded channel name/id instead of media3's generated default ("Now playing"), so
         // the channel the user sees in system notification settings actually reads as synthX.
-        // The small icon and play/pause/skip actions are left on media3's own default
-        // provider — a proper monochrome status-bar icon asset doesn't exist yet in res/
-        // (ic_launcher_foreground is full-color, not status-bar-safe), and custom actions
-        // have no concrete design yet. Revisit once a real status-bar
-        // icon is designed.
-        setMediaNotificationProvider(
-            DefaultMediaNotificationProvider.Builder(this)
-                .setChannelId(PLAYBACK_CHANNEL_ID)
-                .setChannelName(R.string.playback_channel_name)
-                .build(),
-        )
+        // The status-bar small icon is the monochrome ic_notification; actions stay on media3's
+        // defaults.
+        val notificationProvider = DefaultMediaNotificationProvider.Builder(this)
+            .setChannelId(PLAYBACK_CHANNEL_ID)
+            .setChannelName(R.string.playback_channel_name)
+            .build()
+        notificationProvider.setSmallIcon(R.drawable.ic_notification)
+        setMediaNotificationProvider(notificationProvider)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = mediaLibrarySession

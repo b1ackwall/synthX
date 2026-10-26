@@ -3,7 +3,7 @@ package com.v1per.synthx.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // Structure
-val Background = Color(0xFF080C09)
+val Background = Color(0xFF080C09) // HSL(135, 20%, 4%) RGB #080C09
 val Surface = Color(0xFF101811)
 val SurfaceVariant = Color(0xFF182519)
 
