@@ -100,6 +100,19 @@ internal fun failOnceAt(point: RestoreFaultPoint): RestoreFaultInjector {
     }
 }
 
+/**
+ * Records every point hit, in order, and throws "Injected <point>" on each hit of [failAt] (never when null),
+ * so a test can prove the fault point was reached as well as what the failure left behind.
+ */
+internal class RecordingFaults(private val failAt: RestoreFaultPoint? = null) : RestoreFaultInjector {
+    val hits = mutableListOf<RestoreFaultPoint>()
+
+    override fun hit(point: RestoreFaultPoint) {
+        hits += point
+        if (point == failAt) error("Injected $point")
+    }
+}
+
 /** Fails once at [trigger] (to reach a rollback path), then once at [point]. */
 internal fun failAfterTrigger(trigger: RestoreFaultPoint, point: RestoreFaultPoint): RestoreFaultInjector {
     val first = failOnceAt(trigger)

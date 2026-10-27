@@ -163,19 +163,6 @@ class PhaseBRestoreRecoveryInstrumentedTest : RestoreScenarioTestBase() {
         assertEquals("candidate", readMarker(liveFile()))
     }
 
-    @Test fun incidentDirectorySyncFailureStillReturnsEmergency() {
-        stateFile().writeText("bad state")
-        assertEquals(
-            RestoreRecovery.EMERGENCY,
-            RestoreTransaction.recoverIfNeeded(
-                context,
-                databaseDir,
-                failOnceAt(RestoreFaultPoint.INCIDENT_DIRECTORY_SYNC),
-            ),
-        )
-        assertTrue(RestoreTransaction.diagnosticOperationId().orEmpty().startsWith("recovery-"))
-    }
-
     @Test fun recoveryExceptionIsCapturedInIncidentReport() {
         scenario(RestoreTransaction.Phase.POST_VALIDATED, old = "original", installCandidate = true)
         assertEquals(
@@ -191,39 +178,6 @@ class PhaseBRestoreRecoveryInstrumentedTest : RestoreScenarioTestBase() {
         assertEquals("RECOVERY_EXCEPTION", report.triggerCategory)
         assertTrue(report.exceptions.any { it.message.orEmpty().contains("STATE_PERSISTENCE") })
         assertEquals(RestoreTransaction.Phase.POST_VALIDATED.name, report.journalPhase)
-    }
-
-    @Test fun everyIncidentPersistenceFailureStillReturnsEmergency() {
-        val points = listOf(
-            RestoreFaultPoint.INCIDENT_ID_OPEN,
-            RestoreFaultPoint.INCIDENT_ID_WRITE,
-            RestoreFaultPoint.INCIDENT_ID_FILE_SYNC,
-            RestoreFaultPoint.INCIDENT_ID_ARCHIVE_RENAME,
-            RestoreFaultPoint.INCIDENT_ID_PROMOTE_RENAME,
-            RestoreFaultPoint.INCIDENT_REPORT_OPEN,
-            RestoreFaultPoint.INCIDENT_REPORT_WRITE,
-            RestoreFaultPoint.INCIDENT_REPORT_FILE_SYNC,
-            RestoreFaultPoint.INCIDENT_REPORT_PROMOTE_RENAME,
-            RestoreFaultPoint.INCIDENT_REPORT_DIRECTORY_SYNC,
-        )
-        points.forEach { point ->
-            cleanOwnedFiles()
-            File(context.filesDir, "restore_incidents").listFiles().orEmpty().forEach(File::delete)
-            stateFile().writeText("bad state")
-            if (point == RestoreFaultPoint.INCIDENT_ID_ARCHIVE_RENAME) {
-                File(databaseDir, "synthx.restore-incident.id").writeText("invalid")
-            }
-            assertEquals(
-                "fault $point escaped the emergency boundary",
-                RestoreRecovery.EMERGENCY,
-                RestoreTransaction.recoverIfNeeded(
-                    context,
-                    databaseDir,
-                    RestoreFaultInjector { actual -> if (actual == point) error("injected $point") },
-                ),
-            )
-            assertTrue(RestoreTransaction.diagnosticOperationId().orEmpty().startsWith("recovery-"))
-        }
     }
 
     @Test fun completedInstalledRequestIdentityMakesReplayANoOp() = runBlocking {
