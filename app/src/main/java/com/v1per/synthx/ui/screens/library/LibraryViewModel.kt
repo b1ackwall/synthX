@@ -67,8 +67,8 @@ class LibraryViewModel(
             appContext.resources.getQuantityString(id, quantity, *args)
     }
 
-    // One-shot results of a pull-to-refresh, shown as a snackbar. Buffered so a result that lands
-    // while the screen is between compositions is delivered on resubscribe.
+    // One-shot results of a pull-to-refresh, shown as a snackbar. Replay is 0: a result emitted while
+    // no collector is running is dropped. The four-slot buffer only serves an active collector.
     private val _refreshMessages = MutableSharedFlow<String>(
         extraBufferCapacity = 4,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
