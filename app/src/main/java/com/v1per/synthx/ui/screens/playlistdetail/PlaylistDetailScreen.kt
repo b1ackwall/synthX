@@ -64,7 +64,7 @@ fun PlaylistDetailScreen(
     }
 }
 
-// Split from PlaylistDetailScreen so it can be composed without a PlaybackViewModel.
+// Takes the screen's state directly so it can be composed without a PlaybackViewModel.
 @Composable
 internal fun PlaylistDetailContent(
     uiState: UiState<PlaylistDetailData>,

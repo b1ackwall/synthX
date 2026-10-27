@@ -193,7 +193,7 @@ open class BackupManager(internal val context: Context) {
     }
 
     /**
-     * Split out from [publishExistingSnapshot] so tests can supply a real, file-backed
+     * Takes the tier directory so tests can supply a real, file-backed
      * [DocumentFile] tier directory (as [classifyBackupList] already does for listing) instead of
      * needing a genuine SAF tree grant, which [resolveTierDir] requires.
      */

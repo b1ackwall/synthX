@@ -163,7 +163,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
 }
 
 /**
- * Split out of [onPlayerError] purely so its content is unit-testable without a real
+ * Separate from [onPlayerError] purely so its content is unit-testable without a real
  * `MediaController`/`Player.Listener` — [error]'s code/cause is the whole point of this log line
  * (see [onPlayerError]'s kdoc for why the snackbar it feeds can't carry the same detail).
  */

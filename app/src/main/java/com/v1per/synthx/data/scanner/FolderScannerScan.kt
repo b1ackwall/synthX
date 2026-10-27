@@ -441,7 +441,7 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                 // pass with byte-identical content — that re-insert already committed fresh art under
                 // this same id. Deleting unconditionally here would strip that just-written art out
                 // from under the resurrected row. A genuinely, permanently evicted id has no row left
-                // and still gets cleaned up as before.
+                // and is cleaned up.
                 //
                 // Extraction-phase art joins the same reconciliation, minus the ids that actually
                 // became rows: phase 1 writes art before it can know whether the row will really be

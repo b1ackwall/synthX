@@ -60,7 +60,7 @@ fun AlbumDetailScreen(
     }
 }
 
-// Split from AlbumDetailScreen so it can be composed without a PlaybackViewModel.
+// Takes the screen's state directly so it can be composed without a PlaybackViewModel.
 @Composable
 internal fun AlbumDetailContent(
     uiState: UiState<AlbumDetailData>,

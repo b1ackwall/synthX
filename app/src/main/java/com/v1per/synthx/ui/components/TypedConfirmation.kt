@@ -24,7 +24,7 @@ import androidx.compose.ui.res.stringResource
  * whitespace is tolerated because a soft keyboard's auto-space after a word is not the user
  * failing to confirm.
  *
- * A pure function, split from [TypedConfirmationField] so callers can drive a button's `enabled`
+ * A pure function, separate from [TypedConfirmationField] so callers can drive a button's `enabled`
  * from it without duplicating the rule — and so the rule itself is unit-testable.
  */
 fun typedConfirmationMatches(typed: String, requiredWord: String): Boolean = typed.trim() == requiredWord

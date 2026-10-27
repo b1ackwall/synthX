@@ -65,13 +65,9 @@ private enum class QueueRowSwipe { StartToEnd, Settled, EndToStart }
  * Release past half the row's own width confirms; release before it reverts. Top-level so
  * [AnchoredDraggableDefaults.flingBehavior]'s `remember` key stays stable across recompositions.
  *
- * The velocity threshold is not ours to set. Compose Foundation 1.12.0 moved
- * fling configuration into [AnchoredDraggableDefaults.flingBehavior], which hardcodes a 125.dp/s
- * velocity threshold (above it, any release dismisses regardless of distance) and never decays.
- * The deprecated constructor took `velocityThreshold = 1200.dp` ("crosses a whole
- * row in a third of a second" — above an unhurried drag-and-lift, below a genuine flick) and
- * `decayAnimationSpec = exponentialDecay()`. If 125.dp/s causes accidental dismissals, these
- * cannot simply be restored here — the option is a custom fling behavior.
+ * The velocity threshold is [AnchoredDraggableDefaults.flingBehavior]'s hardcoded 125.dp/s
+ * (above it, any release dismisses regardless of distance), and it never decays. If 125.dp/s
+ * causes accidental dismissals, the way to change it is a custom fling behavior.
  */
 private val SwipePositionalThreshold: (Float) -> Float = { totalDistance -> totalDistance * 0.5f }
 

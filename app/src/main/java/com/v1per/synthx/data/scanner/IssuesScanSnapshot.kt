@@ -3,7 +3,7 @@ package com.v1per.synthx.data.scanner
 /**
  * One issues-scan result, as plain data — no Android, no WorkManager, no SharedPreferences.
  *
- * Split out of [IssuesScanWorker] so the two things that are easy to get quietly wrong are
+ * Separate from [IssuesScanWorker] so the two things that are easy to get quietly wrong are
  * testable on their own: what the status line's issue count is composed of, and what order the
  * cached missing-art ids come back in. The worker's job is then only to gather the inputs and
  * hand the result to [com.v1per.synthx.preferences.PreferencesManager].

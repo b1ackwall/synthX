@@ -237,13 +237,9 @@ fun rememberQueueModeState(
     // specifically — any other queue change (drag-reorder, add/remove) leaves the flag false
     // and this effect no-ops.
     //
-    // Known edge case: if a shuffle happens to produce byte-identical ordering (only
-    // realistically possible on very small queues), upcomingQueue's StateFlow won't re-emit a
-    // structurally-different value, this effect never reruns, and the flag stays pending until
-    // the next unrelated queue change consumes it — a rare, low-severity false-positive
-    // scroll-to-top, not a crash or data issue. Not guarded against here; flagged for awareness
-    // rather than added complexity, since it requires an already rare shuffle outcome on an
-    // already-small queue.
+    // A shuffle that yields an identical ordering (only realistic on very small queues) does not
+    // re-emit upcomingQueue, so this effect does not rerun and the flag stays pending until the next
+    // queue change, which then scrolls to the top.
     LaunchedEffect(upcomingQueue) {
         if (state.pendingShuffleScrollReset) {
             state.pendingShuffleScrollReset = false

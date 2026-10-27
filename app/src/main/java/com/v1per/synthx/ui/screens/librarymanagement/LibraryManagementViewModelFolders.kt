@@ -213,7 +213,7 @@ private suspend fun LibraryManagementViewModel.releaseGrantWhenIdle(uri: Uri) {
  * Kept as the wider set rather than something per-root: this one function serves both roots
  * and [rejectIfNested]'s rejected candidate, and naming a flag that was never held is not an
  * error — the platform releases the intersection of what is asked for and what is actually
- * persisted, so a grant predating the write widening still releases cleanly.
+ * persisted, so a grant held read-only still releases cleanly.
  */
 private fun LibraryManagementViewModel.releaseGrant(uri: Uri) {
     try {

@@ -28,9 +28,8 @@ internal class PlaylistArtRole(val saturation: Float, val targetOkLabLightness: 
     fun hslLightness(hue: Float): Float = solveHslLightness(hue, saturation, targetOkLabLightness)
 }
 
-// Targets are the means of the original fixed-HSL colours (hsl(h, 0.5, 0.2), hsl(h, 0.8, 0.8),
-// hsl(h, 0.3, 0.5)) over the old 90-hue palette, so a cover's overall brightness stays where it
-// was and only the hue-to-hue drift (OkLab L 0.75-0.95 for the bright stroke end) is removed.
+// Each target is the OkLab lightness a role should look like at every hue, so a cover's brightness
+// does not drift from hue to hue (the bright stroke end would otherwise span OkLab L 0.75-0.95).
 internal val LitStartRole = PlaylistArtRole(saturation = 0.5f, targetOkLabLightness = 0.335f)
 internal val LitEndRole = PlaylistArtRole(saturation = 0.8f, targetOkLabLightness = 0.854f)
 internal val DiamondRole = PlaylistArtRole(saturation = 0.3f, targetOkLabLightness = 0.611f)

@@ -35,7 +35,7 @@ internal sealed interface GraduationCleanupResult {
 
 /**
  * Copies [source] into [destinationRoot] under a temp name, computing a digest of the bytes as
- * they're streamed across. Split out from verification/publication (below) so a test can corrupt
+ * they're streamed across. Separate from verification/publication (below) so a test can corrupt
  * the resulting temp document's actual on-disk bytes — simulating a provider that persists
  * something other than what it was handed — and confirm the copy-integrity check in
  * [verifyAndPublishGraduationTemp] catches that divergence.

@@ -199,7 +199,7 @@ internal suspend fun SongRepositoryImpl.runPostCommitCleanup(
 /**
  * The after-commit half of a complete delete, shared by [deleteSong] and [replaceSong].
  *
- * Extracted rather than having [replaceSong] call [deleteSong]: that one opens its own
+ * [replaceSong] does not call [deleteSong] because that one opens its own
  * `database.withTransaction`, and [replaceSong]'s membership transplant plus row delete have
  * to be a single atomic unit — so the transaction-scoped part ([deleteSongRowWithArtRepoint])
  * and this out-of-transaction part are called separately by each caller, which also keeps the

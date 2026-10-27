@@ -56,7 +56,7 @@ internal object ArtRecovery {
      * that variant was never produced in the first place (a legitimate partial original
      * extraction outcome, see [com.v1per.synthx.data.scanner.AlbumArtExtractor]), not something
      * to recover. A song with `isMissing = true` (its audio file itself is gone) is never
-     * included — there is no source to re-extract art from. Split out from the [Context]-taking
+     * included — there is no source to re-extract art from. Separate from the [Context]-taking
      * overload below so it's testable with plain fakes, no Android framework involved.
      */
     internal fun findMissingArt(
@@ -163,9 +163,9 @@ internal object ArtRecovery {
      * either half coming back null (a fresh extraction failure, or simply a variant this song
      * never had) must never erase the OTHER field's still-good existing value, and must never
      * overwrite an already-good value with a fresh null either: each field only changes when
-     * this attempt actually produced a new non-null URI for it. Split out from [recoverOneSong]
+     * this attempt actually produced a new non-null URI for it. Separate from [recoverOneSong]
      * so the merge itself is testable with a plain fake, no Android framework involved — same
-     * shape as [findMissingArt]'s split.
+     * shape as [findMissingArt].
      */
     internal fun mergeArtRecoveryResult(current: SongEntity, compressedUri: String?, fullArtUri: String?): SongEntity =
         current.copy(
@@ -240,7 +240,7 @@ internal object ArtRecovery {
 
     /**
      * Real [extractArt] implementation: resolve [song]'s source document and pull embedded art
-     * out of it via [AlbumArtExtractor.extract]. Split out from [recoverOneSong] purely so the
+     * out of it via [AlbumArtExtractor.extract]. Separate from [recoverOneSong] purely so the
      * latter is testable against an injected fake — see [recover]'s kdoc.
      */
     private suspend fun defaultExtractArt(context: Context, song: SongEntity): Pair<String?, String?>? {

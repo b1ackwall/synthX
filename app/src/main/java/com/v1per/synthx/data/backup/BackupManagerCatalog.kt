@@ -6,7 +6,7 @@ import com.v1per.synthx.data.db.SynthXDatabase
 // BackupManager's reads and pruning of what is already in the backup folder.
 
 /**
- * Split out from [listBackups] so tests can supply a real, file-backed [DocumentFile] root
+ * Takes the root as a parameter so tests can supply a real, file-backed [DocumentFile]
  * (as [SafBackupPublisherInstrumentedTest] already does via `DocumentFile.fromFile`) instead
  * of needing a genuine SAF tree grant, which `DocumentFile.fromTreeUri` requires.
  */

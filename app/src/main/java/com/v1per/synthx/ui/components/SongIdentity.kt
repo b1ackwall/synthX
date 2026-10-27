@@ -26,7 +26,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 /**
  * Artwork + title + artist, the shared visual identity of a song.
  *
- * Extracted from SongRow so the actions sheet header shows exactly what the row shows.
+ * Shared by SongRow and the actions sheet header, so both show exactly the same thing.
  * Deliberately owns neither the missing-song dimming nor any layout weight — callers
  * apply `.alpha()` and `.weight()` themselves, since those belong to the containing row.
  */

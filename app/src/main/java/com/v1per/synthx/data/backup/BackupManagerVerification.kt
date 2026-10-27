@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
 // BackupManager's paths that stage a published backup locally and inspect it.
 
 /**
- * Split out from [verifyMostRecentBackup] so tests can supply a [BackupListResult] directly
+ * Takes a [BackupListResult] so tests can supply one directly
  * — real [BackupInfo] entries built with `file://` URIs and a genuine SQLite backup file —
  * the same technique [classifyBackupList] uses to avoid needing a genuine SAF tree grant.
  */
