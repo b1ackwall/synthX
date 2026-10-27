@@ -1,6 +1,5 @@
 package com.v1per.synthx.ui.screens.onboarding
 
-import android.annotation.SuppressLint
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -35,8 +34,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /** Uses isolated preferences and a repository stub; never restores over the app database. */
-// Test-only restricted API use; there is no public equality-based alternative.
-@SuppressLint("RestrictedApi")
 @RunWith(AndroidJUnit4::class)
 class OnboardingRecoveryInstrumentedTest : OnboardingRecoveryTestBase() {
 

@@ -77,8 +77,6 @@ import org.junit.Test
 import org.junit.rules.TestName
 
 /** Uses isolated preferences and a repository stub; never restores over the app database. */
-// Test-only restricted API use; there is no public equality-based alternative.
-@SuppressLint("RestrictedApi")
 abstract class OnboardingRecoveryTestBase {
     @get:Rule(order = TestTimeouts.RULE_ORDER)
     val testTimeout = TestTimeouts.device()
@@ -114,7 +112,11 @@ abstract class OnboardingRecoveryTestBase {
     protected val music = "content://synthx.test.music/tree/primary%3AMusic".toUri()
     protected val arrivals = "content://synthx.test.arrivals/tree/primary%3AArrivals".toUri()
 
-    @Before fun setUp() {
+    // ViewModelStore.put is restricted to the androidx.lifecycle library group; the test seeds the store with its
+    // own view models so the wizard routes reuse them.
+    @SuppressLint("RestrictedApi")
+    @Before
+    fun setUp() {
         TestWorkManager.ensureInitialized(context)
         // Done and restore-confirm put the notification rationale in front of the user
         // once. Every test below that isn't about that rationale drives the wizard as if it had
@@ -376,6 +378,9 @@ abstract class OnboardingRecoveryTestBase {
      * Activity with a brand new NavHostController and backstack, while [preferences]' backing
      * SharedPreferences file — the one thing that actually survives — is left untouched.
      */
+    // ViewModelStore.put is restricted to the androidx.lifecycle library group; the test seeds the store with its
+    // own view models so the wizard routes reuse them.
+    @SuppressLint("RestrictedApi")
     protected fun relaunchWizardAfterSimulatedProcessDeath() {
         val repository = emptyRepository()
         composeRule.runOnUiThread {
