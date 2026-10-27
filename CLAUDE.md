@@ -79,7 +79,6 @@ Packages under app/src/main/java/com/v1per/synthx/:
 - data/playlistart/ - generated playlist cover art support (hue selection, palette helpers, backfill for playlists that predate the art columns). The drawing itself lives in ui/components/PlaylistArt*.kt
 - data/repository/ - domain models, SongRepository/SongRepositoryImpl (override bodies in SongRepositoryImpl*.kt siblings), and the admission wrappers RepositoryDbOperation/RepositoryDbFlow (see Architecture - do not bypass these)
 - data/scanner/ - FolderScanner (scan body in FolderScannerScan.kt), scan workers, HashUtils (SHA-256 fingerprinting)
-- glitch/ - glitch pattern generation
 - navigation/ - Screen.kt (nav routes)
 - perf/ - perf trace section names and test tags shared by app code and benchmarks
 - playback/ - PlaybackEngine -> ExoPlayerEngine (split across ExoPlayerEngine*.kt siblings) -> PlaybackController -> PlaybackViewModel, SynthXPlaybackService, QueuePersistence

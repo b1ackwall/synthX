@@ -44,6 +44,8 @@ fun SongIdentity(song: Song, modifier: Modifier = Modifier) {
             AsyncImage(
                 model = crossfadeModel(song.albumArtUri),
                 contentDescription = null,
+                error = ArtPlaceholderPainter,
+                fallback = ArtPlaceholderPainter,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(ArtSizes.Song)

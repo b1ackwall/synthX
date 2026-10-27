@@ -2,12 +2,15 @@ package com.v1per.synthx.playback
 
 import android.annotation.SuppressLint
 import android.net.Uri
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.QueueSlot
+import com.v1per.synthx.ui.theme.SurfaceVariant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -52,6 +55,9 @@ internal fun ExoPlayerEngine.prefetchArtwork() {
     }
 }
 
+/** Edge of the flat square embedded for a song with no readable art. */
+private const val FALLBACK_ARTWORK_PX = 256
+
 /**
  * Load artwork bytes in-process and embed directly — cross-process consumers
  * (notification, lock screen, Android Auto) cannot read our app-private files, so an
@@ -72,7 +78,9 @@ internal suspend fun ExoPlayerEngine.buildArtworkData(song: Song): ByteArray {
 
     return withContext(Dispatchers.Default) {
         artworkBytes ?: run {
-            val bitmap = GlitchBitmapGenerator.generateGlitchBitmap(song.id)
+            val bitmap = createBitmap(FALLBACK_ARTWORK_PX, FALLBACK_ARTWORK_PX).apply {
+                eraseColor(SurfaceVariant.toArgb())
+            }
             val stream = ByteArrayOutputStream()
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
             bitmap.recycle()

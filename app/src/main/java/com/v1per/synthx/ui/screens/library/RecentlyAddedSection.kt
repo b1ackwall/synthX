@@ -39,6 +39,7 @@ import coil.compose.AsyncImage
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.components.ArtPlaceholder
+import com.v1per.synthx.ui.components.ArtPlaceholderPainter
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Motion
@@ -243,6 +244,8 @@ private fun RecentSongTile(song: Song, onClick: () -> Unit, modifier: Modifier =
             AsyncImage(
                 model = crossfadeModel(song.albumArtUri),
                 contentDescription = null,
+                error = ArtPlaceholderPainter,
+                fallback = ArtPlaceholderPainter,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()

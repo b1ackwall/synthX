@@ -61,6 +61,7 @@ import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.ArtPlaceholder
+import com.v1per.synthx.ui.components.ArtPlaceholderPainter
 import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.components.SongRow
 import com.v1per.synthx.ui.components.crossfadeModel
@@ -410,6 +411,8 @@ private fun AlbumResultRow(album: Album, onClick: () -> Unit) {
                 AsyncImage(
                     model = crossfadeModel(album.albumArtUri),
                     contentDescription = null,
+                    error = ArtPlaceholderPainter,
+                    fallback = ArtPlaceholderPainter,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(ArtSizes.Album)

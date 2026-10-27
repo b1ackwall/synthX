@@ -39,6 +39,7 @@ import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.Album
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.ArtPlaceholder
+import com.v1per.synthx.ui.components.ArtPlaceholderPainter
 import com.v1per.synthx.ui.components.LoadingIndicator
 import com.v1per.synthx.ui.components.crossfadeModel
 import com.v1per.synthx.ui.theme.Accent
@@ -136,6 +137,8 @@ private fun AlbumRow(album: Album, onClick: () -> Unit) {
                 AsyncImage(
                     model = crossfadeModel(album.albumArtUri),
                     contentDescription = null,
+                    error = ArtPlaceholderPainter,
+                    fallback = ArtPlaceholderPainter,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(ArtSizes.Album)

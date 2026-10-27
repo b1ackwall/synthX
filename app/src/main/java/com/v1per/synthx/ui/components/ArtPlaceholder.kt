@@ -7,6 +7,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.Dp
 import com.v1per.synthx.ui.theme.ArtSizes
 import com.v1per.synthx.ui.theme.SurfaceVariant
@@ -21,3 +23,9 @@ fun ArtPlaceholder(modifier: Modifier = Modifier, size: Dp = ArtSizes.Song) {
             .background(SurfaceVariant),
     )
 }
+
+/**
+ * The flat SurfaceVariant square as a [Painter], for an image's error and fallback slots: art that
+ * is missing or cannot be read draws the same pixels as [ArtPlaceholder] instead of a hole.
+ */
+internal val ArtPlaceholderPainter: Painter = ColorPainter(SurfaceVariant)

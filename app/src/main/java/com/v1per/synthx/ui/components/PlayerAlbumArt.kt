@@ -38,6 +38,8 @@ fun PlayerAlbumArt(
             AsyncImage(
                 model = crossfadeModel(artUri, original = fullResolution),
                 contentDescription = null,
+                error = ArtPlaceholderPainter,
+                fallback = ArtPlaceholderPainter,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
