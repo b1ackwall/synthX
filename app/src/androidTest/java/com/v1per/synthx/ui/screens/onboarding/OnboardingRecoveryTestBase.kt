@@ -127,13 +127,7 @@ abstract class OnboardingRecoveryTestBase {
         workManager.cancelUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).result.get()
         workManager.pruneWork().result.get()
         RestorePermitLeakCheck.assertDrainedThenReset()
-        val repository = Proxy.newProxyInstance(
-            SongRepository::class.java.classLoader,
-            arrayOf(SongRepository::class.java),
-        ) { _, method, _ ->
-            check(method.name == "getMissingSongCount") { "Unexpected repository access: ${method.name}" }
-            flowOf(0)
-        } as SongRepository
+        val repository = emptyRepository()
         preferences.lastBackupAttemptTimestamp = 123L
         persistedGrants.clear()
         releasedGrants.clear()
@@ -383,13 +377,7 @@ abstract class OnboardingRecoveryTestBase {
      * SharedPreferences file — the one thing that actually survives — is left untouched.
      */
     protected fun relaunchWizardAfterSimulatedProcessDeath() {
-        val repository = Proxy.newProxyInstance(
-            SongRepository::class.java.classLoader,
-            arrayOf(SongRepository::class.java),
-        ) { _, method, _ ->
-            check(method.name == "getMissingSongCount") { "Unexpected repository access: ${method.name}" }
-            flowOf(0)
-        } as SongRepository
+        val repository = emptyRepository()
         composeRule.runOnUiThread {
             library = LibraryManagementViewModel(
                 context,
