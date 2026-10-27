@@ -84,8 +84,8 @@ class PlaybackViewModel(
     val currentSongId: StateFlow<String?> = controller.currentSongId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    // Eager twin of currentSongId for hasActivePlayback, which reads .value synchronously on
-    // screens that never collect currentSongId (playlist detail): there the lazy one stays null.
+    // Eager twin of currentSongId for hasActivePlayback and isAlreadyQueued, which read .value
+    // synchronously on screens that never collect currentSongId: there the lazy one is stale.
     private val activeSongId: StateFlow<String?> = controller.currentSongId
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -341,7 +341,7 @@ class PlaybackViewModel(
 
     /** True when [songId] is the current song or already sits in [upcomingQueue]. */
     private fun isAlreadyQueued(songId: String): Boolean =
-        songId == currentSongId.value || upcomingQueue.value.any { it.song.id == songId }
+        songId == activeSongId.value || upcomingQueue.value.any { it.song.id == songId }
 
     /** True when [songId] matches [upcomingQueue]'s first entry — the slot [playNext] targets. */
     private fun isNextInQueue(songId: String): Boolean = upcomingQueue.value.firstOrNull()?.song?.id == songId

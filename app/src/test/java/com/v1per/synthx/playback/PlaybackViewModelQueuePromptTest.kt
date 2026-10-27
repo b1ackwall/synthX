@@ -47,7 +47,8 @@ class PlaybackViewModelQueuePromptTest {
         override val isQueueEnded: Flow<Boolean> = MutableStateFlow(false)
         override val isPlaying: Flow<Boolean> = MutableStateFlow(true)
         override val isBuffering: Flow<Boolean> = emptyFlow()
-        override val currentSongId: Flow<String?> = MutableStateFlow(current.id)
+        val songId = MutableStateFlow<String?>(current.id)
+        override val currentSongId: Flow<String?> = songId
         override val currentSong: Flow<Song?> = MutableStateFlow(current)
         override val currentPosition: Flow<Long> = emptyFlow()
         override val duration: Flow<Long> = emptyFlow()
@@ -172,6 +173,42 @@ class PlaybackViewModelQueuePromptTest {
             advanceUntilIdle()
             assertEquals(listOf(PlayCall(listOf(a, b, c), 1, true)), engine.playQueueCalls)
         }
+
+    // currentSongId is lazy: after a collector leaves, it keeps the last value it saw. The
+    // already-queued check must read the live current song regardless.
+    private fun TestScope.collectCurrentSongIdBriefly(vm: PlaybackViewModel) {
+        val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.currentSongId.collect {} }
+        advanceUntilIdle()
+        job.cancel()
+        advanceUntilIdle()
+    }
+
+    @Test fun keepRecognisesTheCurrentSongAfterItChangedWhileNothingCollectedCurrentSongId() = withViewModel {
+            vm,
+            engine,
+        ->
+        collectCurrentSongIdBriefly(vm)
+        engine.songId.value = "x"
+        advanceUntilIdle()
+
+        assertEquals(false, vm.keepQueueAndPlayNext(song("x")), "the current song was treated as not queued")
+    }
+
+    @Test fun keepDoesNotRejectASongThatWasCurrentOnlyWhenCurrentSongIdWasLastCollected() = withViewModel {
+            vm,
+            engine,
+        ->
+        collectCurrentSongIdBriefly(vm)
+        assertEquals("current", vm.currentSongId.value, "the lazy copy must hold the earlier value")
+        engine.songId.value = "z"
+        advanceUntilIdle()
+
+        assertEquals(true, vm.keepQueueAndPlayNext(current), "a song that is not queued was rejected as queued")
+    }
+
+    @Test fun keepRecognisesTheCurrentSongWhenCurrentSongIdWasNeverCollected() = withViewModel { vm, _ ->
+        assertEquals(false, vm.keepQueueAndPlayNext(current))
+    }
 
     private fun song(id: String, missing: Boolean = false) = Song(
         id = id,
