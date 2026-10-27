@@ -118,6 +118,11 @@ class PlayerSheetGestureInstrumentedTest {
         assertEquals(Sheet.Closed, settled())
     }
 
+    /**
+     * On the Redmi Note 7 Pro (API 33) this settles Closed instead of Open on every run, while the other tests in
+     * this class pass there and this one passes on the API 37 emulator. The cause is not determined; the test has
+     * only been verified on the emulator.
+     */
     @Test fun aSlowDragPastAFifthOfTheTravelSettlesOpen() {
         val travel = start()
         val from = miniCenter()
