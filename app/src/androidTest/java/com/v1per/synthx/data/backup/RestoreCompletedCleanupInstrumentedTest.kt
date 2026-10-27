@@ -102,6 +102,22 @@ class RestoreCompletedCleanupInstrumentedTest : RestoreScenarioTestBase() {
         assertTrue(artSweepPending())
     }
 
+    @Test fun completeHistoryCleanupCancellationLeavesTheArtSweepFlagAlreadySet() {
+        val scenario = scenario(
+            RestoreTransaction.Phase.COMPLETE,
+            live = "live",
+            old = "original",
+        )
+        assertTrue(candidateFile(scenario).isFile)
+        assertFalse("the flag must start cleared", artSweepPending())
+
+        val faults =
+            throwingAt(RestoreFaultPoint.POST_COMPLETE_CLEANUP_DIRECTORY_SYNC, CancellationException("Injected"))
+
+        assertEquals(RestoreRecovery.EMERGENCY, recover(faults))
+        assertTrue("the flag must be set before the cleanup that removes the artifacts", artSweepPending())
+    }
+
     @Test fun rolledBackCompleteHistoryWithLeftoverArtifactsIsCleanedWithoutTheArtSweepFlag() {
         val scenario = scenario(
             RestoreTransaction.Phase.COMPLETE,
