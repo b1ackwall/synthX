@@ -231,9 +231,7 @@ internal object RestoreTransaction {
                         )
                         writeState(dir, state, faults)
 
-                        var permanentQuiesceStarted = false
                         try {
-                            permanentQuiesceStarted = true
                             ExoPlayerEngine.releaseAllForRestore()
                             QueuePersistence.quiesceAllForRestore()
                             RepositoryDbFlow.quiesceForRestore()
@@ -275,7 +273,6 @@ internal object RestoreTransaction {
                             RestoreCoordinator.markRestartRequired(rolledBack = false)
                         } catch (failure: Exception) {
                             if (RestoreCoordinator.currentMode() == RestoreCoordinator.Mode.RESTORE_PREPARING) {
-                                if (!permanentQuiesceStarted) throw failure
                                 // Room/live were not renamed, but queue/playback/repository owners
                                 // were permanently stopped. Keep the file usable for cold startup
                                 // and forbid this process from pretending normal operation resumed.
