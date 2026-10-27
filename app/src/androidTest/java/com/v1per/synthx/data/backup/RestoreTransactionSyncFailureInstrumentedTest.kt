@@ -10,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 
 /**
  * A failure injected at each restore-time durability point that no other test reaches. After each
@@ -111,6 +112,43 @@ class RestoreTransactionSyncFailureInstrumentedTest : RestoreScenarioTestBase() 
         assertEquals("original", readMarker(filesEndingWith(".old.db").single()))
         assertFalse("the old copy must not be promoted past a failed sync", liveFile().exists())
         assertNextStartIsNormalWith("original")
+    }
+
+    @Test fun parkLiveSyncFailureLeavesTheParkedFilesSidecarsAlreadyDetachedFromLive() = runBlocking {
+        createLive("original")
+        val source = newTrustedSource("restored")
+        val suffixes = listOf("-wal", "-shm", "-journal")
+        val failures = failAfterTrigger(
+            RestoreFaultPoint.INSTALLED_VALIDATION,
+            RestoreFaultPoint.PARK_LIVE_DIRECTORY_SYNC,
+        )
+        // The installed candidate is live once validation starts; give it sidecars before the rollback parks it.
+        val faults = RestoreFaultInjector { point ->
+            if (point == RestoreFaultPoint.INSTALLED_VALIDATION) {
+                suffixes.forEach { File(liveFile().path + it).writeText("sidecar$it") }
+            }
+            failures.hit(point)
+        }
+
+        val result = execute(source, metadata(source), faults)
+
+        assertEquals("Injected PARK_LIVE_DIRECTORY_SYNC", result.exceptionOrNull()?.cause?.message)
+        assertEquals(RestoreCoordinator.Terminal.EMERGENCY, RestoreCoordinator.current())
+        assertEquals(RestoreTransaction.Phase.ROLLBACK_INTENT, readState().phase)
+        val failed = filesEndingWith(".failed.db").single()
+        suffixes.forEach { suffix ->
+            assertEquals(
+                "the parked file must own its $suffix sidecar",
+                "sidecar$suffix",
+                File(failed.path + suffix).readText(),
+            )
+            assertFalse(
+                "no $suffix sidecar may stay at the live name once the park sync was reached",
+                File(liveFile().path + suffix).exists(),
+            )
+        }
+        assertEquals("original", readMarker(filesEndingWith(".old.db").single()))
+        assertFalse("the old copy must not be promoted past a failed sync", liveFile().exists())
     }
 
     private fun assertNextStartIsNormalWith(marker: String) {
