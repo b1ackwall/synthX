@@ -34,6 +34,34 @@ class PhaseBRestoreRecoveryInstrumentedTest : RestoreScenarioTestBase() {
         assertEquals("safety", readMarker(liveFile()))
     }
 
+    @Test fun malformedStateIsArchivedByteForByteBeforeTheOldPromotionJournal() {
+        val op = newOp()
+        createDatabaseFile(File(databaseDir, RestoreArtifactNames(op).old), "old")
+        stateFile().writeText(CORRUPT_EVIDENCE_OLD)
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        assertEquals("old", readMarker(liveFile()))
+        assertEquals(CORRUPT_EVIDENCE_OLD, corruptArchive(op).readText())
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+        assertEquals(RestoreTransaction.RollbackSource.OLD, readState().rollbackSource)
+    }
+
+    @Test fun malformedStateIsArchivedByteForByteBeforeTheSafetyPromotionJournal() {
+        val op = newOp()
+        File(databaseDir, RestoreArtifactNames(op).old).writeText("bad")
+        createDatabaseFile(File(databaseDir, RestoreArtifactNames(op).safety), "safety")
+        stateFile().writeText(CORRUPT_EVIDENCE_SAFETY)
+        assertEquals(RestoreRecovery.NORMAL, RestoreTransaction.recoverIfNeeded(context, databaseDir))
+        assertEquals("safety", readMarker(liveFile()))
+        assertEquals(CORRUPT_EVIDENCE_SAFETY, corruptArchive(op).readText())
+        assertEquals(RestoreTransaction.Phase.COMPLETE, readState().phase)
+        assertEquals(RestoreTransaction.RollbackSource.SAFETY, readState().rollbackSource)
+    }
+
+    private fun corruptArchive(op: String): File = databaseDir.listFiles().orEmpty()
+        .filter { it.name.startsWith("synthx.restore-state.corrupt-$op") && it.name.endsWith(".json") }
+        .also { assertEquals("exactly one corrupt-state archive for $op", 1, it.size) }
+        .single()
+
     @Test fun missingStateWithValidOldRecoversOld() {
         val op = newOp()
         createDatabaseFile(File(databaseDir, RestoreArtifactNames(op).old), "old")
@@ -246,5 +274,10 @@ class PhaseBRestoreRecoveryInstrumentedTest : RestoreScenarioTestBase() {
             ).isSuccess,
         )
         assertEquals("new-request-installed", readMarker(liveFile()))
+    }
+
+    private companion object {
+        const val CORRUPT_EVIDENCE_OLD = "corrupt-evidence-marker-old"
+        const val CORRUPT_EVIDENCE_SAFETY = "corrupt-evidence-marker-safety"
     }
 }
