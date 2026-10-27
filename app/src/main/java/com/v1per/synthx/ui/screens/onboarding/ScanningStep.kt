@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -50,6 +51,8 @@ internal fun ScanningStep(
     onComplete: () -> Unit,
 ) {
     val state by libraryManagementViewModel.firstScanState.collectAsState()
+    // Read through State: the one-shot effect below must call the latest onComplete, not the one it launched with.
+    val currentOnComplete by rememberUpdatedState(onComplete)
 
     // Two fixed call sites, toggled by `enabled`, rather than one per branch: exactly one is
     // active at any time, and neither is disposed/re-registered as the state moves along.
@@ -60,7 +63,7 @@ internal fun ScanningStep(
         is FirstScanState.Running -> ScanningProgress(status = current.status)
 
         FirstScanState.Succeeded -> {
-            LaunchedEffect(Unit) { onComplete() }
+            LaunchedEffect(Unit) { currentOnComplete() }
             ScanningProgress(status = null)
         }
 
