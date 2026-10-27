@@ -59,6 +59,17 @@ One block per scenario, named `<Class>.<method>`.
 These numbers blend animation frames with the frames of the fixed pauses, which makes the
 percentiles look better than the animation alone. `analyze_traces.py` separates the two.
 
+### P50 is not stable for four scenarios on the Redmi
+
+For `fling`, `expandCollapse`, `queueExpandCollapse` and `nextQueue` on the Redmi Note 7 Pro (60 Hz),
+about half of the frames are over the 16.67 ms deadline in a typical iteration. The
+`frameDurationCpuMs` distribution is then bimodal, around 11 ms and around 25 ms, so P50 sits on
+the boundary and flips between the two on a single outlier iteration. The same APK has given P50
+values of 11.6 and 18.4 ms in different sessions. For these scenarios read the share of frames over
+the deadline instead: the "CPU time over 16.67 ms (60 Hz)" row in `summarize.py` (`jank.over_60hz_budget`
+in `summary.json`) and the "deadline missed" row (`jank.deadline_missed`), which `compare.py` lists as
+"frames over 16.67 ms" and "deadline missed".
+
 ## Reading analyze_traces.py
 
 - **Vsync period**: the refresh rate the trace actually ran at, from the frame timeline. If it
