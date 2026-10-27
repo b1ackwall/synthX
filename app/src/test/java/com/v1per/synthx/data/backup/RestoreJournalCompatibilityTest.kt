@@ -4,6 +4,8 @@ import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.ui.testing.TestTimeouts
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import org.junit.Rule
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -94,6 +96,37 @@ class RestoreJournalCompatibilityTest {
             .replace("\"oldVersion\":${SynthXDatabase.VERSION}", "\"oldVersion\":$older")
         assertTrue(stale.contains("\"candidateVersion\":$older"))
         assertNull(RestoreTransaction.decodeStateOrNullForTest(stale))
+    }
+
+    @Test fun journalWithAnUnknownKeyIsRefused() {
+        val golden = RestoreJournalGoldens.read(RestoreJournalGoldens.ACTIVE_POST_VALIDATED)
+        assertNotNull(RestoreTransaction.decodeStateOrNullForTest(golden), "control: the unmodified golden must decode")
+        val withUnknownKey = golden.replace("{\"operationId\"", "{\"unknownFutureField\":\"x\",\"operationId\"")
+        assertTrue(withUnknownKey.contains("unknownFutureField"))
+        assertNull(RestoreTransaction.decodeStateOrNullForTest(withUnknownKey))
+    }
+
+    /**
+     * explicitNulls only changes behaviour for a nullable property without a null default, and the
+     * journal never writes defaults. Every nullable State field must stay optional and default to null.
+     */
+    @Test fun everyNullableStateFieldIsOptionalAndDefaultsToNull() {
+        val descriptor = RestoreTransaction.State.serializer().descriptor
+        val nullable = (0 until descriptor.elementsCount).filter { descriptor.getElementDescriptor(it).isNullable }
+        assertTrue(nullable.isNotEmpty(), "State has no nullable fields; the guard no longer checks anything")
+        val required = nullable.filterNot(descriptor::isElementOptional).map(descriptor::getElementName)
+        assertEquals(emptyList(), required, "nullable State fields without a default value")
+
+        val names = nullable.map(descriptor::getElementName).toSet()
+        val golden = Json.parseToJsonElement(RestoreJournalGoldens.read(RestoreJournalGoldens.ACTIVE_POST_VALIDATED))
+        val stripped = JsonObject(golden.jsonObject.filterKeys { it !in names }).toString()
+        val decoded =
+            assertNotNull(RestoreTransaction.decodeStateOrNullForTest(stripped), "stripped golden must decode")
+        val notNull = names.filter { name ->
+            RestoreTransaction.State::class.java.getMethod("get" + name.replaceFirstChar(Char::uppercase))
+                .invoke(decoded) != null
+        }
+        assertEquals(emptyList(), notNull, "nullable State fields whose default is not null")
     }
 
     @Test fun jvmAndDeviceGoldenFoldersAreByteIdentical() {
