@@ -204,11 +204,12 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
 - Outfit font (body/UI). The wordmark is the fixed-colour vector drawable ic_wordmark (no font).
 - 2dp corner radius via MaterialTheme.shapes.small — single source of truth, don't hardcode radii.
 - Apple Music-inspired UX: smooth navigation, instant cut transitions (not slow fades).
-- "refined-instant-cut" navigation standard: ReadinessCoverOverlay (ui/components) wraps the
-  detail and create destinations that load data on entry, applied per route in BrowseRoutes
-  (ArtistDetail, AlbumDetail) and PlaylistRoutes (CreatePlaylist, GroupDetail, PlaylistDetail).
-  Other destinations show their own loading state or LoadingIndicator. The live player UI
-  (ui/player/) is a known, deliberate exception, see Project Structure above.
+- "refined-instant-cut" navigation standard: ReadinessCoverOverlay (ui/components) wraps nine
+  destinations that load data on entry, applied per route in BrowseRoutes (Songs, Starred,
+  ArtistList, AlbumList, ArtistDetail, AlbumDetail) and PlaylistRoutes (CreatePlaylist,
+  GroupDetail, PlaylistDetail). Issues, Restore and PlaylistList keep the LoadingIndicator
+  because their loads can be long. Other destinations show their own loading state. The live
+  player UI (ui/player/) is a known, deliberate exception, see Project Structure above.
 
 ## File Size
 - No source file should exceed 500 raw lines (as counted by `wc -l`).
