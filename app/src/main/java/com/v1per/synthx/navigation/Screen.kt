@@ -14,22 +14,34 @@ sealed class Screen(val route: String) {
     object Issues : Screen("issues")
     object ReplaceSong : Screen("replace_song")
     object Restore : Screen("restore")
-    object Songs : Screen("songs")
-    object Starred : Screen("starred")
-    object ArtistList : Screen("artist_list")
+    object Songs : Screen("songs") {
+        const val ROUTE = "songs"
+    }
+    object Starred : Screen("starred") {
+        const val ROUTE = "starred"
+    }
+    object ArtistList : Screen("artist_list") {
+        const val ROUTE = "artist_list"
+    }
     object ArtistDetail : Screen("artist_detail/{artistId}/{artistName}") {
         // Must mirror the constructor arg — a member isn't referencable in the supertype call
         const val ROUTE = "artist_detail/{artistId}/{artistName}"
         fun createRoute(artistId: String, artistName: String) = "artist_detail/$artistId/${Uri.encode(artistName)}"
     }
-    object AlbumList : Screen("album_list")
+    object AlbumList : Screen("album_list") {
+        const val ROUTE = "album_list"
+    }
     object AlbumDetail : Screen("album_detail/{albumId}/{albumTitle}") {
         // Must mirror the constructor arg — a member isn't referencable in the supertype call
         const val ROUTE = "album_detail/{albumId}/{albumTitle}"
         fun createRoute(albumId: String, albumTitle: String) = "album_detail/$albumId/${Uri.encode(albumTitle)}"
     }
-    object PlaylistList : Screen("playlist_list")
-    object CreatePlaylist : Screen("create_playlist")
+    object PlaylistList : Screen("playlist_list") {
+        const val ROUTE = "playlist_list"
+    }
+    object CreatePlaylist : Screen("create_playlist") {
+        const val ROUTE = "create_playlist"
+    }
     object GroupDetail : Screen("group_detail/{groupId}/{groupName}") {
         // Must mirror the constructor arg — a member isn't referencable in the supertype call
         const val ROUTE = "group_detail/{groupId}/{groupName}"
@@ -46,16 +58,16 @@ sealed class Screen(val route: String) {
         // (which unions it with Home/Library/Search for bottom-bar visibility) and
         // SynthXBottomNav (which uses it as-is to detect "still inside Library's hierarchy"
         // for reset-to-root-vs-restore nav behavior), so the two files cannot drift out of
-        // sync.
+        // sync. Entries are compile-time constants, so initializing a subclass object before Screen works.
         val libraryDetailRoutes = setOf(
-            Songs.route,
-            Starred.route,
-            ArtistList.route,
+            Songs.ROUTE,
+            Starred.ROUTE,
+            ArtistList.ROUTE,
             ArtistDetail.ROUTE,
-            AlbumList.route,
+            AlbumList.ROUTE,
             AlbumDetail.ROUTE,
-            PlaylistList.route,
-            CreatePlaylist.route,
+            PlaylistList.ROUTE,
+            CreatePlaylist.ROUTE,
             GroupDetail.ROUTE,
             PlaylistDetail.ROUTE,
         )
