@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Restart-required and emergency recovery surfaces (RestoreTerminalContent, RestoreTerminalSurface) -->
+    <string name="restore_terminal_title_restart">Restart required</string>
+    <string name="restore_terminal_title_emergency">Database recovery required</string>
+    <string name="restore_terminal_message_restart">Restore complete. Close and reopen synthX to continue.</string>
+    <string name="restore_terminal_message_rolled_back">Restore was rolled back safely. Close and reopen synthX to continue.</string>
+    <string name="restore_terminal_message_emergency">Automatic database recovery could not validate a usable database.\n\nNormal app use is disabled to protect your data.\n\nDiagnostic operation ID:\n%1$s</string>
+    <string name="restore_terminal_diagnostic_unavailable">unavailable</string>
+    <string name="restore_terminal_export_action">Export diagnostics</string>
+    <string name="restore_terminal_export_chooser">Export restore diagnostics</string>
+    <string name="restore_terminal_error_no_report">No persisted diagnostic report is available to export.</string>
+    <string name="restore_terminal_error_no_exporter">No app could export the diagnostic report.</string>
+    <string name="restore_terminal_error_no_backups">No eligible backup is available in the selected backup folder.</string>
+    <string name="restore_terminal_error_read_backups">Could not read backups.</string>
+    <string name="restore_terminal_checking">Checking…</string>
+    <string name="restore_terminal_choose_backup">Choose backup</string>
+    <string name="restore_terminal_choose_backup_title">Choose recovery backup</string>
+</resources>

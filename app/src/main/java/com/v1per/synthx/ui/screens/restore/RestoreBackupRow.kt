@@ -117,7 +117,7 @@ internal fun BackupRow(
                     Text(
                         text = stringResource(R.string.restore_row_most_recent),
                         style = MaterialTheme.typography.bodySmall,
-                        color = Accent,
+                        color = TextPrimary,
                         maxLines = 1,
                     )
                 }

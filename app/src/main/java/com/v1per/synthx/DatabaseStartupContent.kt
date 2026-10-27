@@ -28,6 +28,8 @@ import com.v1per.synthx.data.backup.RestoreFailureFormatter
 import com.v1per.synthx.data.backup.RestoreIncidentReports
 import com.v1per.synthx.data.backup.backupsOrEmpty
 import com.v1per.synthx.data.backup.UnsupportedLiveDatabaseVersionException
+import com.v1per.synthx.ui.restoreTerminalMessage
+import com.v1per.synthx.ui.restoreTerminalTitle
 import com.v1per.synthx.ui.theme.TextPrimary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -157,67 +159,53 @@ internal fun MigrationRecoveryContent(
 internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val diagnosticId = RestoreCoordinator.diagnosticOperationId.value ?: "unavailable"
+    val diagnosticId = RestoreCoordinator.diagnosticOperationId.value
+        ?: stringResource(R.string.restore_terminal_diagnostic_unavailable)
+    val noReportError = stringResource(R.string.restore_terminal_error_no_report)
+    val noExporterError = stringResource(R.string.restore_terminal_error_no_exporter)
+    val noBackupsError = stringResource(R.string.restore_terminal_error_no_backups)
+    val readBackupsError = stringResource(R.string.restore_terminal_error_read_backups)
+    val exportChooserTitle = stringResource(R.string.restore_terminal_export_chooser)
     var availableBackups by remember { mutableStateOf<List<com.v1per.synthx.data.backup.BackupInfo>?>(null) }
     var actionError by remember { mutableStateOf<String?>(null) }
     var actionRunning by remember { mutableStateOf(false) }
-    val message = when (state) {
-        RestoreCoordinator.Terminal.RESTART_REQUIRED -> "Restore complete. Close and reopen synthX to continue."
-
-        RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED ->
-            "Restore was rolled back safely. Close and reopen synthX to continue."
-
-        RestoreCoordinator.Terminal.EMERGENCY ->
-            "Automatic database recovery could not validate a usable database.\n\n" +
-                "Normal app use is disabled to protect your data.\n\n" +
-                "Diagnostic operation ID:\n$diagnosticId" +
-                (actionError?.let { "\n\n$it" } ?: "")
-
-        RestoreCoordinator.Terminal.NORMAL -> ""
-    }
+    val message = restoreTerminalMessage(state, diagnosticId) +
+        if (state == RestoreCoordinator.Terminal.EMERGENCY) (actionError?.let { "\n\n$it" } ?: "") else ""
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         AlertDialog(
             onDismissRequest = {},
-            title = {
-                Text(
-                    if (state ==
-                        RestoreCoordinator.Terminal.EMERGENCY
-                    ) {
-                        "Database recovery required"
-                    } else {
-                        "Restart required"
-                    },
-                )
-            },
+            title = { Text(restoreTerminalTitle(state)) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(
                     onClick = { exitProcess(0) },
                     colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) { Text("Close") }
+                ) { Text(stringResource(R.string.action_close)) }
             },
             dismissButton = {
                 if (state == RestoreCoordinator.Terminal.EMERGENCY) {
                     Row {
                         TextButton(
                             enabled = !actionRunning,
+                            colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
                             onClick = {
                                 val uri = RestoreIncidentReports.shareUri(context, diagnosticId)
                                 if (uri == null) {
-                                    actionError = "No persisted diagnostic report is available to export."
+                                    actionError = noReportError
                                 } else {
                                     val send = Intent(Intent.ACTION_SEND)
                                         .setType("application/json")
                                         .putExtra(Intent.EXTRA_STREAM, uri)
                                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     runCatching {
-                                        context.startActivity(Intent.createChooser(send, "Export restore diagnostics"))
-                                    }.onFailure { actionError = "No app could export the diagnostic report." }
+                                        context.startActivity(Intent.createChooser(send, exportChooserTitle))
+                                    }.onFailure { actionError = noExporterError }
                                 }
                             },
-                        ) { Text("Export diagnostics") }
+                        ) { Text(stringResource(R.string.restore_terminal_export_action)) }
                         TextButton(
                             enabled = !actionRunning,
+                            colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
                             onClick = {
                                 actionRunning = true
                                 scope.launch {
@@ -225,16 +213,26 @@ internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
                                         .onSuccess { backups ->
                                             availableBackups = backups.filter { it.restoreEligible }
                                             actionError = if (availableBackups.isNullOrEmpty()) {
-                                                "No eligible backup is available in the selected backup folder."
+                                                noBackupsError
                                             } else {
                                                 null
                                             }
                                         }
-                                        .onFailure { actionError = it.message ?: "Could not read backups." }
+                                        .onFailure { actionError = it.message ?: readBackupsError }
                                     actionRunning = false
                                 }
                             },
-                        ) { Text(if (actionRunning) "Checking…" else "Choose backup") }
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (actionRunning) {
+                                        R.string.restore_terminal_checking
+                                    } else {
+                                        R.string.restore_terminal_choose_backup
+                                    },
+                                ),
+                            )
+                        }
                     }
                 }
             },
@@ -244,12 +242,13 @@ internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
     availableBackups?.takeIf { it.isNotEmpty() }?.let { backups ->
         AlertDialog(
             onDismissRequest = { if (!actionRunning) availableBackups = null },
-            title = { Text("Choose recovery backup") },
+            title = { Text(stringResource(R.string.restore_terminal_choose_backup_title)) },
             text = {
                 Column(modifier = androidx.compose.ui.Modifier.verticalScroll(rememberScrollState())) {
                     backups.forEach { backup ->
                         TextButton(
                             enabled = !actionRunning,
+                            colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
                             onClick = {
                                 actionRunning = true
                                 scope.launch {
@@ -271,8 +270,9 @@ internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
             dismissButton = {
                 TextButton(
                     enabled = !actionRunning,
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
                     onClick = { availableBackups = null },
-                ) { Text("Cancel") }
+                ) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }

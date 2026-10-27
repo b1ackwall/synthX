@@ -112,7 +112,10 @@ internal fun DeleteSongDisclosure(
 
         DeleteSongPreviewState.Failed -> {
             Text(stringResource(R.string.delete_song_preview_failed), color = Error)
-            TextButton(onClick = onRetryPreview) { Text(stringResource(R.string.action_retry)) }
+            TextButton(
+                onClick = onRetryPreview,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+            ) { Text(stringResource(R.string.action_retry)) }
         }
 
         is DeleteSongPreviewState.Ready -> {

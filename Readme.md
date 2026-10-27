@@ -13,7 +13,7 @@ synthX is not published or intended for distribution. It's built, tested, and us
 
 ## Design principles
 
-- **Dark, restrained, intentional.** Near-black background, a single neon accent (`#1AE62B`) used in five deliberate places: the wordmark X, the selected bottom-nav item, the playing bar in song rows, row ripples, and the faint hairline (the accent at 8% alpha) for dividers and borders. It's not a decorative color, it's a signal.
+- **Dark, restrained, intentional.** Near-black background, a single neon accent (`#32CC3F`) used in five deliberate places: the wordmark X, the selected bottom-nav item, the playing indicator bar in song rows, the ripple on clickable rows, and the Hairline (the accent at 8% alpha) for dividers and borders. It's not a decorative color, it's a signal.
 - **Refined-instant-cut navigation.** Detail and create screens that load data on entry hold on solid black until content is ready, then reveal instantly. Other screens show their own loading state.
 - **Correctness over cleverness.** Every architectural decision favors not losing the user's library over saving engineering effort — this shows up throughout the codebase (safety snapshots before migrations, a backup schema contract for every database version, verified file moves for graduation).
 

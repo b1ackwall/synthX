@@ -71,39 +71,44 @@ internal fun RestoreMaintenanceSurface() {
     }
 }
 
-/** Unchanged from the guard this shell has always had; only its call site moved. */
+/** Restart-required and emergency dialog shown inside the shell; its only action is Close. */
 @Composable
 internal fun RestoreTerminalSurface(restoreTerminal: RestoreCoordinator.Terminal, diagnosticOperationId: String?) {
-    val message = when (restoreTerminal) {
-        RestoreCoordinator.Terminal.RESTART_REQUIRED -> "Restore complete. Close and reopen synthX to continue."
-
-        RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED ->
-            "Restore was rolled back safely. Close and reopen synthX to continue."
-
-        RestoreCoordinator.Terminal.EMERGENCY ->
-            "Automatic database recovery could not validate a usable database.\n\n" +
-                "Normal app use is disabled to protect your data.\n\n" +
-                "Diagnostic operation ID:\n${diagnosticOperationId ?: "unavailable"}"
-
-        RestoreCoordinator.Terminal.NORMAL -> ""
-    }
+    val diagnosticId = diagnosticOperationId ?: stringResource(R.string.restore_terminal_diagnostic_unavailable)
     AlertDialog(
         onDismissRequest = {},
-        title = {
-            Text(
-                if (restoreTerminal == RestoreCoordinator.Terminal.EMERGENCY) {
-                    "Database recovery required"
-                } else {
-                    "Restart required"
-                },
-            )
-        },
-        text = { Text(message) },
+        title = { Text(restoreTerminalTitle(restoreTerminal)) },
+        text = { Text(restoreTerminalMessage(restoreTerminal, diagnosticId)) },
         confirmButton = {
             TextButton(
                 onClick = { exitProcess(0) },
                 colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-            ) { Text("Close") }
+            ) { Text(stringResource(R.string.action_close)) }
         },
     )
 }
+
+/** Dialog title shared by every restart-required and emergency surface. */
+@Composable
+internal fun restoreTerminalTitle(restoreTerminal: RestoreCoordinator.Terminal): String = stringResource(
+    if (restoreTerminal == RestoreCoordinator.Terminal.EMERGENCY) {
+        R.string.restore_terminal_title_emergency
+    } else {
+        R.string.restore_terminal_title_restart
+    },
+)
+
+/** Dialog body shared by every restart-required and emergency surface; empty for NORMAL. */
+@Composable
+internal fun restoreTerminalMessage(restoreTerminal: RestoreCoordinator.Terminal, diagnosticId: String): String =
+    when (restoreTerminal) {
+        RestoreCoordinator.Terminal.RESTART_REQUIRED -> stringResource(R.string.restore_terminal_message_restart)
+
+        RestoreCoordinator.Terminal.ROLLED_BACK_RESTART_REQUIRED ->
+            stringResource(R.string.restore_terminal_message_rolled_back)
+
+        RestoreCoordinator.Terminal.EMERGENCY ->
+            stringResource(R.string.restore_terminal_message_emergency, diagnosticId)
+
+        RestoreCoordinator.Terminal.NORMAL -> ""
+    }

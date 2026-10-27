@@ -98,6 +98,15 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
 
 ## Architecture (do not violate)
 - Strict MVVM throughout.
+- Documented exception: the startup recovery screens (DatabaseStartupContent.kt:
+  DatabaseStartupFailureContent, MigrationRecoveryContent, RestoreTerminalContent) have no ViewModel.
+  They run before Room exists and launch their operations (listBackups, emergencyRestore,
+  MigrationRecoveryAction.restoreFromInternalSnapshot) from a composition-scoped coroutine scope
+  (rememberCoroutineScope), then call exitProcess(0). Known gaps: their state (availableBackups,
+  actionError, actionRunning, isRestoring) resets if the Activity is recreated mid-operation, and
+  restoreFromInternalSnapshot has no mutex, so a second run is possible after recreation. Their
+  text comes from string resources (startup_recovery_strings.xml, strings.xml), shared with
+  RestoreShellSurfaces.kt.
 - Playback chain: PlaybackEngine (interface) → ExoPlayerEngine (impl) → PlaybackController → PlaybackViewModel.
   Never bypass this chain or call ExoPlayer APIs directly from ViewModels or UI.
 - Manual DI ONLY — no Hilt, no Dagger, no other DI framework.
@@ -183,8 +192,8 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
 
 ## Design System (locked — no scope creep)
 - Dark-only theme.
-- #1AE62B neon accent (`Accent` in ui/theme/Color.kt, the source of truth for all colours)
-  used ONLY in these 5 contexts — never elsewhere:
+- #32CC3F neon accent (`Accent` in ui/theme/Color.kt, the source of truth for all colours)
+  used ONLY in these five contexts — never elsewhere:
   1. Wordmark "X"
   2. Selected bottom nav item
   3. Playing indicator bar in song rows
