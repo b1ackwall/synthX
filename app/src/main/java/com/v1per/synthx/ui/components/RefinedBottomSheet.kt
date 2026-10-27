@@ -13,10 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,9 +33,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.v1per.synthx.R
-import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Surface as SurfaceColor
@@ -148,7 +143,6 @@ fun RefinedBottomSheet(
     containerColor: Color = SurfaceColor,
     scrimColor: Color = Color.Black.copy(alpha = 0.32f),
     shape: Shape = MaterialTheme.shapes.small,
-    showDragHandle: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -210,20 +204,9 @@ fun RefinedBottomSheet(
                 .clip(shape)
                 .background(containerColor),
         ) {
-            if (showDragHandle) {
-                RefinedSheetDragHandle()
-            } else {
-                // The handle isn't purely a drag affordance — its own vertical padding plus the
-                // pill (Spacing.sm + 4.dp + Spacing.sm) was incidentally the only top breathing
-                // room every consumer's content had above it. Consumers that hide the handle
-                // (all current ones) still need *some* top spacing of their own, or content sits
-                // flush against the sheet's clipped top edge. Spacing.md rather than Spacing.sm
-                // because at least two consumers (ActionsPage, SortBottomSheet) have zero top
-                // padding of their own on their header content, so this spacer is their only
-                // source of top spacing and needs to read as adequate on its own, not just a
-                // top-up on top of an existing caption padding.
-                Spacer(modifier = Modifier.height(Spacing.md))
-            }
+            // Top spacing above the content. Some consumers (ActionsPage, SortBottomSheet) have no top
+            // padding of their own, so this spacer is their only source of it.
+            Spacer(modifier = Modifier.height(Spacing.md))
             content()
         }
     }
@@ -242,21 +225,3 @@ fun RefinedBottomSheet(
  */
 fun Modifier.hiddenFromAccessibilityWhileSheetShown(hidden: Boolean): Modifier =
     if (hidden) clearAndSetSemantics {} else this
-
-@Composable
-private fun RefinedSheetDragHandle() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = Spacing.sm),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(32.dp)
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(Hairline),
-        )
-    }
-}

@@ -83,7 +83,6 @@ private fun PlayerBackgroundDebugSheet(sheetState: RefinedBottomSheetState, onDi
         sheetState = sheetState,
         containerColor = SurfaceColor.copy(alpha = 0.4f),
         shape = MaterialTheme.shapes.small,
-        showDragHandle = false,
     ) {
         Column(
             modifier = Modifier

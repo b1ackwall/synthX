@@ -71,7 +71,6 @@ internal fun GroupPickerBottomSheet(
         sheetState = sheetState,
         containerColor = SurfaceColor,
         shape = MaterialTheme.shapes.small,
-        showDragHandle = false,
     ) {
         Column {
             Text(
