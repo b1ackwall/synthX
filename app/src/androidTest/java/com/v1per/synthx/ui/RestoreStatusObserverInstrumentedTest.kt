@@ -8,6 +8,7 @@ import android.net.Uri
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -98,6 +99,7 @@ class RestoreStatusObserverInstrumentedTest {
             }
         }
 
+        awaitFailedDialog(viewModel)
         composeRule.onNodeWithText(base.getString(R.string.restore_failed_title)).assertExists()
         assertFalse(preferences.restoreOutcomeAcknowledged)
         // OK dismisses the result and leaves the status Idle, so the status is read before the tap.
@@ -131,6 +133,7 @@ class RestoreStatusObserverInstrumentedTest {
         WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(requestId)
         awaitFinished(requestId)
 
+        awaitFailedDialog(viewModel)
         composeRule.onNodeWithText(base.getString(R.string.restore_failed_title)).assertExists()
         assertFalse(preferences.restoreOutcomeAcknowledged)
         // OK dismisses the result and leaves the status Idle, so the status is read before the tap.
@@ -179,6 +182,15 @@ class RestoreStatusObserverInstrumentedTest {
         assertFalse(queued.constraints.requiresCharging())
         assertFalse(queued.constraints.requiresBatteryNotLow())
         assertFalse(preferences.restoreOutcomeAcknowledged)
+    }
+
+    /** The dialog is a separate window fed by the status flow, so both must land before it is asserted. */
+    private fun awaitFailedDialog(viewModel: RestoreStatusViewModel) {
+        composeRule.waitUntil(10_000) { viewModel.status.value is RestoreAppStatus.Failed }
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithText(base.getString(R.string.restore_failed_title))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     private fun enqueueInvalidRestore(): UUID = runBlocking {

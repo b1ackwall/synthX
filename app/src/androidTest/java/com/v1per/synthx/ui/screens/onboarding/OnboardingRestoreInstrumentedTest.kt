@@ -3,6 +3,7 @@ package com.v1per.synthx.ui.screens.onboarding
 import android.net.Uri
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -90,6 +91,7 @@ class OnboardingRestoreInstrumentedTest : OnboardingRecoveryTestBase() {
         WorkManagerTestInitHelper.getTestDriver(context)!!.setAllConstraintsMet(request.id)
         await(restore.outcome) { it is RestoreOutcome.Failed }
 
+        awaitFailedTitle()
         composeRule.onNodeWithText(context.getString(R.string.restore_failed_title)).assertExists()
         composeRule.onNodeWithText("Home after onboarding").assertDoesNotExist()
         composeRule.runOnIdle {
@@ -99,6 +101,12 @@ class OnboardingRestoreInstrumentedTest : OnboardingRecoveryTestBase() {
         composeRule.onNodeWithText(context.getString(R.string.action_ok)).performClick()
         composeRule.onNodeWithContentDescription(context.getString(R.string.cd_back)).performClick()
         composeRule.onNodeWithText(context.getString(R.string.onboarding_recovery_folder_title)).assertExists()
+    }
+
+    /** The outcome dialog composes a frame or more after the outcome flow reports Failed. */
+    private fun awaitFailedTitle() = composeRule.waitUntil(10_000) {
+        composeRule.onAllNodesWithText(context.getString(R.string.restore_failed_title))
+            .fetchSemanticsNodes().isNotEmpty()
     }
 
     @Test fun submittedRestoreNavigatesOnlyAfterRestorePreparing() {
