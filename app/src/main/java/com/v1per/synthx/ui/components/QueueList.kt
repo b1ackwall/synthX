@@ -40,9 +40,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  * row can still be brought clear of whatever is drawn on top. Callers should keep it
  * constant — varying it mid-scroll moves the max-scroll offset under the user's finger.
  *
- * [onRemove]'s index is into [queue], not [localQueue] — see its wiring below.
- *
- * [onSongClick]/[onMove] both take the tapped/dragged row's stable slot id rather than a
+ * [onSongClick]/[onMove]/[onRemove] each take the tapped/dragged/swiped row's stable slot id rather than a
  * position — [localQueue] is Compose-local state that free-runs between
  * `remember(queue)` resets (live-reordered mid-drag, or reset wholesale by an upstream mutation
  * landing mid-gesture), so any index captured off it here can already be stale by the time the
@@ -59,7 +57,7 @@ fun QueueList(
     queue: ImmutableList<QueueSlot>,
     onSongClick: (slotId: String) -> Unit,
     onMove: (slotId: String, toIndex: Int) -> Unit,
-    onRemove: (index: Int) -> Unit,
+    onRemove: (slotId: String) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     state: LazyListState = rememberLazyListState(),
@@ -102,14 +100,9 @@ fun QueueList(
                     song = slot.song,
                     queue = queue,
                     onClick = { if (currentEnabled) onSongClick(slot.slotId) },
-                    // Resolved against [queue] by identity rather than reported as `index`:
-                    // `index` is a position in [localQueue], whose optimistic order can differ
-                    // from [queue]'s between a drop and the engine's echo, and the host
-                    // resolves this index back to a song against [queue].
-                    onRemove = {
-                        val queueIndex = queue.indexOfFirst { it.slotId == slot.slotId }
-                        if (currentEnabled && queueIndex != -1) onRemove(queueIndex)
-                    },
+                    // Identity, not a position: the engine resolves the slot id against its live
+                    // order and rejects one it does not contain.
+                    onRemove = { if (currentEnabled) onRemove(slot.slotId) },
                     enabled = { currentEnabled },
                     dragHandleModifier = Modifier.draggableHandle(
                         onDragStarted = { dragStartSlotId = slot.slotId },

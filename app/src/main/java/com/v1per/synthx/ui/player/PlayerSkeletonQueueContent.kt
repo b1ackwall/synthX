@@ -82,9 +82,8 @@ private val ControlsMaskFadeHeight = 48.dp
  * directly (regardless of whether the list itself has room to scroll) to derive
  * `controlsVisible` for `PlayerSkeletonControlsOverlay`.
  *
- * [QueueList] reports a swipe-to-remove as an index into [upcomingQueue]; this composable
- * resolves it to that row's slot id here, while the list is still in hand, and hands
- * [onQueueRemove] that id instead. Everything below the UI layer is identity-based for the
+ * [QueueList] reports a swipe-to-remove by the row's slot id, which goes to [onQueueRemove]
+ * as is. Everything below the UI layer is identity-based for the
  * same reason — see [com.v1per.synthx.playback.PlaybackEngine.removeQueueItem]'s doc comment.
  *
  * Only [QueueList] is conditionally composed (`queueProgressValue > 0f`), not just
@@ -285,7 +284,7 @@ fun PlayerSkeletonQueueContent(
                 queue = persistentUpcomingQueue,
                 onSongClick = onQueueSongClick,
                 onMove = onQueueMove,
-                onRemove = { index -> upcomingQueue.getOrNull(index)?.let { onQueueRemove(it.slotId) } },
+                onRemove = onQueueRemove,
                 state = queueListState,
                 enabled = queueContentEnabled,
                 contentPadding = PaddingValues(bottom = controlsOverlayHeight),
