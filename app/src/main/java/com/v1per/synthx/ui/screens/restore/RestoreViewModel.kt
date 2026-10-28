@@ -277,8 +277,12 @@ class RestoreViewModel(
         }
     }
 
-    /** Called by RestoreScreen when the user dismisses a terminal dialog. */
+    /**
+     * Called by RestoreScreen when the user dismisses a terminal dialog. A local block belongs to
+     * no request, so dismissing one acknowledges nothing and reports nothing.
+     */
     fun terminalOutcomeWasShown(onShown: (UUID) -> Unit = {}) {
+        if (_localBlockReason.value != null) return
         val requestId = _requestId.value ?: return
         if (preferencesManager.acknowledgeRestoreOutcomeDurably(requestId.toString())) {
             onShown(requestId)
