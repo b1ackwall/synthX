@@ -225,8 +225,23 @@ class TabHighlightInstrumentedTest {
         assertLit(libraryTab, "Songs after Back from Settings")
     }
 
+    @Test fun noTabIsLitOnAScreenWithoutTheBar() {
+        shell.startShell()
+        shell.clickTab(libraryTab)
+        shell.navigate(songs)
+        shell.navigate(Screen.Settings.route)
+        assertEquals(emptyList<String>(), selectedTabs())
+
+        shell.pressBack()
+        assertEquals(songs, shell.route())
+        shell.navigate(Screen.Issues.route)
+        assertEquals(emptyList<String>(), selectedTabs())
+    }
+
     @Test fun tapLibraryOnASearchOpenedAlbumStillResetsLibrary() {
         shell.startShell()
+        shell.clickTab(libraryTab)
+        shell.navigate(songs)
         shell.clickTab(searchTab)
         shell.navigate(albumRoute)
 
