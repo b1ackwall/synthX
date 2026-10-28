@@ -380,6 +380,7 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                                     if (!claims.claim(song.id)) continue
                                     if (!song.isMissing) {
                                         songDao.markMissing(song.id, now)
+                                        missing++
                                     }
                                     // Deliberately no playback event here (locked policy: leave
                                     // an already-loaded/playing song alone when it goes missing
@@ -392,7 +393,6 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                                     // would silently truncate whatever the user is listening to mid-track
                                     // for a condition (the file being gone) that scan/verify sweeps are
                                     // not synchronized with playback's own timing at all.
-                                    missing++
                                 }
                             }
                         }

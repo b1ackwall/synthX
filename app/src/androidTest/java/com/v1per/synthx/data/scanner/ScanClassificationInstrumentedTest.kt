@@ -156,6 +156,51 @@ class ScanClassificationInstrumentedTest {
         assertFalse(fx.requireSongAt(kept).isMissing)
     }
 
+    @Test fun rowAlreadyMissingBeforeTheScanIsNotCountedAgain() = runBlocking {
+        val gone = write(music, "gone.mp3", bytes(2_000, seed = 1))
+        write(music, "kept.mp3", bytes(2_000, seed = 2))
+        fx.scan(music)
+        assertTrue(gone.delete())
+
+        val first = fx.scan(music)
+        val second = fx.scan(music)
+
+        assertEquals(1, first.missing)
+        assertEquals(0, second.missing)
+        assertEquals(0, second.totalImpact)
+    }
+
+    @Test fun hiddenStaleRowIsNotCountedAsMissingOnTheNextScan() = runBlocking {
+        val file = write(music, "song.mp3", bytes(2_000, seed = 1))
+        fx.scan(music)
+        val oldId = fx.requireSongAt(file).id
+        file.writeBytes(bytes(2_000, seed = 99))
+        val changed = fx.scan(music)
+        assertEquals(1, changed.hashMismatchFlagged)
+        assertEquals("stale://$oldId", fx.songDao.getSongById(oldId)!!.filePath)
+
+        val next = fx.scan(music)
+
+        assertEquals(0, next.missing)
+        assertEquals(0, next.totalImpact)
+        assertTrue(fx.songDao.getSongById(oldId)!!.isMissing)
+    }
+
+    @Test fun manyPreMissingRowsAloneStayBelowTheLargeChangeFloor() = runBlocking {
+        val files = (1..MANY).map { write(music, "song$it.mp3", bytes(2_000, seed = it)) }
+        fx.scan(music)
+        files.forEach { assertTrue(it.delete()) }
+        val deleting = fx.scan(music)
+        assertEquals(MANY, deleting.missing)
+        assertTrue("a real mass deletion still crosses the floor", deleting.totalImpact > FLOOR)
+
+        val idle = fx.scan(music)
+
+        assertEquals(0, idle.missing)
+        assertTrue("pre-missing rows alone must not reach the floor", idle.totalImpact <= FLOOR)
+        assertEquals(MANY, fx.songDao.getMissingSongCountOnce())
+    }
+
     @Test fun fileThatComesBackAtItsPathIsFoundAgain() = runBlocking {
         val content = bytes(2_000, seed = 1)
         val file = write(music, "song.mp3", content)
@@ -239,5 +284,11 @@ class ScanClassificationInstrumentedTest {
         )
         assertFalse(result.missingReconciled)
         assertFalse(fx.songDao.getSongById(id)!!.isMissing)
+    }
+
+    private companion object {
+        // Mirrors LibraryScanWorker's absolute high-impact floor.
+        const val FLOOR = 25
+        const val MANY = FLOOR + 1
     }
 }

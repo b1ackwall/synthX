@@ -185,4 +185,18 @@ class ScanKeepsUserDataInstrumentedTest {
         assertTrue("new row is in no playlist", fx.playlistDao.getPlaylistIdsForSong(fresh.id).isEmpty())
         assertTrue("remap old to new: $remaps", remaps.any { it.oldId == old.id && it.newSong.id == fresh.id })
     }
+
+    @Test fun rowHiddenByATagEditIsNotCountedAsMissingOnTheNextScan() = runBlocking {
+        val file = write(music, "track.flac", flac(mapOf("TITLE" to "Take One", "ARTIST" to "Band")))
+        fx.scan(music)
+        val old = fx.requireSongAt(file)
+        file.writeBytes(flac(mapOf("TITLE" to "Take Two", "ARTIST" to "Band")))
+        assertEquals(1, fx.scan(music).hashMismatchFlagged)
+
+        val next = fx.scan(music)
+
+        assertEquals(0, next.missing)
+        assertEquals(0, next.totalImpact)
+        assertEquals("stale://${old.id}", fx.songDao.getSongById(old.id)!!.filePath)
+    }
 }
