@@ -38,6 +38,7 @@ import com.v1per.synthx.data.backup.BackupHashing
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupMetadata
 import com.v1per.synthx.data.backup.BackupMetadataCodec
+import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.RestorePermitLeakCheck
@@ -125,10 +126,14 @@ abstract class OnboardingRecoveryTestBase {
         if (!testName.methodName.startsWith("notificationRationale")) {
             check(preferences.markNotificationPermissionAskedDurably())
         }
-        ScanStubWorkerFactory.behavior = null
+        // Worker contexts read the app's real preferences, not this test's isolated ones, so an unstubbed
+        // LibraryScanWorker would scan the device's real folder and record its own backup attempt mid-test.
+        ScanStubWorkerFactory.behavior = ScanStub.Succeed()
         workManager.cancelUniqueWork(RestoreWorker.UNIQUE_WORK_NAME).result.get()
         workManager.pruneWork().result.get()
         RestorePermitLeakCheck.assertDrainedThenReset()
+        // The outcome store is process-wide: an earlier class's backup attempt must not be visible here.
+        BackupOutcomeStore.resetForTest()
         val repository = emptyRepository()
         preferences.lastBackupAttemptTimestamp = 123L
         persistedGrants.clear()
@@ -168,6 +173,7 @@ abstract class OnboardingRecoveryTestBase {
         }
         appContext.deleteSharedPreferences("$testId-synthx_prefs")
         RestorePermitLeakCheck.assertDrainedThenReset()
+        BackupOutcomeStore.resetForTest()
     }
 
     /**

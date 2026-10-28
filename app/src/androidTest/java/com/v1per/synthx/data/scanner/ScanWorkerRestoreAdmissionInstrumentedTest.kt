@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.PhaseBRestoreTestBase
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.repository.SongRepositoryImpl
@@ -38,11 +39,14 @@ class ScanWorkerRestoreAdmissionInstrumentedTest : PhaseBRestoreTestBase() {
         }
         createLive("original")
         SongRepositoryImpl.create(context)
+        BackupOutcomeStore.resetForTest()
     }
 
     @After fun restorePreferences() {
         ScanFolderGrant.hasReadGrant = realGrantCheck
         saved.restore(PreferencesManager(context))
+        // The real library worker records a refused pre-scan backup here; it must not outlive the test.
+        BackupOutcomeStore.resetForTest()
     }
 
     @Test fun issuesScanWorkerIsRefusedWhileRestoreIsPreparing() = runBlocking {

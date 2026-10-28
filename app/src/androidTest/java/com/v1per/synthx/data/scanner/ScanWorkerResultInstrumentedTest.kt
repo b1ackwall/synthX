@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.PhaseBRestoreTestBase
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
@@ -40,11 +41,14 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
             backupFolderUri = null
         }
         createLive("original")
+        BackupOutcomeStore.resetForTest()
     }
 
     @After fun restorePreferences() {
         ScanFolderGrant.hasReadGrant = realGrantCheck
         saved.restore(preferences)
+        // The real library worker records a failed pre-scan backup here; it must not outlive the test.
+        BackupOutcomeStore.resetForTest()
     }
 
     @Test fun libraryWorkerWithoutAFolderFails() = runBlocking {
