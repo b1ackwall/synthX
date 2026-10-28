@@ -3,7 +3,7 @@
 Measurement-only study of the blur on the album-art glow
 (`ui/player/PlayerAlbumArtWithGlow.kt`, `blur(20.dp, BlurredEdgeTreatment.Unbounded)`), which
 [redmi-gpu-controls.md](redmi-gpu-controls.md) skipped (control 4). Measured A-B-A-B on the Redmi
-Note 7 Pro (serial , Adreno 612, API 33, fixed 60 Hz) on top of commit `00b8878`, which
+Note 7 Pro (serial supplied in the task prompt, Adreno 612, API 33, fixed 60 Hz) on top of commit `00b8878`, which
 already has the quarter-resolution player background, Home's solid background and the one-pass
 marquee. The only change between arms was the glow's blur radius. Every source edit was
 temporary and has been restored (section 10).
@@ -46,7 +46,7 @@ RenderThread GPU flush per animation frame, and about 17-21% of GPU flush per re
 - **S25 Ultra:** not measured in this study (section 7).
 - **By the brief's rule:** the flush share is at or just above the 15% line, and the cost is
   clearly visible at rest. A cheaper glow is worth doing (section 8). The prototype control (step
-  3) was not run, at 's request; the options in section 8 are unmeasured.
+  3) was not run, at the owner's request; the options in section 8 are unmeasured.
 
 ## 1. Where the glow blur applies
 
@@ -104,7 +104,7 @@ Read from source; sizes measured in the Redmi traces unless marked.
 
 ## 2. Method
 
-- **Command, every arm:** `scripts/perf/run-benchmark.fish  --slice-frames --scenario
+- **Command, every arm:** `scripts/perf/run-benchmark.fish <serial> --slice-frames --scenario
   expandCollapse,queueExpandCollapse,nextExpanded,miniIdlePlaying,idleStates`.
   - Each arm is one script invocation, which rebuilds and reinstalls the benchmark APK.
   - Order A1, B1, A2, B2.
@@ -305,9 +305,9 @@ animation frame in which `synthX.PlayerSheet` composed.
   redraw are within the spread (0.77 and 1.87). Use `miniIdlePlaying`, with about 100 frames per
   arm, for the mini-player cost.
 
-## 4. slowDrag (added at 's request)
+## 4. slowDrag (added at the owner's request)
 
-Same arms and method as section 3, `scripts/perf/run-benchmark.fish  --slice-frames
+Same arms and method as section 3, `scripts/perf/run-benchmark.fish <serial> --slice-frames
 --scenario slowDrag`, 10 iterations per arm, in the order B3, A3, B4, A4. The last arm was A, so the
 phone ends on the original build. `slowDrag` drags up 35% of the display over one second, holds
 300 ms and releases, then the same downward. The sheet settles by its 20% positional threshold.
@@ -399,14 +399,14 @@ frames, in every scenario measured.
 ## 7. Not done
 
 - **S25 Ultra at 120 Hz (step 4):**
-  - Not run. The phone was not attached, and  ended the session after the `slowDrag` block.
+  - Not run. The phone was not attached, and the owner ended the session after the `slowDrag` block.
   - The only S25 data is the layer census in `layer-discovery.md`: 29 glow sizes and 56 ms of
     layer allocations per 10 iterations, rated "real but small".
   - Still open: same-session A and B on `expandCollapse`, `nextExpanded` and `idleStates`.
     Report p50/p90/p99, the share over 8.33 ms and both runs' `flush commands` CPU clock
     (`perf-trace-gotchas`: S25 clocks differ 2-3x across sessions).
 - **Cheaper-glow prototype (step 3):**
-  - Not run, at 's request.
+  - Not run, at the owner's request.
   - A candidate was prepared in the session scratchpad and never copied into the tree or built.
     It draws the same rounded rect with a `BlurMaskFilter` (same radius-to-sigma conversion) and
     no layer.
@@ -455,10 +455,10 @@ same-session A-B on the S25.
 
 ## 9. Deviations and notes
 
-- **Step 3 (cheaper-glow prototype) and step 4 (S25) were not run:**  asked to drop the
+- **Step 3 (cheaper-glow prototype) and step 4 (S25) were not run:** the owner asked to drop the
   prototype, test `slowDrag` instead and close for the day. The S25 was not attached at any
   point.
-- **Added: a `slowDrag` A-B-A-B** (section 4), at 's request. Its order is B3, A3, B4, A4
+- **Added: a `slowDrag` A-B-A-B** (section 4), at the owner's request. Its order is B3, A3, B4, A4
   so that the last install is the original source.
 - **The first `slowDrag` chain failed instantly:** a shell loop relied on word splitting, which
   zsh does not do, so `arm.sh` stopped at its first `cp` before touching anything. Nothing was
@@ -497,4 +497,4 @@ same-session A-B on the S25.
 - **Installed build:** the last arm (A4, 20261014-221843) built and installed the benchmark APK
   from the original source. The phone's synthX bench therefore matches HEAD `00b8878`.
 - **Not touched:** the production package `com.v1per.synthx`, the debug package, the music
-  folder, and any device other than .
+  folder, and any device other than the test phone.

@@ -1,9 +1,9 @@
 # GPU cost controls on the Redmi Note 7 Pro
 
-Measurement-only study on the Redmi Note 7 Pro (serial , `violet`, Android 13 custom ROM,
+Measurement-only study on the Redmi Note 7 Pro (serial supplied in the task prompt, `violet`, Android 13 custom ROM,
 API 33, Adreno 612 with the GL backend, fixed 60 Hz). Benchmark build `com.v1per.synthx.benchmark`
 of commit `7c80d4f`, plus one temporary source change per control arm. Every run used
-`scripts/perf/run-benchmark.fish  --slice-frames`, so frame timing comes from the app's
+`scripts/perf/run-benchmark.fish <serial> --slice-frames`, so frame timing comes from the app's
 own slices (`frameOverrunMs` and deadline-missed are not available). The battery read 27.6-31.4 C
 in every run, and each arm started at or below 31.0 C. Magisk shell su stayed denied, so the phone
 ran unrooted.
@@ -296,7 +296,7 @@ scenarios did not show this split.
   is the same kind of temporary draw-phase change, restored the same way.
 - **The phone dropped off USB** during the first blur-off arm (154953, `nextExpanded` failed).
   Work stopped. After reconnection, the host adb server had to be restarted
-  (`adb kill-server; adb start-server`) before  was listed. Control 2 was then rerun as a
+  (`adb kill-server; adb start-server`) before the test phone was listed. Control 2 was then rerun as a
   full A-B-A-B, and the cut-short pair is kept only as a cross-check.
 - **The song changed twice:**
   - The interrupted `nextExpanded` left the player two tracks ahead. I sent two Previous media

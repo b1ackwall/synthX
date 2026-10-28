@@ -12,7 +12,7 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextSecondary
 
 /**
- * Picker for the second, -fed tree scanned on every launch. Carries its own error slot
+ * Picker for the second, companion-fed tree scanned on every launch. Carries its own error slot
  * rather than sharing [MusicFolderSection]'s: the most likely failure here is a rejected
  * nested-folder pick, and that message has to appear under the row the user tapped.
  *

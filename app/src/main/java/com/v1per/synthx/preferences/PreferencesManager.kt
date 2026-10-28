@@ -30,7 +30,7 @@ class PreferencesManager(context: Context) {
         set(value) = prefs.edit { putString(KEY_BACKUP_FOLDER_URI, value) }
 
     /**
-     * Second audio tree, scanned in full on every launch — where the  companion app drops
+     * Second audio tree, scanned in full on every launch — where the companion app drops
      * downloads. Separate from [musicFolderUri]: songs found here become ordinary library songs,
      * but the tree is never used to reconcile `is_missing`.
      *

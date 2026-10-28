@@ -21,7 +21,7 @@ and heat, not visible frames. They are tracked as GitHub issues:
 
 | | Baseline `20261013-191357` | New `20261015-000626` |
 |---|---|---|
-| Phone | S25 Ultra ``, API 37 | same |
+| Phone | S25 Ultra (serial withheld), API 37 | same |
 | Refresh | Standard mode (Samsung mode 0), 60 Hz | same |
 | Trace vsync | 16.64 ms | 16.64 ms (16.65 in `queueToggle`) |
 | Commit | `f8b5121` (dirty) | `5c92c5c` (clean) |

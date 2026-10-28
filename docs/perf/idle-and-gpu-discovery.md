@@ -1,6 +1,6 @@
 # Idle drawing and background-effect discovery
 
-Discovery on the Galaxy S25 Ultra (SM-S938U, serial , Android 17), 60 Hz
+Discovery on the Galaxy S25 Ultra (SM-S938U, serial withheld, Android 17), 60 Hz
 (`refresh_rate_mode` 0, `device.json` refresh.hz 60.000004, vsync 16.64-16.65 ms in every trace),
 benchmark build of commit `c7537c9` plus the new idle scenario below. Every run started with
 the battery at 32.1-33.1 C and ended at 32.4-33.7 C. Two kinds of statement appear:

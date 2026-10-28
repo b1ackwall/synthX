@@ -8,7 +8,7 @@ synthX is not published or intended for distribution. It's built, tested, and us
 
 - Plays a local FLAC library via ExoPlayer/Media3, with a hand-tuned player transition (drag-driven, lerped geometry, no framework shared-element hacks).
 - Manages playlists, starring, and library scanning with a strong emphasis on **never silently losing data** — hash-based song identity, flags-missing instead of cascade-delete on file changes, atomic backups before risky operations.
-- Splits the library into two zones: a stable root library, and a **New Arrivals** inbox folder for fresh downloads (fed by a companion downloader app, ). New Arrivals doubles as a Starred/inbox workflow — listen, curate into playlists, then graduate the song into the main library with a verified file move.
+- Splits the library into two zones: a stable root library, and a **New Arrivals** inbox folder for fresh downloads (fed by a companion downloader app). New Arrivals doubles as a Starred/inbox workflow — listen, curate into playlists, then graduate the song into the main library with a verified file move.
 - Surfaces its own health: scan status, backup outcomes, and library issues (missing files, orphaned art, failed backups) are all visible in-app, not buried in logs.
 
 ## Design principles
@@ -28,7 +28,7 @@ synthX is not published or intended for distribution. It's built, tested, and us
 
 ## Companion app
 
-**** (synthX ) is a separate app/repo that downloads tracks and drops them directly into synthX's New Arrivals folder — the two apps are deliberately decoupled, communicating only through a shared filesystem location, not a direct integration.
+The companion downloader app is a separate app/repo that downloads tracks and drops them directly into synthX's New Arrivals folder — the two apps are deliberately decoupled, communicating only through a shared filesystem location, not a direct integration.
 
 ## Project status
 

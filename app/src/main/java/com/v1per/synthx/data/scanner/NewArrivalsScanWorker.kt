@@ -17,7 +17,7 @@ import com.v1per.synthx.preferences.PreferencesManager
 import kotlinx.coroutines.CancellationException
 
 /**
- * Full folder walk over the *new-arrivals* tree — the second SAF root the  companion
+ * Full folder walk over the *new-arrivals* tree — the second SAF root the companion
  * app drops downloads into. Runs on every launch, unlike [LibraryScanWorker], because the
  * tree is expected to be small and its whole point is that files appear in it between
  * sessions. Anything it finds becomes an ordinary library song, surfaced by the existing

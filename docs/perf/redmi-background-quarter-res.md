@@ -2,7 +2,7 @@
 
 Single-variable experiment: the expanded player's background (art layers, then blur, twist and
 saturation) is drawn and filtered on a layer a quarter of the width and height, then scaled back
-up. Measured A-B-A-B on the Redmi Note 7 Pro (serial , Adreno 612, API 33, 60 Hz), then
+up. Measured A-B-A-B on the Redmi Note 7 Pro (serial supplied in the task prompt, Adreno 612, API 33, 60 Hz), then
 once on the Galaxy S25 Ultra at 120 Hz against baseline run `20261014-145014`. Follows
 [redmi-gpu-controls.md](redmi-gpu-controls.md) section 8, option 1.
 
@@ -48,7 +48,7 @@ scenario the gain is small (flush -9%). The eye check on the S25 (section 6) is 
 
 ## 2. Method (Redmi)
 
-- **Command:** `scripts/perf/run-benchmark.fish  --slice-frames --scenario
+- **Command:** `scripts/perf/run-benchmark.fish <serial> --slice-frames --scenario
   expandCollapse,queueExpandCollapse,nextExpanded`.
 - **Arms:** one script invocation each, in the order A1, B1, A2, B2. Each invocation rebuilds
   and reinstalls the benchmark APK. A = the two files copied back from a scratchpad copy of
@@ -156,7 +156,7 @@ affected.
 ## 5. Galaxy S25 Ultra at 120 Hz
 
 **Setup:**
-- Serial , Android 17, 1440 x 3120. Motion smoothness Adaptive
+- Serial withheld, Android 17, 1440 x 3120. Motion smoothness Adaptive
   (`refresh_rate_mode` 1).
 - The vsync period was 8.32 ms in every scenario of both runs, so both ran at 120 Hz.
   `device.json` recorded 30 Hz for the baseline (an idle sample) and 120 Hz for B. That is

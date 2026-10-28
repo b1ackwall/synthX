@@ -1,10 +1,10 @@
 # synthX — Claude Code Instructions
 
 ## Git
-- The working branch is `code-work`. Check the current branch first (`git branch --show-current`).
+- The working branch is `main`. Check the current branch first (`git branch --show-current`).
 - Agents never run git write commands (add, commit, push, checkout, branch, stash, mv, reset,
   merge, etc.) and never run `gh` write commands (issue/PR create, edit, comment, close, etc.).
-  The owner () commits and pushes. A task prompt may grant a scoped exception for that task
+  The owner commits and pushes. A task prompt may grant a scoped exception for that task
   only; the grant ends with the task. Report changes made; do not stage or commit them.
 - Read-only git (status, diff, log, show, ls-files, archive, `apply --check`) and read-only `gh`
   are fine on any branch.
@@ -13,10 +13,10 @@
 Every device task starts with a gate: run `adb devices -l` and confirm the Redmi Note 7 Pro is
 listed. If it is missing, STOP and report; do not fall back to the emulator.
 - Devices:
-  - Redmi Note 7 Pro (serial ``, `device:violet`): the main judge for instrumented
+  - Redmi Note 7 Pro (serial supplied in the task prompt, `device:violet`): the main judge for instrumented
     tests. Only `com.v1per.synthx.debug` is installed. Dev-only device, safe to reinstall and
     test on.
-  - Samsung Galaxy S25 Ultra (serial ``): OFF-LIMITS to agents. It holds the
+  - Samsung Galaxy S25 Ultra (serial withheld): OFF-LIMITS to agents. It holds the
     production package `com.v1per.synthx`.
   - Emulator `emulator-5554` (Pixel_9a AVD): used only when the owner says so. Known unreliable
     at API 37.
@@ -252,8 +252,8 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
 - If a build fails, attempt to fix it and continue — don't stop and wait for approval mid-task.
 - Mutation-test critical fixes where practical: deliberately break the fix, confirm the
   test catches it, then restore — a passing test that can't fail is not verification.
-- Commented-out blocks marked "DEAD CODE: <why>. Delete in a cleanup pass. Ask  before
-  deleting." must never be deleted without asking  first. Whenever  mentions a cleanup
+- Commented-out blocks marked "DEAD CODE: <why>. Delete in a cleanup pass. Ask the owner before
+  deleting." must never be deleted without asking the owner first. Whenever the owner mentions a cleanup
   pass, offer to list and remove them.
 - Always end with a report covering:
   - What was done (files touched, changes made)

@@ -137,9 +137,9 @@ Run with `compare.py ... --force` (the baseline's `device.json` sampled 30 Hz). 
   contains the quarter-resolution commit, so it overstates this change. Use 2.1.
 - Home at rest: the baseline has no `idleStates`. See 2.1.
 
-## 3. Redmi Note 7 Pro (), A-B-A-B
+## 3. Redmi Note 7 Pro (test phone), A-B-A-B
 
-- **Command:** `scripts/perf/run-benchmark.fish  --slice-frames --scenario
+- **Command:** `scripts/perf/run-benchmark.fish <serial> --slice-frames --scenario
   homeExpandCollapse,idleStates`, one invocation per arm, in the order A1, B1, A2, B2. Each arm
   rebuilt and reinstalled the benchmark APK.
 - **Source per arm:** A = the original `HomeScreen.kt` and `MainScaffold.kt`, copied in from saved

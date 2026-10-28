@@ -320,7 +320,7 @@ class MainActivity : ComponentActivity() {
      *  1. [VerifyLibraryWorker] — cheap existence sweep flagging songs whose files have gone.
      *     The full main-root scan stays user-triggered from Library Management.
      *  2. [NewArrivalsScanWorker] — full walk of the (small) new-arrivals tree, ingesting
-     *     whatever the  companion app dropped there since last launch.
+     *     whatever the companion app dropped there since last launch.
      *
      * Sharing the unique name is what keeps either of them from racing a manually-triggered
      * Rescan over `is_missing`. [ExistingWorkPolicy.KEEP] on the chain head preserves the
