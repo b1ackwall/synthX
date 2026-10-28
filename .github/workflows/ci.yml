@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [code-work, main]
+    branches: [main]
   pull_request:
 
 permissions:
@@ -40,7 +40,7 @@ jobs:
       - name: Install pinned ktlint
         run: bash -c 'source scripts/ktlint-setup.sh && ktlint_prepare'
 
-      # Every branch writes the Gradle cache, so pushes to code-work also save it.
+      # Every branch writes the Gradle cache, so pushes to main also save it.
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false

@@ -8,8 +8,6 @@
   only; the grant ends with the task. Report changes made; do not stage or commit them.
 - Read-only git (status, diff, log, show, ls-files, archive, `apply --check`) and read-only `gh`
   are fine on any branch.
-- Dated task reports live in docs/code-work/ and docs/perf/. They are history, not documentation;
-  their numbers are not current.
 
 ## Connected Device — VERIFY BEFORE TOUCHING
 Every device task starts with a gate: run `adb devices -l` and confirm the Redmi Note 7 Pro is
