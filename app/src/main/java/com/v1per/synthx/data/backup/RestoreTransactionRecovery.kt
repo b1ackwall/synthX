@@ -15,12 +15,16 @@ import kotlin.coroutines.cancellation.CancellationException
 
 private const val TAG = "RestoreTransaction"
 
+/** Shape of [validateInstalled]; startup recovery takes it as a parameter so tests can force a failure. */
+internal typealias InstalledValidator = (live: File, state: State) -> Unit
+
 /** Runs before any normal database entrypoint. State is evidence, never sole authority. */
 internal fun RestoreTransaction.recoverIfNeeded(
     context: Context,
     dir: File,
     faults: RestoreFaultInjector = RestoreFaultInjector.NONE,
     statelessPlanner: StatelessPlan = StatelessRecoveryPlanner::decide,
+    installedValidator: InstalledValidator = { live, state -> validateInstalled(live, state) },
 ): RestoreRecovery {
     lastDiagnosticOperationId = null
     lastRecoveryDecision = null
@@ -32,7 +36,7 @@ internal fun RestoreTransaction.recoverIfNeeded(
         val recovery = if (state == null) {
             recoverWithoutUsableState(context, dir, stateFile.isFile, faults, statelessPlanner)
         } else {
-            recoverWithState(context, dir, state, faults)
+            recoverWithState(context, dir, state, faults, installedValidator)
         }
         if (recovery == RestoreRecovery.EMERGENCY) {
             publishEmergencyIncident(
@@ -69,6 +73,7 @@ private fun RestoreTransaction.recoverWithState(
     dir: File,
     state: State,
     faults: RestoreFaultInjector,
+    installedValidator: InstalledValidator,
 ): RestoreRecovery {
     lastDiagnosticOperationId = state.operationId
     if (state.phase == Phase.COMPLETE) {
@@ -83,7 +88,7 @@ private fun RestoreTransaction.recoverWithState(
     val facts = RestoreArtifactFacts(
         liveExists = live.isFile,
         liveValid = liveValid,
-        liveIsCandidate = runCatching { validateInstalled(live, state) }.isSuccess,
+        liveIsCandidate = runCatching { installedValidator(live, state) }.isSuccess,
         oldExists = old.isFile,
         oldValid = validateOld(old, state),
         safetyValid = validateSafety(safety, state),
@@ -120,7 +125,7 @@ private fun RestoreTransaction.recoverWithState(
         }
 
         RestoreRecoveryAction.COMPLETE_INSTALLED_AND_NORMAL -> {
-            validateInstalled(live, state)
+            installedValidator(live, state)
             val complete = state.copy(
                 phase = Phase.COMPLETE,
                 outcome = Outcome.INSTALLED,
