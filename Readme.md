@@ -36,4 +36,4 @@ Actively developed and used daily. Development follows a strict workflow: read-o
 
 ## License
 
-Personal project, not currently licensed for reuse.
+Copyright (C) 2026 v1per-one. synthX is free software under the GNU General Public License, version 3 or (at your option) any later version; see LICENSE. Third-party components and the Outfit font keep their own licenses; see THIRD_PARTY_NOTICES.md.
