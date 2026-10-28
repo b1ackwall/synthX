@@ -175,6 +175,7 @@ class PlaylistDetailViewModelTest {
             when (method.name) {
                 "getSongsForPlaylist" -> songs
                 "getAllPlaylists" -> allPlaylists
+                "playlistExists" -> true
                 else -> error("Unexpected repository call: ${method.name}")
             }
         } as SongRepository
