@@ -30,13 +30,13 @@ import org.junit.runner.RunWith
  *  - The two `queueLoadSuspended...` tests: the revision guard `reconcileIfRevisionChanged` is what
  *    protects a queue load whose suspension straddles an event. Those are the tests a
  *    bypass-the-guard mutation must fail.
+ *  - Deletion barrier: `SongRepositoryImpl.finishSongDeletion` registers
+ *    `SongDeletionAcknowledgment.register(id)` before `notifyDeleted(id)` and releases the waiter
+ *    when the wait ends, so an acknowledgment given inside the emit completes the wait and a
+ *    timed-out wait leaves no entry. `RepositoryDeletionInstrumentedTest` covers that path with
+ *    a collector that acknowledges synchronously.
  *
  * Known follow-ups, found while writing these and deliberately NOT fixed or tested here:
- *  - Deletion-barrier race: `SongRepositoryImpl.finishSongDeletion` calls
- *    `SongDeletionAcknowledgment.register(id)` *after* `notifyDeleted(id)`. If the engine's
- *    collector already ran `signalCleared(id)`, `register` creates a waiter nobody completes, so
- *    the file delete stalls for the full DELETION_HANDOFF_TIMEOUT_MS (1.5s) and the map entry
- *    leaks. Costs delay, not correctness.
  *  - Disconnect/retry interplay: the service stops playback when its last owning controller
  *    disconnects, so a reconnect after a mid-session disconnect finds a stopped player. Not
  *    exercised. (A `playQueue` issued between a failed connection attempt and its retry landing

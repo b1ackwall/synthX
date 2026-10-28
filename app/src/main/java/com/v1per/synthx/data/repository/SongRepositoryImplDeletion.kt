@@ -213,23 +213,28 @@ internal suspend fun SongRepositoryImpl.runPostCommitCleanup(
  */
 private suspend fun SongRepositoryImpl.finishSongDeletion(id: String, filePath: String?): SongDeletionOutcome {
     var cleanupUncertain = false
-    if (!runPostCommitStep("notify song deletion") { SongDeletionEvents.notifyDeleted(id) }) {
-        cleanupUncertain = true
-    }
 
-    // Handoff barrier: notifyDeleted's suspending emit only guarantees the
-    // notice was enqueued into a buffered SharedFlow, not that any collector has run yet, let
-    // alone that the resulting controller commands (skip/stop/remove) have reached the
-    // player. Without this, the file delete right below can race a still-open handle. Bounded
-    // rather than an unconditional await: with no live playback engine there is nothing to
-    // hand off to (register() returns null), and even with one, an engine wedged for some
-    // unrelated reason must not block a deletion the user explicitly asked for forever.
+    // Handoff barrier: notifyDeleted's suspending emit only guarantees the notice is enqueued
+    // into a buffered SharedFlow, not that any collector has run yet, let alone that the
+    // resulting controller commands (skip/stop/remove) have reached the player. Without this, the
+    // file delete right below can race a still-open handle. The waiter is registered before the
+    // emit, because an engine can acknowledge inside it and an acknowledgment with no waiter is
+    // dropped. Bounded rather than an unconditional await: with no live playback engine there is
+    // nothing to hand off to (register() returns null), and even with one, an engine wedged for
+    // some unrelated reason must not block a deletion the user explicitly asked for forever. The
+    // waiter is released whichever way the wait ends.
     val ack = runCatching { SongDeletionAcknowledgment.register(id) }.getOrNull()
-    if (ack != null) {
-        val acknowledged = withTimeoutOrNull(DELETION_HANDOFF_TIMEOUT_MS) { ack.await() }
-        if (acknowledged == null) {
-            Log.w(TAG, "Timed out waiting for playback to release song $id before deleting its file")
+    try {
+        if (!runPostCommitStep("notify song deletion") { SongDeletionEvents.notifyDeleted(id) }) {
+            cleanupUncertain = true
+        } else if (ack != null) {
+            val acknowledged = withTimeoutOrNull(DELETION_HANDOFF_TIMEOUT_MS) { ack.await() }
+            if (acknowledged == null) {
+                Log.w(TAG, "Timed out waiting for playback to release song $id before deleting its file")
+            }
         }
+    } finally {
+        if (ack != null) SongDeletionAcknowledgment.unregister(id, ack)
     }
 
     var fileOutcome = if (filePath == null) {

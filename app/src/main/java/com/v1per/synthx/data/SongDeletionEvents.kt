@@ -89,12 +89,24 @@ object SongDeletionAcknowledgment {
 
     /**
      * Registers interest in [songId]'s handoff, or returns null when no live engine exists to
-     * hand off to. Call right after emitting the deletion notice for [songId].
+     * hand off to. Call before emitting the deletion notice for [songId]: an acknowledgment with
+     * no waiter is dropped, so a waiter registered after the emit can miss an engine that already
+     * reacted. Release the result with [unregister] once the wait ends.
      */
     fun register(songId: String): CompletableDeferred<Unit>? {
         if (liveEngineCount.get() <= 0) return null
         return waiters.getOrPut(songId) { CompletableDeferred() }
     }
+
+    /**
+     * Drops [waiter] as [songId]'s entry when it is still the registered one. A no-op after
+     * [signalCleared] already took it, and it leaves a different waiter for the same song alone.
+     */
+    fun unregister(songId: String, waiter: CompletableDeferred<Unit>) {
+        waiters.remove(songId, waiter)
+    }
+
+    internal fun hasWaiter(songId: String): Boolean = waiters.containsKey(songId)
 
     /** Called by every live engine once it has finished reacting to [songId]'s deletion event. */
     fun signalCleared(songId: String) {

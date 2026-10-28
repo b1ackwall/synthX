@@ -8,6 +8,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.FileOperationCoordinator
+import com.v1per.synthx.data.SongDeletionAcknowledgment
+import com.v1per.synthx.data.SongDeletionEvents
 import com.v1per.synthx.data.AudioFileDeletion
 import com.v1per.synthx.data.backup.BackupManager
 import com.v1per.synthx.data.backup.BackupOutcomeStore
@@ -31,10 +33,12 @@ import com.v1per.synthx.ui.testing.TestTimeouts
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -143,6 +147,35 @@ class RepositoryDeletionInstrumentedTest {
         assertBackupAttempt(BackupReason.DELETE_SONG)
         assertEquals(1, PreferencesManager(context).destructiveActionsSinceBackup)
         assertEquals(0, RestoreCoordinator.activeOperationCountForTest())
+    }
+
+    @Test fun anAcknowledgmentGivenInsideTheDeletionNoticeDoesNotStallTheFileDelete() = runBlocking {
+        SongDeletionAcknowledgment.engineAttached()
+        // Unconfined and already subscribed: the acknowledgment runs inside notifyDeleted's emit.
+        val acknowledger = launch(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) {
+            SongDeletionEvents.events.collect { SongDeletionAcknowledgment.signalCleared(it.songId) }
+        }
+        try {
+            val startedAt = System.nanoTime()
+            withTimeout(5_000) { repository.deleteSong("song") }
+            val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+            assertTrue("delete took $elapsedMs ms; the handoff wait must not run to its timeout", elapsedMs < 1_000)
+            assertFalse(SongDeletionAcknowledgment.hasWaiter("song"))
+        } finally {
+            acknowledger.cancel()
+            SongDeletionAcknowledgment.engineDetached()
+        }
+    }
+
+    @Test fun aHandoffWaitThatTimesOutLeavesNoWaiterEntry() = runBlocking {
+        SongDeletionAcknowledgment.engineAttached()
+        try {
+            // No collector acknowledges, so the wait runs to its timeout.
+            withTimeout(5_000) { repository.deleteSong("song") }
+            assertFalse(SongDeletionAcknowledgment.hasWaiter("song"))
+        } finally {
+            SongDeletionAcknowledgment.engineDetached()
+        }
     }
 
     @Test fun deletePreviewNamesMembershipsAndDetectsOnlyMemberPlaylist() = runBlocking {
