@@ -13,8 +13,8 @@ android {
         applicationId = "com.v1per.synthx"
         minSdk = 32
         targetSdk = 36
-        versionCode = 12
-        versionName = "2.6"
+        versionCode = 13
+        versionName = "2.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "app_name", "synthX")
     }
