@@ -1,38 +1,56 @@
 # synthX
 
-A cyberpunk-themed, local-first Android music player built for a single, real use case: managing a large personal FLAC library (2000+ songs, 68 hand-curated playlists) with the polish and reliability of a daily driver — not a general-purpose app for the store.
+A local, dark-only music player for Android, built for big offline libraries.
 
-synthX is not published or intended for distribution. It's built, tested, and used by one person, on one device, on purpose.
+synthX plays the music files you already have. There is no account, no streaming and no ads.
 
-## What it does
+## Features
 
-- Plays a local FLAC library via ExoPlayer/Media3, with a hand-tuned player transition (drag-driven, lerped geometry, no framework shared-element hacks).
-- Manages playlists, starring, and library scanning with a strong emphasis on **never silently losing data** — hash-based song identity, flags-missing instead of cascade-delete on file changes, atomic backups before risky operations.
-- Splits the library into two zones: a stable root library, and a **New Arrivals** inbox folder for fresh downloads (fed by a companion downloader app). New Arrivals doubles as a Starred/inbox workflow — listen, curate into playlists, then graduate the song into the main library with a verified file move.
-- Surfaces its own health: scan status, backup outcomes, and library issues (missing files, orphaned art, failed backups) are all visible in-app, not buried in logs.
+- Browse by Library, Songs, Artists, Albums and Starred, and search across everything.
+- Playlists and playlist groups.
+- A queue with shuffle and repeat modes, and playback that resumes where you left off.
+- A mini player that expands into a full player with a soft background built from the album art.
+- An optional "New Arrivals" folder for newly added music.
+- Replace a song with another file and keep its playlists, or delete songs from inside the app.
+- Backups of your playlists and library data to a folder you choose, and restore from them.
 
-## Design principles
+## Privacy
 
-- **Dark, restrained, intentional.** Near-black background, a single neon accent (`#32CC3F`) used in five deliberate places: the wordmark X, the selected bottom-nav item, the playing indicator bar in song rows, the ripple on clickable rows, and the Hairline (the accent at 8% alpha) for dividers and borders. It's not a decorative color, it's a signal.
-- **Refined-instant-cut navigation.** Detail and create screens that load data on entry hold on solid black until content is ready, then reveal instantly. Other screens show their own loading state.
-- **Correctness over cleverness.** Every architectural decision favors not losing the user's library over saving engineering effort — this shows up throughout the codebase (safety snapshots before migrations, a backup schema contract for every database version, verified file moves for graduation).
+synthX does not ask for the Internet permission, so it cannot connect to the network. It has no analytics, no crash reporting and no ads. Your music is read through Android's folder picker, so the app needs no storage permission. Backups go to a folder you choose; if another app syncs that folder, that app does the uploading.
 
-## Tech stack
+## Requirements
 
-- **Language/UI:** Kotlin, Jetpack Compose
-- **Architecture:** Strict MVVM, manual dependency injection (no Hilt/Koin)
-- **Persistence:** Room
-- **Playback:** ExoPlayer / Media3
-- **Background work:** WorkManager (library scanning, verification)
-- **Build:** AGP, Gradle, Kotlin 2.4, Compose BOM 2026.09
+- Android 12L (API 32) or newer.
+- A folder of music files: FLAC, MP3, AAC, M4A (AAC), WAV or Ogg. Decoding uses your phone's built-in codecs. Other formats, such as Opus, WMA, APE and ALAC, are not scanned.
 
-## Companion app
+## Install
 
-The companion downloader app is a separate app/repo that downloads tracks and drops them directly into synthX's New Arrivals folder — the two apps are deliberately decoupled, communicating only through a shared filesystem location, not a direct integration.
+1. Download `synthX_<version>.apk` from the Releases page.
+2. Optional: compare its SHA-256 with the value in the release notes.
+3. Open the file on your phone. Android will ask you to allow installs from your browser or file manager.
+4. On first launch, choose "Fresh install" (or "Recover from backup" if you have one), pick your music folder, and wait for the first scan.
 
-## Project status
+## Build from source
 
-Actively developed and used daily. Development follows a strict workflow: read-only discovery before any change, a locked plan, a self-contained implementation, on-device verification on a real library, then commit. No shortcuts on data-safety-critical paths.
+You need the Android SDK (platform 37, build-tools 36.0.0) and JDK 17 to start Gradle. Gradle downloads the other JDK it needs on the first build. Create a `local.properties` file with `sdk.dir=/path/to/Android/Sdk`; Android Studio does this for you.
+
+```
+./gradlew assembleDebug
+```
+
+The debug build installs as "synthX dev" next to a release install, with its own data. A release build needs your own signing key.
+
+`scripts/check.sh` runs formatting, a compile with warnings as errors, lint and the unit tests. `scripts/format.sh` formats the code. The instrumented tests need a device or an emulator.
+
+Built with Kotlin, Jetpack Compose, Room, Media3 (ExoPlayer) and WorkManager, using MVVM with manual dependency injection.
+
+## Contributing
+
+Issues and pull requests are welcome. Please read CONTRIBUTING.md first. CLAUDE.md is a guide for AI coding agents; its rules apply to people too. Questions and ideas go in Discussions.
+
+## How it's made
+
+code in this repository was written with help of AI coding agents, mainly Claude Code, working under the maintainer's direction. The maintainer tests the app on real devices.
 
 ## License
 
