@@ -69,6 +69,9 @@ internal fun SynthXNavHost(
             exitTransition = { ExitTransition.None },
             popEnterTransition = { EnterTransition.None },
             popExitTransition = { ExitTransition.None },
+            // The predictive pair does not inherit the pop pair; its defaults scale and fade the screen.
+            predictivePopEnterTransition = { EnterTransition.None },
+            predictivePopExitTransition = { ExitTransition.None },
         ) {
             onboardingRoutes(
                 navController = navController,
