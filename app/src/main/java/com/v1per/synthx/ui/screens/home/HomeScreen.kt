@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tracing.Trace
+import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.perf.PerfTestTags
 import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.Wordmark
@@ -41,6 +42,7 @@ internal fun HomeScreen(
             }
         }
         HomeSettingsButton(onClick = onOpenSettings)
+        if (BuildConfig.DEBUG) PlayerGrainDebugControls()
     }
     Trace.endSection()
 }

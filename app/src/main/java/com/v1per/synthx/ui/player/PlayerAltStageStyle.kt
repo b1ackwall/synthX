@@ -79,4 +79,7 @@ internal object PlayerAltStageStyle {
 
     /** Scrim over the finished background; nothing is drawn while it is 0. */
     const val ScrimAlpha = 0f
+
+    /** Grain strength in release builds. Grain stays off (0 draws nothing) until tuned values are locked. */
+    const val GrainStrength = 0f
 }
