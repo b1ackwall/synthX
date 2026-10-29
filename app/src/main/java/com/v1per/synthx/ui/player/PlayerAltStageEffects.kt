@@ -82,6 +82,9 @@ private fun saturationEffect(input: NativeEffect?): NativeEffect {
         ?: NativeEffect.createColorFilterEffect(filter)
 }
 
+/** How the blur treats content near the layer edge. */
+internal enum class AltStageBlurEdgeMode { Clamp, Mirror, Decal, Repeat }
+
 private fun AltStageBlurEdgeMode.toTileMode(): Shader.TileMode = when (this) {
     AltStageBlurEdgeMode.Clamp -> Shader.TileMode.CLAMP
     AltStageBlurEdgeMode.Mirror -> Shader.TileMode.MIRROR

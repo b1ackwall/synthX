@@ -33,7 +33,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.tracing.Trace
 import androidx.tracing.trace
-import com.v1per.synthx.BuildConfig
 import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.SurfaceVariant
@@ -71,16 +70,11 @@ internal fun BoxScope.PlayerAltStageBackground(
     val hasArt = image != null
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current.density
-    // Rebuilt only when the layer size, density, art presence, blur radius, twist or edge mode changes.
-    // Debug builds draw with the Home debug sheet's values; release builds use the locked ones.
-    val debugState = PlayerBackgroundDebugStateHolder.state.value
-    val blurDp = effectivePlayerBackgroundBlurDp(BuildConfig.DEBUG, debugState)
-    val twistEnabled = effectivePlayerBackgroundTwistEnabled(BuildConfig.DEBUG, debugState)
-    val blurEdgeMode = effectivePlayerBackgroundBlurEdgeMode(BuildConfig.DEBUG, debugState)
-    val effect = remember(layerSize, density, hasArt, blurDp, twistEnabled, blurEdgeMode) {
+    // Rebuilt only when the layer size, density or art presence changes; blur, twist and edge mode are the locked ones.
+    val effect = remember(layerSize, density, hasArt) {
         // The reduced layer has 1/divisor of the pixels per dp.
         val layerDensity = density / PlayerAltStageStyle.FilterResolutionDivisor
-        if (hasArt) altStageEffect(layerSize, layerDensity, blurDp, twistEnabled, blurEdgeMode) else null
+        if (hasArt) altStageEffect(layerSize, layerDensity) else null
     }
     // Full-height and bottom-anchored, so the layer keeps one size through the sheet's morph.
     val boundsModifier = remember(fullHeight) {

@@ -33,7 +33,10 @@ internal fun NavGraphBuilder.tabRoutes(
             val homeViewModel = viewModel<HomeViewModel>(
                 factory = HomeViewModel.Factory(),
             )
-            HomeScreen(viewModel = homeViewModel)
+            HomeScreen(
+                viewModel = homeViewModel,
+                onOpenSettings = { navController.navigate(Screen.Settings.route) },
+            )
         }
     }
     composable(Screen.Library.route) {
@@ -42,11 +45,7 @@ internal fun NavGraphBuilder.tabRoutes(
                 factory = LibraryViewModel.factory(LocalContext.current),
             )
             LibraryScreen(
-                topBar = {
-                    SynthXTopBar(
-                        onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                    )
-                },
+                topBar = { SynthXTopBar() },
                 onNavigateToSongs = { navController.navigate(Screen.Songs.route) },
                 onNavigateToArtistList = { navController.navigate(Screen.ArtistList.route) },
                 onNavigateToAlbumList = { navController.navigate(Screen.AlbumList.route) },
@@ -63,11 +62,7 @@ internal fun NavGraphBuilder.tabRoutes(
                 factory = SearchViewModel.factory(LocalContext.current),
             )
             SearchScreen(
-                topBar = {
-                    SynthXTopBar(
-                        onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                    )
-                },
+                topBar = { SynthXTopBar() },
                 onNavigateToArtistDetail = { artistId, artistName ->
                     navController.navigate(
                         Screen.ArtistDetail.createRoute(artistId, artistName),

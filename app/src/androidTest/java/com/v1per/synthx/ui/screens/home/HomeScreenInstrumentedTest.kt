@@ -20,7 +20,7 @@ class HomeScreenInstrumentedTest {
     @get:Rule val composeRule = createComposeRule()
 
     @Test fun homeShowsTheWordmark() {
-        composeRule.setContent { SynthXTheme { HomeScreen() } }
+        composeRule.setContent { SynthXTheme { HomeScreen(onOpenSettings = {}) } }
         composeRule.onNodeWithTag(PerfTestTags.HomeScreen).assertExists()
         composeRule.onNodeWithContentDescription("synthX").assertExists()
     }
