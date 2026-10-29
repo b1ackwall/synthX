@@ -70,8 +70,6 @@ internal fun BoxScope.PlayerAltStageBackground(
     val hasArt = image != null
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current.density
-    // Debug builds draw with the Home grain panel's values; release builds use the locked strength.
-    val grain = currentPlayerGrain()
     // Rebuilt only when the layer size, density or art presence changes; blur, twist and edge mode are the locked ones.
     val effect = remember(layerSize, density, hasArt) {
         // The reduced layer has 1/divisor of the pixels per dp.
@@ -88,7 +86,7 @@ internal fun BoxScope.PlayerAltStageBackground(
     }
     Canvas(
         boundsModifier
-            .playerGrain(grain)
+            .playerGrain()
             .altStageScrim(altStageScrimColor(PlayerAltStageStyle.ScrimAlpha))
             .then(ReducedResolution)
             .onSizeChanged { layerSize = it }

@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.player
 
+import androidx.compose.ui.graphics.BlendMode
 import kotlin.math.PI
 
 /**
@@ -80,6 +81,18 @@ internal object PlayerAltStageStyle {
     /** Scrim over the finished background; nothing is drawn while it is 0. */
     const val ScrimAlpha = 0f
 
-    /** Grain strength in release builds. Grain stays off (0 draws nothing) until tuned values are locked. */
-    const val GrainStrength = 0f
+    /** Grain over the finished background: a still grey noise tile in front of the effect chain. */
+    const val GrainStrength = 0.2f
+
+    /** Size of one grain speckle, in dp. */
+    const val GrainSizeDp = 0.5f
+
+    /** Spread of the grain values around mid grey: 0 is flat, 1 spans black to white. */
+    const val GrainContrast = 0.4f
+
+    /** Seed of the noise tile. */
+    const val GrainSeed = 1
+
+    /** How the grain blends with the background pixels under it. */
+    val GrainBlendMode = BlendMode.Softlight
 }
