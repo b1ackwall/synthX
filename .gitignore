@@ -35,5 +35,12 @@ perf-output/
 
 # Python bytecode (scripts/perf)
 __pycache__/
-docs/code-work/*-raw/
-docs/code-work/**/*-raw/
+
+# Raw working folders (patches, backups, logs, staging) anywhere in the tree
+*-raw/
+
+# Packaged and captured artifacts
+*.apk
+*.aab
+*.log
+*.hprof
