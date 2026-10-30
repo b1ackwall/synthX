@@ -95,7 +95,7 @@ in `summary.json`) and the "deadline missed" row (`jank.deadline_missed`), which
 - **Frames without a PlayerSheet composition**: what produced the frames in which the sheet did
   not recompose.
 - **Unclassified slice names**: names the table in `scripts/perf/slice_classes.py` does not
-  know. That table was built from the fixture trace and from the first full run of every
+  know. That table was built from real traces of every
   scenario on the Galaxy S25 Ultra; add the listed names to it after looking at them in a trace.
   Their time is reported as "unclassified", never dropped.
 
@@ -118,8 +118,9 @@ A baseline is a run's `summary.json`, committed as
 `docs/perf/baselines/SM-S938U-20261013.summary.json`). Commit a new one when a change is meant
 to move the numbers, and say so in the commit message. Traces, `trace-analysis.md`, CSVs and the
 raw `perf-output/` folders are not committed; they are large and only meaningful next to the
-phone state they were taken in. `docs/perf/fixtures/` holds one real result file and one real
-trace from the first run, which the script checks in `scripts/perf/tests/` read.
+phone state they were taken in. `docs/perf/fixtures/` holds one real result file, which the script
+checks in `scripts/perf/tests/` read. No Perfetto trace is included; record one again with
+`scripts/perf/run-benchmark.fish` to run the trace analysis tests.
 
 ## Known limits
 

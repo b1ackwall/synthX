@@ -1,4 +1,4 @@
-"""Runs the trace analysis on the committed fixture trace. Skipped without the perfetto package."""
+"""Runs the trace analysis on a fixture trace. Skipped without the perfetto package or the trace."""
 
 import csv
 import tempfile

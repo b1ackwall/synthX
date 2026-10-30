@@ -42,7 +42,7 @@ The benchmarks check this on every run and stop with a message saying which step
   a phone with a 60 Hz-only panel needs nothing). An adaptive panel changes rate between the
   idle pauses and the animations, which changes the frame deadline mid-run. Then check it: the
   run writes the rate it read into `device.json`, and `analyze_traces.py` prints the rate the
-  traces actually ran at and flags a mismatch. The first recorded run (the fixture) was meant
+  traces actually ran at and flags a mismatch. The first recorded run was meant
   to be at 60 Hz and its trace shows 120 Hz, so do not trust the setting alone.
 - Phone plugged in (or at least 80% charged), screen unlocked, battery saver off.
 - Fixed brightness: turn off adaptive brightness and set a mid level.

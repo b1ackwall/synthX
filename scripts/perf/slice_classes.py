@@ -1,7 +1,6 @@
 """Slice-name classification table for analyze_traces.py.
 
-Every rule below is a name seen in a real trace: the fixture trace (docs/perf/fixtures) or the
-first full run of every scenario, both on a Galaxy S25 Ultra, API 37, Vulkan renderer. A name no
+Every rule below is a name seen in a real trace: the first full run of every scenario, on a Galaxy S25 Ultra, API 37, Vulkan renderer. A name no
 rule matches is reported as unclassified, with its time, so this table can be extended from a
 real trace; do not add names from memory.
 
