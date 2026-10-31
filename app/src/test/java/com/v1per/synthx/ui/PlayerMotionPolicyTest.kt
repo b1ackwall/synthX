@@ -2,8 +2,6 @@ package com.v1per.synthx.ui
 
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.unit.dp
-import com.v1per.synthx.ui.player.PlayerGlowImpl
-import com.v1per.synthx.ui.player.PlayerGlowImplementation
 import com.v1per.synthx.ui.player.shouldPauseAmbientMotion
 import com.v1per.synthx.ui.player.shouldReduceAmbientMotion
 import com.v1per.synthx.ui.player.queueCompositingStrategy
@@ -40,14 +38,6 @@ class PlayerMotionPolicyTest {
         assertEquals(52.dp, quantizePlayerGlowSize(50.1.dp))
         assertEquals(52.dp, quantizePlayerGlowSize(53.9.dp))
         assertEquals(56.dp, quantizePlayerGlowSize(54.1.dp))
-    }
-
-    @Test fun glowImplementationDefaultsToTheCachedImage() {
-        assertEquals(PlayerGlowImpl.CachedImage, PlayerGlowImplementation)
-        assertEquals(
-            listOf(PlayerGlowImpl.Original, PlayerGlowImpl.MaskBlur, PlayerGlowImpl.CachedImage),
-            PlayerGlowImpl.entries,
-        )
     }
 
     @Test fun glowQuantizationStepAndSizesStayOnTheFourDpGridBetweenMiniAndExpanded() {
