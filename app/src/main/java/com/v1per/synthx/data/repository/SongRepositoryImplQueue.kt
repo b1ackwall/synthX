@@ -1,6 +1,8 @@
 package com.v1per.synthx.data.repository
 
 import com.v1per.synthx.BuildConfig
+import com.v1per.synthx.data.db.PlaybackCursorEntity
+import com.v1per.synthx.data.db.QueueItemEntity
 import com.v1per.synthx.data.db.queryInBatches
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,28 +18,44 @@ internal suspend fun SongRepositoryImpl.getQueueSlotsInternal(): List<QueueSlot>
 internal suspend fun SongRepositoryImpl.getQueueSnapshotInternal(): QueueSnapshot = dbOperation {
     withContext(Dispatchers.IO) {
         val (items, cursor) = queueDao.getQueueAndCursor()
-        val records = items.map { QueueSlotRecord(it.slotId, it.songId) }
-        QueueSnapshot(
-            slots = resolveQueueSlots(records),
-            storedSlotCount = records.size,
-            cursor = cursor?.let {
-                QueueCursor(
-                    currentSlotId = it.currentSlotId,
-                    positionMs = it.positionMs,
-                    shuffleEnabled = it.shuffleEnabled,
-                    repeatMode = it.repeatMode,
-                )
-            },
-        )
+        queueSnapshotOf(items, cursor)
     }
+}
+
+/** The read model of the live rows and the cursor, shared by both snapshot reads. */
+private suspend fun SongRepositoryImpl.queueSnapshotOf(
+    items: List<QueueItemEntity>,
+    cursor: PlaybackCursorEntity?,
+): QueueSnapshot {
+    val records = items.map { QueueSlotRecord(it.slotId, it.songId) }
+    return QueueSnapshot(
+        slots = resolveQueueSlots(records),
+        storedSlotCount = records.size,
+        cursor = cursor?.let {
+            QueueCursor(
+                currentSlotId = it.currentSlotId,
+                positionMs = it.positionMs,
+                shuffleEnabled = it.shuffleEnabled,
+                repeatMode = it.repeatMode,
+                shuffleReordered = it.shuffleReordered,
+            )
+        },
+        extras = items.mapNotNull { item ->
+            val kind = QueueExtraKind.fromStoredValue(item.extraKind) ?: return@mapNotNull null
+            val sequence = item.extraSequence ?: return@mapNotNull null
+            item.slotId to QueueExtraTag(kind, sequence)
+        }.toMap(),
+    )
 }
 
 internal suspend fun SongRepositoryImpl.setQueueStateInternal(
     slots: List<QueueSlotRecord>,
     currentSlotId: String?,
     positionMs: Long,
+    extras: Map<String, QueueExtraTag>,
+    shuffleReordered: Boolean?,
 ) = withContext(Dispatchers.IO) {
-    queueDao.replaceQueueAndCursor(slots, currentSlotId, positionMs)
+    queueDao.replaceQueueAndCursor(slots, currentSlotId, positionMs, extras, shuffleReordered)
     // The one place both sides are guaranteed to have landed together —
     // a violation here means replaceQueueAndCursor's transaction itself is broken,
     // never a legitimate runtime state, so this must never silently pass in debug.
@@ -78,21 +96,8 @@ internal suspend fun SongRepositoryImpl.getQueueSnapshotWithBaselineInternal(): 
     dbOperation {
         withContext(Dispatchers.IO) {
             val (items, baselineItems, cursor) = queueDao.getFullQueueSnapshot()
-            val records = items.map { QueueSlotRecord(it.slotId, it.songId) }
             val baselineRecords = baselineItems.map { QueueSlotRecord(it.slotId, it.songId) }
-            val snapshot = QueueSnapshot(
-                slots = resolveQueueSlots(records),
-                storedSlotCount = records.size,
-                cursor = cursor?.let {
-                    QueueCursor(
-                        currentSlotId = it.currentSlotId,
-                        positionMs = it.positionMs,
-                        shuffleEnabled = it.shuffleEnabled,
-                        repeatMode = it.repeatMode,
-                    )
-                },
-            )
-            snapshot to resolveQueueSlots(baselineRecords)
+            queueSnapshotOf(items, cursor) to resolveQueueSlots(baselineRecords)
         }
     }
 
@@ -103,6 +108,8 @@ internal suspend fun SongRepositoryImpl.setUnifiedQueueStateInternal(
     positionMs: Long,
     shuffleEnabled: Boolean,
     repeatMode: Int,
+    extras: Map<String, QueueExtraTag>,
+    shuffleReordered: Boolean,
 ) = withContext(Dispatchers.IO) {
     queueDao.replaceQueueBaselineAndCursor(
         activeSlots,
@@ -111,6 +118,8 @@ internal suspend fun SongRepositoryImpl.setUnifiedQueueStateInternal(
         positionMs,
         shuffleEnabled,
         repeatMode,
+        extras,
+        shuffleReordered,
     )
     if (BuildConfig.DEBUG) {
         check(currentSlotId == null || activeSlots.any { it.slotId == currentSlotId }) {

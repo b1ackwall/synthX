@@ -361,18 +361,19 @@ class QueueOrderStoreTest {
 
         assertTrue(subject.shuffle("slot-c") { it.reversed() })
 
-        assertEquals(listOf("slot-c", "slot-d", "slot-b", "slot-a"), subject.liveIds())
+        // History (a, b) stays before the current slot; only what follows it (d) is shuffled.
+        assertEquals(listOf("slot-a", "slot-b", "slot-c", "slot-d"), subject.liveIds())
         assertEquals(listOf("slot-a", "slot-b", "slot-c", "slot-d"), subject.baselineIds())
     }
 
-    @Test fun shuffleReshufflesFromBaselineSoAlreadyPlayedSlotsComeBack() {
+    @Test fun shuffleLeavesAlreadyPlayedSlotsInHistory() {
         val subject = store()
         subject.captureFresh(records("a", "b", "c"))
-        // Playing "c" with "a"/"b" already behind it: they are still baseline members, so an
-        // ON toggle must bring them back into the live order rather than only reordering ahead.
+        // Playing "c" with "a"/"b" already behind it: they are history, so an ON toggle leaves
+        // them where they are and only reorders what comes after the current slot.
         assertTrue(subject.shuffle("slot-c") { it })
 
-        assertEquals(listOf("slot-c", "slot-a", "slot-b"), subject.liveIds())
+        assertEquals(listOf("slot-a", "slot-b", "slot-c"), subject.liveIds())
     }
 
     @Test fun unshuffleRestoresBaselineTailAndFoldsInSessionAdditions() {
@@ -384,11 +385,11 @@ class QueueOrderStoreTest {
 
         assertTrue(subject.unshuffle("slot-b"))
 
-        // Current first, then baseline's tail after it, then the shuffle-session addition.
-        assertEquals(listOf("slot-b", "slot-c", "slot-d", "slot-extra"), subject.liveIds())
-        // History before the current slot is dropped permanently, from baseline too.
+        // History, the current slot, baseline's tail after it, then the shuffle-session addition.
+        assertEquals(listOf("slot-a", "slot-b", "slot-c", "slot-d", "slot-extra"), subject.liveIds())
+        // History before the current slot stays, in baseline too.
         assertEquals(subject.liveIds(), subject.baselineIds())
-        assertFalse(subject.baselineIds().contains("slot-a"))
+        assertTrue(subject.baselineIds().contains("slot-a"))
     }
 
     @Test fun shuffleAndUnshuffleRejectAnUnknownCurrentSlot() {

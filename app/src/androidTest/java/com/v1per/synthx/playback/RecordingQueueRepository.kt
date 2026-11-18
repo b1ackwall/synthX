@@ -1,6 +1,7 @@
 package com.v1per.synthx.playback
 
 import com.v1per.synthx.data.repository.AdmittedQueuePersistenceRepository
+import com.v1per.synthx.data.repository.QueueExtraTag
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.QueueSlotRecord
 import com.v1per.synthx.data.repository.QueueSnapshot
@@ -10,8 +11,13 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /** One queue write, as the repository received it. */
 internal sealed interface QueueWrite {
-    data class QueueState(val slots: List<QueueSlotRecord>, val currentSlotId: String?, val positionMs: Long) :
-        QueueWrite
+    data class QueueState(
+        val slots: List<QueueSlotRecord>,
+        val currentSlotId: String?,
+        val positionMs: Long,
+        val extras: Map<String, QueueExtraTag> = emptyMap(),
+        val shuffleReordered: Boolean? = false,
+    ) : QueueWrite
     data class Cursor(val currentSlotId: String?, val positionMs: Long) : QueueWrite
     data class Baseline(val slots: List<QueueSlotRecord>) : QueueWrite
     data class Shuffle(val enabled: Boolean) : QueueWrite
@@ -23,6 +29,8 @@ internal sealed interface QueueWrite {
         val positionMs: Long,
         val shuffleEnabled: Boolean,
         val repeatMode: Int,
+        val extras: Map<String, QueueExtraTag> = emptyMap(),
+        val shuffleReordered: Boolean = false,
     ) : QueueWrite
 }
 
@@ -56,8 +64,14 @@ internal class RecordingQueueRepository :
     override suspend fun getQueueSnapshotWithBaseline(): Pair<QueueSnapshot, List<QueueSlot>> =
         adoptionRead ?: (snapshot to baseline)
 
-    override suspend fun setQueueState(slots: List<QueueSlotRecord>, currentSlotId: String?, positionMs: Long) {
-        writes += QueueWrite.QueueState(slots, currentSlotId, positionMs)
+    override suspend fun setQueueState(
+        slots: List<QueueSlotRecord>,
+        currentSlotId: String?,
+        positionMs: Long,
+        extras: Map<String, QueueExtraTag>,
+        shuffleReordered: Boolean?,
+    ) {
+        writes += QueueWrite.QueueState(slots, currentSlotId, positionMs, extras, shuffleReordered)
     }
 
     override suspend fun setCursorAlreadyAdmitted(currentSlotId: String?, positionMs: Long) {
@@ -83,7 +97,18 @@ internal class RecordingQueueRepository :
         positionMs: Long,
         shuffleEnabled: Boolean,
         repeatMode: Int,
+        extras: Map<String, QueueExtraTag>,
+        shuffleReordered: Boolean,
     ) {
-        writes += QueueWrite.Unified(activeSlots, baselineSlots, currentSlotId, positionMs, shuffleEnabled, repeatMode)
+        writes += QueueWrite.Unified(
+            activeSlots,
+            baselineSlots,
+            currentSlotId,
+            positionMs,
+            shuffleEnabled,
+            repeatMode,
+            extras,
+            shuffleReordered,
+        )
     }
 }

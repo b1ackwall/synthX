@@ -153,6 +153,19 @@ internal object BackupSchemaContracts {
                 ),
             hasMigrationPathToCurrent = true,
         ),
+        // 16_17 adds columns to queue_items and playback_cursor only; the managed table set is unchanged.
+        BackupSchemaContract(
+            userVersion = 17,
+            roomIdentityHash = "4df39be18f034e6a63912bd16eefc96d",
+            expectedTables = coreTables +
+                setOf(
+                    "queue_items",
+                    "queue_baseline_items",
+                    "playback_cursor",
+                    "pending_cleanups",
+                ),
+            hasMigrationPathToCurrent = true,
+        ),
     ).associateBy { it.userVersion }
 
     val current: BackupSchemaContract

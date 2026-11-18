@@ -5,6 +5,7 @@ import android.util.Log
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.repository.AdmittedQueuePersistenceRepository
+import com.v1per.synthx.data.repository.QueueExtraTag
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.QueueSlotRecord
 import com.v1per.synthx.data.repository.QueueSnapshot
@@ -66,7 +67,8 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
     /**
      * A queue read back from storage. [songs] can be shorter than what was saved — songs
      * deleted since the last session take their queue rows with them via FK CASCADE, and
-     * songs flagged missing are filtered out by the query.
+     * songs flagged missing are filtered out by the query. [extras] and [shuffleReordered] are
+     * the saved session-extra tags and reorder flag, before the engine's restore repair.
      */
     data class RestoredQueue(
         val slots: List<QueueSlot>,
@@ -75,6 +77,8 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
         val droppedCount: Int,
         val shuffleEnabled: Boolean,
         val repeatMode: Int,
+        val extras: Map<String, QueueExtraTag> = emptyMap(),
+        val shuffleReordered: Boolean = false,
     )
 
     /**
@@ -85,8 +89,17 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
      * [currentSlotId]/[positionMs] the cursor within it; every caller (a queue mutation, a
      * pause, an app-backgrounded event, or a restore rewrite) already has both in hand, so
      * there is no case where only one is known.
+     *
+     * [extras] tags the session-extra rows and [shuffleReordered] is the reorder flag to store; the
+     * engine passes both on every call, and a null flag keeps the stored one.
      */
-    internal fun saveQueueRecords(slots: List<QueueSlotRecord>, currentSlotId: String?, positionMs: Long) {
+    internal fun saveQueueRecords(
+        slots: List<QueueSlotRecord>,
+        currentSlotId: String?,
+        positionMs: Long,
+        extras: Map<String, QueueExtraTag> = emptyMap(),
+        shuffleReordered: Boolean? = null,
+    ) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
             if (!acceptingWrites) {
@@ -98,7 +111,7 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
                     require(repository is AdmittedQueuePersistenceRepository) {
                         "Queue persistence requires an already-admitted repository"
                     }
-                    repository.setQueueState(slots, currentSlotId, positionMs)
+                    repository.setQueueState(slots, currentSlotId, positionMs, extras, shuffleReordered)
                 } catch (e: Exception) {
                     runCatching { Log.w(TAG, "Queue state save failed: ${e.message}") }
                 } finally {
@@ -205,7 +218,8 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
      * order, shuffle flag, repeat mode, cursor} at once — a fresh play or a
      * shuffle toggle. Goes through the same serialized [writeQueue] consumer as every other
      * write here, so it can never race or land out of order against them, and — being one
-     * commit — can never itself be observed half-landed.
+     * commit — can never itself be observed half-landed. The session-extra tags [extras] and
+     * the reorder flag [shuffleReordered] are part of the same commit.
      */
     fun saveUnifiedQueueState(
         activeSlots: List<QueueSlotRecord>,
@@ -214,6 +228,8 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
         positionMs: Long,
         shuffleEnabled: Boolean,
         repeatMode: Int,
+        extras: Map<String, QueueExtraTag>,
+        shuffleReordered: Boolean,
     ) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
@@ -233,6 +249,8 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
                         positionMs,
                         shuffleEnabled,
                         repeatMode,
+                        extras,
+                        shuffleReordered,
                     )
                 } catch (e: Exception) {
                     runCatching { Log.w(TAG, "Unified queue state save failed: ${e.message}") }
@@ -317,6 +335,8 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
             droppedCount = snapshot.storedSlotCount - slots.size,
             shuffleEnabled = cursor?.shuffleEnabled ?: false,
             repeatMode = cursor?.repeatMode ?: 0,
+            extras = snapshot.extras,
+            shuffleReordered = cursor?.shuffleReordered ?: false,
         )
     }
 

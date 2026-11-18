@@ -98,6 +98,10 @@ class ExoPlayerEngine(
     internal val _shuffleEnabled = MutableStateFlow(false)
     override val shuffleEnabled: Flow<Boolean> = _shuffleEnabled.asStateFlow()
 
+    // Mirrors orderStore.shuffleReordered; refreshQueue republishes it after every structural change.
+    internal val _shuffleReorderedByUser = MutableStateFlow(false)
+    override val shuffleReorderedByUser: Flow<Boolean> = _shuffleReorderedByUser.asStateFlow()
+
     /**
      * Owns the full intended play order — both the live/active order and the unshuffled
      * baseline (see [QueueOrderStore]'s own kdoc). This, not the player's timeline, is what

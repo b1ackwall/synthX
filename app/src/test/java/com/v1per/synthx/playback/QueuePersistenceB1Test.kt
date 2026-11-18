@@ -12,6 +12,7 @@ import com.v1per.synthx.data.repository.PlaylistConflictResolution
 import com.v1per.synthx.data.repository.PlaylistGroup
 import com.v1per.synthx.data.repository.QueueCursor
 import com.v1per.synthx.data.repository.QueueSlot
+import com.v1per.synthx.data.repository.QueueExtraTag
 import com.v1per.synthx.data.repository.QueueSlotRecord
 import com.v1per.synthx.data.repository.QueueSnapshot
 import com.v1per.synthx.data.repository.ReplaceSongMembershipSnapshot
@@ -49,7 +50,13 @@ class QueuePersistenceB1Test {
         var failWrites = false
         var snapshot = QueueSnapshot(emptyList(), 0, null)
         val started = CompletableDeferred<Unit>()
-        override suspend fun setQueueState(slots: List<QueueSlotRecord>, currentSlotId: String?, positionMs: Long) {
+        override suspend fun setQueueState(
+            slots: List<QueueSlotRecord>,
+            currentSlotId: String?,
+            positionMs: Long,
+            extras: Map<String, QueueExtraTag>,
+            shuffleReordered: Boolean?,
+        ) {
             started.complete(Unit)
             gate?.await()
             persisted += slots.map { it.slotId }
@@ -71,6 +78,8 @@ class QueuePersistenceB1Test {
             positionMs: Long,
             shuffleEnabled: Boolean,
             repeatMode: Int,
+            extras: Map<String, QueueExtraTag>,
+            shuffleReordered: Boolean,
         ) {
             started.complete(Unit)
             gate?.await()

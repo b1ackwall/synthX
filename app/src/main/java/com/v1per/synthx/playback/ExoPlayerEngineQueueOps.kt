@@ -1,5 +1,6 @@
 package com.v1per.synthx.playback
 
+import android.util.Log
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.QueueSlotRecord
 import com.v1per.synthx.data.repository.Song
@@ -26,10 +27,17 @@ import java.util.UUID
  */
 
 /**
- * Shuffle ON: the current slot stays first, everything else in baseline (played or not) is
- * reshuffled after it. Shuffle OFF: the current slot stays first, followed by whatever comes
- * after it in baseline, plus anything added via Play Next / Add to Queue during the shuffle-ON
- * session just ending; that result also becomes the new baseline.
+ * Shuffle ON keeps the history and the current slot in place and shuffles what follows; under
+ * Repeat All the current slot leads and every other slot is shuffled after it. Baseline becomes
+ * the order from before the tap. Shuffle OFF keeps the history (under Repeat All only its
+ * extras), then the current slot, the Play Next extras newest first, the album in baseline order
+ * from the current slot with a wrap, and the Add to Queue extras oldest first; that result also
+ * becomes the new baseline. See [QueueOrderStore.shuffle] and [QueueOrderStore.unshuffle].
+ *
+ * Always executes when called: asking before discarding a hand reorder is the ViewModel's job
+ * ([PlaybackViewModel.setShuffleEnabled]). A toggle never changes the current slot, its position
+ * or play state; the store refuses, changing nothing, any computed order that would not hold
+ * exactly the same slots, and the refusal is logged.
  *
  * The reorder itself is a pure permutation of the order store's records — no `MediaItem`s,
  * no timeline rebuild — followed by [maintainWindow] reconciling the ~[WINDOW_SIZE] items that
@@ -42,23 +50,29 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
         if (enabled == _shuffleEnabled.value) return@withContext
         controller ?: return@withContext
         val currentSlotId = _currentSlotId.value ?: return@withContext
+        if (orderStore.indexOfSlot(currentSlotId) < 0) return@withContext
 
+        val repeatMode = _repeatMode.value
         val reordered = if (enabled) {
-            orderStore.shuffle(currentSlotId)
+            orderStore.shuffle(currentSlotId, repeatMode)
         } else {
             // writeBaseline=false: baseline is rewritten again as part of the SAME atomic write
             // below — letting this land as its own independent write would reopen
             // exactly the torn-write window unification exists to close.
-            orderStore.unshuffle(currentSlotId, writeBaseline = false)
+            orderStore.unshuffle(currentSlotId, repeatMode, writeBaseline = false)
         }
-        if (!reordered) return@withContext
+        if (!reordered) {
+            Log.w(
+                ExoPlayerEngine.TAG,
+                "Shuffle ${if (enabled) "on" else "off"} refused for slot $currentSlotId: the new order of " +
+                    "${orderStore.size} slots would not keep the same slots and cursor; the order is unchanged",
+            )
+            return@withContext
+        }
 
-        // Shuffle OFF only: unshuffling permanently drops baseline history before the current
-        // song, so anything else still cached is now stale. Shuffle ON's result is a subset of
-        // what is already tracked, so nothing needs pruning there.
-        if (!enabled) {
-            songsBySlotId.keys.retainAll(orderStore.live.mapTo(HashSet()) { it.slotId })
-        }
+        // Baseline is rebuilt from the live order by either toggle, so a slot only baseline held is
+        // gone from the store and its cached song with it.
+        songsBySlotId.keys.retainAll(orderStore.live.mapTo(HashSet()) { it.slotId })
 
         _shuffleEnabled.value = enabled
         maintainWindow(force = true)
@@ -76,8 +90,8 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
 /**
  * While shuffle is off, [song] is also woven into baseline at the matching relative slot —
  * permanently, per the locked spec (see [QueueOrderStore.insertAfterCurrent]). While shuffle is
- * on, baseline is left untouched; if shuffle later turns off, [song] is folded into the new
- * baseline then (see [setShuffleEnabledInternal]), not here.
+ * on, baseline is left untouched and [song] is a Play Next extra; if shuffle later turns off, it
+ * is placed right after the current slot then (see [setShuffleEnabledInternal]), not here.
  */
 internal fun ExoPlayerEngine.playNextInternal(song: Song) {
     controller ?: return
@@ -93,7 +107,8 @@ internal fun ExoPlayerEngine.playNextInternal(song: Song) {
 }
 
 /**
- * Same baseline-weaving rule as [playNextInternal], appended at the end instead of next-slot.
+ * Same baseline-weaving rule as [playNextInternal], appended at the end instead of next-slot; while
+ * shuffle is on [song] is an Add to Queue extra, placed after the album when shuffle turns off.
  * On a large queue the new slot lands far outside the loaded window, so [maintainWindow] has
  * nothing to do and this costs no controller work at all.
  */
@@ -125,7 +140,8 @@ internal fun ExoPlayerEngine.addToQueueInternal(song: Song) {
  * kdoc for why only the source needs identity resolution.
  *
  * While shuffle is off the same move is mirrored into baseline. While shuffle is on this only
- * touches the live order; the reorder evaporates the moment shuffle turns off, per spec.
+ * touches the live order and sets the reorder flag: turning shuffle off restores the original
+ * order, which [PlaybackViewModel.setShuffleEnabled] asks the user to confirm first.
  */
 internal fun ExoPlayerEngine.moveQueueItemInternal(slotId: String, toIndex: Int) {
     controller ?: return

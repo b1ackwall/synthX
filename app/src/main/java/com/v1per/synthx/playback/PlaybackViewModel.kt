@@ -85,6 +85,16 @@ class PlaybackViewModel(
     val shuffleEnabled: StateFlow<Boolean> = controller.shuffleEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    // Eager because setShuffleEnabled reads .value on every tap, collected or not.
+    val shuffleReorderedByUser: StateFlow<Boolean> = controller.shuffleReorderedByUser
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    // Held here rather than in the composition, so the question survives a configuration change.
+    private val _shuffleOffConfirmation = MutableStateFlow(false)
+
+    /** True while "Restore the original order?" waits for an answer; see [setShuffleEnabled]. */
+    val shuffleOffConfirmation: StateFlow<Boolean> = _shuffleOffConfirmation.asStateFlow()
+
     val repeatMode: StateFlow<RepeatMode> = controller.repeatMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RepeatMode.Off)
 
@@ -268,7 +278,32 @@ class PlaybackViewModel(
     // the most recent tap's result reaching the controller.
     private var setShuffleEnabledJob: Job? = null
 
+    /**
+     * The in-app shuffle toggle. Turning shuffle off after the user reordered the shuffled queue
+     * would put the moved songs back in their original order, so that case only raises
+     * [shuffleOffConfirmation]; [confirmShuffleOff] then toggles, [dismissShuffleOffConfirmation]
+     * leaves shuffle, the flag and the queue as they are. Every other case toggles directly.
+     */
     fun setShuffleEnabled(enabled: Boolean) {
+        if (!enabled && shuffleReorderedByUser.value) {
+            _shuffleOffConfirmation.value = true
+            return
+        }
+        launchShuffleToggle(enabled)
+    }
+
+    /** The confirmed answer to [shuffleOffConfirmation]: shuffle off, original order back. */
+    fun confirmShuffleOff() {
+        _shuffleOffConfirmation.value = false
+        launchShuffleToggle(false)
+    }
+
+    /** Keep shuffle on, or Back: closes [shuffleOffConfirmation] and changes nothing else. */
+    fun dismissShuffleOffConfirmation() {
+        _shuffleOffConfirmation.value = false
+    }
+
+    private fun launchShuffleToggle(enabled: Boolean) {
         setShuffleEnabledJob?.cancel()
         setShuffleEnabledJob = viewModelScope.launch { controller.setShuffleEnabled(enabled) }
     }

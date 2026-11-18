@@ -51,6 +51,7 @@ class PlaybackViewModelResumeReconciliationTest {
         override val currentIndex: Flow<Int> = emptyFlow()
         override val upcomingQueue: Flow<List<QueueSlot>> = emptyFlow()
         override val shuffleEnabled: Flow<Boolean> = emptyFlow()
+        override val shuffleReorderedByUser: Flow<Boolean> = emptyFlow()
         override val repeatMode: Flow<RepeatMode> = emptyFlow()
         override val hasNext: Flow<Boolean> = emptyFlow()
         override val hasPrevious: Flow<Boolean> = emptyFlow()

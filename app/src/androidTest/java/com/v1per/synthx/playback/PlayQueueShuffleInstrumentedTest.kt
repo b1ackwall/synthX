@@ -85,7 +85,7 @@ class PlayQueueShuffleInstrumentedTest : PlaybackServiceTestBase() {
         onMain {
             assertEquals(false, engine._shuffleEnabled.value)
             assertEquals(
-                listOf("restore-2", "restore-3", "restore-4", "restore-5"),
+                listOf("restore-2", "restore-3", "restore-4", "restore-5", "restore-0", "restore-1"),
                 engine.orderStore.live.songIds(),
             )
         }

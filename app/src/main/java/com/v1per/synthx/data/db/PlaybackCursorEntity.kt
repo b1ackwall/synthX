@@ -10,8 +10,8 @@ import androidx.room.PrimaryKey
  * Room, not SharedPreferences, so [QueueDao.replaceQueueAndCursor] can commit cursor and queue
  * in one transaction, closing the window where a process death between two independent writes
  * leaves the cursor pointing at a queue structure that was never actually persisted (or vice
- * versa). [shuffleEnabled]/[repeatMode] are here for the same reason: a restore installs a
- * whole database file, so state that lives outside it (SharedPreferences) cannot travel
+ * versa). [shuffleEnabled]/[repeatMode]/[shuffleReordered] are here for the same reason: a restore
+ * installs a whole database file, so state that lives outside it (SharedPreferences) cannot travel
  * atomically with the queue it describes.
  *
  * `id` is always 0 — there is only ever one cursor, so this is an upsert target rather than a
@@ -26,4 +26,6 @@ data class PlaybackCursorEntity(
     @ColumnInfo(name = "shuffle_enabled", defaultValue = "0") val shuffleEnabled: Boolean = false,
     /** media3's Player.REPEAT_MODE_* int, stored raw so no mapping is needed at either end. */
     @ColumnInfo(name = "repeat_mode", defaultValue = "0") val repeatMode: Int = 0,
+    /** True while the user has reordered a shuffled queue by hand; shuffle OFF asks first then. */
+    @ColumnInfo(name = "shuffle_reordered", defaultValue = "0") val shuffleReordered: Boolean = false,
 )

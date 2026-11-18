@@ -117,7 +117,7 @@ class BackupPrimitivesTest {
         // Update this to the new version's exported app/schemas/.../<N>.json identityHash on
         // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist), so this
         // literal never goes stale silently.
-        assertEquals("3e0e2f38ca17807335cfa847b095f2fd", current.roomIdentityHash)
+        assertEquals("4df39be18f034e6a63912bd16eefc96d", current.roomIdentityHash)
         assertTrue("songs" in current.expectedTables)
         assertTrue("queue_items" in current.expectedTables)
         assertTrue("queue_baseline_items" in current.expectedTables)

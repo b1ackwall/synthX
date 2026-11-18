@@ -29,6 +29,7 @@ class RecordingPlaybackEngine : PlaybackEngine {
     override val currentIndex: Flow<Int> = MutableStateFlow(0)
     override val upcomingQueue: Flow<List<QueueSlot>> = MutableStateFlow(emptyList())
     override val shuffleEnabled: Flow<Boolean> = emptyFlow()
+    override val shuffleReorderedByUser: Flow<Boolean> = emptyFlow()
     override val repeatMode: Flow<RepeatMode> = emptyFlow()
     override val hasNext: Flow<Boolean> = emptyFlow()
     override val hasPrevious: Flow<Boolean> = emptyFlow()

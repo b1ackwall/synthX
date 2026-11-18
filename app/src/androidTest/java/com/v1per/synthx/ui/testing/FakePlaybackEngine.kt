@@ -31,8 +31,11 @@ internal class FakePlaybackEngine(
     val reconcileCalls = AtomicInteger()
     val pauseCalls = AtomicInteger()
     val resumeCalls = AtomicInteger()
+    val shuffleCalls = CopyOnWriteArrayList<Boolean>()
 
     val playingState = MutableStateFlow(playing)
+    val shuffleState = MutableStateFlow(false)
+    val reorderedState = MutableStateFlow(false)
     val errorEvents = MutableSharedFlow<PlaybackError>(extraBufferCapacity = 4)
 
     override val isQueueEnded: Flow<Boolean> = MutableStateFlow(false)
@@ -48,7 +51,8 @@ internal class FakePlaybackEngine(
     override val currentIndex: Flow<Int> = MutableStateFlow(if (current == null) -1 else 0)
     override val upcomingQueue: Flow<List<QueueSlot>> =
         MutableStateFlow(upcoming.mapIndexed { i, song -> QueueSlot("slot-${i + 1}", song) })
-    override val shuffleEnabled: Flow<Boolean> = MutableStateFlow(false)
+    override val shuffleEnabled: Flow<Boolean> = shuffleState
+    override val shuffleReorderedByUser: Flow<Boolean> = reorderedState
     override val repeatMode: Flow<RepeatMode> = MutableStateFlow(RepeatMode.Off)
     override val hasNext: Flow<Boolean> = MutableStateFlow(upcoming.isNotEmpty())
     override val hasPrevious: Flow<Boolean> = MutableStateFlow(false)
@@ -65,7 +69,11 @@ internal class FakePlaybackEngine(
         nextCalls.incrementAndGet()
     }
     override fun previous() {}
-    override suspend fun setShuffleEnabled(enabled: Boolean) {}
+    override suspend fun setShuffleEnabled(enabled: Boolean) {
+        shuffleCalls += enabled
+        shuffleState.value = enabled
+        reorderedState.value = false
+    }
     override fun setRepeatMode(mode: RepeatMode) {}
     override fun playNext(song: Song): Boolean {
         playNextCalls += song

@@ -12,6 +12,10 @@ import androidx.room.PrimaryKey
  * `slot_id` is the stable identity of this exact queue occurrence; `position` is only its
  * current ordering key and changes whenever the queue is rewritten. Deleting a song CASCADEs
  * every slot that references it, so restore still tolerates a shorter queue.
+ *
+ * `extra_kind` and `extra_sequence` are set on a session extra only, a slot added with Play Next
+ * or Add to Queue while shuffle is on (see [com.v1per.synthx.data.repository.QueueExtraTag]), and
+ * are NULL on every ordinary slot.
  */
 @Entity(
     tableName = "queue_items",
@@ -29,4 +33,6 @@ data class QueueItemEntity(
     @PrimaryKey @ColumnInfo(name = "slot_id") val slotId: String,
     val position: Int,
     @ColumnInfo(name = "song_id") val songId: String,
+    @ColumnInfo(name = "extra_kind") val extraKind: Int? = null,
+    @ColumnInfo(name = "extra_sequence") val extraSequence: Long? = null,
 )

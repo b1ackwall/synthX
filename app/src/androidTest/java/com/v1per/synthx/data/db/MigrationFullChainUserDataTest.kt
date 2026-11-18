@@ -51,7 +51,7 @@ class MigrationFullChainUserDataTest {
 
     @Test
     fun libraryAndPlaylistDataSurviveTheChainFromEveryStartVersion() {
-        for (start in FIRST_START until SynthXDatabase.VERSION) {
+        for (start in FIRST_START..LAST_SEEDED_START) {
             val name = databaseName("library-v$start")
             val before = helper.createDatabase(name, start).use { db ->
                 seed(db, start)
@@ -111,12 +111,12 @@ class MigrationFullChainUserDataTest {
 
     @Test
     fun queueCursorAndCleanupRowsFollowEachStartVersionsRules() {
-        for (start in FIRST_START until SynthXDatabase.VERSION) {
+        for (start in FIRST_START..LAST_SEEDED_START) {
             val name = databaseName("queue-v$start")
             val before = helper.createDatabase(name, start).use { db ->
                 seed(db, start)
                 if (start >= 12) {
-                    QUEUE_TABLES.associateWith { db.readRows(it, orderBy = "slot_id") }
+                    QUEUE_TABLES.associateWith { db.readRows(it, QUEUE_ROW_COLUMNS, "slot_id") }
                 } else {
                     emptyMap()
                 }
@@ -127,9 +127,16 @@ class MigrationFullChainUserDataTest {
                     assertEquals(
                         "$label: $table (emptied by 11->12, kept after)",
                         before[table] ?: emptyList<List<String?>>(),
-                        db.readRows(table, orderBy = "slot_id"),
+                        db.readRows(table, QUEUE_ROW_COLUMNS, "slot_id"),
                     )
                 }
+                assertEquals(
+                    "$label: queue_items extra_kind and extra_sequence are NULL after 16->17",
+                    emptyList<String?>(),
+                    db.strings(
+                        "SELECT slot_id FROM queue_items WHERE extra_kind IS NOT NULL OR extra_sequence IS NOT NULL",
+                    ),
+                )
                 val expectedCursor = when {
                     start < 10 -> emptyList()
                     start == 10 -> listOf(listOf("1", null, "9876", "0", "0"))
@@ -236,6 +243,12 @@ class MigrationFullChainUserDataTest {
 
     private companion object {
         const val FIRST_START = 4
+
+        /** The last start version [seed] models: case-duplicate albums exist only before 15->16 folds them. */
+        const val LAST_SEEDED_START = 15
+
+        /** The queue row columns every start version from v12 has; 16->17 adds two NULL-able ones. */
+        val QUEUE_ROW_COLUMNS = listOf("slot_id", "position", "song_id")
 
         /** Song columns that exist, unchanged, in every schema from v4 to v16. */
         val SONG_COLUMNS = listOf(

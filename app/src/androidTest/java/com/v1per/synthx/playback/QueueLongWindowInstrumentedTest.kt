@@ -80,8 +80,10 @@ class QueueLongWindowInstrumentedTest : PlaybackServiceTestBase() {
 
         onMain {
             assertTrue(engine.shuffleEnabled.now())
-            assertEquals(playing, engine.queue.now().first().slotId)
-            assertEquals(0, engine.currentIndex.now())
+            // The history before the playing song stays; the playing song leads what is shuffled.
+            assertEquals(listOf("mid-0", "mid-1", "mid-2"), engine.queue.now().songIds().take(3))
+            assertEquals(playing, engine.queue.now()[3].slotId)
+            assertEquals(3, engine.currentIndex.now())
             assertEquals(list.map { it.id }.toSet(), engine.queue.now().songIds().toSet())
         }
         assertEquals(playing, onMain { extraController.currentMediaItem?.mediaId })

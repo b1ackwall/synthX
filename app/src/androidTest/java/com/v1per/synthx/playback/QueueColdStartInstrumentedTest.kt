@@ -111,7 +111,10 @@ class QueueColdStartInstrumentedTest : PlaybackServiceTestBase() {
         assertFalse("shuffle flag", onMain { engine.shuffleEnabled.now() })
     }
 
-    /** The baseline read is what shuffle-off rebuilds from: the current slot, then baseline after it. */
+    /**
+     * The baseline read is what shuffle-off rebuilds from: the current slot, then baseline after
+     * it, wrapping to the start under the restored Repeat All.
+     */
     @Test fun theRestoredBaselineIsWhatTurningShuffleOffFollows() {
         serveShuffledQueueWithADroppedSong()
         runBlocking { engine.restoreSavedQueue() }
@@ -119,10 +122,11 @@ class QueueColdStartInstrumentedTest : PlaybackServiceTestBase() {
 
         runBlocking { engine.setShuffleEnabled(false) }
 
-        assertEquals(listOf("slot-4", "slot-5"), onMain { engine.queue.now().slotIds() })
+        val expected = listOf("slot-4", "slot-5", "slot-0", "slot-1", "slot-2")
+        assertEquals(expected, onMain { engine.queue.now().slotIds() })
         await("unified write") { recorder.writesOf<QueueWrite.Unified>().isNotEmpty() }
         val unified = recorder.writesOf<QueueWrite.Unified>().single()
-        assertEquals(listOf("slot-4", "slot-5"), unified.baselineSlots.map { it.slotId })
+        assertEquals(expected, unified.baselineSlots.map { it.slotId })
         assertFalse(unified.shuffleEnabled)
     }
 

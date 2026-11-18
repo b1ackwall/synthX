@@ -53,12 +53,19 @@ internal fun ExoPlayerEngine.onQueueReordered() {
 internal fun ExoPlayerEngine.persistQueue() {
     val positionMs = controller?.let { resumePositionMs(it.playbackState, it.currentPosition) } ?: 0L
     val currentSlotId = _currentSlotId.value?.takeIf { orderStore.indexOfSlot(it) >= 0 }
-    persistence.saveQueueRecords(orderStore.live, currentSlotId, positionMs)
+    persistence.saveQueueRecords(
+        slots = orderStore.live,
+        currentSlotId = currentSlotId,
+        positionMs = positionMs,
+        extras = orderStore.extras,
+        shuffleReordered = orderStore.shuffleReordered,
+    )
 }
 
 /**
- * Persists baseline + active order + shuffle flag + repeat mode + cursor together as one atomic
- * unit — see [QueuePersistence.saveUnifiedQueueState]. Used by every call site that
+ * Persists baseline + active order + shuffle flag + repeat mode + cursor, with the session-extra
+ * tags and the reorder flag, together as one atomic unit — see
+ * [QueuePersistence.saveUnifiedQueueState]. Used by every call site that
  * changes more than one of these five pieces at once (a fresh play, a shuffle toggle), so an
  * interrupted write can never leave a torn combination. [persistQueue]/[writeBaselineOrder] etc.
  * remain correct for call sites that only ever touch one piece.
@@ -73,6 +80,8 @@ internal fun ExoPlayerEngine.persistUnifiedQueueState() {
         positionMs = positionMs,
         shuffleEnabled = _shuffleEnabled.value,
         repeatMode = _repeatMode.value.toPlayerRepeatMode(),
+        extras = orderStore.extras,
+        shuffleReordered = orderStore.shuffleReordered,
     )
 }
 
@@ -92,6 +101,7 @@ internal fun ExoPlayerEngine.persistUnifiedQueueState() {
  * happened to be loaded. `queue_items` is
  * the full order and the engine rewrites it on every structural change, so it is the right
  * thing to adopt; the caller reconciles the already-playing window against it afterwards.
+ * The saved orders go through the same [repairRestoredQueue] as a cold restore.
  */
 internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController) {
     if (ctrl.mediaItemCount == 0) return
@@ -101,11 +111,34 @@ internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController)
     val (restored, restoredBaseline) = persistence.loadQueueWithBaseline()
     restored ?: return
     restored.slots.forEach { songsBySlotId[it.slotId] = it.song }
-    restoredBaseline.forEach { songsBySlotId.putIfAbsent(it.slotId, it.song) }
-    orderStore.restore(
-        live = restored.slots.map { QueueSlotRecord(it.slotId, it.song.id) },
-        baseline = restoredBaseline.map { QueueSlotRecord(it.slotId, it.song.id) },
+    adoptRestoredOrders(
+        restored = restored,
+        restoredBaseline = restoredBaseline,
+        currentSlotId = ctrl.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }
+            ?: restored.slots[restored.startIndex].slotId,
     )
+}
+
+/**
+ * Installs a restored queue into the order store after [repairRestoredQueue], with its shuffle
+ * flag, so a stale, partial or failed baseline read can never cost a slot on a later shuffle OFF.
+ * Baseline-only slots are dropped by the repair, so the song cache needs only the live slots.
+ */
+internal fun ExoPlayerEngine.adoptRestoredOrders(
+    restored: QueuePersistence.RestoredQueue,
+    restoredBaseline: List<QueueSlot>,
+    currentSlotId: String?,
+) {
+    val live = restored.slots.map { QueueSlotRecord(it.slotId, it.song.id) }
+    val repaired = repairRestoredQueue(
+        live = live,
+        baseline = restoredBaseline.map { QueueSlotRecord(it.slotId, it.song.id) },
+        extras = restored.extras,
+        currentSlotId = currentSlotId,
+        shuffleEnabled = restored.shuffleEnabled,
+        shuffleReordered = restored.shuffleReordered,
+    )
+    orderStore.restore(live, repaired.baseline, repaired.extras, repaired.shuffleReordered)
     _shuffleEnabled.value = restored.shuffleEnabled
 }
 
@@ -181,6 +214,8 @@ internal fun ExoPlayerEngine.advancePastWindowEnd(): Boolean {
  */
 internal fun ExoPlayerEngine.refreshQueue() {
     _queue.value = hydrate(orderStore.live)
+    // The reorder flag changes only with the order itself, so it is re-derived here too.
+    _shuffleReorderedByUser.value = orderStore.shuffleReordered
     refreshCurrentIndex()
 }
 

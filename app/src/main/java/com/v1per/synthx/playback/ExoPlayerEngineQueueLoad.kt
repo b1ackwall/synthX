@@ -54,8 +54,7 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
             // incoming queue rather than leaving the flag true against an unshuffled order;
             // a flag and order that disagree also make re-enabling shuffle later read as a
             // rejected no-op.
-            val startRecord = baselineRecords[start]
-            val liveRecords = listOf(startRecord) + (baselineRecords - startRecord).shuffled()
+            val liveRecords = freshShuffledOrder(baselineRecords, start)
             orderStore.captureFreshShuffled(liveRecords, baselineRecords, writeBaseline = false)
         } else {
             orderStore.captureFresh(baselineRecords, writeBaseline = false)
@@ -103,9 +102,9 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
             "slot=${startSlot.slotId}",
     )
     val startArtwork = buildArtworkData(startSlot.song)
-    // Loaded alongside the active queue rather than derived from it — baseline can legitimately
-    // differ from the active list (e.g. history dropped by an ON->OFF toggle last session), so
-    // it needs its own read, not a recomputation.
+    // Loaded alongside the active queue rather than derived from it — baseline legitimately
+    // differs from the active list while shuffle is on, so it needs its own read, not a
+    // recomputation. A failed or stale read is made safe by the repair in adoptRestoredOrders.
     val restoredBaseline = persistence.loadBaselineQueue()
     var installed = false
 
@@ -130,20 +129,16 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
 
         songsBySlotId.clear()
         restored.slots.forEach { songsBySlotId[it.slotId] = it.song }
-        restoredBaseline.forEach { songsBySlotId.putIfAbsent(it.slotId, it.song) }
         artworkLoadedSlotIds.clear()
         artworkLoadedSlotIds.add(startSlot.slotId)
 
-        orderStore.restore(
-            live = restored.slots.map { QueueSlotRecord(it.slotId, it.song.id) },
-            baseline = restoredBaseline.map { QueueSlotRecord(it.slotId, it.song.id) },
-        )
         // Plain field sets — no media3 involvement, no rebuild. The active order just loaded
-        // already reflects whatever order (shuffled or not) was live when the app last closed.
+        // already reflects whatever order (shuffled or not) the app last saved,
+        // with its session extras and reorder flag.
+        adoptRestoredOrders(restored, restoredBaseline, currentSlotId = startSlot.slotId)
         // Repeat has to be adopted here rather than left to the callback `ctrl.repeatMode =`
         // below triggers, because the window built a few lines down reads it for its
         // repeat-all wraparound rule.
-        _shuffleEnabled.value = restored.shuffleEnabled
         _repeatMode.value = restored.repeatMode.toRepeatMode()
         // Populate queue state before publishing cursor identity, as defense in depth for any
         // consumer that depends on that ordering.
@@ -171,7 +166,13 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
                 "Restored ${restored.slots.size} queue items, " +
                     "${restored.droppedCount} no longer available",
             )
-            persistence.saveQueueRecords(orderStore.live, startSlot.slotId, restored.positionMs)
+            persistence.saveQueueRecords(
+                slots = orderStore.live,
+                currentSlotId = startSlot.slotId,
+                positionMs = restored.positionMs,
+                extras = orderStore.extras,
+                shuffleReordered = orderStore.shuffleReordered,
+            )
         }
         prefetchArtwork()
         Log.d(

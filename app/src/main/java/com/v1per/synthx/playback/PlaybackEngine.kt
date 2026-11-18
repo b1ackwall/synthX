@@ -73,6 +73,13 @@ interface PlaybackEngine {
     val upcomingQueue: Flow<List<QueueSlot>>
 
     val shuffleEnabled: Flow<Boolean>
+
+    /**
+     * True while the user has moved a song in the shuffled queue since the last shuffle toggle or
+     * fresh play. Turning shuffle off then puts the moved songs back in their original order,
+     * which the app asks about first. Saved with the queue, so it survives a restart.
+     */
+    val shuffleReorderedByUser: Flow<Boolean>
     val repeatMode: Flow<RepeatMode>
 
     /**
@@ -135,7 +142,8 @@ interface PlaybackEngine {
      * Suspend so implementations can order the reorder against the main thread rather than
      * assuming a caller's dispatcher — [ExoPlayerEngine] confines the whole operation to
      * `Main.immediate`, since it is a records-only list permutation plus a bounded window
-     * reconciliation.
+     * reconciliation. Always executes: in-app callers go through
+     * [PlaybackViewModel.setShuffleEnabled], which asks before discarding a reorder.
      */
     suspend fun setShuffleEnabled(enabled: Boolean)
     fun setRepeatMode(mode: RepeatMode)

@@ -49,6 +49,7 @@ import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.GroupPickerBottomSheet
 import com.v1per.synthx.ui.components.QueuePromptDialog
 import com.v1per.synthx.ui.components.QueueReplaceDialog
+import com.v1per.synthx.ui.components.ShuffleOffConfirmationHost
 import com.v1per.synthx.ui.components.hiddenFromAccessibilityWhileSheetShown
 import com.v1per.synthx.ui.components.SongActionsHost
 import com.v1per.synthx.ui.components.rememberRefinedBottomSheetState
@@ -394,6 +395,9 @@ private fun NormalShell(
                     onDismiss = { queueReplacePrompt = null },
                 )
             }
+
+            // Asked before shuffle off discards a hand reorder; the ViewModel holds the question.
+            ShuffleOffConfirmationHost(playbackViewModel)
 
             val routeOwnsRestoreOutcome = currentRoute == Screen.Onboarding.route ||
                 currentRoute == Screen.Restore.route

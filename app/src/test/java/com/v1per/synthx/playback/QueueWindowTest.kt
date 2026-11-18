@@ -206,9 +206,9 @@ class QueueWindowTest {
     }
 
     /**
-     * A shuffle toggle replaces almost the whole window. The point of doing it through
-     * reconciliation rather than `setMediaItems` is that the playing item is never torn down —
-     * which is exactly what would cause an audible rebuffer on a large queue.
+     * A shuffle toggle replaces everything after the playing item in the window. The point of
+     * doing it through reconciliation rather than `setMediaItems` is that the playing item is
+     * never torn down — which is exactly what would cause an audible rebuffer on a large queue.
      */
     @Test fun aWholesaleShuffleKeepsThePlayingItemLoadedThroughout() {
         val store = QueueOrderStore { }
@@ -216,11 +216,13 @@ class QueueWindowTest {
         val loaded = computeWindow(store.live, currentIndex = 900, wrapAround = false).ids()
 
         store.shuffle("slot-900") { it.reversed() }
-        val desired = computeWindow(store.live, currentIndex = 0, wrapAround = false)
+        val desired = computeWindow(store.live, currentIndex = 900, wrapAround = false)
 
         val edits = computeWindowEdits(loaded, desired)
 
-        assertEquals("slot-900", desired.first().slotId)
+        // The playing item stays first among the songs it is followed by; the history before it stays.
+        assertEquals("slot-900", desired[WINDOW_BACK].slotId)
+        assertEquals("slot-1999", desired[WINDOW_BACK + 1].slotId)
         assertEquals(desired.ids(), applyEdits(loaded, edits))
         assertNeverDisturbed(loaded, edits, "slot-900")
     }

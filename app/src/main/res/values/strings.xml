@@ -289,6 +289,10 @@
     <string name="queue_prompt_message">Keep plays this song now and continues with the songs you queued. Clear replaces the queue with the list you tapped from.</string>
     <string name="queue_replace_prompt_title">Replace your queue?</string>
     <string name="queue_replace_prompt_message">You’ve customized your Up Next queue. Playing this will replace it.</string>
+    <string name="shuffle_off_confirm_title">Restore the original order?</string>
+    <string name="shuffle_off_confirm_message">Turning shuffle off puts the songs you moved back in their original order.</string>
+    <string name="shuffle_off_confirm_action">Turn off shuffle</string>
+    <string name="shuffle_off_keep_action">Keep shuffle on</string>
 
     <!-- Detail header -->
     <string name="action_play">Play</string>

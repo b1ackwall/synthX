@@ -11,8 +11,9 @@ import androidx.room.PrimaryKey
  * sequence that survives shuffle toggles, distinct from `queue_items` (the live/active
  * order actually playing, which is shuffled order while shuffle is on).
  *
- * Structurally identical to [QueueItemEntity]: `slot_id` identifies the exact occurrence,
- * `position` is its mutable ordering key, and a deleted song CASCADEs its rows away.
+ * The same shape as [QueueItemEntity] without its session-extra tags, which only live rows carry:
+ * `slot_id` identifies the exact occurrence, `position` is its mutable ordering key, and a deleted
+ * song CASCADEs its rows away.
  */
 @Entity(
     tableName = "queue_baseline_items",
