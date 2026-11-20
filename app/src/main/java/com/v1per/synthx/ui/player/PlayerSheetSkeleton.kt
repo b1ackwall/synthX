@@ -77,6 +77,8 @@ internal fun PlayerSheetSkeleton(
     hasPrevious: Boolean,
     hasNext: Boolean,
     upcomingQueue: List<QueueSlot>,
+    // See PlaybackEngine.queueGeneration; Up Next scrolls to its top when it changes.
+    queueGeneration: Long,
     shuffleEnabled: Boolean,
     repeatMode: RepeatMode,
     onShuffleClick: () -> Unit,
@@ -165,12 +167,12 @@ internal fun PlayerSheetSkeleton(
         // Queue-mode toggle, its crossfade progress, the queue list's own scroll state, and
         // the derived controls-overlay visibility — all gathered behind one remembered holder
         // instead of half a dozen separate remember calls at this call site. See
-        // QueueModeState.kt for the state itself and the two rationales
-        // (controlsVisible's scroll-correction gating, the shuffle scroll-reset race) it
-        // preserves.
+        // QueueModeState.kt for the state itself, the drag-driven controlsVisible and the
+        // generation-driven scroll to the top.
         val queueModeState = rememberQueueModeState(
             scope = scope,
             upcomingQueue = upcomingQueue,
+            queueGeneration = queueGeneration,
             onShuffleClick = onShuffleClick,
         )
 
@@ -442,7 +444,7 @@ internal fun PlayerSheetSkeleton(
                     upcomingQueue = upcomingQueue,
                     shuffleEnabled = shuffleEnabled,
                     repeatMode = repeatMode,
-                    onShuffleClick = queueModeState.onShuffleClickWithScrollReset,
+                    onShuffleClick = queueModeState.onShuffleButtonClick,
                     onRepeatClick = onRepeatClick,
                     onQueueSongClick = onQueueSongClick,
                     onQueueMove = onQueueMove,
@@ -450,6 +452,7 @@ internal fun PlayerSheetSkeleton(
                     controlsOverlayHeight = actualOverlayHeight,
                     queueFadeAlpha = motion.queueFadeAlpha,
                     controlsOverlayAlpha = motion.maskStrength(overlayVisibleAlpha),
+                    overlayVisibleAlpha = overlayVisibleAlpha,
                     controlsOverlaySlide = motion.overlaySlide,
                     bottomInset = bottomInset,
                     fullHeight = this@BoxWithConstraints.maxHeight,

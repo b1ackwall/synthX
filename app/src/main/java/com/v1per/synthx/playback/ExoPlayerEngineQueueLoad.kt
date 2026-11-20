@@ -71,6 +71,8 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
 
         refreshUpcomingQueue()
         refreshNavigationState()
+        // The new queue is installed and its Up Next published: a new generation (Up Next to the top).
+        _queueGeneration.value++
         _isQueueCustomized.value = false
         // Baseline + active order + shuffle + repeat + cursor, all in one atomic write.
         persistUnifiedQueueState()

@@ -248,7 +248,8 @@ Implementation choices:
 
 ## 9. Out of scope
 
-The Up Next scroll-to-top flag and the buttons' accessibility state; Up Next gestures and styling; the
+The Up Next screen: its geometry, gestures and styling, the scroll to the top driven by the queue
+generation and the buttons' accessibility state (`docs/queue-up-next.md`); the
 customised flag after Clear or Replace; song taps during the launch restore; a rescan remap with no
 engine running; reshuffling per Repeat All loop; where Add to Queue places a song; the window size;
 performance; shuffle, persistence and entry-point semantics; the message being dropped when nothing

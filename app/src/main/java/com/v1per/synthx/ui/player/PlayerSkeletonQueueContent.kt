@@ -97,6 +97,15 @@ private val ControlsMaskFadeHeight = 48.dp
  * very first frame — indistinguishable from an always-composed, alpha-only list visually, just
  * no longer hit-testable at exactly 0f.
  *
+ * [QueueList] is exactly as tall as the strip from [queueListOffsetY] to the expanded sheet's
+ * bottom edge ([fullHeight] minus [queueListOffsetY]), so its viewport ends where the sheet does.
+ * Its bottom content padding follows the controls: [controlsOverlayHeight] scaled by
+ * [overlayVisibleAlpha], so the last row can come up to the controls' top while they show and
+ * reaches the sheet's bottom edge, with no gap, while they are hidden. The reorder auto-scroll's
+ * forward zone sits above the same edge: its threshold padding is [controlsOverlayHeight] while the
+ * controls are more than half shown and 0 otherwise, the shield's own `> 0.5f` switch, so the
+ * zone is always on screen and moves only when the controls toggle.
+ *
  * [queueContentEnabled] mirrors [expandedContentEnabled]'s own `> 0.5f` convention, but on
  * [queueProgressValue] instead of the collapse/expand `progress` axis — [expandedContentEnabled]
  * alone is insensitive to whether queue mode is actually active, so a tap during the
@@ -129,9 +138,11 @@ fun PlayerSkeletonQueueContent(
     // The collapse/expand term of this content's alpha, in place of expandedContentAlpha.
     queueFadeAlpha: Float,
     controlsOverlayAlpha: Float,
+    // The controls' own show/hide animation (1 while they show, always 1 in player mode).
+    overlayVisibleAlpha: Float,
     controlsOverlaySlide: Dp,
     bottomInset: Dp,
-    // The expanded sheet's height; the list keeps it while the sheet morphs.
+    // The expanded sheet's height; the list's height derives from it and holds while the sheet morphs.
     fullHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -225,7 +236,7 @@ fun PlayerSkeletonQueueContent(
         if (queueProgressValue > 0f && upcomingQueue.isEmpty()) {
             // fillMaxHeight() here would center within the whole remaining sheet height,
             // including the ~300dp the fixed PlayerSkeletonControlsOverlay draws over at the
-            // bottom — unlike QueueList's LazyColumn (which reserves that space via its own
+            // bottom — unlike QueueList's LazyColumn (which keeps its rows clear of it through its
             // contentPadding), a static centered Box has no equivalent, so the safe span has
             // to be measured explicitly: this maxHeight comes from BoxWithConstraints above
             // (the same live constraint QueueList/the overlay ultimately resolve against),
@@ -287,7 +298,13 @@ fun PlayerSkeletonQueueContent(
                 onRemove = onQueueRemove,
                 state = queueListState,
                 enabled = queueContentEnabled,
-                contentPadding = PaddingValues(bottom = controlsOverlayHeight),
+                // Follows the controls' fade, so the end of the list moves with them, never in a jump.
+                contentPadding = PaddingValues(bottom = controlsOverlayHeight * overlayVisibleAlpha),
+                // A step at the halfway point rather than per frame: the reorder state is rebuilt
+                // whenever this changes (QueueList holds it still while a row is dragged).
+                scrollThresholdPadding = PaddingValues(
+                    bottom = if (overlayVisibleAlpha > 0.5f) controlsOverlayHeight else 0.dp,
+                ),
                 modifier = Modifier
                     // Same summed anchor-plus-slide as the header Column above.
                     .offset(y = queueListOffsetY + queueContentSlideOffset)
@@ -297,10 +314,10 @@ fun PlayerSkeletonQueueContent(
                     // visibility — see QueueModeState.queueScrollConnection's doc comment.
                     .nestedScroll(queueScrollConnection)
                     .fillMaxWidth()
-                    // Full-height and top-anchored, so the layer keeps one size through the
-                    // sheet's morph; the sheet's clip cuts it at the bottom edge.
+                    // The visible strip of the expanded sheet, top-anchored, so the layer keeps one
+                    // size through the sheet's morph; the sheet's clip cuts it while the sheet is shorter.
                     .wrapContentHeight(align = Alignment.Top, unbounded = true)
-                    .requiredHeight(fullHeight)
+                    .requiredHeight((fullHeight - queueListOffsetY).coerceAtLeast(0.dp))
                     .testTag(PerfTestTags.QueueList)
                     .graphicsLayer {
                         alpha = queueContentAlpha

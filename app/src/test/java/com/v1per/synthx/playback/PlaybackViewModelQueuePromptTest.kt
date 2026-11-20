@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -63,6 +64,7 @@ class PlaybackViewModelQueuePromptTest {
         override val hasNext: Flow<Boolean> = emptyFlow()
         override val hasPrevious: Flow<Boolean> = emptyFlow()
         override val isQueueCustomized: Flow<Boolean> = MutableStateFlow(customized)
+        override val queueGeneration: StateFlow<Long> = MutableStateFlow(0L)
         override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
             playQueueCalls += PlayCall(songs, startIndex, shuffle)
         }

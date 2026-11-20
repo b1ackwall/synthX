@@ -419,6 +419,10 @@
     <string name="cd_close">Close</string>
     <string name="cd_shuffle">Shuffle</string>
     <string name="cd_repeat">Repeat</string>
+    <!-- The repeat button's state, read after its name -->
+    <string name="cd_repeat_off">Off</string>
+    <string name="cd_repeat_all">All</string>
+    <string name="cd_repeat_one">One</string>
     <string name="cd_drag_handle">Reorder</string>
     <string name="cd_seek_bar">Playback position</string>
     <string name="cd_current_group">Current group</string>

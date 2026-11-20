@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.gestures.animateTo
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -32,7 +34,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
@@ -49,6 +50,8 @@ import com.v1per.synthx.perf.PerfTestTags
 import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.player.LocalPlayerContentColors
 import com.v1per.synthx.ui.player.PlayerContentColors
+import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
@@ -131,6 +134,7 @@ fun QueueRow(
     val currentEnabled = rememberUpdatedState(enabled)
 
     val swipeState = remember { AnchoredDraggableState(initialValue = QueueRowSwipe.Settled) }
+    val interactionSource = remember { MutableInteractionSource() }
 
     // settledValue — not confirmValueChange — is the "this row really was dismissed" signal.
     // AnchoredDraggableState invokes confirmValueChange from AnchoredDragScope.updateIfNeeded,
@@ -231,7 +235,9 @@ fun QueueRow(
                 // perform, so a description here would only add a phantom node per row. The
                 // actionable equivalent is the drag handle's Remove custom action below.
                 contentDescription = null,
-                tint = Color.White,
+                // The dark Background token on the Error red: about 6.2:1, where the light text
+                // tokens stay under the 3:1 a non-text cue needs.
+                tint = Background,
                 modifier = Modifier
                     .align(revealAlignment)
                     .padding(horizontal = Spacing.md),
@@ -247,7 +253,12 @@ fun QueueRow(
                 }
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
-                .clickable(onClick = onClick)
+                // The Accent ripple every clickable row uses.
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = ripple(color = Accent),
+                    onClick = onClick,
+                )
                 // start = Spacing.md, not Spacing.HorizontalPadding: combines with
                 // SongIdentity's own internal Spacer(Spacing.md) to reach the 32dp
                 // (Spacing.xl) queue-mode left margin — must stay in sync with

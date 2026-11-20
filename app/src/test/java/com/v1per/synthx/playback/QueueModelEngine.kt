@@ -5,6 +5,7 @@ import com.v1per.synthx.data.repository.Song
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 
 /**
@@ -13,7 +14,8 @@ import kotlinx.coroutines.flow.emptyFlow
  * the cursor one slot on, and a queue load installs a fresh queue. A load can be held on a gate, the
  * way the real engine suspends while it builds artwork or waits for its session connection; a load
  * cancelled while held installs nothing. A restore can be held the same way. Every command is
- * recorded in [calls].
+ * recorded in [calls]. An installed load bumps [queueGeneration], as the engine's fresh play does;
+ * a restore, an insert and a cursor move do not.
  */
 internal class QueueModelEngine : PlaybackEngine {
     val calls = mutableListOf<String>()
@@ -94,12 +96,15 @@ internal class QueueModelEngine : PlaybackEngine {
     override val hasNext: Flow<Boolean> = emptyFlow()
     override val hasPrevious: Flow<Boolean> = emptyFlow()
     override val isQueueCustomized: Flow<Boolean> = customized
+    val generation = MutableStateFlow(0L)
+    override val queueGeneration: StateFlow<Long> = generation
 
     override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
         calls += "playQueue:${songs.map { it.id }}@$startIndex"
         loadGates.removeFirstOrNull()?.await()
         if (!loadsInstall) return
         install(songs, startIndex)
+        generation.value++
         playing.value = true
         calls += "installed:${songs.map { it.id }}"
     }

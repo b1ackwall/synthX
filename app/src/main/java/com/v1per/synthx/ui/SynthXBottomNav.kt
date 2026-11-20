@@ -151,6 +151,7 @@ internal fun BottomChromeOverlay(
             val hasPrevious by playbackViewModel.hasPrevious.collectAsState()
             val hasNext by playbackViewModel.hasNext.collectAsState()
             val upcomingQueue by playbackViewModel.upcomingQueue.collectAsState()
+            val queueGeneration by playbackViewModel.queueGeneration.collectAsState()
             val shuffleEnabled by playbackViewModel.shuffleEnabled.collectAsState()
             val repeatMode by playbackViewModel.repeatMode.collectAsState()
             // The song's identity and art URIs are resolved here, before the decode's async boundary.
@@ -179,6 +180,7 @@ internal fun BottomChromeOverlay(
                     hasPrevious = hasPrevious,
                     hasNext = hasNext,
                     upcomingQueue = upcomingQueue,
+                    queueGeneration = queueGeneration,
                     shuffleEnabled = shuffleEnabled,
                     repeatMode = repeatMode,
                     onShuffleClick = playbackViewModel::toggleShuffle,

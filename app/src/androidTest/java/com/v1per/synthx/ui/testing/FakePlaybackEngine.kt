@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Device-side fake [PlaybackEngine] for shell and MainActivity tests: no service, no ExoPlayer.
@@ -23,6 +24,7 @@ internal class FakePlaybackEngine(
     playing: Boolean = false,
 ) : PlaybackEngine {
     data class PlayCall(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean?)
+    data class MoveCall(val slotId: String, val toIndex: Int)
 
     val playQueueCalls = CopyOnWriteArrayList<PlayCall>()
     val playNextCalls = CopyOnWriteArrayList<Song>()
@@ -34,12 +36,20 @@ internal class FakePlaybackEngine(
     val resumeCalls = AtomicInteger()
     val shuffleCalls = CopyOnWriteArrayList<Boolean>()
     val repeatCalls = CopyOnWriteArrayList<RepeatMode>()
+    val moveCalls = CopyOnWriteArrayList<MoveCall>()
+    val removeCalls = CopyOnWriteArrayList<String>()
 
     val playingState = MutableStateFlow(playing)
     val shuffleState = MutableStateFlow(false)
     val reorderedState = MutableStateFlow(false)
     val repeatState = MutableStateFlow(RepeatMode.Off)
     val errorEvents = MutableSharedFlow<PlaybackError>(extraBufferCapacity = 4)
+
+    /** The Up Next list the shell shows; a test replaces it to model an engine edit. */
+    val upcomingState = MutableStateFlow(upcoming.mapIndexed { i, song -> QueueSlot("slot-${i + 1}", song) })
+
+    /** The queue generation the shell sees; a test bumps it to model a fresh play or an applied toggle. */
+    val queueGenerationState = MutableStateFlow(0L)
 
     override val isQueueEnded: Flow<Boolean> = MutableStateFlow(false)
     override val isPlaying: Flow<Boolean> = playingState
@@ -52,14 +62,14 @@ internal class FakePlaybackEngine(
     override val queue: Flow<List<QueueSlot>> =
         MutableStateFlow(listOfNotNull(current?.let { QueueSlot("slot-0", it) }))
     override val currentIndex: Flow<Int> = MutableStateFlow(if (current == null) -1 else 0)
-    override val upcomingQueue: Flow<List<QueueSlot>> =
-        MutableStateFlow(upcoming.mapIndexed { i, song -> QueueSlot("slot-${i + 1}", song) })
+    override val upcomingQueue: Flow<List<QueueSlot>> = upcomingState
     override val shuffleEnabled: Flow<Boolean> = shuffleState
     override val shuffleReorderedByUser: Flow<Boolean> = reorderedState
     override val repeatMode: Flow<RepeatMode> = repeatState
     override val hasNext: Flow<Boolean> = MutableStateFlow(upcoming.isNotEmpty())
     override val hasPrevious: Flow<Boolean> = MutableStateFlow(false)
     override val isQueueCustomized: Flow<Boolean> = MutableStateFlow(customized)
+    override val queueGeneration: StateFlow<Long> = queueGenerationState
 
     override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
         playQueueCalls += PlayCall(songs, startIndex, shuffle)
@@ -90,8 +100,12 @@ internal class FakePlaybackEngine(
         addToQueueCalls += song
         return true
     }
-    override fun moveQueueItem(slotId: String, toIndex: Int) {}
-    override fun removeQueueItem(slotId: String) {}
+    override fun moveQueueItem(slotId: String, toIndex: Int) {
+        moveCalls += MoveCall(slotId, toIndex)
+    }
+    override fun removeQueueItem(slotId: String) {
+        removeCalls += slotId
+    }
     override fun seekToQueueItem(slotId: String) {}
     override fun pause() {
         pauseCalls.incrementAndGet()

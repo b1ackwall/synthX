@@ -3,6 +3,7 @@ package com.v1per.synthx.playback
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.QueueSlot
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 class PlaybackController(private val engine: PlaybackEngine) {
 
@@ -23,6 +24,9 @@ class PlaybackController(private val engine: PlaybackEngine) {
     val hasNext: Flow<Boolean> = engine.hasNext
     val hasPrevious: Flow<Boolean> = engine.hasPrevious
     val isQueueCustomized: Flow<Boolean> = engine.isQueueCustomized
+
+    /** The engine's own flow, passed through; see [PlaybackEngine.queueGeneration]. */
+    val queueGeneration: StateFlow<Long> = engine.queueGeneration
 
     suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean? = null) =
         engine.playQueue(songs, startIndex, shuffle)

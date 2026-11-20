@@ -3,6 +3,7 @@ package com.v1per.synthx.playback
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.QueueSlot
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 
 /** One-off playback failures, surfaced to the UI as transient messages. */
@@ -104,6 +105,19 @@ interface PlaybackEngine {
      * session bring it back, and the next [playQueue] puts it back to false.
      */
     val isQueueCustomized: Flow<Boolean>
+
+    /**
+     * A counter that goes up by one each time a whole new play order is installed: when a fresh
+     * [playQueue] has installed its queue, and when a [setShuffleEnabled] toggle is applied. Nothing
+     * else moves it: Play Next, Add to Queue, a move or a remove, a track change, an auto-skip, a
+     * refused toggle, the restore of the saved queue and the adoption of a running session leave it as
+     * it is. The Up Next list scrolls to its top when the value changes.
+     *
+     * [upcomingQueue] is published before the counter, in the same main-thread step, so a screen that
+     * reacts to the change already holds the new order. A [StateFlow] so a screen reads the current
+     * value on its first frame and never takes the first value it sees for a change.
+     */
+    val queueGeneration: StateFlow<Long>
 
     /**
      * Replaces the whole queue with [songs] and starts playing at [startIndex]. A non-null

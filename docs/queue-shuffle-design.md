@@ -240,7 +240,8 @@ the repair makes a failed or stale baseline read lossless.
 - reshuffling at each Repeat All loop;
 - the Keep, Clear and Replace prompts;
 - the order of the queue restore and the daily backup;
-- the scroll-to-top flag in `QueueModeState`, and the accessibility semantics of the shuffle button;
+- the Up Next list's scroll to the top after an applied toggle (the queue generation), and the accessibility
+  semantics of the shuffle button (both in `docs/queue-up-next.md`);
 - Up Next gestures, system transport, and the size of the player window;
 - the two commits of ordinary edits.
 

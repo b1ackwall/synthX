@@ -7,6 +7,7 @@ import com.v1per.synthx.playback.PlaybackError
 import com.v1per.synthx.playback.RepeatMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 
 /**
@@ -34,6 +35,7 @@ class RecordingPlaybackEngine : PlaybackEngine {
     override val hasNext: Flow<Boolean> = emptyFlow()
     override val hasPrevious: Flow<Boolean> = emptyFlow()
     override val isQueueCustomized: Flow<Boolean> = MutableStateFlow(false)
+    override val queueGeneration: StateFlow<Long> = MutableStateFlow(0L)
 
     override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
         playQueueCalls += PlayCall(songs.map { it.id }, startIndex, shuffle)

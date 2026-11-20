@@ -1,10 +1,11 @@
 # Queue: accepted and deferred behaviours
 
-Check here before filing an audit finding about the play queue, shuffle or queue persistence. Each
+Check here before filing an audit finding about the play queue, shuffle, queue persistence or the Up
+Next screen. Each
 entry below is either a behaviour the maintainer accepted on purpose (with what pins it and when to
 look again) or a known behaviour that is deferred to later work. Paths are relative to
 `app/src/main/java/com/v1per/synthx/`. The rules themselves are in `docs/queue-shuffle-design.md`
-and `docs/queue-persistence.md`.
+and `docs/queue-persistence.md`; the Up Next screen's are in `docs/queue-up-next.md`.
 
 ## Accepted
 
@@ -157,6 +158,57 @@ and `docs/queue-persistence.md`.
 - **What pins it.** `ExternalShuffleInstrumentedTest`, `SystemNavigationPlayerTest`.
 - **Revisit when.** A real device shows a shuffle state that disagrees with the app.
 
+### A12. The reorder destination is a position resolved when the move runs (#414)
+
+- **What.** A drag-reorder names the moved row by its slot id and the drop point by a position in Up
+  Next (`QueueOrderStore.moveUpcoming`: `currentIndex + 1 + toDisplayIndex`). When the track changes
+  between the drop and the move running (a window of about one frame), the position is resolved
+  against the new cursor, and the row lands one slot lower than where it was released. The TalkBack
+  Move up and Move down actions resolve the same way.
+- **Why accepted.** The window is about one frame, the row is one slot off and nothing is lost: the
+  moved row is still found by its id, and a move of a row that has gone is refused.
+- **What pins it.** `QueueOrderStoreTest.aMoveRunAfterTheCursorAdvancedLandsOneSlotLowerThanReleased`
+  (live [c, a, b, d, e], the cursor advances to a, `moveUpcoming(e, 1)` puts e after b).
+- **Revisit when.** A drop is reported landing in the wrong place, or the move gains a neighbour-based
+  destination ("insert after slot Y") for another reason.
+
+### A13. Swipe-to-remove racing a track change, and a swipe whose row is disposed (#413)
+
+- **What.** Two paths:
+  - the first Up Next row's slot can become the current slot between the swipe settling and the
+    removal running; the engine refuses to remove the current slot, the row leaves Up Next anyway
+    (it is now playing), so the dismissed song plays;
+  - a swipe whose row leaves composition while it settles (the queue changed under it) is dropped;
+    the slot stays queued.
+- **Why accepted.** Nothing is lost and nothing else is removed: the removal is by slot id, and the
+  engine never removes the playing slot. Next skips a song that plays after a dismissal.
+- **What pins it.** `QueueSwipeRemoveTest` (a swipe removes only its own slot, also when the queue
+  advances or changes mid-swipe); the engine's refusal to remove the current slot
+  (`removeQueueItemInternal`).
+- **Revisit when.** Swipe-to-remove gains an Undo (see Deferred), which needs the same slot record.
+
+### A14. The controls' touch shield over the bottom of Up Next (#417)
+
+- **What.** While the controls show in queue mode, their background shield covers the bottom 300dp of
+  the list: touches there reach neither the list nor the sheet, so a drag that starts beside the
+  buttons does not scroll, does not hide the controls and does not move the sheet.
+- **Why accepted.** Touches leaking through the controls to the list under them were seen before the
+  shield. The list's visible height (`docs/queue-up-next.md` section 1) lets the last rows scroll up
+  above the controls, which shrinks the practical effect: no row has to be reached under the shield.
+- **What pins it.** `PlayerSheetGestureInstrumentedTest.draggingDownOnTheQueueControlsLeavesTheSheetOpen`.
+- **Revisit when.** The dead band is reported, or the shield's touch handling is reworked.
+
+### A15. Hidden controls stay hidden across a collapse; Back collapses the sheet in queue mode (#418)
+
+- **What.** Controls hidden by an upward drag in queue mode stay hidden after the sheet is collapsed
+  and expanded again; a downward drag on the list shows them. System Back with the sheet expanded
+  collapses the sheet, in queue mode too; queue mode stays on.
+- **Why accepted.** Intentional: the sheet comes back as the user left it, and Back has one meaning
+  for the sheet in both modes.
+- **What pins it.** `UpNextShellInstrumentedTest.controlsHiddenByAnUpwardDragStayHiddenAcrossACollapseAndAReExpand`,
+  `backWithTheSheetOpenInQueueModeCollapsesTheSheetAndKeepsQueueMode`.
+- **Revisit when.** Users get stuck in queue mode without controls, or Back should leave queue mode first.
+
 ## Deferred
 
 Known behaviours that are not fixed yet. The first group is the "out of scope" list of
@@ -169,10 +221,11 @@ the queue entry-points work (`docs/queue-entry-points.md`).
 |---|---|
 | Add to Queue places a new song at the end of the live order, after the whole remaining context. | #430 |
 | Repeat All replays the same shuffled order on every loop. | #393 |
-| A shuffle tap that changes nothing leaves a scroll-to-top pending; the Shuffle and Repeat buttons expose no on/off state to accessibility. | #395, #421 |
-| Up Next gestures (reorder auto-scroll, padding, swipe-to-remove, the overlay show/hide gesture and related races). | #410 to #418 |
+| Swipe-to-remove is instant and permanent with no Undo, and any release above the fixed 125dp/s fling threshold removes, however short the drag. Parked for the maintainer's own feel testing. An Undo needs: the slot record and its song, its predecessors in the live order and in the baseline, its extra tag, the shuffle state at the time, rules for re-inserting it when either predecessor has gone, persistence of the re-insert through the two commits of A3, and no survival across a process death without a schema change. A snackbar over the player could cover the controls. | #412 |
+| With Repeat All on the last song, Up Next shows "Nothing queued after this" rather than what plays from the start. A design question tied to reshuffling per loop (#393) and to history, Clear and the count (#431). | #399 |
 | External controllers only see the loaded window of about 51 items as the queue. | #409 |
 | O(N) work on large queues: every queue write rewrites every row (including on pause and when leaving the app), every track change hydrates the whole Up Next list, and the view model mirrors the whole queue and the Up Next list. Moved to a separate performance batch. | #406 |
+| The rest of that performance batch: the Up Next list staying composed (offscreen layer and mask included) while the sheet is collapsed in queue mode; every Up Next row receiving the whole list for its self-heal check; the large-library benchmark scenarios. | #419, #420 (part 2), #293 |
 | A song tap or a page Play / Shuffle tap during the launch restore does not wait for it. Its Keep/Clear or Replace decision runs before the restore finishes, without the stored customised-queue flag, so it plays at once and the restore then finds a timeline and stands down. Making those taps wait would mean holding `requestPlayQueue` and `requestPlayAll` in the same restore gate and then re-checking the flag from the engine; the prompts are pending view model state, so they could be raised after the wait without a UI change. | none yet |
 | After Clear or Replace, the customised-queue flag stays true until the new queue installs. A second song tap in that short window raises the Keep/Clear prompt again; Keep then waits for the load and applies to the new queue. | none yet |
 | The queue-load wait is proven on the real engine only for a load suspended at its session wait (`QueueLoadWaitInstrumentedTest`). A load suspended while it builds the start song's artwork is covered by the view-model tests alone: there is no seam to hold the artwork step, and none is added for a test. | none yet |

@@ -35,10 +35,15 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  * PlayerSkeletonQueueContent's Queue mode — can observe its scroll position for its own
  * purposes (there: collapsing the seek bar/transport controls once the list scrolls).
  *
- * [contentPadding] exists for hosts that let this list extend underneath an overlay: the
- * rows draw through the full viewport, but the padding extends the scroll range so the last
- * row can still be brought clear of whatever is drawn on top. Callers should keep it
- * constant — varying it mid-scroll moves the max-scroll offset under the user's finger.
+ * [contentPadding] exists for hosts that draw an overlay over the end of this list: the rows
+ * draw through the full viewport, and the end padding extends the scroll range so the last row
+ * can come up clear of the overlay. A host may change it as the overlay shows and hides; at the
+ * end of the list a smaller padding moves the rows toward the end edge as it shrinks.
+ *
+ * [scrollThresholdPadding] places the reorder auto-scroll zones: a dragged row's handle within
+ * the library's threshold of the viewport's end, less this padding, scrolls the list forward. The
+ * reorder state is rebuilt whenever this value changes, which would drop a drag in progress, so a
+ * change that arrives while a row is held applies once it is dropped.
  *
  * [onSongClick]/[onMove]/[onRemove] each take the tapped/dragged/swiped row's stable slot id rather than a
  * position — [localQueue] is Compose-local state that free-runs between
@@ -60,6 +65,7 @@ fun QueueList(
     onRemove: (slotId: String) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
+    scrollThresholdPadding: PaddingValues = PaddingValues(0.dp),
     state: LazyListState = rememberLazyListState(),
     enabled: Boolean = true,
 ) {
@@ -80,8 +86,15 @@ fun QueueList(
     // live order at execution time regardless of what this UI layer believes. See the class
     // kdoc above for why nothing index-shaped needs to survive the trip to the engine.
     var dragStartSlotId by remember { mutableStateOf<String?>(null) }
+    // The threshold padding a drag started with, held until the drop; null while no row is held.
+    // Read through State for the same reason as the holders above: the handle keeps its first closures.
+    val currentThresholdPadding by rememberUpdatedState(scrollThresholdPadding)
+    var dragThresholdPadding by remember { mutableStateOf<PaddingValues?>(null) }
 
-    val reorderableState = rememberReorderableLazyListState(state) { from, to ->
+    val reorderableState = rememberReorderableLazyListState(
+        state,
+        scrollThresholdPadding = dragThresholdPadding ?: scrollThresholdPadding,
+    ) { from, to ->
         // Resolved by key (each item's key is its slotId): the library's indices come from the
         // layout pass that saw the drag, which can predate a holder swapped in since.
         val fromIndex = localQueue.indexOfFirst { it.slotId == from.key }
@@ -105,7 +118,10 @@ fun QueueList(
                     onRemove = { if (currentEnabled) onRemove(slot.slotId) },
                     enabled = { currentEnabled },
                     dragHandleModifier = Modifier.draggableHandle(
-                        onDragStarted = { dragStartSlotId = slot.slotId },
+                        onDragStarted = {
+                            dragStartSlotId = slot.slotId
+                            dragThresholdPadding = currentThresholdPadding
+                        },
                         onDragStopped = {
                             // The moved row's identity — never re-derived from a position; the
                             // engine re-resolves it against its live order and rejects it if
@@ -131,6 +147,7 @@ fun QueueList(
                                 resetLocalQueue()
                             }
                             dragStartSlotId = null
+                            dragThresholdPadding = null
                         },
                     ),
                     // Same onMove the drag gesture calls on drop — accessibility-action and

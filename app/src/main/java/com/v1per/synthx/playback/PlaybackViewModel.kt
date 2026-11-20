@@ -128,6 +128,10 @@ class PlaybackViewModel(
     val isQueueCustomized: StateFlow<Boolean> = controller.isQueueCustomized
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    // The engine's StateFlow as it is, never a stateIn copy: a copy starts at its default, and Up
+    // Next would read the catch-up to the real value as a new generation and scroll to the top.
+    val queueGeneration: StateFlow<Long> = controller.queueGeneration
+
     val currentPosition: StateFlow<Long> = controller.currentPosition
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
 

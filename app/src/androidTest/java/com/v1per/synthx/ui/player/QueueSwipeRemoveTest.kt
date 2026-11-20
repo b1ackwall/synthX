@@ -74,6 +74,7 @@ class QueueSwipeRemoveTest {
                     controlsOverlayHeight = 0.dp,
                     queueFadeAlpha = 1f,
                     controlsOverlayAlpha = 1f,
+                    overlayVisibleAlpha = 1f,
                     controlsOverlaySlide = 0.dp,
                     bottomInset = 0.dp,
                     fullHeight = 700.dp,

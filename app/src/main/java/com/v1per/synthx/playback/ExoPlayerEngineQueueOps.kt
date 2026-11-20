@@ -37,7 +37,8 @@ import java.util.UUID
  * Always executes when called: asking before discarding a hand reorder is the ViewModel's job
  * ([PlaybackViewModel.setShuffleEnabled]). A toggle never changes the current slot, its position
  * or play state; the store refuses, changing nothing, any computed order that would not hold
- * exactly the same slots, and the refusal is logged.
+ * exactly the same slots, and the refusal is logged. Only an applied toggle bumps
+ * [ExoPlayerEngine.queueGeneration]; a no-op or refused one leaves it.
  *
  * The reorder itself is a pure permutation of the order store's records — no `MediaItem`s,
  * no timeline rebuild — followed by [maintainWindow] reconciling the ~[WINDOW_SIZE] items that
@@ -80,6 +81,8 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
         refreshUpcomingQueue()
         refreshNavigationState()
         refreshQueueEnded()
+        // Applied, and the new Up Next published: a new generation. Every refusal returned above.
+        _queueGeneration.value++
         // Baseline + active order + shuffle + repeat + cursor, all in one atomic write: separate
         // writes would be independent commits for one logical change, and a process death
         // between any two of them could leave them mismatched.

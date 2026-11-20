@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -117,6 +118,10 @@ class ExoPlayerEngine(
 
     internal val _isQueueCustomized = MutableStateFlow(false)
     override val isQueueCustomized: Flow<Boolean> = _isQueueCustomized.asStateFlow()
+
+    // Bumped by playQueueInternal and setShuffleEnabledInternal only; see PlaybackEngine.queueGeneration.
+    internal val _queueGeneration = MutableStateFlow(0L)
+    override val queueGeneration: StateFlow<Long> = _queueGeneration.asStateFlow()
 
     // Recomputed imperatively (see refreshNavigationState) rather than derived from other
     // flows: it is a repeat-aware question about the order store's true length and position,

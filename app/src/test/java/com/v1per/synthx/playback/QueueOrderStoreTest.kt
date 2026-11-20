@@ -450,4 +450,22 @@ class QueueOrderStoreTest {
         )
         assertEquals(writesAfterCapture, writer.writes.size)
     }
+
+    /**
+     * Accepted behaviour, pinned: the reorder destination is a position resolved against the cursor
+     * when the move runs, not a neighbour. The user sees Up Next [a, b, d, e] (live [c, a, b, d, e],
+     * current c) and drops e at display index 1, between a and b. The cursor reaches a before the move
+     * runs, so index 1 is resolved after a: e lands one slot lower than released, and nothing is lost.
+     */
+    @Test fun aMoveRunAfterTheCursorAdvancedLandsOneSlotLowerThanReleased() {
+        val subject = store()
+        subject.captureFresh(records("c", "a", "b", "d", "e"))
+
+        assertTrue(
+            subject.moveUpcoming("slot-e", toDisplayIndex = 1, currentSlotId = "slot-a", mirrorToBaseline = false),
+        )
+
+        assertEquals(listOf("slot-c", "slot-a", "slot-b", "slot-e", "slot-d"), subject.liveIds())
+        assertEquals(listOf("slot-b", "slot-e", "slot-d"), subject.upcomingFrom("slot-a").map { it.slotId })
+    }
 }
