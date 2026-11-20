@@ -106,9 +106,11 @@ class ExoPlayerEngine(
      * Owns the full intended play order — both the live/active order and the unshuffled
      * baseline (see [QueueOrderStore]'s own kdoc). This, not the player's timeline, is what
      * "the queue" means: the timeline holds only a bounded window into it, reconciled by
-     * [maintainWindow]. [_queue] is this store hydrated to real songs.
+     * [maintainWindow]. [_queue] is this store hydrated to real songs. Its baseline writes are held by
+     * [deferredBaseline] until the live order is saved, so the live commit always comes first.
      */
-    internal val orderStore = QueueOrderStore(persistence)
+    internal val deferredBaseline = DeferredBaselineWriter()
+    internal val orderStore = QueueOrderStore(deferredBaseline)
 
     internal val _repeatMode = MutableStateFlow(RepeatMode.Off)
     override val repeatMode: Flow<RepeatMode> = _repeatMode.asStateFlow()

@@ -209,9 +209,9 @@ Saved rows from version 16 come out untagged and unflagged.
 Writes:
 - A toggle or fresh play writes live, baseline, cursor, shuffle flag, repeat mode, the extra tags and
   the reorder flag in one transaction.
-- Ordinary edits keep their two commits:
-  - the baseline write;
-  - the active order with its tags, plus the cursor with the engine's flag.
+- Ordinary edits keep their two commits, in this order (see `docs/queue-persistence.md`):
+  - the active order with its tags, plus the cursor with the engine's flag;
+  - the baseline write.
 - A track change writes the cursor only and copies the stored flag.
 - Each mode-only write changes its own column.
 - A mode-only write that creates the cursor row starts with the flag cleared.

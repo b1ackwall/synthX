@@ -219,7 +219,7 @@ class PreferencesManager(context: Context) {
     /**
      * Set the moment a restore's outcome resolves to installed (see RestoreTransaction's
      * COMPLETE_INSTALLED_AND_NORMAL branch and recoverCompletedHistory), read and
-     * cleared once by [MainActivity.runLaunchMaintenance] on the next launch. Album art is
+     * cleared once by [com.v1per.synthx.runLaunchSequence] on the next launch. Album art is
      * deliberately excluded from backups, and a normal rescan can't self-heal a restored song's
      * missing art (identity resolution treats it as "existing, unchanged" — see
      * SongIngestor.retagIfChanged), so this flag is what triggers the one-time automatic

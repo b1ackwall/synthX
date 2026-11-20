@@ -5,18 +5,21 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Single-row table holding "where playback was" — the stable slot id within `queue_items`
- * and the playback position within it, plus the shuffle/repeat mode the queue was in. Lives in
+ * Single-row table holding "where playback is" — the stable slot id within `queue_items`
+ * and the playback position within it, plus the shuffle/repeat mode of the queue. Lives in
  * Room, not SharedPreferences, so [QueueDao.replaceQueueAndCursor] can commit cursor and queue
  * in one transaction, closing the window where a process death between two independent writes
- * leaves the cursor pointing at a queue structure that was never actually persisted (or vice
- * versa). [shuffleEnabled]/[repeatMode]/[shuffleReordered] are here for the same reason: a restore
- * installs a whole database file, so state that lives outside it (SharedPreferences) cannot travel
- * atomically with the queue it describes.
+ * leaves the cursor pointing at a queue structure that is not persisted (or vice versa).
+ * [shuffleEnabled]/[repeatMode]/[shuffleReordered]/[queueCustomized] are here for the same reason: a
+ * restore installs a whole database file, so state that lives outside it (SharedPreferences) cannot
+ * travel atomically with the queue it describes.
  *
  * `id` is always 0 — there is only ever one cursor, so this is an upsert target rather than a
- * growing table. No foreign key to `queue_items`: [currentSlotId] may temporarily name a slot
- * that was removed by a song deletion; restore handles that by falling back to the first slot.
+ * growing table. No foreign key to `queue_items`: [currentSlotId] may name a slot whose row a song
+ * deletion's cascade took. [currentQueuePosition] is the `queue_items.position` of [currentSlotId]'s
+ * row, read from the rows inside every cursor write and kept while the slot is unchanged and its
+ * row is gone, so a restore can still start at the slot after the missing song (see
+ * `resolveRestoreStart`).
  */
 @Entity(tableName = "playback_cursor")
 data class PlaybackCursorEntity(
@@ -28,4 +31,8 @@ data class PlaybackCursorEntity(
     @ColumnInfo(name = "repeat_mode", defaultValue = "0") val repeatMode: Int = 0,
     /** True while the user has reordered a shuffled queue by hand; shuffle OFF asks first then. */
     @ColumnInfo(name = "shuffle_reordered", defaultValue = "0") val shuffleReordered: Boolean = false,
+    /** True after a hand edit since the queue's last fresh play; song taps then ask first. */
+    @ColumnInfo(name = "queue_customized", defaultValue = "0") val queueCustomized: Boolean = false,
+    /** The current slot's row position in the live order; NULL when there is no current slot. */
+    @ColumnInfo(name = "current_queue_position") val currentQueuePosition: Int? = null,
 )

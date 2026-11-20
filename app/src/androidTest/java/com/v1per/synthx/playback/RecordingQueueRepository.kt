@@ -17,6 +17,7 @@ internal sealed interface QueueWrite {
         val positionMs: Long,
         val extras: Map<String, QueueExtraTag> = emptyMap(),
         val shuffleReordered: Boolean? = false,
+        val queueCustomized: Boolean? = null,
     ) : QueueWrite
     data class Cursor(val currentSlotId: String?, val positionMs: Long) : QueueWrite
     data class Baseline(val slots: List<QueueSlotRecord>) : QueueWrite
@@ -31,6 +32,7 @@ internal sealed interface QueueWrite {
         val repeatMode: Int,
         val extras: Map<String, QueueExtraTag> = emptyMap(),
         val shuffleReordered: Boolean = false,
+        val queueCustomized: Boolean = false,
     ) : QueueWrite
 }
 
@@ -55,9 +57,15 @@ internal class RecordingQueueRepository :
     /** What the adoption read serves when it should differ from [snapshot] and [baseline]. */
     @Volatile var adoptionRead: Pair<QueueSnapshot, List<QueueSlot>>? = null
 
+    /** When set, the cold-start snapshot read throws it, as a failed database read would. */
+    @Volatile var snapshotFailure: Exception? = null
+
     inline fun <reified T : QueueWrite> writesOf(): List<T> = writes.filterIsInstance<T>()
 
-    override suspend fun getQueueSnapshot(): QueueSnapshot = snapshot
+    override suspend fun getQueueSnapshot(): QueueSnapshot {
+        snapshotFailure?.let { throw it }
+        return snapshot
+    }
 
     override suspend fun getBaselineQueueSlots(): List<QueueSlot> = baseline
 
@@ -70,8 +78,9 @@ internal class RecordingQueueRepository :
         positionMs: Long,
         extras: Map<String, QueueExtraTag>,
         shuffleReordered: Boolean?,
+        queueCustomized: Boolean?,
     ) {
-        writes += QueueWrite.QueueState(slots, currentSlotId, positionMs, extras, shuffleReordered)
+        writes += QueueWrite.QueueState(slots, currentSlotId, positionMs, extras, shuffleReordered, queueCustomized)
     }
 
     override suspend fun setCursorAlreadyAdmitted(currentSlotId: String?, positionMs: Long) {
@@ -99,6 +108,7 @@ internal class RecordingQueueRepository :
         repeatMode: Int,
         extras: Map<String, QueueExtraTag>,
         shuffleReordered: Boolean,
+        queueCustomized: Boolean,
     ) {
         writes += QueueWrite.Unified(
             activeSlots,
@@ -109,6 +119,7 @@ internal class RecordingQueueRepository :
             repeatMode,
             extras,
             shuffleReordered,
+            queueCustomized,
         )
     }
 }

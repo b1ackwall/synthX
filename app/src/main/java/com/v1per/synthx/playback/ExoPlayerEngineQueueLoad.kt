@@ -83,6 +83,9 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
  * Restores without playing, whatever the player's playWhenReady held before: it is cleared ahead of
  * the new timeline, so `MediaController.prepare` buffers to STATE_READY and the mini player comes up
  * loaded and paused (Apple Music's behaviour) and the user starts it.
+ *
+ * A saved cursor whose queue has no surviving slot still brings back its modes ([adoptSavedModes]);
+ * a read that fails leaves them unknown. A restored queue comes back with its customised-queue flag.
  */
 internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     Log.d(TAG, "Queue restore begin")
@@ -90,10 +93,19 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     // install (restored-songs read, artwork, baseline read), each an equally valid window for a
     // revision bump to land in.
     val revisionBeforeSnapshot = PlaybackCacheRevision.current()
-    val restored = persistence.loadQueue()
-    if (restored == null) {
-        Log.d(TAG, "Queue restore: no persisted queue; starting fresh")
-        return
+    val restored = when (val read = persistence.loadRestore()) {
+        is QueuePersistence.RestoreRead.Queue -> read.queue
+
+        is QueuePersistence.RestoreRead.ModesOnly -> {
+            Log.d(TAG, "Queue restore: no surviving queue; applying the saved modes")
+            adoptSavedModes(read)
+            return
+        }
+
+        QueuePersistence.RestoreRead.Empty -> {
+            Log.d(TAG, "Queue restore: no persisted queue; starting fresh")
+            return
+        }
     }
     val startSlot = restored.slots[restored.startIndex]
     Log.d(
@@ -152,14 +164,13 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
         ctrl.repeatMode = restored.repeatMode
 
         // Not routed through onQueueStructureChanged: the persist below is conditional, and a
-        // restored queue counts as pristine — the customisation flag is session state that
-        // deliberately does not survive the restart.
+        // restore is not an edit. The customised-queue flag comes back with the orders above.
         refreshUpcomingQueue()
         refreshNavigationState()
-        _isQueueCustomized.value = false
         // The stored rows disagree with what actually loaded — rewrite them so the saved cursor
         // and the queue cannot drift further apart on the next restore. Written from the order
-        // store, which is the full restored order, not from the window just seeded.
+        // store, which is the full restored order, not from the window just seeded. The cursor
+        // names the start slot just chosen; the stored customised-queue flag is kept.
         if (restored.droppedCount > 0) {
             Log.i(
                 ExoPlayerEngine.TAG,
@@ -185,6 +196,22 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     // Only when this call actually installed a snapshot — the "adopting existing running
     // timeline" bail-out above did not, and has nothing here for a revision bump to invalidate.
     if (installed) reconcileIfRevisionChanged(revisionBeforeSnapshot)
+}
+
+/**
+ * The saved modes of a cursor whose queue has no surviving slot, applied once the session is
+ * connected: shuffle as the flag only (nothing is pending, so no order changes), repeat on the
+ * engine and on the session when a controller exists. A session that already holds a queue, or a
+ * queue this engine started meanwhile, keeps its own modes.
+ */
+private suspend fun ExoPlayerEngine.adoptSavedModes(modes: QueuePersistence.RestoreRead.ModesOnly) {
+    withContext(Dispatchers.Main.immediate) {
+        val ctrl = awaitController()
+        if (!orderStore.isEmpty || (ctrl?.mediaItemCount ?: 0) > 0) return@withContext
+        _shuffleEnabled.value = modes.shuffleEnabled
+        _repeatMode.value = modes.repeatMode.toRepeatMode()
+        ctrl?.repeatMode = modes.repeatMode
+    }
 }
 
 /**

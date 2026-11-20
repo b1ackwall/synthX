@@ -29,12 +29,17 @@ interface QueueDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertCursor(cursor: PlaybackCursorEntity)
 
+    /** The `position` of [slotId]'s live row, or null when it has none. */
+    @Query("SELECT position FROM queue_items WHERE slot_id = :slotId")
+    suspend fun queuePositionOf(slotId: String): Int?
+
     /**
      * Cursor-only update — leaves `queue_items` completely untouched. For call sites where the
      * queue structure hasn't changed and rewriting it would be pure waste (e.g. a track
      * transition during ordinary playback), as opposed to [replaceQueueAndCursor], which is for
-     * call sites where the structure itself might also need to be (re)confirmed. The modes and
-     * the reorder flag are copied from the stored row.
+     * call sites where the structure itself might also need to be (re)confirmed. The modes, the
+     * reorder flag and the customised-queue flag are copied from the stored row; the queue position
+     * follows [currentSlotId] (see [currentQueuePositionFor]).
      */
     @Transaction
     suspend fun updateCursor(currentSlotId: String?, positionMs: Long) {
@@ -46,6 +51,8 @@ interface QueueDao {
                 shuffleEnabled = previous?.shuffleEnabled ?: false,
                 repeatMode = previous?.repeatMode ?: 0,
                 shuffleReordered = previous?.shuffleReordered ?: false,
+                queueCustomized = previous?.queueCustomized ?: false,
+                currentQueuePosition = currentQueuePositionFor(currentSlotId, previous),
             ),
         )
     }
@@ -55,8 +62,9 @@ interface QueueDao {
      * same transaction, so a process death can never leave one persisted without the other.
      * [currentSlotId] identifies the exact occurrence the caller wants to resume from.
      *
-     * [extras] tags the rows of the session extras. [shuffleReordered] is the reorder flag to
-     * store; null copies the stored one, like the modes, which are always copied.
+     * [extras] tags the rows of the session extras. [shuffleReordered] and [queueCustomized] are
+     * the reorder flag and the customised-queue flag to store; null copies the stored one, like the
+     * modes, which are always copied. The queue position is read from the rows just written.
      */
     @Transaction
     suspend fun replaceQueueAndCursor(
@@ -65,6 +73,7 @@ interface QueueDao {
         positionMs: Long,
         extras: Map<String, QueueExtraTag>,
         shuffleReordered: Boolean?,
+        queueCustomized: Boolean?,
     ) {
         clearQueue()
         insertQueueItems(queueItemRows(slots, extras))
@@ -76,6 +85,8 @@ interface QueueDao {
                 shuffleEnabled = previous?.shuffleEnabled ?: false,
                 repeatMode = previous?.repeatMode ?: 0,
                 shuffleReordered = shuffleReordered ?: previous?.shuffleReordered ?: false,
+                queueCustomized = queueCustomized ?: previous?.queueCustomized ?: false,
+                currentQueuePosition = currentQueuePositionFor(currentSlotId, previous),
             ),
         )
     }
@@ -91,13 +102,13 @@ interface QueueDao {
     suspend fun updateRepeatModeRaw(mode: Int): Int
 
     /**
-     * Shuffle-only mode write — leaves `current_slot_id`/`position_ms` (and `repeat_mode` and
-     * `shuffle_reordered`) untouched. A shuffle toggle doesn't coincide with a cursor or queue-structure change,
-     * so this is its own narrow update rather than routed through [replaceQueueAndCursor] or
-     * [updateCursor]. Falls back to inserting a fresh row only when no cursor exists yet
-     * (shuffle toggled before anything is persisted), which has no reorder flag to keep —
-     * the common case is a plain UPDATE against the row [replaceQueueAndCursor]/[updateCursor]
-     * already maintain.
+     * Shuffle-only mode write — leaves `current_slot_id`/`position_ms` (and `repeat_mode`,
+     * `shuffle_reordered`, `queue_customized` and `current_queue_position`) untouched. A shuffle
+     * toggle doesn't coincide with a cursor or queue-structure change, so this is its own narrow
+     * update rather than routed through [replaceQueueAndCursor] or [updateCursor]. Falls back to
+     * inserting a fresh row only when no cursor exists yet (shuffle toggled before anything is
+     * persisted), which has no flag or position to keep — the common case is a plain UPDATE
+     * against the row [replaceQueueAndCursor]/[updateCursor] already maintain.
      */
     @Transaction
     suspend fun updateShuffleEnabled(enabled: Boolean) {
@@ -144,8 +155,9 @@ interface QueueDao {
      * [replaceBaselineQueue]/[updateShuffleEnabled]/[updateRepeatMode]/[updateCursor]/
      * [replaceQueueAndCursor] could. Narrow single-piece
      * call sites (a plain track transition, Play Next, a drag-reorder) keep using those.
-     * The session-extra tags [extras] and the reorder flag [shuffleReordered] land in the same
-     * transaction.
+     * The session-extra tags [extras], the reorder flag [shuffleReordered] and the customised-queue
+     * flag [queueCustomized] land in the same transaction, as given; the queue position is read from
+     * the rows just written.
      */
     @Transaction
     suspend fun replaceQueueBaselineAndCursor(
@@ -157,6 +169,7 @@ interface QueueDao {
         repeatMode: Int,
         extras: Map<String, QueueExtraTag>,
         shuffleReordered: Boolean,
+        queueCustomized: Boolean,
     ) {
         clearQueue()
         insertQueueItems(queueItemRows(activeSlots, extras))
@@ -173,6 +186,8 @@ interface QueueDao {
                 shuffleEnabled = shuffleEnabled,
                 repeatMode = repeatMode,
                 shuffleReordered = shuffleReordered,
+                queueCustomized = queueCustomized,
+                currentQueuePosition = currentQueuePositionFor(currentSlotId, getCursor()),
             ),
         )
     }
@@ -187,6 +202,18 @@ interface QueueDao {
     suspend fun getFullQueueSnapshot():
         Triple<List<QueueItemEntity>, List<BaselineQueueItemEntity>, PlaybackCursorEntity?> =
         Triple(getQueueItems(), getBaselineQueueItems(), getCursor())
+}
+
+/**
+ * The queue position a cursor write stores for [currentSlotId], read inside the caller's transaction:
+ * the position of its live row; while the slot is unchanged and its row is gone (taken by a song
+ * deletion's cascade), the position [previous] holds, so a restore can still place the missing song;
+ * null without a current slot or a known position.
+ */
+internal suspend fun QueueDao.currentQueuePositionFor(currentSlotId: String?, previous: PlaybackCursorEntity?): Int? {
+    currentSlotId ?: return null
+    return queuePositionOf(currentSlotId)
+        ?: previous?.currentQueuePosition?.takeIf { previous.currentSlotId == currentSlotId }
 }
 
 /** Live-order rows in [slots] order, each tagged when [extras] names its slot. */

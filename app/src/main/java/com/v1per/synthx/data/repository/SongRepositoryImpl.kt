@@ -337,7 +337,8 @@ class SongRepositoryImpl(
         positionMs: Long,
         extras: Map<String, QueueExtraTag>,
         shuffleReordered: Boolean?,
-    ) = setQueueStateInternal(slots, currentSlotId, positionMs, extras, shuffleReordered)
+        queueCustomized: Boolean?,
+    ) = setQueueStateInternal(slots, currentSlotId, positionMs, extras, shuffleReordered, queueCustomized)
 
     override suspend fun setCursorAlreadyAdmitted(currentSlotId: String?, positionMs: Long) =
         setCursorAlreadyAdmittedInternal(currentSlotId, positionMs)
@@ -363,6 +364,7 @@ class SongRepositoryImpl(
         repeatMode: Int,
         extras: Map<String, QueueExtraTag>,
         shuffleReordered: Boolean,
+        queueCustomized: Boolean,
     ) = setUnifiedQueueStateInternal(
         activeSlots,
         baselineSlots,
@@ -372,6 +374,7 @@ class SongRepositoryImpl(
         repeatMode,
         extras,
         shuffleReordered,
+        queueCustomized,
     )
 
     internal fun PlaylistEntity.toDomain(): Playlist = Playlist(

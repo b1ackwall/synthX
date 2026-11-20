@@ -56,6 +56,7 @@ class QueuePersistenceB1Test {
             positionMs: Long,
             extras: Map<String, QueueExtraTag>,
             shuffleReordered: Boolean?,
+            queueCustomized: Boolean?,
         ) {
             started.complete(Unit)
             gate?.await()
@@ -80,6 +81,7 @@ class QueuePersistenceB1Test {
             repeatMode: Int,
             extras: Map<String, QueueExtraTag>,
             shuffleReordered: Boolean,
+            queueCustomized: Boolean,
         ) {
             started.complete(Unit)
             gate?.await()

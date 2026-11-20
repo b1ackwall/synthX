@@ -113,7 +113,7 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
   a nested `class Factory` (ViewModelProvider.Factory) or a companion `fun factory(...)`
   returning one (used where the route passes an id). Follow the shape of the neighbouring screen.
   There is intentionally no di/ package — do not add one unless explicitly instructed.
-- Room DB, version 16. Entities: songs (incl. album_art_full_uri, in_inbox), artists, albums,
+- Room DB, version 18. Entities: songs (incl. album_art_full_uri, in_inbox), artists, albums,
   song_artists, playlist_groups, playlists (incl. art_hue, art_structure_seed), playlist_songs,
   queue_items, queue_baseline_items, pending_cleanups,
   playback_cursor (single-row resume cursor + shuffle/repeat mode, see PlaybackCursorEntity).
@@ -166,6 +166,11 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
        and clears the cursor's slot id (position and shuffle/repeat are kept), 15-to-16 merges
        case-duplicate albums (repoints their songs, deletes the duplicate rows). All other legs are additive. This app now
        holds years of hand-curated user data with no external backup of future changes.
+    8. Bump the active golden restore journal: in active-post-validated.json under both
+       app/src/test/resources/restore-journals and app/src/androidTest/assets/restore-journals,
+       change "candidateVersion" and "oldVersion" to the new version, keep the two files
+       byte-identical (cmp), and follow the README there. RestoreJournalCompatibilityTest
+       fails until this is done.
     Also grep for tests that hardcode the *current* schema's Room identity hash as a
     literal (e.g. BackupPrimitivesTest's "schema contracts resolve current and known
     migration versions", BackupSnapshotInstrumentedTest's

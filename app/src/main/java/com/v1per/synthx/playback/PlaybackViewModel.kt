@@ -38,6 +38,8 @@ class PlaybackViewModel(
     loadBackgroundArt: suspend (PlayerBackgroundArtRequest) -> Bitmap? = { null },
     // Picks Shuffle's starting song. Injectable so tests can pin it.
     private val random: Random = Random.Default,
+    // How long Play Next, Add to Queue and the Keep fallback wait for a pending saved-queue restore.
+    restoreWaitTimeoutMs: Long = QUEUE_RESTORE_WAIT_TIMEOUT_MS,
 ) : ViewModel() {
 
     // Combined optimistic/real play-pause state: a tap flips this synchronously, before the
@@ -88,6 +90,12 @@ class PlaybackViewModel(
     // Eager because setShuffleEnabled reads .value on every tap, collected or not.
     val shuffleReorderedByUser: StateFlow<Boolean> = controller.shuffleReorderedByUser
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    // Holds the actions that would start a one-song queue while the saved queue is still restoring.
+    private val restoreGate = QueueRestoreGate(viewModelScope, restoreWaitTimeoutMs)
+
+    /** Where the saved-queue restore stands; see [restoreSavedQueue]. */
+    val queueRestoreState: StateFlow<QueueRestoreState> = restoreGate.state
 
     // Held here rather than in the composition, so the question survives a configuration change.
     private val _shuffleOffConfirmation = MutableStateFlow(false)
@@ -243,7 +251,7 @@ class PlaybackViewModel(
     fun keepQueueAndPlayNext(song: Song): Boolean? {
         // The queue can have ended between the prompt being raised and answered.
         if (!hasActivePlayback()) {
-            playQueue(listOf(song), 0)
+            playAloneUnlessRestored(song) { controller.keepAfterRestore(song) }
             return true
         }
         if (isAlreadyQueued(song.id)) return false
@@ -259,10 +267,18 @@ class PlaybackViewModel(
 
     /**
      * Loads last session's queue, paused and ready. Safe to call more than once — the
-     * engine ignores it once a timeline exists.
+     * engine ignores it once a timeline exists. While it runs, [queueRestoreState] is Pending.
      */
-    fun restoreSavedQueue() {
-        viewModelScope.launch { controller.restoreSavedQueue() }
+    fun restoreSavedQueue() = restoreGate.start { controller.restoreSavedQueue() }
+
+    /**
+     * The fallback for an action with no active playback: plays [song] alone. While the saved queue
+     * is still restoring, the decision waits for it (at most the restore wait timeout); [applied]
+     * then runs the action against the restored queue and returns false when no queue came back.
+     */
+    private fun playAloneUnlessRestored(song: Song, applied: suspend () -> Boolean) {
+        val held = restoreGate.holdWhilePending { if (!applied()) playQueue(listOf(song), 0) }
+        if (!held) playQueue(listOf(song), 0)
     }
 
     /** Called when the app goes to the background, so the resume point survives a kill. */
@@ -312,9 +328,9 @@ class PlaybackViewModel(
 
     /**
      * Queues [song] directly after the current item — or just plays it when there is no
-     * active playback to queue behind. The engine's insert is timeline-only (no prepare,
-     * no play), so without this branch "Play Next" against a dead queue would put the song
-     * in the timeline and leave the player idle.
+     * active playback to queue behind, once a pending restore settles ([playAloneUnlessRestored]).
+     * The engine's insert is timeline-only (no prepare, no play), so without this branch "Play Next"
+     * against a dead queue would put the song in the timeline and leave the player idle.
      *
      * Unlike [keepQueueAndPlayNext], duplicates elsewhere in the queue are fine — every
      * insert gets its own slot id (see ExoPlayerEngineQueueOps) — so the only case worth
@@ -325,7 +341,7 @@ class PlaybackViewModel(
      */
     fun playNext(song: Song, force: Boolean = false): QueueAddResult {
         if (!hasActivePlayback()) {
-            playQueue(listOf(song), 0)
+            playAloneUnlessRestored(song) { controller.playNextAfterRestore(song, force) }
             return QueueAddResult.Added
         }
         if (!force && isNextInQueue(song.id)) return QueueAddResult.NeedsConfirmation
@@ -340,7 +356,7 @@ class PlaybackViewModel(
      */
     fun addToQueue(song: Song, force: Boolean = false): QueueAddResult {
         if (!hasActivePlayback()) {
-            playQueue(listOf(song), 0)
+            playAloneUnlessRestored(song) { controller.addToQueueAfterRestore(song, force) }
             return QueueAddResult.Added
         }
         if (upcomingQueue.value.isNotEmpty() && !force && isLastInQueue(song.id)) {

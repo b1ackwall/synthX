@@ -38,6 +38,7 @@ private suspend fun SongRepositoryImpl.queueSnapshotOf(
                 shuffleEnabled = it.shuffleEnabled,
                 repeatMode = it.repeatMode,
                 shuffleReordered = it.shuffleReordered,
+                queueCustomized = it.queueCustomized,
             )
         },
         extras = items.mapNotNull { item ->
@@ -45,6 +46,8 @@ private suspend fun SongRepositoryImpl.queueSnapshotOf(
             val sequence = item.extraSequence ?: return@mapNotNull null
             item.slotId to QueueExtraTag(kind, sequence)
         }.toMap(),
+        storedPositions = items.associate { it.slotId to it.position },
+        currentQueuePosition = cursor?.currentQueuePosition,
     )
 }
 
@@ -54,8 +57,9 @@ internal suspend fun SongRepositoryImpl.setQueueStateInternal(
     positionMs: Long,
     extras: Map<String, QueueExtraTag>,
     shuffleReordered: Boolean?,
+    queueCustomized: Boolean?,
 ) = withContext(Dispatchers.IO) {
-    queueDao.replaceQueueAndCursor(slots, currentSlotId, positionMs, extras, shuffleReordered)
+    queueDao.replaceQueueAndCursor(slots, currentSlotId, positionMs, extras, shuffleReordered, queueCustomized)
     // The one place both sides are guaranteed to have landed together —
     // a violation here means replaceQueueAndCursor's transaction itself is broken,
     // never a legitimate runtime state, so this must never silently pass in debug.
@@ -110,6 +114,7 @@ internal suspend fun SongRepositoryImpl.setUnifiedQueueStateInternal(
     repeatMode: Int,
     extras: Map<String, QueueExtraTag>,
     shuffleReordered: Boolean,
+    queueCustomized: Boolean,
 ) = withContext(Dispatchers.IO) {
     queueDao.replaceQueueBaselineAndCursor(
         activeSlots,
@@ -120,6 +125,7 @@ internal suspend fun SongRepositoryImpl.setUnifiedQueueStateInternal(
         repeatMode,
         extras,
         shuffleReordered,
+        queueCustomized,
     )
     if (BuildConfig.DEBUG) {
         check(currentSlotId == null || activeSlots.any { it.slotId == currentSlotId }) {

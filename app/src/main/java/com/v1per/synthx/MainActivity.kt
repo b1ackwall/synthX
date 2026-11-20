@@ -36,14 +36,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The decision [MainActivity.runLaunchMaintenance] gates on: onboarding is complete and no
+ * The decision [runLaunchSequence] gates launch maintenance on: onboarding is complete and no
  * first-scan request is pending. Factored to file scope so a test can call the rule directly.
  * MainActivityLaunchMaintenanceInstrumentedTest launches the real MainActivity and observes the
  * effects. While the wizard is up, the art sweep flag stays set and no Issues scan is enqueued.
  * Once onboarding is complete, the flag is consumed, a due Issues scan is enqueued, and launch
  * scans are enqueued when a music folder is set. Those tests mark the daily backup as not due,
- * so none asserts that the backup is skipped. See [MainActivity.runLaunchMaintenance]'s kdoc
- * for why the gate exists.
+ * so none asserts that the backup is skipped. See [MainActivity]'s launch steps kdoc for why the
+ * gate exists.
  */
 internal fun shouldRunLaunchMaintenance(preferences: PreferencesManager): Boolean =
     // Also held off while the wizard's first scan is still pending. onboardingComplete flips
@@ -70,6 +70,53 @@ internal fun shouldShowOnboarding(preferences: PreferencesManager): Boolean =
  */
 internal fun isMigrationSnapshotAvailable(context: android.content.Context): Boolean =
     MigrationSnapshotStore.snapshotForCurrentVersion(context) != null
+
+/** The launch steps [runLaunchSequence] puts in order; MainActivity supplies the real ones. */
+internal interface LaunchSteps {
+    /** Whether launch maintenance, the saved-queue restore included, may run ([shouldRunLaunchMaintenance]). */
+    val maintenanceAllowed: Boolean
+
+    fun restoreSavedQueue()
+
+    suspend fun pruneFinishedWork()
+
+    /** Starts [block] off the main thread without waiting for it. */
+    fun launchMaintenance(block: suspend () -> Unit)
+
+    suspend fun backupDailyIfDue()
+
+    fun scanIssuesDailyIfDue()
+
+    suspend fun runArtSweepIfPending()
+
+    suspend fun backfillPlaylistArt()
+
+    fun runLaunchScansIfFolderSet()
+}
+
+/**
+ * The launch sequence once the database gate has opened normally, factored to file scope like
+ * [shouldRunLaunchMaintenance] so its order is testable. The saved-queue restore is requested first,
+ * before [LaunchSteps.pruneFinishedWork] (the first suspension, from which the UI takes input), so
+ * Play Next and Add to Queue already find it pending; it runs on its own coroutine and waits for
+ * neither the daily backup nor the Issues scan. The backup and its verification can run beside it:
+ * the snapshot only sees committed transactions, and a restore rewrite is one transaction. The rest
+ * of maintenance then runs off the main thread in its fixed order. Without
+ * [LaunchSteps.maintenanceAllowed] only pruning runs.
+ */
+internal suspend fun runLaunchSequence(steps: LaunchSteps) {
+    val allowed = steps.maintenanceAllowed
+    if (allowed) steps.restoreSavedQueue()
+    steps.pruneFinishedWork()
+    if (!allowed) return
+    steps.launchMaintenance {
+        steps.backupDailyIfDue()
+        steps.scanIssuesDailyIfDue()
+        steps.runArtSweepIfPending()
+        steps.backfillPlaylistArt()
+        steps.runLaunchScansIfFolderSet()
+    }
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -154,8 +201,7 @@ class MainActivity : ComponentActivity() {
             if (startupFailure == null &&
                 RestoreCoordinator.current() == RestoreCoordinator.Terminal.NORMAL
             ) {
-                pruneFinishedWork()
-                runLaunchMaintenance()
+                runLaunchSequence(launchSteps())
             }
             databaseStartupAttemptRunning = false
         }
@@ -222,16 +268,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Runs only after DatabaseStartupGate has granted process-wide Room permission.
+     * The real [LaunchSteps]. Runs only after DatabaseStartupGate has granted process-wide Room
+     * permission.
      *
-     * Also gated by [shouldRunLaunchMaintenance]: onboarding complete and no first scan pending.
+     * Maintenance is gated by [shouldRunLaunchMaintenance]: onboarding complete and no first scan pending.
      * Recovery's own steps persist a music folder (and sometimes a backup folder) long before a restore
      * actually succeeds — without this gate, an interrupted recovery relaunching straight back
-     * into the wizard (see [resolveDatabaseStartup]) would still race this function's daily
+     * into the wizard (see [resolveDatabaseStartup]) would still race these steps' daily
      * backup and launch-scan chain against the just-picked folders on the very same launch,
      * publishing a snapshot of the still-empty database into the user's real Daily tier and
-     * scanning/overwriting rows recovery was meant to replace. Deferring the rest of this
-     * function's work (queue restore, art sweep, playlist art backfill) alongside it is
+     * scanning/overwriting rows recovery is meant to replace. Deferring the rest of the steps'
+     * work (queue restore, art sweep, playlist art backfill) alongside it is
      * deliberate, not incidental: none of those have anything real to act on before onboarding
      * has actually produced a library, and by the time any of them would — a successful
      * fresh-install scan or a genuinely completed restore — [onboardingComplete] is already
@@ -239,33 +286,41 @@ class MainActivity : ComponentActivity() {
      * set alongside it, deep inside [com.v1per.synthx.data.backup.RestoreTransaction]'s success
      * path, never before), so the next launch (or later in this same one) runs them normally.
      */
-    private fun runLaunchMaintenance() {
+    private fun launchSteps(): LaunchSteps {
         val preferences = PreferencesManager(applicationContext)
-        if (!shouldRunLaunchMaintenance(preferences)) return
-        val backupManager = BackupManager.create(applicationContext)
-        // Resolved on the main thread before the coroutine: ViewModel creation (and the
-        // MediaController binding it starts) belongs there, unlike the call below.
-        val playback = playbackViewModel
+        return object : LaunchSteps {
+            override val maintenanceAllowed = shouldRunLaunchMaintenance(preferences)
+            private val backupManager by lazy { BackupManager.create(applicationContext) }
 
-        // Purely informational, never blocks — see BackupFolderLaunchCheck's kdoc for
-        // why this can't reuse DatabaseStartupGate, and how it stays a once-per-process check
-        // across Activity recreation despite this function re-running on every one of those.
-        BackupFolderLaunchCheck.runOnce(applicationContext, lifecycleScope)
+            // On the main thread, like every step outside launchMaintenance: ViewModel creation (and
+            // the MediaController binding it starts) belongs there. Ahead of verifyLibrary too, so
+            // the mini player comes back without waiting on a full existence sweep — a song that
+            // vanished since last session fails on play with the normal error snackbar.
+            override fun restoreSavedQueue() = playbackViewModel.restoreSavedQueue()
 
-        lifecycleScope.launch(Dispatchers.IO) {
-            backupDailyIfDue(preferences, backupManager)
-            scanIssuesDailyIfDue(preferences)
-            // Ahead of verifyLibrary so the mini player comes back without waiting on a full
-            // existence sweep — a song that vanished since last session fails on play with
-            // the normal error snackbar.
-            playback.restoreSavedQueue()
-            runArtSweepIfPending(preferences)
-            backfillPlaylistArt()
+            override suspend fun pruneFinishedWork() = this@MainActivity.pruneFinishedWork()
+
+            override fun launchMaintenance(block: suspend () -> Unit) {
+                // Purely informational, never blocks — see BackupFolderLaunchCheck's kdoc for
+                // why this can't reuse DatabaseStartupGate, and how it stays a once-per-process check
+                // across Activity recreation despite these steps re-running on every one of those.
+                BackupFolderLaunchCheck.runOnce(applicationContext, lifecycleScope)
+                lifecycleScope.launch(Dispatchers.IO) { block() }
+            }
+
+            override suspend fun backupDailyIfDue() = this@MainActivity.backupDailyIfDue(preferences, backupManager)
+
+            override fun scanIssuesDailyIfDue() = this@MainActivity.scanIssuesDailyIfDue(preferences)
+
+            override suspend fun runArtSweepIfPending() = this@MainActivity.runArtSweepIfPending(preferences)
+
+            override suspend fun backfillPlaylistArt() = this@MainActivity.backfillPlaylistArt()
+
             // Nothing to scan yet if onboarding hasn't configured a root folder — running this
             // chain here would be pointless, and pending Onboarding's own startFirstScan call
             // to enqueue LibraryScanWorker directly instead, this way it can't race it either.
-            if (preferences.musicFolderUri != null) {
-                runLaunchScans()
+            override fun runLaunchScansIfFolderSet() {
+                if (preferences.musicFolderUri != null) runLaunchScans()
             }
         }
     }

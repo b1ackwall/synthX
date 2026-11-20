@@ -68,7 +68,9 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
      * A queue read back from storage. [songs] can be shorter than what was saved — songs
      * deleted since the last session take their queue rows with them via FK CASCADE, and
      * songs flagged missing are filtered out by the query. [extras] and [shuffleReordered] are
-     * the saved session-extra tags and reorder flag, before the engine's restore repair.
+     * the saved session-extra tags and reorder flag, before the engine's restore repair;
+     * [queueCustomized] is the saved customised-queue flag. [startIndex] and [positionMs] follow
+     * [resolveRestoreStart].
      */
     data class RestoredQueue(
         val slots: List<QueueSlot>,
@@ -79,7 +81,20 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
         val repeatMode: Int,
         val extras: Map<String, QueueExtraTag> = emptyMap(),
         val shuffleReordered: Boolean = false,
+        val queueCustomized: Boolean = false,
     )
+
+    /** What a cold-start read found; see [loadRestore]. */
+    sealed interface RestoreRead {
+        /** A saved queue with at least one surviving slot. */
+        data class Queue(val queue: RestoredQueue) : RestoreRead
+
+        /** A saved cursor whose queue has no surviving slot: only its modes can come back. */
+        data class ModesOnly(val shuffleEnabled: Boolean, val repeatMode: Int) : RestoreRead
+
+        /** Nothing saved, or a read that failed: the saved modes are unknown. */
+        data object Empty : RestoreRead
+    }
 
     /**
      * Replaces the saved queue AND the resume cursor in one atomic commit — this is the only
@@ -90,8 +105,8 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
      * pause, an app-backgrounded event, or a restore rewrite) already has both in hand, so
      * there is no case where only one is known.
      *
-     * [extras] tags the session-extra rows and [shuffleReordered] is the reorder flag to store; the
-     * engine passes both on every call, and a null flag keeps the stored one.
+     * [extras] tags the session-extra rows; [shuffleReordered] and [queueCustomized] are the reorder
+     * flag and the customised-queue flag to store, and a null flag keeps the stored one.
      */
     internal fun saveQueueRecords(
         slots: List<QueueSlotRecord>,
@@ -99,6 +114,7 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
         positionMs: Long,
         extras: Map<String, QueueExtraTag> = emptyMap(),
         shuffleReordered: Boolean? = null,
+        queueCustomized: Boolean? = null,
     ) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
@@ -111,7 +127,14 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
                     require(repository is AdmittedQueuePersistenceRepository) {
                         "Queue persistence requires an already-admitted repository"
                     }
-                    repository.setQueueState(slots, currentSlotId, positionMs, extras, shuffleReordered)
+                    repository.setQueueState(
+                        slots,
+                        currentSlotId,
+                        positionMs,
+                        extras,
+                        shuffleReordered,
+                        queueCustomized,
+                    )
                 } catch (e: Exception) {
                     runCatching { Log.w(TAG, "Queue state save failed: ${e.message}") }
                 } finally {
@@ -158,8 +181,8 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
      * kdoc for what this represents. Same fire-and-forget shape as [saveQueueRecords]; callers
      * decide when a baseline mutation is worth persisting, this just writes it.
      *
-     * This is the whole of [BaselineOrderWriter], which is how [QueueOrderStore] reaches
-     * persistence without depending on the rest of this class.
+     * This is the whole of [BaselineOrderWriter]. The engine's [DeferredBaselineWriter] calls it with
+     * the baseline [QueueOrderStore] changed, right after the live order's write.
      */
     override fun writeBaselineOrder(records: List<QueueSlotRecord>) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
@@ -218,8 +241,9 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
      * order, shuffle flag, repeat mode, cursor} at once — a fresh play or a
      * shuffle toggle. Goes through the same serialized [writeQueue] consumer as every other
      * write here, so it can never race or land out of order against them, and — being one
-     * commit — can never itself be observed half-landed. The session-extra tags [extras] and
-     * the reorder flag [shuffleReordered] are part of the same commit.
+     * commit — can never itself be observed half-landed. The session-extra tags [extras], the
+     * reorder flag [shuffleReordered] and the customised-queue flag [queueCustomized] are part of the
+     * same commit.
      */
     fun saveUnifiedQueueState(
         activeSlots: List<QueueSlotRecord>,
@@ -230,6 +254,7 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
         repeatMode: Int,
         extras: Map<String, QueueExtraTag>,
         shuffleReordered: Boolean,
+        queueCustomized: Boolean,
     ) {
         val permit = runCatching { RestoreCoordinator.acquireOperation() }.getOrNull() ?: return
         synchronized(admissionLock) {
@@ -251,6 +276,7 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
                         repeatMode,
                         extras,
                         shuffleReordered,
+                        queueCustomized,
                     )
                 } catch (e: Exception) {
                     runCatching { Log.w(TAG, "Unified queue state save failed: ${e.message}") }
@@ -287,19 +313,28 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
     }
 
     /**
-     * Null when there is nothing to restore: a fresh install, or a saved queue whose songs
-     * have all gone. The exact saved slot id is re-found after unavailable songs are filtered,
-     * so dropped entries shift the queue without changing which occurrence resumes.
+     * The cold-start read: a [RestoreRead.Queue] when a saved slot survives, [RestoreRead.ModesOnly]
+     * when a saved cursor's queue has none (no rows, or every saved song gone), and
+     * [RestoreRead.Empty] when nothing is saved or the read fails.
      */
-    suspend fun loadQueue(): RestoredQueue? {
+    suspend fun loadRestore(): RestoreRead {
         val snapshot = try {
             repository.getQueueSnapshot()
         } catch (e: Exception) {
             Log.w(TAG, "Queue load failed: ${e.message}")
-            return null
+            return RestoreRead.Empty
         }
-        return toRestoredQueue(snapshot)
+        toRestoredQueue(snapshot)?.let { return RestoreRead.Queue(it) }
+        val cursor = snapshot.cursor ?: return RestoreRead.Empty
+        return RestoreRead.ModesOnly(cursor.shuffleEnabled, cursor.repeatMode)
     }
+
+    /**
+     * Null when there is nothing to restore: a fresh install, or a saved queue whose songs
+     * have all gone. The exact saved slot id is re-found after unavailable songs are filtered,
+     * so dropped entries shift the queue without changing which occurrence resumes.
+     */
+    suspend fun loadQueue(): RestoredQueue? = (loadRestore() as? RestoreRead.Queue)?.queue
 
     /**
      * [loadQueue] plus [loadBaselineQueue], read together as one consistent snapshot, so the
@@ -326,17 +361,23 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
         }
 
         val cursor = snapshot.cursor
-        val currentSlotId = cursor?.currentSlotId
-        val resolvedIndex = slots.indexOfFirst { it.slotId == currentSlotId }
+        val start = resolveRestoreStart(
+            slotIds = slots.map { it.slotId },
+            storedPositions = snapshot.storedPositions,
+            currentSlotId = cursor?.currentSlotId,
+            currentQueuePosition = snapshot.currentQueuePosition,
+            savedPositionMs = cursor?.positionMs ?: 0L,
+        ) ?: return null
         return RestoredQueue(
             slots = slots,
-            startIndex = if (resolvedIndex >= 0) resolvedIndex else 0,
-            positionMs = if (resolvedIndex >= 0) (cursor?.positionMs ?: 0L) else 0L,
+            startIndex = start.index,
+            positionMs = start.positionMs,
             droppedCount = snapshot.storedSlotCount - slots.size,
             shuffleEnabled = cursor?.shuffleEnabled ?: false,
             repeatMode = cursor?.repeatMode ?: 0,
             extras = snapshot.extras,
             shuffleReordered = cursor?.shuffleReordered ?: false,
+            queueCustomized = cursor?.queueCustomized ?: false,
         )
     }
 

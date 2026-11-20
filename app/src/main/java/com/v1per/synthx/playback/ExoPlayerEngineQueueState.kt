@@ -20,8 +20,9 @@ internal fun ExoPlayerEngine.onQueueStructureChanged(fresh: Boolean) {
     refreshQueue()
     refreshUpcomingQueue()
     refreshNavigationState()
-    persistQueue()
+    // Before the save, so the edit's own write already carries the flag.
     _isQueueCustomized.value = !fresh
+    persistQueue()
     prefetchArtwork()
 }
 
@@ -49,16 +50,25 @@ internal fun ExoPlayerEngine.onQueueReordered() {
  * The current slot id is verified against the store before being written: the repository
  * asserts the cursor names one of the slots it was handed in the same commit, so a slot the
  * store no longer contains has to become a null cursor rather than a failed write.
+ *
+ * Saves the customised-queue flag with the order, then any baseline the store changed since the
+ * last save, as a second commit after the live one (see [DeferredBaselineWriter]).
  */
 internal fun ExoPlayerEngine.persistQueue() {
     val positionMs = controller?.let { resumePositionMs(it.playbackState, it.currentPosition) } ?: 0L
     val currentSlotId = _currentSlotId.value?.takeIf { orderStore.indexOfSlot(it) >= 0 }
-    persistence.saveQueueRecords(
-        slots = orderStore.live,
-        currentSlotId = currentSlotId,
-        positionMs = positionMs,
-        extras = orderStore.extras,
-        shuffleReordered = orderStore.shuffleReordered,
+    deferredBaseline.flushAfter(
+        writeLive = {
+            persistence.saveQueueRecords(
+                slots = orderStore.live,
+                currentSlotId = currentSlotId,
+                positionMs = positionMs,
+                extras = orderStore.extras,
+                shuffleReordered = orderStore.shuffleReordered,
+                queueCustomized = _isQueueCustomized.value,
+            )
+        },
+        writeBaseline = persistence::writeBaselineOrder,
     )
 }
 
@@ -73,6 +83,8 @@ internal fun ExoPlayerEngine.persistQueue() {
 internal fun ExoPlayerEngine.persistUnifiedQueueState() {
     val positionMs = controller?.let { resumePositionMs(it.playbackState, it.currentPosition) } ?: 0L
     val currentSlotId = _currentSlotId.value?.takeIf { orderStore.indexOfSlot(it) >= 0 }
+    // This write saves the baseline itself.
+    deferredBaseline.discard()
     persistence.saveUnifiedQueueState(
         activeSlots = orderStore.live,
         baselineSlots = orderStore.baseline,
@@ -82,6 +94,7 @@ internal fun ExoPlayerEngine.persistUnifiedQueueState() {
         repeatMode = _repeatMode.value.toPlayerRepeatMode(),
         extras = orderStore.extras,
         shuffleReordered = orderStore.shuffleReordered,
+        queueCustomized = _isQueueCustomized.value,
     )
 }
 
@@ -121,8 +134,9 @@ internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController)
 
 /**
  * Installs a restored queue into the order store after [repairRestoredQueue], with its shuffle
- * flag, so a stale, partial or failed baseline read can never cost a slot on a later shuffle OFF.
- * Baseline-only slots are dropped by the repair, so the song cache needs only the live slots.
+ * flag and its customised-queue flag, so a stale, partial or failed baseline read can never cost a
+ * slot on a later shuffle OFF. Baseline-only slots are dropped by the repair, so the song cache needs
+ * only the live slots.
  */
 internal fun ExoPlayerEngine.adoptRestoredOrders(
     restored: QueuePersistence.RestoredQueue,
@@ -140,6 +154,7 @@ internal fun ExoPlayerEngine.adoptRestoredOrders(
     )
     orderStore.restore(live, repaired.baseline, repaired.extras, repaired.shuffleReordered)
     _shuffleEnabled.value = restored.shuffleEnabled
+    _isQueueCustomized.value = restored.queueCustomized
 }
 
 /**

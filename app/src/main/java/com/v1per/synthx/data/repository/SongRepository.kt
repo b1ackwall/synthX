@@ -215,7 +215,8 @@ sealed interface SongDeletionOutcome {
 
 /**
  * The saved resume position: an exact slot id plus position and playback modes.
- * [shuffleReordered] is true while the user has reordered a shuffled queue by hand.
+ * [shuffleReordered] is true while the user has reordered a shuffled queue by hand, and
+ * [queueCustomized] while the queue has been edited by hand since its last fresh play.
  */
 data class QueueCursor(
     val currentSlotId: String?,
@@ -223,17 +224,23 @@ data class QueueCursor(
     val shuffleEnabled: Boolean,
     val repeatMode: Int,
     val shuffleReordered: Boolean = false,
+    val queueCustomized: Boolean = false,
 )
 
 /**
  * A consistent persisted queue/cursor read, including saved rows whose songs are gone or missing.
  * [extras] holds the session-extra tag of every saved live row that has one, by slot id.
+ * [storedPositions] is the stored queue position of every saved live row, resolved or not, and
+ * [currentQueuePosition] the cursor's saved queue position (null when none is saved), which together
+ * place a current slot whose song does not resolve.
  */
 data class QueueSnapshot(
     val slots: List<QueueSlot>,
     val storedSlotCount: Int,
     val cursor: QueueCursor?,
     val extras: Map<String, QueueExtraTag> = emptyMap(),
+    val storedPositions: Map<String, Int> = emptyMap(),
+    val currentQueuePosition: Int? = null,
 )
 
 /** Internal queue-only contract: the caller already owns a RestoreCoordinator operation permit. */
@@ -241,7 +248,7 @@ internal interface AdmittedQueuePersistenceRepository {
     /**
      * Rewrites the queue structure and the resume cursor in one atomic commit — see
      * [com.v1per.synthx.data.db.QueueDao.replaceQueueAndCursor]. [extras] tags the matching rows;
-     * a null [shuffleReordered] keeps the stored reorder flag.
+     * a null [shuffleReordered] or [queueCustomized] keeps the stored flag.
      */
     suspend fun setQueueState(
         slots: List<QueueSlotRecord>,
@@ -249,6 +256,7 @@ internal interface AdmittedQueuePersistenceRepository {
         positionMs: Long,
         extras: Map<String, QueueExtraTag> = emptyMap(),
         shuffleReordered: Boolean? = null,
+        queueCustomized: Boolean? = null,
     )
 
     /** Cursor-only counterpart of [setQueueState] — see
@@ -266,7 +274,7 @@ internal interface AdmittedQueuePersistenceRepository {
      * The atomic write for a call site that changes more than one of {baseline order, active
      * order, shuffle flag, repeat mode, cursor} at once — see
      * [com.v1per.synthx.data.db.QueueDao.replaceQueueBaselineAndCursor]. [extras] tags the
-     * matching active rows; [shuffleReordered] is written as given.
+     * matching active rows; [shuffleReordered] and [queueCustomized] are written as given.
      */
     suspend fun setUnifiedQueueState(
         activeSlots: List<QueueSlotRecord>,
@@ -277,5 +285,6 @@ internal interface AdmittedQueuePersistenceRepository {
         repeatMode: Int,
         extras: Map<String, QueueExtraTag> = emptyMap(),
         shuffleReordered: Boolean = false,
+        queueCustomized: Boolean = false,
     )
 }

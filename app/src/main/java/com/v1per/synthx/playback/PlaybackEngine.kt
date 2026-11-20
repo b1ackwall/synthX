@@ -100,8 +100,8 @@ interface PlaybackEngine {
     /**
      * True once the queue has been hand-modified since it was last set wholesale — by
      * [playNext], [addToQueue], [moveQueueItem] or [removeQueueItem]; a shuffle toggle or a song
-     * deletion does not set it. In-memory only: a restart or the next [playQueue] puts it back
-     * to false.
+     * deletion does not set it. Saved with the queue: a restore and the adoption of a running
+     * session bring it back, and the next [playQueue] puts it back to false.
      */
     val isQueueCustomized: Flow<Boolean>
 

@@ -1,0 +1,127 @@
+# Queue: accepted and deferred behaviours
+
+Check here before filing an audit finding about the play queue, shuffle or queue persistence. Each
+entry below is either a behaviour the maintainer accepted on purpose (with what pins it and when to
+look again) or a known behaviour that is deferred to later work. Paths are relative to
+`app/src/main/java/com/v1per/synthx/`. The rules themselves are in `docs/queue-shuffle-design.md`
+and `docs/queue-persistence.md`.
+
+## Accepted
+
+### A1. The cold-start restore reads the queue and the baseline separately (#403)
+
+- **What.** `restoreSavedQueueInternal` reads the live rows and the cursor in one transaction
+  (`QueuePersistence.loadRestore`) and the baseline in a second read (`loadBaselineQueue`). A failed
+  baseline read is treated as an empty baseline.
+- **Why accepted.** `repairRestoredQueue` runs on every restored queue and keeps every song:
+  - with shuffle off the baseline read is not used (baseline := live);
+  - with shuffle on, an empty baseline is rebuilt from the live order without its tagged extras.
+
+  The worst case is a shuffled queue whose original order is lost: shuffle OFF after that restart
+  keeps the shuffled order. No realistic writer runs between the two reads at cold start.
+- **What pins it.** `QueuePersistenceReadTest.failingReadsRestoreNothingInsteadOfThrowing` (a failed
+  baseline read returns an empty list) and `QueueShuffleExamplesTest` E16 (shuffle OFF with an empty
+  baseline keeps the current order).
+- **Revisit when.** A baseline read fails in practice (the log line "Baseline queue load failed"), or
+  the restore moves to the combined read for another reason. Moving it to `loadQueueWithBaseline`
+  would make a baseline failure restore nothing at all.
+
+### A2. Mirrored moves and the restore rewrite leave the stored baseline alone (#405, closed as fixed)
+
+- **What.** With shuffle off, a move is mirrored into the baseline by slot id
+  (`QueueOrderStore.moveUpcoming` / `mirrorMoveIntoBaseline`). Its two early returns (the moved or the
+  preceding slot missing from the baseline) are silent. The restore's dropped-songs rewrite writes the
+  live rows and the cursor, never the baseline, so the stored baseline can keep rows of songs that no
+  longer resolve.
+- **Why accepted.** The early returns cannot be reached while shuffle is off, because the baseline
+  then equals the live order: every edit keeps them equal, and the restore repair sets baseline :=
+  live. The restore repair ignores baseline rows that are not in the live order, so a song that comes
+  back (a remounted card) is never resurrected into the queue.
+- **What pins it.** `QueueShuffleRulesTest.aMirroredMoveFollowsTheSlotNotThePositionWhenTheOrdersDiffer`,
+  `QueueShufflePropertyTest` (I4: baseline equals live while shuffle is off),
+  `QueueRestoreRepairTest.baselineSlotsThatAreNotInTheLiveOrderAreNeverResurrected`,
+  `QueueColdStartInstrumentedTest.aDroppedSongRewritesTheSavedRowsOnceFromTheFullOrder` ("restore never
+  writes the baseline").
+- **Revisit when.** Anything lets the baseline differ from the live order while shuffle is off.
+
+### A3. Edits that change both orders save them as two commits, live first (#404)
+
+- **What.** These edits save the live order (with the cursor) and then the baseline, as two
+  transactions through the one queue writer:
+  - Play Next, Add to Queue and a move with shuffle off;
+  - a remove of a slot that is in the baseline;
+  - a library deletion;
+  - a rescan remap to a new song id.
+
+  `docs/queue-persistence.md` section 2.2 lists what a process death between them leaves.
+- **Why accepted.** With the live commit first, the restore repair turns the state between the two
+  commits into the queue after the edit, in both shuffle modes, for every such edit but the one in A4.
+- **What pins it.** `DeferredBaselineWriterTest`, `QueueEditWriteOrderInstrumentedTest`,
+  `QueueEditKillReplayInstrumentedTest`.
+- **Revisit when.** An edit path needs both orders in one commit, or a new edit path changes the
+  baseline.
+
+### A4. A process death inside a shuffled rescan remap can cost one song its album place (#404)
+
+- **What.** A rescan that finds a file's content changed flags the old song row missing and inserts
+  the song under a new id. The scanner does not touch the saved queue, so only a live engine moves
+  the queue to the new id (`applyRemap` → `remapSong`): first the live commit, then the baseline
+  commit. If the process dies between the two while shuffle is on:
+  - the live order holds the new id and the baseline still holds the old, missing one;
+  - the restore keeps every song and the live order after the edit;
+  - **if the remapped song is not the current one**, it comes back as an Add to Queue extra, so
+    shuffle OFF places it after the album instead of in its album place;
+  - **if it is the current song**, the baseline is rebuilt from the shuffled live order, so shuffle
+    OFF keeps the shuffled order.
+- **Why accepted.** Every song is kept and nothing removed comes back. The window is one pair of
+  commits during a rescan. Without live first, the same death drops the song from the queue.
+- **What pins it.** `QueueRemapKillOutcomeTest`, and on a device
+  `QueueEditKillReplayInstrumentedTest.aShuffledRemapOfASongThatIsNotPlayingComesBackAsAnExtra` and
+  `aShuffledRemapOfThePlayingSongRebuildsTheBaselineFromLive`.
+- **Revisit when.** The scanner repoints saved queue rows (live and baseline) to the new id in its
+  own transaction. That would also cover a remap that happens while no engine is running, which
+  leaves the slot on the missing old id until the next restore drops it.
+
+### A5. A cursor that cannot be read leaves the saved modes unknown (#400)
+
+- **What.** When the saved queue cannot be restored but the cursor row can be read, its repeat mode
+  and shuffle flag still come back (`docs/queue-persistence.md` 4.4). When the read itself fails, the
+  engine keeps the session's modes, which are Repeat Off and shuffle off on a fresh service. The next
+  fresh play then saves those.
+- **Why accepted.** Nothing reliable is known about the saved modes in that case.
+- **What pins it.** `QueueSavedModesReadFailureInstrumentedTest`,
+  `QueuePersistenceRestoreReadTest.nothingSavedAndAFailedReadBothReadAsEmpty`.
+- **Revisit when.** Cursor reads are seen failing in practice.
+
+### A6. The first restart after updating to database version 18 (#401, #424)
+
+- **What.** Saved rows from version 17 carry no customised-queue flag and no saved queue position. So,
+  once:
+  - a hand-built queue reads as untouched, and the next song tap replaces it without asking;
+  - a restore whose saved song is gone starts at the first surviving slot.
+
+  Both values are stored by the next save.
+- **Why accepted.** The migration is additive and does not guess either value.
+- **What pins it.** `Migration17To18Test`, `QueueRestoreStartRoomInstrumentedTest.aCursorSavedBeforeThePositionColumnStartsTheFirstSurvivor`,
+  `QueuePersistenceRestoreReadTest.aLegacyCursorReadsAsUntouched`.
+- **Revisit when.** Never on its own; it settles after the first save.
+
+## Deferred
+
+Known behaviours that are not fixed yet. The first group is the "out of scope" list of
+`docs/queue-shuffle-design.md` section 9, without the two items covered elsewhere: the order of the
+queue restore and the daily backup (`docs/queue-persistence.md` section 5), and the two commits of
+ordinary edits (A3). The second group comes from the queue-persistence work.
+
+| Behaviour | Issue |
+|---|---|
+| Shuffle from external controllers (the media session's own shuffle command) is not intercepted. | #389 |
+| Add to Queue places a new song at the end of the live order, after the whole remaining context. | #430 |
+| Repeat All replays the same shuffled order on every loop. | #393 |
+| The Keep, Clear and Replace prompts: Keep does not start a paused player, ignores a song already queued, and after an ended queue plays only the tapped song; the prompts disappear on a configuration change. | #422, #423, #425, #426 |
+| A shuffle tap that changes nothing leaves a scroll-to-top pending; the Shuffle and Repeat buttons expose no on/off state to accessibility. | #395, #421 |
+| Up Next gestures (reorder auto-scroll, padding, swipe-to-remove, the overlay show/hide gesture and related races). | #410 to #418 |
+| External controllers only see the loaded window of about 51 items as the queue. | #409 |
+| O(N) work on large queues: every queue write rewrites every row (including on pause and when leaving the app), every track change hydrates the whole Up Next list, and the view model mirrors the whole queue. Moved to a separate performance batch. | #406 |
+| A song tap or a page Play / Shuffle tap during the launch restore does not wait for it. Its Keep/Clear or Replace decision runs before the restore finishes, without the stored customised-queue flag, so it plays at once and the restore then finds a timeline and stands down. Making those taps wait would mean holding `requestPlayQueue` and `requestPlayAll` in the same restore gate and then re-checking the flag from the engine; the prompts are one-off events, so they could be raised after the wait without a UI change. | none yet |
+| A Play Next or Add to Queue fallback, with nothing playing and no restore pending, cancels a queue load that is still starting (for example right after a song tap). During the launch restore a held action sees the tapped queue only if it is already installed when the restore settles. | #427 |

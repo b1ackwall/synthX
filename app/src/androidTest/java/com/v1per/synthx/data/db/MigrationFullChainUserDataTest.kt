@@ -137,6 +137,13 @@ class MigrationFullChainUserDataTest {
                         "SELECT slot_id FROM queue_items WHERE extra_kind IS NOT NULL OR extra_sequence IS NOT NULL",
                     ),
                 )
+                assertEquals(
+                    "$label: playback_cursor queue_customized 0 and current_queue_position NULL after 17->18",
+                    emptyList<String?>(),
+                    db.strings(
+                        "SELECT id FROM playback_cursor WHERE queue_customized != 0 OR current_queue_position IS NOT NULL",
+                    ),
+                )
                 val expectedCursor = when {
                     start < 10 -> emptyList()
                     start == 10 -> listOf(listOf("1", null, "9876", "0", "0"))

@@ -130,7 +130,7 @@ class BackupSnapshotInstrumentedTest {
         // identity hash for a freshly built database, not just internal self-consistency.
         // Update this to the new version's exported app/schemas/.../<N>.json identityHash on
         // every SynthXDatabase.VERSION bump (see CLAUDE.md's migration checklist).
-        assertEquals("4df39be18f034e6a63912bd16eefc96d", validated.schema.roomIdentityHash)
+        assertEquals("42ff5d3f63069f191542dbfd4701700f", validated.schema.roomIdentityHash)
         assertTrue(
             validated.schema.expectedTables.containsAll(
                 setOf(

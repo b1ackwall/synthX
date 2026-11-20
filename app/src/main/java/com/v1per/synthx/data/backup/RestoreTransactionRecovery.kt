@@ -174,7 +174,7 @@ private fun RestoreTransaction.recoverWithState(
 }
 
 /**
- * Flags a one-time art-recovery sweep for [MainActivity.runLaunchMaintenance] to consume on
+ * Flags a one-time art-recovery sweep for [com.v1per.synthx.runLaunchSequence] to consume on
  * this cold boot — see [PreferencesManager.artSweepPending]. Called only on the two
  * recovery paths that resolve a restore's outcome to installed, since a rolled-back or
  * otherwise non-installed outcome leaves the pre-restore library (and its art) untouched.

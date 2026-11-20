@@ -38,6 +38,7 @@ class QueueColdStartInstrumentedTest : PlaybackServiceTestBase() {
 
     @Test fun restoresTheSavedQueuePausedAtTheSavedSlotAndPosition() {
         val live = serveShuffledQueueWithADroppedSong()
+        recorder.snapshot = recorder.snapshot.copy(cursor = recorder.snapshot.cursor?.copy(queueCustomized = true))
 
         runBlocking { engine.restoreSavedQueue() }
 
@@ -47,7 +48,7 @@ class QueueColdStartInstrumentedTest : PlaybackServiceTestBase() {
             assertEquals("current song", "cold-4", engine.currentSongId.now())
             assertTrue("shuffle flag", engine.shuffleEnabled.now())
             assertEquals("repeat", RepeatMode.All, engine.repeatMode.now())
-            assertFalse("a restored queue is not customised", engine.isQueueCustomized.now())
+            assertTrue("a restored queue keeps the stored flag", engine.isQueueCustomized.now())
             assertEquals("up next", listOf("slot-1", "slot-5"), engine.upcomingQueue.now().slotIds())
         }
         await("session on slot-4 near 12 s") {
