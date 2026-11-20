@@ -123,7 +123,7 @@ class PlaybackViewModelQueueAddUnavailableTest {
 
     @Test fun keepQueueAndPlayNextReturnsNullAndDoesNotSkipWhenTheEngineRefuses() =
         withViewModel(acceptsInserts = false) { vm, engine ->
-            assertNull(vm.keepQueueAndPlayNext(tapped))
+            assertNull(vm.keepQueueAndPlayNext(QueuePromptEvent(tapped, listOf(tapped), 0)))
             assertEquals(1, engine.playNextCalls)
             assertEquals(0, engine.nextCalls, "skipping to a song that was never inserted would skip the current one")
         }
@@ -131,7 +131,7 @@ class PlaybackViewModelQueueAddUnavailableTest {
     @Test fun acceptedInsertsStillReportAdded() = withViewModel(acceptsInserts = true) { vm, engine ->
         assertEquals(QueueAddResult.Added, vm.playNext(tapped))
         assertEquals(QueueAddResult.Added, vm.addToQueue(tapped))
-        assertEquals(true, vm.keepQueueAndPlayNext(song("other")))
+        assertEquals(true, vm.keepQueueAndPlayNext(QueuePromptEvent(song("other"), listOf(song("other")), 0)))
         assertEquals(1, engine.nextCalls)
     }
 
@@ -155,8 +155,8 @@ class PlaybackViewModelQueueAddUnavailableTest {
 
     @Test fun keepQueueAndPlayNextAfterTheQueueEndedStartsFreshPlayback() =
         withViewModel(acceptsInserts = true, queueEnded = true) { vm, engine ->
-            // The current (ended) song would otherwise trip the already-queued dedup and no-op.
-            assertEquals(true, vm.keepQueueAndPlayNext(current))
+            // An ended queue has nothing to keep: the tapped list plays as a fresh queue.
+            assertEquals(true, vm.keepQueueAndPlayNext(QueuePromptEvent(current, listOf(current), 0)))
             advanceUntilIdle()
             assertEquals(0, engine.playNextCalls)
             assertEquals(1, engine.playQueueCalls)

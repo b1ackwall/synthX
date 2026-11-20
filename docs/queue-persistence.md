@@ -155,7 +155,7 @@ taken between an edit's two commits is repaired like a process death at that poi
 it runs, and `Done` once it returns (installed, skipped because a timeline exists, nothing saved,
 failed) or the wait bound passes.
 
-While it is `Pending` and nothing is playing, Play Next, Add to Queue and the Keep fallback:
+While it is `Pending` and nothing is playing, Play Next, Add to Queue and Keep:
 
 - answer at once (`Added`, or `true` for Keep);
 - hold their action until the restore settles. Held actions then run in the order they are taken.
@@ -164,11 +164,15 @@ Each held action then checks the engine's own state:
 
 - **The restore produced a queue:** Play Next inserts after the current song and Add to Queue
   appends. Neither is applied when the song already sits in that spot, because the confirmation
-  that would ask has no dialog to appear in. Keep plays the song next and jumps to it, unless it is
-  already the current song or in Up Next.
-- **No queue came back:** the fallback runs, playing the song alone.
+  that would ask has no dialog to appear in. Keep plays the song from the next slot when it is
+  already there, and otherwise plays a new copy right after the current song; playback starts
+  (`docs/queue-entry-points.md`, section 2).
+- **No queue came back:** the fallback runs. Play Next and Add to Queue play the song alone; Keep
+  plays the list it was tapped from, as Clear does.
 
-Actions taken while something is playing, or when no restore is pending, never wait.
+Actions taken while something is playing, or when no restore is pending, never wait for the restore.
+All three also wait for a queue load that is still starting, under one bound for both waits
+(`docs/queue-entry-points.md`, section 5).
 
 The bound is `QUEUE_RESTORE_WAIT_TIMEOUT_MS` = 15 s. The restore can wait out a whole round of
 session connection attempts (`ReconnectPolicy`: four attempts with 1, 2 and 4 s of backoff, at least
@@ -176,7 +180,8 @@ about 7 s), so the bound is about twice that backoff. A slow connection that sti
 cut off, and a session that never answers releases the actions in bounded time. The bound runs on
 the view model scope's clock, so tests drive it with virtual time; the constructor takes the bound.
 
-After the bound, the held actions run the fallback. A restore that returns later runs no held action
+After the bound, a held action decides on what is there: with nothing playing it runs the fallback.
+A restore that returns later runs no held action
 again, and the engine does not install a saved queue over a timeline that exists by then. So a
 queue started after the bound is never replaced by the late restore.
 

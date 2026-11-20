@@ -8,6 +8,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -108,7 +109,7 @@ class PlaybackViewModelQueuePromptTest {
     @Test fun songTapPromptsForACustomizedQueueWithNoCurrentSongIdSubscriber() = withViewModel { vm, engine ->
         val prompts = mutableListOf<QueuePromptEvent>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            vm.queuePrompts.collect { prompts += it }
+            vm.queuePrompt.filterNotNull().collect { prompts += it }
         }
         advanceUntilIdle()
 
@@ -122,7 +123,7 @@ class PlaybackViewModelQueuePromptTest {
     private fun TestScope.replacePrompts(vm: PlaybackViewModel): List<QueueReplacePromptEvent> {
         val prompts = mutableListOf<QueueReplacePromptEvent>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            vm.queueReplacePrompts.collect { prompts += it }
+            vm.queueReplacePrompt.filterNotNull().collect { prompts += it }
         }
         return prompts
     }
@@ -175,8 +176,8 @@ class PlaybackViewModelQueuePromptTest {
             assertEquals(listOf(PlayCall(listOf(a, b, c), 1, true)), engine.playQueueCalls)
         }
 
-    // currentSongId is lazy: after a collector leaves, it keeps the last value it saw. The
-    // already-queued check must read the live current song regardless.
+    // currentSongId is lazy: after a collector leaves, it keeps the last value it saw. Keep's
+    // decision must not depend on it.
     private fun TestScope.collectCurrentSongIdBriefly(vm: PlaybackViewModel) {
         val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.currentSongId.collect {} }
         advanceUntilIdle()
@@ -184,7 +185,7 @@ class PlaybackViewModelQueuePromptTest {
         advanceUntilIdle()
     }
 
-    @Test fun keepRecognisesTheCurrentSongAfterItChangedWhileNothingCollectedCurrentSongId() = withViewModel {
+    @Test fun keepOfTheCurrentSongAfterItChangedWhileNothingCollectedCurrentSongIdPlaysACopy() = withViewModel {
             vm,
             engine,
         ->
@@ -192,7 +193,7 @@ class PlaybackViewModelQueuePromptTest {
         engine.songId.value = "x"
         advanceUntilIdle()
 
-        assertEquals(false, vm.keepQueueAndPlayNext(song("x")), "the current song was treated as not queued")
+        assertEquals(true, vm.keepQueueAndPlayNext(keepPrompt(song("x"))), "the current song plays again as a copy")
     }
 
     @Test fun keepDoesNotRejectASongThatWasCurrentOnlyWhenCurrentSongIdWasLastCollected() = withViewModel {
@@ -204,12 +205,14 @@ class PlaybackViewModelQueuePromptTest {
         engine.songId.value = "z"
         advanceUntilIdle()
 
-        assertEquals(true, vm.keepQueueAndPlayNext(current), "a song that is not queued was rejected as queued")
+        assertEquals(true, vm.keepQueueAndPlayNext(keepPrompt(current)), "a song that is not queued was rejected")
     }
 
-    @Test fun keepRecognisesTheCurrentSongWhenCurrentSongIdWasNeverCollected() = withViewModel { vm, _ ->
-        assertEquals(false, vm.keepQueueAndPlayNext(current))
+    @Test fun keepOfTheCurrentSongWhenCurrentSongIdWasNeverCollectedPlaysACopy() = withViewModel { vm, _ ->
+        assertEquals(true, vm.keepQueueAndPlayNext(keepPrompt(current)))
     }
+
+    private fun keepPrompt(song: Song) = QueuePromptEvent(song, listOf(song), 0)
 
     private fun song(id: String, missing: Boolean = false) = Song(
         id = id,

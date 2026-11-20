@@ -42,8 +42,6 @@ import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.playback.PlaybackError
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.ui.components.rememberNotificationPermissionGate
-import com.v1per.synthx.playback.QueuePromptEvent
-import com.v1per.synthx.playback.QueueReplacePromptEvent
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.components.CollapsedPlayerHeight
 import com.v1per.synthx.ui.components.GroupPickerBottomSheet
@@ -174,16 +172,10 @@ private fun NormalShell(
         }
     }
 
-    // Held as state rather than shown from inside the collector: the event fires once, but
-    // the dialog has to stay up until the user answers it.
-    var queuePrompt by remember { mutableStateOf<QueuePromptEvent?>(null) }
-    LaunchedEffect(Unit) {
-        playbackViewModel.queuePrompts.collect { queuePrompt = it }
-    }
-    var queueReplacePrompt by remember { mutableStateOf<QueueReplacePromptEvent?>(null) }
-    LaunchedEffect(Unit) {
-        playbackViewModel.queueReplacePrompts.collect { queueReplacePrompt = it }
-    }
+    // Pending until answered or dismissed. The view model holds them, so a prompt survives the
+    // activity being recreated, and shows again when this shell is composed again.
+    val queuePrompt by playbackViewModel.queuePrompt.collectAsState()
+    val queueReplacePrompt by playbackViewModel.queueReplacePrompt.collectAsState()
 
     // isPlaying/isBuffering/currentPosition/duration are collected inside BottomChromeOverlay
     // instead — currentPosition ticks every second while a song plays, and this composable
@@ -262,6 +254,7 @@ private fun NormalShell(
         },
         onPlayNext = playbackViewModel::playNext,
         onAddToQueue = playbackViewModel::addToQueue,
+        duplicateConfirmations = playbackViewModel.queueDuplicateConfirmations,
         currentSongId = currentSong?.id,
     ) {
         Trace.beginSection(PerfTraceSections.MainShellContent)
@@ -357,42 +350,30 @@ private fun NormalShell(
                 SnackbarHost(hostState = snackbarHostState)
             }
 
-            // Keep acts on the tapped song alone; Clear rebuilds from the list it came from.
+            // Keep plays the tapped song next; Clear rebuilds from the list it came from.
             // Dismissing does neither — the current song and queue are left exactly as they are.
-            queuePrompt?.let { prompt ->
+            if (queuePrompt != null) {
                 QueuePromptDialog(
                     onKeep = {
-                        // Same confirmation strings SongActionsHost already shows for the
-                        // ordinary Play Next action — reused rather than duplicated so the
-                        // duplicate-queue message reads identically everywhere it appears.
-                        // null: the engine refused for lack of a session connection and has
-                        // already shown its own error snackbar, so there is nothing to confirm.
-                        val message = when (playbackViewModel.keepQueueAndPlayNext(prompt.tappedSong)) {
-                            true -> resources.getString(R.string.actions_playing_next)
-                            false -> resources.getString(R.string.actions_already_playing_next)
-                            null -> null
+                        // Same confirmation string SongActionsHost shows for the ordinary Play
+                        // Next action. null: nothing is pending, or the engine refused for lack of
+                        // a session connection and has shown its own error snackbar.
+                        if (playbackViewModel.answerKeep() == true) {
+                            val message = resources.getString(R.string.actions_playing_next)
+                            scope.launch { snackbarHostState.showSnackbar(message) }
                         }
-                        if (message != null) scope.launch { snackbarHostState.showSnackbar(message) }
-                        queuePrompt = null
                     },
-                    onClear = {
-                        playbackViewModel.clearQueueAndPlay(prompt.contextSongs, prompt.startIndex)
-                        queuePrompt = null
-                    },
-                    onDismiss = { queuePrompt = null },
+                    onClear = playbackViewModel::answerClear,
+                    onDismiss = playbackViewModel::dismissQueuePrompt,
                 )
             }
 
             // Replace plays the request exactly as decided at tap time; Cancel and dismiss do nothing.
-            queueReplacePrompt?.let { prompt ->
+            if (queueReplacePrompt != null) {
                 QueueReplaceDialog(
-                    onReplace = {
-                        val request = prompt.request
-                        playbackViewModel.playQueue(request.songs, request.startIndex, request.shuffle)
-                        queueReplacePrompt = null
-                    },
-                    onCancel = { queueReplacePrompt = null },
-                    onDismiss = { queueReplacePrompt = null },
+                    onReplace = playbackViewModel::answerReplace,
+                    onCancel = playbackViewModel::dismissQueueReplacePrompt,
+                    onDismiss = playbackViewModel::dismissQueueReplacePrompt,
                 )
             }
 

@@ -111,17 +111,18 @@ and `docs/queue-persistence.md`.
 Known behaviours that are not fixed yet. The first group is the "out of scope" list of
 `docs/queue-shuffle-design.md` section 9, without the two items covered elsewhere: the order of the
 queue restore and the daily backup (`docs/queue-persistence.md` section 5), and the two commits of
-ordinary edits (A3). The second group comes from the queue-persistence work.
+ordinary edits (A3). The second group comes from the queue-persistence work, the last two rows from
+the queue entry-points work (`docs/queue-entry-points.md`).
 
 | Behaviour | Issue |
 |---|---|
 | Shuffle from external controllers (the media session's own shuffle command) is not intercepted. | #389 |
 | Add to Queue places a new song at the end of the live order, after the whole remaining context. | #430 |
 | Repeat All replays the same shuffled order on every loop. | #393 |
-| The Keep, Clear and Replace prompts: Keep does not start a paused player, ignores a song already queued, and after an ended queue plays only the tapped song; the prompts disappear on a configuration change. | #422, #423, #425, #426 |
 | A shuffle tap that changes nothing leaves a scroll-to-top pending; the Shuffle and Repeat buttons expose no on/off state to accessibility. | #395, #421 |
 | Up Next gestures (reorder auto-scroll, padding, swipe-to-remove, the overlay show/hide gesture and related races). | #410 to #418 |
 | External controllers only see the loaded window of about 51 items as the queue. | #409 |
-| O(N) work on large queues: every queue write rewrites every row (including on pause and when leaving the app), every track change hydrates the whole Up Next list, and the view model mirrors the whole queue. Moved to a separate performance batch. | #406 |
-| A song tap or a page Play / Shuffle tap during the launch restore does not wait for it. Its Keep/Clear or Replace decision runs before the restore finishes, without the stored customised-queue flag, so it plays at once and the restore then finds a timeline and stands down. Making those taps wait would mean holding `requestPlayQueue` and `requestPlayAll` in the same restore gate and then re-checking the flag from the engine; the prompts are one-off events, so they could be raised after the wait without a UI change. | none yet |
-| A Play Next or Add to Queue fallback, with nothing playing and no restore pending, cancels a queue load that is still starting (for example right after a song tap). During the launch restore a held action sees the tapped queue only if it is already installed when the restore settles. | #427 |
+| O(N) work on large queues: every queue write rewrites every row (including on pause and when leaving the app), every track change hydrates the whole Up Next list, and the view model mirrors the whole queue and the Up Next list. Moved to a separate performance batch. | #406 |
+| A song tap or a page Play / Shuffle tap during the launch restore does not wait for it. Its Keep/Clear or Replace decision runs before the restore finishes, without the stored customised-queue flag, so it plays at once and the restore then finds a timeline and stands down. Making those taps wait would mean holding `requestPlayQueue` and `requestPlayAll` in the same restore gate and then re-checking the flag from the engine; the prompts are pending view model state, so they could be raised after the wait without a UI change. | none yet |
+| After Clear or Replace, the customised-queue flag stays true until the new queue installs. A second song tap in that short window raises the Keep/Clear prompt again; Keep then waits for the load and applies to the new queue. | none yet |
+| The queue-load wait is proven on the real engine only for a load suspended at its session wait (`QueueLoadWaitInstrumentedTest`). A load suspended while it builds the start song's artwork is covered by the view-model tests alone: there is no seam to hold the artwork step, and none is added for a test. | none yet |

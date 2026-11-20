@@ -26,6 +26,7 @@ internal class FakePlaybackEngine(
 
     val playQueueCalls = CopyOnWriteArrayList<PlayCall>()
     val playNextCalls = CopyOnWriteArrayList<Song>()
+    val addToQueueCalls = CopyOnWriteArrayList<Song>()
     val nextCalls = AtomicInteger()
     val persistCalls = AtomicInteger()
     val reconcileCalls = AtomicInteger()
@@ -79,7 +80,10 @@ internal class FakePlaybackEngine(
         playNextCalls += song
         return true
     }
-    override fun addToQueue(song: Song): Boolean = true
+    override fun addToQueue(song: Song): Boolean {
+        addToQueueCalls += song
+        return true
+    }
     override fun moveQueueItem(slotId: String, toIndex: Int) {}
     override fun removeQueueItem(slotId: String) {}
     override fun seekToQueueItem(slotId: String) {}

@@ -90,7 +90,9 @@ class PlaybackViewModelRestoreWaitTest {
         override fun removeQueueItem(slotId: String) {}
         override fun seekToQueueItem(slotId: String) {}
         override fun pause() {}
-        override fun resume() {}
+        override fun resume() {
+            calls += "resume"
+        }
         override fun stop() {}
         override fun seekTo(positionMs: Long) {}
         override fun release() {}
@@ -117,6 +119,9 @@ class PlaybackViewModelRestoreWaitTest {
     private val c = song("c")
     private val x = song("x")
     private val y = song("y")
+
+    private fun prompt(song: Song, context: List<Song> = listOf(song)) =
+        QueuePromptEvent(song, context, context.indexOf(song))
 
     @Test fun playNextWaitsForThePendingRestoreThenInsertsIntoTheRestoredQueue() = withViewModel { vm, engine ->
         vm.restoreSavedQueue()
@@ -152,7 +157,7 @@ class PlaybackViewModelRestoreWaitTest {
         vm.restoreSavedQueue()
         runCurrent()
 
-        assertEquals(true, vm.keepQueueAndPlayNext(x))
+        assertEquals(true, vm.keepQueueAndPlayNext(prompt(x)))
         runCurrent()
         assertEquals(emptyList(), engine.calls)
 
@@ -160,7 +165,7 @@ class PlaybackViewModelRestoreWaitTest {
         engine.release.complete(Unit)
         advanceUntilIdle()
 
-        assertEquals(listOf("playNext:x", "next"), engine.calls)
+        assertEquals(listOf("playNext:x", "next", "resume"), engine.calls)
     }
 
     @Test fun aPlayNextOfTheSongAlreadyNextIsSkipped() = withViewModel { vm, engine ->
@@ -187,16 +192,16 @@ class PlaybackViewModelRestoreWaitTest {
         assertEquals(emptyList(), engine.calls, "x already sits at the end of the queue")
     }
 
-    @Test fun aKeepOfASongAlreadyQueuedIsSkipped() = withViewModel { vm, engine ->
+    @Test fun aKeepOfASongAlreadyInUpNextInsertsACopyAfterTheCurrentSong() = withViewModel { vm, engine ->
         vm.restoreSavedQueue()
         runCurrent()
-        assertEquals(true, vm.keepQueueAndPlayNext(x))
+        assertEquals(true, vm.keepQueueAndPlayNext(prompt(x)))
 
         engine.restores = listOf(a, b, x, c) to 0
         engine.release.complete(Unit)
         advanceUntilIdle()
 
-        assertEquals(emptyList(), engine.calls, "x is already in Up Next")
+        assertEquals(listOf("playNext:x", "next", "resume"), engine.calls, "x later in Up Next is not next")
     }
 
     @Test fun aPlayNextOfADifferentSongIsInsertedEvenWhenTheNextSlotIsTaken() = withViewModel { vm, engine ->
@@ -240,14 +245,14 @@ class PlaybackViewModelRestoreWaitTest {
     @Test fun aRestoreThatProducesNoQueueRunsTheKeepFallbackAfterIt() = withViewModel { vm, engine ->
         vm.restoreSavedQueue()
         runCurrent()
-        assertTrue(vm.keepQueueAndPlayNext(a) == true)
+        assertTrue(vm.keepQueueAndPlayNext(prompt(a, listOf(b, a, c))) == true)
         runCurrent()
         assertEquals(emptyList(), engine.calls)
 
         engine.release.complete(Unit)
         advanceUntilIdle()
 
-        assertEquals(listOf("playQueue:[a]"), engine.calls)
+        assertEquals(listOf("playQueue:[b, a, c]"), engine.calls)
     }
 
     @Test fun actionsTakenDuringTheRestoreApplyInTheOrderTheyWereTaken() = withViewModel { vm, engine ->

@@ -27,6 +27,7 @@ import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
 import com.v1per.synthx.data.scanner.KnownAudioRoot
 import com.v1per.synthx.playback.QueueAddResult
+import com.v1per.synthx.playback.QueueDuplicateConfirmations
 import kotlinx.coroutines.launch
 
 /**
@@ -46,6 +47,9 @@ fun SongActionsHost(
     // retrying after the user answers a duplicate-position confirmation below.
     onPlayNext: (Song, Boolean) -> QueueAddResult,
     onAddToQueue: (Song, Boolean) -> QueueAddResult,
+    // The pending duplicate-position questions below, held by PlaybackViewModel so they survive
+    // the activity being recreated.
+    duplicateConfirmations: QueueDuplicateConfirmations,
     // The currently playing song's content id, or null when nothing is playing — just
     // enough playback state to hide the Play Next row for the current song (see
     // SongActionsBottomSheet's isCurrentlyPlaying) without giving this host a full
@@ -182,11 +186,10 @@ fun SongActionsHost(
         }
     }
 
-    // Holds the tapped song while its duplicate-position confirmation dialog is up —
-    // null the rest of the time. Local state, same pattern as SongActionsBottomSheet's own
-    // showDeleteConfirm, rather than a SharedFlow: both dialogs are answered from right here.
-    var playNextConfirmTarget by remember { mutableStateOf<Song?>(null) }
-    var addToQueueConfirmTarget by remember { mutableStateOf<Song?>(null) }
+    // The tapped song while its duplicate-position confirmation dialog is up — null the rest of
+    // the time. Both dialogs are answered from right here.
+    val playNextConfirmTarget by duplicateConfirmations.playNext.collectAsState()
+    val addToQueueConfirmTarget by duplicateConfirmations.addToQueue.collectAsState()
     // Song + playlist captured together at tap time: the sheet's own target is cleared by
     // dismiss() before this dialog shows.
     var removeFromPlaylistTarget by remember { mutableStateOf<RemoveFromPlaylistTarget?>(null) }
@@ -251,7 +254,7 @@ fun SongActionsHost(
                     when (onPlayNext(song, false)) {
                         QueueAddResult.Added -> showQueueSnackbar(R.string.actions_playing_next)
 
-                        QueueAddResult.NeedsConfirmation -> playNextConfirmTarget = song
+                        QueueAddResult.NeedsConfirmation -> duplicateConfirmations.askPlayNext(song)
 
                         // The engine already surfaced the scaffold's error snackbar.
                         QueueAddResult.Unavailable -> Unit
@@ -263,7 +266,7 @@ fun SongActionsHost(
                 dismiss {
                     when (onAddToQueue(song, false)) {
                         QueueAddResult.Added -> showQueueSnackbar(R.string.actions_added_to_queue)
-                        QueueAddResult.NeedsConfirmation -> addToQueueConfirmTarget = song
+                        QueueAddResult.NeedsConfirmation -> duplicateConfirmations.askAddToQueue(song)
                         QueueAddResult.Unavailable -> Unit
                     }
                 }
@@ -296,15 +299,15 @@ fun SongActionsHost(
 
     // Same independence from the sheet as the graduation dialog above — the sheet that
     // triggered these has already closed by the time either can show.
-    playNextConfirmTarget?.let { song ->
+    if (playNextConfirmTarget != null) {
         PlayNextDuplicateDialog(
             onConfirm = {
-                if (onPlayNext(song, true) == QueueAddResult.Added) {
+                val song = duplicateConfirmations.takePlayNext()
+                if (song != null && onPlayNext(song, true) == QueueAddResult.Added) {
                     showQueueSnackbar(R.string.actions_playing_next)
                 }
-                playNextConfirmTarget = null
             },
-            onDismiss = { playNextConfirmTarget = null },
+            onDismiss = duplicateConfirmations::dismissPlayNext,
         )
     }
     removeFromPlaylistTarget?.let { pending ->
@@ -318,15 +321,15 @@ fun SongActionsHost(
             onDismiss = { removeFromPlaylistTarget = null },
         )
     }
-    addToQueueConfirmTarget?.let { song ->
+    if (addToQueueConfirmTarget != null) {
         AddToQueueDuplicateDialog(
             onConfirm = {
-                if (onAddToQueue(song, true) == QueueAddResult.Added) {
+                val song = duplicateConfirmations.takeAddToQueue()
+                if (song != null && onAddToQueue(song, true) == QueueAddResult.Added) {
                     showQueueSnackbar(R.string.actions_added_to_queue)
                 }
-                addToQueueConfirmTarget = null
             },
-            onDismiss = { addToQueueConfirmTarget = null },
+            onDismiss = duplicateConfirmations::dismissAddToQueue,
         )
     }
 }

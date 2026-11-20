@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -88,7 +89,12 @@ class QueuePersistenceEndToEndInstrumentedTest : PlaybackServiceTestBase() {
         val restored = coldStart()
         val viewModel = onMain { PlaybackViewModel(PlaybackController(restored)) }
         val prompts = CopyOnWriteArrayList<QueuePromptEvent>()
-        val collector = CoroutineScope(Dispatchers.Main).launch { viewModel.queuePrompts.collect { prompts += it } }
+        val collector = CoroutineScope(Dispatchers.Main).launch {
+            viewModel.queuePrompt.filterNotNull().collect {
+                prompts +=
+                    it
+            }
+        }
         try {
             onMain { viewModel.restoreSavedQueue() }
             await("restored") { onMain { restored.queue.now().size } == size }

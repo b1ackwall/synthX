@@ -83,7 +83,7 @@ class PlaybackViewModelRestoreTimeoutTest {
         runCurrent()
         vm.addToQueue(y)
         advanceTimeBy(timeoutMs / 2)
-        assertEquals(true, vm.keepQueueAndPlayNext(x))
+        assertEquals(true, vm.keepQueueAndPlayNext(QueuePromptEvent(x, listOf(x), 0)))
 
         advanceTimeBy(timeoutMs / 2 + 1)
         runCurrent()

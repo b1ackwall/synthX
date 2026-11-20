@@ -10,7 +10,6 @@ import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.ui.player.PlayerAltStageStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,8 +34,10 @@ class PlaybackViewModel(
     loadBackgroundArt: suspend (PlayerBackgroundArtRequest) -> Bitmap? = { null },
     // Picks Shuffle's starting song. Injectable so tests can pin it.
     private val random: Random = Random.Default,
-    // How long Play Next, Add to Queue and the Keep fallback wait for a pending saved-queue restore.
+    // How long a saved-queue restore counts as pending at most.
     restoreWaitTimeoutMs: Long = QUEUE_RESTORE_WAIT_TIMEOUT_MS,
+    // How long a held Play Next, Add to Queue or Keep waits at most for the restore and a queue load.
+    queueActionWaitTimeoutMs: Long = QUEUE_ACTION_WAIT_TIMEOUT_MS,
 ) : ViewModel() {
 
     // Combined optimistic/real play-pause state: a tap flips this synchronously, before the
@@ -58,8 +59,8 @@ class PlaybackViewModel(
     val currentSongId: StateFlow<String?> = controller.currentSongId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    // Eager twin of currentSongId for hasActivePlayback and isAlreadyQueued, which read .value
-    // synchronously on screens that never collect currentSongId: there the lazy one is stale.
+    // Eager twin of currentSongId for hasActivePlayback, which reads .value synchronously on
+    // screens that never collect currentSongId: there the lazy one is stale.
     private val activeSongId: StateFlow<String?> = controller.currentSongId
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -76,10 +77,15 @@ class PlaybackViewModel(
     val currentIndex: StateFlow<Int> = controller.currentIndex
         .stateIn(viewModelScope, SharingStarted.Eagerly, -1)
 
-    // Screen-scoped like shuffleEnabled/repeatMode below: only the Queue screen reads this,
-    // and nothing here needs a synchronous .value the way requestPlayQueue needs queue.value.
+    // Screen-scoped for the player's Up Next list. The duplicate checks read upcomingNow instead,
+    // since nothing guarantees a collector of this one when they run.
     val upcomingQueue: StateFlow<List<QueueSlot>> = controller.upcomingQueue
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Eager twin of upcomingQueue for the duplicate checks, which read .value synchronously. The
+    // engine publishes this list on every change anyway, so following it costs no extra work.
+    private val upcomingNow: StateFlow<List<QueueSlot>> = controller.upcomingQueue
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val shuffleEnabled: StateFlow<Boolean> = controller.shuffleEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -88,8 +94,14 @@ class PlaybackViewModel(
     val shuffleReorderedByUser: StateFlow<Boolean> = controller.shuffleReorderedByUser
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    // Holds the actions that would start a one-song queue while the saved queue is still restoring.
     private val restoreGate = QueueRestoreGate(viewModelScope, restoreWaitTimeoutMs)
+
+    // The view model's queue loads, one at a time; see playQueue.
+    private val loads = QueueLoadTracker(viewModelScope)
+
+    // Holds Play Next, Add to Queue and Keep while the restore or a queue load is pending.
+    private val actionWait =
+        QueueActionWait(viewModelScope, restoreGate.state, loads.inFlight, queueActionWaitTimeoutMs)
 
     /** Where the saved-queue restore stands; see [restoreSavedQueue]. */
     val queueRestoreState: StateFlow<QueueRestoreState> = restoreGate.state
@@ -145,21 +157,16 @@ class PlaybackViewModel(
         }
     }
 
-    // Tracks the in-flight playQueue coroutine so a later tap can supersede an earlier
-    // one still doing artwork work. Without this, two rapid taps race controller.playQueue
-    // independently and whichever's async work (artwork I/O/decode) finishes last wins,
-    // regardless of which tap was actually most recent.
-    private var playQueueJob: Job? = null
-
     // Stays a plain fun so every UI call site keeps working — the engine's suspend
     // artwork work is launched into viewModelScope (Main), which is also the
     // dispatcher MediaController requires when the engine resumes.
     // A non-null shuffle is applied by the engine as part of the same queue replacement.
+    // Every fresh play closes a pending Keep/Clear or Replace prompt, and the newest load cancels
+    // any earlier one still building its artwork or waiting for the session: only the most recent
+    // tap may reach controller.playQueue's setMediaItems.
     fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean? = null) {
-        // Cancel any prior tap's still-running queue build first — only the most recent
-        // tap should ever be allowed to reach controller.playQueue's setMediaItems.
-        playQueueJob?.cancel()
-        playQueueJob = viewModelScope.launch { controller.playQueue(songs, startIndex, shuffle) }
+        prompts.clearPending()
+        loads.launch { controller.playQueue(songs, startIndex, shuffle) }
     }
 
     // The song-tap and Play/Shuffle entry points and their prompts.
@@ -167,16 +174,20 @@ class PlaybackViewModel(
         controller = controller,
         isQueueCustomized = { isQueueCustomized.value },
         hasActivePlayback = ::hasActivePlayback,
-        isAlreadyQueued = ::isAlreadyQueued,
+        isNextInQueue = ::isNextInQueue,
         playQueue = ::playQueue,
-        playAloneUnlessRestored = ::playAloneUnlessRestored,
+        holdWhilePending = actionWait::holdWhilePending,
+        resume = ::resume,
     )
 
-    /** One-off Keep/Clear prompts; see [QueuePromptCoordinator.requestPlayQueue]. */
-    val queuePrompts: SharedFlow<QueuePromptEvent> = prompts.queuePrompts
+    /** The pending Keep/Clear prompt of a song tap; see [QueuePromptCoordinator]. */
+    val queuePrompt: StateFlow<QueuePromptEvent?> = prompts.queuePrompt
 
-    /** One-off Replace prompts; see [QueuePromptCoordinator.requestPlayAll]. */
-    val queueReplacePrompts: SharedFlow<QueueReplacePromptEvent> = prompts.queueReplacePrompts
+    /** The pending Replace prompt of a Play or Shuffle button; see [QueuePromptCoordinator]. */
+    val queueReplacePrompt: StateFlow<QueueReplacePromptEvent?> = prompts.queueReplacePrompt
+
+    /** The pending duplicate confirmations of the song-actions menu. */
+    val queueDuplicateConfirmations = QueueDuplicateConfirmations()
 
     /** Play button: the playable [songs] in list order from the first, shuffle ending up off. */
     fun playAll(songs: List<Song>) = prompts.requestPlayAll(playAllRequest(songs, shuffle = false, random))
@@ -187,11 +198,22 @@ class PlaybackViewModel(
     /** Every song tap; see [QueuePromptCoordinator.requestPlayQueue]. */
     fun requestPlayQueue(songs: List<Song>, startIndex: Int) = prompts.requestPlayQueue(songs, startIndex)
 
-    /** The prompt's Keep; see [QueuePromptCoordinator.keepQueueAndPlayNext]. */
-    fun keepQueueAndPlayNext(song: Song): Boolean? = prompts.keepQueueAndPlayNext(song)
+    /** Keep for [prompt]; see [QueuePromptCoordinator.keepQueueAndPlayNext]. */
+    fun keepQueueAndPlayNext(prompt: QueuePromptEvent): Boolean? = prompts.keepQueueAndPlayNext(prompt)
 
-    /** The prompt's Clear; see [QueuePromptCoordinator.clearQueueAndPlay]. */
+    /** Clear: plays [songs] from [startIndex] as a fresh queue. */
     fun clearQueueAndPlay(songs: List<Song>, startIndex: Int) = prompts.clearQueueAndPlay(songs, startIndex)
+
+    /** Keep on the pending [queuePrompt]; true shows "Playing next", null shows nothing. */
+    fun answerKeep(): Boolean? = prompts.answerKeep()
+
+    fun answerClear() = prompts.answerClear()
+
+    fun dismissQueuePrompt() = prompts.dismissQueuePrompt()
+
+    fun answerReplace() = prompts.answerReplace()
+
+    fun dismissQueueReplacePrompt() = prompts.dismissQueueReplacePrompt()
 
     /**
      * Loads last session's queue, paused and ready. Safe to call more than once — the
@@ -200,14 +222,12 @@ class PlaybackViewModel(
     fun restoreSavedQueue() = restoreGate.start { controller.restoreSavedQueue() }
 
     /**
-     * The fallback for an action with no active playback: plays [song] alone. While the saved queue
-     * is still restoring, the decision waits for it (at most the restore wait timeout); [applied]
-     * then runs the action against the restored queue and returns false when no queue came back.
+     * Holds an action while the restore (only with no [active] playback) or a queue load is pending;
+     * [applied] then runs it against the queue they leave and returns false when there is none, and
+     * [song] plays alone. Returns false, holding nothing, when nothing is pending.
      */
-    private fun playAloneUnlessRestored(song: Song, applied: suspend () -> Boolean) {
-        val held = restoreGate.holdWhilePending { if (!applied()) playQueue(listOf(song), 0) }
-        if (!held) playQueue(listOf(song), 0)
-    }
+    private fun heldUntilSettled(active: Boolean, song: Song, applied: suspend () -> Boolean): Boolean =
+        actionWait.holdWhilePending(waitsForRestore = !active) { if (!applied()) playQueue(listOf(song), 0) }
 
     /** Called when the app goes to the background, so the resume point survives a kill. */
     fun persistPlaybackState() = controller.persistPlaybackState()
@@ -216,7 +236,7 @@ class PlaybackViewModel(
 
     fun previous() = controller.previous()
 
-    // Mirrors playQueueJob above: a large-queue reshuffle dispatches its MediaItem
+    // Mirrors the queue loads of playQueue above: a large-queue reshuffle dispatches its MediaItem
     // build off Main (see ExoPlayerEngine.setShuffleEnabled), so a rapid second toggle can
     // land before the first's off-main work finishes. Cancelling the prior job keeps only
     // the most recent tap's result reaching the controller.
@@ -256,20 +276,23 @@ class PlaybackViewModel(
 
     /**
      * Queues [song] directly after the current item — or just plays it when there is no
-     * active playback to queue behind, once a pending restore settles ([playAloneUnlessRestored]).
+     * active playback to queue behind. While the saved queue is restoring or a queue load is
+     * starting, it answers [QueueAddResult.Added] at once and decides after them ([heldUntilSettled]).
      * The engine's insert is timeline-only (no prepare, no play), so without this branch "Play Next"
      * against a dead queue would put the song in the timeline and leave the player idle.
      *
-     * Unlike [keepQueueAndPlayNext], duplicates elsewhere in the queue are fine — every
+     * Duplicates elsewhere in the queue are fine — every
      * insert gets its own slot id (see ExoPlayerEngineQueueOps) — so the only case worth
      * asking about is the one a tap could trigger by accident: the song is already sitting
      * in the exact slot this call would insert it into. Returns [QueueAddResult.NeedsConfirmation]
-     * without touching the controller when [song] is already next in [upcomingQueue] and
+     * without touching the controller when [song] is already the first Up Next entry and
      * [force] is false; the caller re-invokes with `force = true` once the user confirms.
      */
     fun playNext(song: Song, force: Boolean = false): QueueAddResult {
-        if (!hasActivePlayback()) {
-            playAloneUnlessRestored(song) { controller.playNextAfterRestore(song, force) }
+        val active = hasActivePlayback()
+        if (heldUntilSettled(active, song) { controller.playNextAfterWait(song, force) }) return QueueAddResult.Added
+        if (!active) {
+            playQueue(listOf(song), 0)
             return QueueAddResult.Added
         }
         if (!force && isNextInQueue(song.id)) return QueueAddResult.NeedsConfirmation
@@ -283,25 +306,23 @@ class PlaybackViewModel(
      * behaves like [playNext] against an empty queue and adds immediately.
      */
     fun addToQueue(song: Song, force: Boolean = false): QueueAddResult {
-        if (!hasActivePlayback()) {
-            playAloneUnlessRestored(song) { controller.addToQueueAfterRestore(song, force) }
+        val active = hasActivePlayback()
+        if (heldUntilSettled(active, song) { controller.addToQueueAfterWait(song, force) }) return QueueAddResult.Added
+        if (!active) {
+            playQueue(listOf(song), 0)
             return QueueAddResult.Added
         }
-        if (upcomingQueue.value.isNotEmpty() && !force && isLastInQueue(song.id)) {
+        if (upcomingNow.value.isNotEmpty() && !force && isLastInQueue(song.id)) {
             return QueueAddResult.NeedsConfirmation
         }
         return if (controller.addToQueue(song)) QueueAddResult.Added else QueueAddResult.Unavailable
     }
 
-    /** True when [songId] is the current song or already sits in [upcomingQueue]. */
-    private fun isAlreadyQueued(songId: String): Boolean =
-        songId == activeSongId.value || upcomingQueue.value.any { it.song.id == songId }
+    /** True when [songId] is the first Up Next entry — the slot [playNext] targets. */
+    private fun isNextInQueue(songId: String): Boolean = upcomingNow.value.firstOrNull()?.song?.id == songId
 
-    /** True when [songId] matches [upcomingQueue]'s first entry — the slot [playNext] targets. */
-    private fun isNextInQueue(songId: String): Boolean = upcomingQueue.value.firstOrNull()?.song?.id == songId
-
-    /** True when [songId] matches [upcomingQueue]'s last entry — the slot [addToQueue] targets. */
-    private fun isLastInQueue(songId: String): Boolean = upcomingQueue.value.lastOrNull()?.song?.id == songId
+    /** True when [songId] is the last Up Next entry — the slot [addToQueue] targets. */
+    private fun isLastInQueue(songId: String): Boolean = upcomingNow.value.lastOrNull()?.song?.id == songId
 
     /**
      * Moves the [upcomingQueue] entry identified by [slotId] to [toIndex] — the Up Next
