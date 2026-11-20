@@ -36,6 +36,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
      */
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         _isPlaying.value = isPlaying
+        if (isPlaying) resetFailureBurst()
         handleIsPlayingChangedForCheckpoint(isPlaying) { checkpointCursor() }
     }
 
@@ -112,6 +113,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
         maintainWindow(force = true)
         prefetchArtwork()
         refreshNavigationState()
+        refreshQueueEnded()
     }
 
     /**
@@ -130,6 +132,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
      */
     override fun onPlaybackStateChanged(playbackState: Int) {
         _isBuffering.value = playbackState == Player.STATE_BUFFERING
+        if (playbackState == Player.STATE_READY) resetFailureBurst()
         if (playbackState != Player.STATE_ENDED) {
             // Playback moved again (restart from ended, a seek, a new load) or was torn down.
             _isQueueEnded.value = false
@@ -140,13 +143,13 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
     }
 
     /**
-     * Deliberately does *not* call stop(): stop() clears currentSongId, which would make
-     * the entire mini-player/expanded-player UI vanish the instant one track fails (corrupt
-     * file, missing file) — the user would see the error Snackbar flash by and then the
-     * player chrome would be gone, with no way to skip past the failure. isPlaying already
-     * flips to false on its own (media3 emits onIsPlayingChanged alongside the error), so the
-     * player renders as "paused on the song that failed" instead — the existing skip/previous
-     * controls stay live so the user can move on without the chrome disappearing first.
+     * Hands the failure to [handlePlaybackFailure]: a song whose file cannot be read is skipped to
+     * the next slot, and anything else (or a burst that ran out) leaves the player idle on the song.
+     * Deliberately never calls stop(): stop() clears currentSongId, which would make the entire
+     * mini-player/expanded-player UI vanish the instant one track fails. isPlaying already flips to
+     * false on its own (media3 emits onIsPlayingChanged alongside the error), so a song the engine
+     * stays on renders as "paused on the song that failed" — the skip/previous controls stay live
+     * so the user can move on without the chrome disappearing first.
      */
     override fun onPlayerError(error: PlaybackException) {
         val title = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
@@ -156,9 +159,7 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
         // the user-facing snackbar below carries.
         Log.e(ExoPlayerEngine.TAG, playerErrorLogMessage(error, _currentSlotId.value, title), error)
         _isBuffering.value = false
-        if (title != null) {
-            _errors.tryEmit(PlaybackError.PlaybackFailed(title))
-        }
+        handlePlaybackFailure(error.errorCode, title)
     }
 }
 
@@ -234,6 +235,19 @@ internal fun ExoPlayerEngine.onQueueEnded() {
         ctrl.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() } ?: _currentSlotId.value,
         resumePositionMs(Player.STATE_ENDED, ctrl.currentPosition),
     )
+}
+
+/**
+ * Re-reads the queue-ended flag after a change that can give an ended queue a next slot again or
+ * take it away (repeat mode, shuffle, a queue edit). media3 keeps the player in `STATE_ENDED` through
+ * those changes, so while the player is still ended the flag follows the order store: cleared while a
+ * next slot exists, set while none does. The player itself stays where it is; any other state leaves
+ * the flag to [onPlaybackStateChanged].
+ */
+internal fun ExoPlayerEngine.refreshQueueEnded() {
+    val ctrl = controller ?: return
+    if (ctrl.playbackState != Player.STATE_ENDED) return
+    _isQueueEnded.value = nextLiveIndex() == null
 }
 
 /**

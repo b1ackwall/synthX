@@ -89,3 +89,20 @@ internal fun navigationCommandsFor(base: Player.Commands, hasNext: Boolean, hasP
         .removeAll(*edit.remove.toIntArray())
         .build()
 }
+
+/** What a controller's shuffle command does — see [externalShuffleAction]. */
+internal enum class ExternalShuffleAction { APPLY, REFUSE, NONE }
+
+/**
+ * A controller's shuffle command against the app's shuffle state: the in-app toggle, except that
+ * turning shuffle off while the shuffled queue has been [reordered] is refused (the in-app path asks
+ * first, and a controller has no dialog), and a request for the state already in place does
+ * nothing. Either way the caller re-publishes the app's flag, so a controller that showed its own
+ * request optimistically is corrected.
+ */
+internal fun externalShuffleAction(requested: Boolean, current: Boolean, reordered: Boolean): ExternalShuffleAction =
+    when {
+        requested == current -> ExternalShuffleAction.NONE
+        !requested && reordered -> ExternalShuffleAction.REFUSE
+        else -> ExternalShuffleAction.APPLY
+    }

@@ -179,6 +179,9 @@ class ExoPlayerEngine(
 
     internal val listener = createPlayerListener()
 
+    // Consecutive playback failures of the current burst; see handlePlaybackFailure.
+    internal var consecutiveFailures = 0
+
     /**
      * How system transport (notification, headset, lock screen) reaches the same navigation rules
      * as the in-app buttons — see [SystemNavigationPlayer]. The service's session wraps its raw
@@ -197,6 +200,11 @@ class ExoPlayerEngine(
         override fun seekToNext() = next()
 
         override fun seekToPrevious() = previous()
+
+        override val shuffleEnabled: Boolean
+            get() = _shuffleEnabled.value
+
+        override fun setShuffleFromSystem(enabled: Boolean) = setShuffleFromSystemInternal(enabled)
     }
 
     internal val sessionToken =
@@ -290,15 +298,30 @@ class ExoPlayerEngine(
         persistQueue()
     }
 
-    override fun next() = nextInternal()
+    override fun next() {
+        resetFailureBurst()
+        nextInternal()
+    }
 
-    override fun previous() = previousInternal()
+    override fun previous() {
+        resetFailureBurst()
+        previousInternal()
+    }
 
     override suspend fun setShuffleEnabled(enabled: Boolean) = setShuffleEnabledInternal(enabled)
 
+    // Gated like playNext: on a dropped controller the change would be lost without a word.
     override fun setRepeatMode(mode: RepeatMode) {
+        if (!connection.isConnected) {
+            reportUnavailable("setRepeatMode")
+            return
+        }
         controller?.repeatMode = mode.toPlayerRepeatMode()
     }
+
+    // The controller applies a set to its own repeat mode at once; the repeat flow follows when
+    // media3 calls back, which can be later when the set happens inside another callback.
+    override fun currentRepeatMode(): RepeatMode = controller?.repeatMode?.toRepeatMode() ?: _repeatMode.value
 
     // Checked against the connection phase, not `controller != null`: during a mid-session
     // reconnect `controller` still holds the dropped instance, and an insert into it would
@@ -319,7 +342,16 @@ class ExoPlayerEngine(
 
     override fun removeQueueItem(slotId: String) = removeQueueItemInternal(slotId)
 
-    override fun seekToQueueItem(slotId: String) = seekToQueueItemInternal(slotId)
+    // Gated like playNext. Move, remove and shuffle are not: they edit the order store, and the
+    // reconnect's forced window rebuild brings the timeline in line with it.
+    override fun seekToQueueItem(slotId: String) {
+        if (!connection.isConnected) {
+            reportUnavailable("seekToQueueItem")
+            return
+        }
+        resetFailureBurst()
+        seekToQueueItemInternal(slotId)
+    }
 
     override fun pause() {
         controller?.pause()
@@ -332,7 +364,7 @@ class ExoPlayerEngine(
         controller?.play()
     }
 
-    override fun stop() {
+    internal fun stop() {
         controller?.stop()
         publishCurrentSlot(null)
         // The order store is untouched (the queue still exists, playback just left it), but
@@ -342,7 +374,12 @@ class ExoPlayerEngine(
         refreshNavigationState()
     }
 
+    // The seek bar calls this once per gesture, so a refusal shows one message per gesture.
     override fun seekTo(positionMs: Long) {
+        if (!connection.isConnected) {
+            reportUnavailable("seekTo")
+            return
+        }
         controller?.seekTo(positionMs)
     }
 
@@ -403,6 +440,9 @@ class ExoPlayerEngine(
             withContext(Dispatchers.Main.immediate) {
                 engines.forEach {
                     it.stop()
+                    // stop() leaves the timeline loaded behind a null cursor; with the engine gone,
+                    // a system Play would resume it with no current song in the app.
+                    it.controller?.clearMediaItems()
                     it.releaseForRestore()
                 }
             }

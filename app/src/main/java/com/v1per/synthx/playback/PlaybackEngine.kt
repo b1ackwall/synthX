@@ -143,10 +143,22 @@ interface PlaybackEngine {
      * assuming a caller's dispatcher — [ExoPlayerEngine] confines the whole operation to
      * `Main.immediate`, since it is a records-only list permutation plus a bounded window
      * reconciliation. Always executes: in-app callers go through
-     * [PlaybackViewModel.setShuffleEnabled], which asks before discarding a reorder.
+     * [PlaybackViewModel.setShuffleEnabled] or [PlaybackViewModel.toggleShuffle], which ask before
+     * discarding a reorder.
      */
     suspend fun setShuffleEnabled(enabled: Boolean)
+
+    /**
+     * Refused, changing nothing, while the engine is not connected to its playback session; the
+     * refusal is reported on [errors] as [PlaybackError.ServiceUnavailable].
+     */
     fun setRepeatMode(mode: RepeatMode)
+
+    /**
+     * The repeat mode at this moment, including a [setRepeatMode] that has not yet come back
+     * through [repeatMode]: what a repeat button steps from.
+     */
+    fun currentRepeatMode(): RepeatMode
 
     /**
      * Inserts [song] directly after the current item. Returns `false`, leaving the queue
@@ -191,13 +203,15 @@ interface PlaybackEngine {
      * argument [removeQueueItem]'s doc comment makes applies here just as much: a position
      * captured at tap time can name a different song by the time this actually executes.
      * Implementations must resolve [slotId] fresh, at call time, and reject the jump outright
-     * (a no-op) if it no longer exists in [upcomingQueue].
+     * (a no-op) if [upcomingQueue] does not hold it. Refused like [setRepeatMode] while the
+     * engine is not connected to its playback session.
      */
     fun seekToQueueItem(slotId: String)
 
     fun pause()
     fun resume()
-    fun stop()
+
+    /** The seek bar's seek within the current song. Refused like [setRepeatMode] while not connected. */
     fun seekTo(positionMs: Long)
     fun release()
 

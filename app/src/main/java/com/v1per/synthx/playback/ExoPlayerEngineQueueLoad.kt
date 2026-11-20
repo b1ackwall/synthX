@@ -37,6 +37,8 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
             reportUnavailable("playQueue")
             return@withContext
         }
+        // A fresh play is a user action: a failure in the new queue starts its own burst.
+        resetFailureBurst()
         songsBySlotId.clear()
         slots.forEach { songsBySlotId[it.slotId] = it.song }
         artworkLoadedSlotIds.clear()

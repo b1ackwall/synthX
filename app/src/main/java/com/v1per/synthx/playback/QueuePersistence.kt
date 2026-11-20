@@ -340,15 +340,17 @@ class QueuePersistence(private val repository: SongRepository) : BaselineOrderWr
      * [loadQueue] plus [loadBaselineQueue], read together as one consistent snapshot, so the
      * live-reconnect adoption call site has no split-read window between two separate
      * suspending calls (see [com.v1per.synthx.data.db.QueueDao.getFullQueueSnapshot]).
+     * [playingSlotId], the slot a running session is playing, comes back from its saved row when its
+     * song is flagged missing (see [withPlayingSlotAdopted]).
      */
-    suspend fun loadQueueWithBaseline(): Pair<RestoredQueue?, List<QueueSlot>> {
+    suspend fun loadQueueWithBaseline(playingSlotId: String? = null): Pair<RestoredQueue?, List<QueueSlot>> {
         val (snapshot, baseline) = try {
             repository.getQueueSnapshotWithBaseline()
         } catch (e: Exception) {
             Log.w(TAG, "Queue load failed: ${e.message}")
             return null to emptyList()
         }
-        return toRestoredQueue(snapshot) to baseline
+        return toRestoredQueue(snapshot.withPlayingSlotAdopted(playingSlotId)) to baseline
     }
 
     private fun toRestoredQueue(snapshot: QueueSnapshot): RestoredQueue? {

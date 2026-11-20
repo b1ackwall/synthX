@@ -161,7 +161,8 @@ Implementation choices:
 
 - A Keep whose song is exactly next does not insert, so it does not ask the engine about the session
   connection: during a reconnect it moves and resumes on a controller that ignores both, and the
-  snackbar still says "Playing next". Seek taps during a reconnect behave the same way (#407).
+  snackbar still says "Playing next". Seek-bar and Up Next taps during a reconnect are refused with the
+  session-unavailable message instead (`docs/queue-engine.md`, section 4).
 - At the wait bound an insert lands in the queue that is playing; the stuck load, if it ends later,
   replaces that queue (section 5).
 - The look of the dialogs after a recreation is checked by hand on a device, not by a test.

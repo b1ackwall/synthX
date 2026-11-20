@@ -1,10 +1,14 @@
 package com.v1per.synthx.playback
 
+import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 
-// ExoPlayerEngine's next/previous bodies, the current-slot publisher and the repeat-mode mappings.
+// ExoPlayerEngine's next/previous bodies, a controller's shuffle command, the current-slot publisher
+// and the repeat-mode mappings.
 
 /**
  * Resolved against the order store rather than delegating to `MediaController.seekToNext`.
@@ -54,6 +58,24 @@ internal fun ExoPlayerEngine.previousInternal() {
         }
 
         is PreviousAction.SeekOrder -> seekToLiveIndex(action.orderIndex, play = false)
+    }
+}
+
+/**
+ * A controller's shuffle command, decided by [externalShuffleAction] against the app's own flag and
+ * reorder flag. An applied command is the in-app toggle ([setShuffleEnabledInternal]), started
+ * undispatched: on the main thread it has no suspension point, so it has finished when this returns
+ * and the caller publishes the result.
+ */
+internal fun ExoPlayerEngine.setShuffleFromSystemInternal(enabled: Boolean) {
+    when (externalShuffleAction(enabled, _shuffleEnabled.value, orderStore.shuffleReordered)) {
+        ExternalShuffleAction.APPLY ->
+            engineScope.launch(start = CoroutineStart.UNDISPATCHED) { setShuffleEnabledInternal(enabled) }
+
+        ExternalShuffleAction.REFUSE ->
+            Log.i(ExoPlayerEngine.TAG, "Shuffle off from a controller refused: the shuffled queue was reordered")
+
+        ExternalShuffleAction.NONE -> Unit
     }
 }
 

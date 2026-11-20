@@ -49,7 +49,6 @@ import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.playback.PlaybackViewModel
 import com.v1per.synthx.playback.PlayerBackgroundArtRequest
 import com.v1per.synthx.ui.components.BottomNavHeight
-import com.v1per.synthx.ui.components.next
 import com.v1per.synthx.ui.player.PlayerSheetSkeleton
 import com.v1per.synthx.ui.player.ProvidePlayerContentColors
 import com.v1per.synthx.ui.theme.Accent
@@ -182,8 +181,8 @@ internal fun BottomChromeOverlay(
                     upcomingQueue = upcomingQueue,
                     shuffleEnabled = shuffleEnabled,
                     repeatMode = repeatMode,
-                    onShuffleClick = { playbackViewModel.setShuffleEnabled(!shuffleEnabled) },
-                    onRepeatClick = { playbackViewModel.setRepeatMode(repeatMode.next()) },
+                    onShuffleClick = playbackViewModel::toggleShuffle,
+                    onRepeatClick = playbackViewModel::cycleRepeat,
                     onQueueSongClick = playbackViewModel::playQueueItem,
                     onQueueMove = playbackViewModel::moveQueueItem,
                     onQueueRemove = playbackViewModel::removeQueueItem,

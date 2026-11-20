@@ -51,7 +51,7 @@ class RecordingPlaybackEngine : PlaybackEngine {
     override fun seekToQueueItem(slotId: String) {}
     override fun pause() {}
     override fun resume() {}
-    override fun stop() {}
+    override fun currentRepeatMode(): RepeatMode = RepeatMode.Off
     override fun seekTo(positionMs: Long) {}
     override fun release() {}
     override suspend fun reconcileWithDatabase() {}

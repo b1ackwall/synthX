@@ -26,6 +26,7 @@ class SystemNavigationPlayerTest {
         val calls = mutableListOf<String>()
         val listeners = mutableListOf<Player.Listener>()
         var nativeHasNext = false
+        var nativeShuffle = false
 
         fun seekCalls() = calls.filter { it.startsWith("seekTo") }
 
@@ -40,11 +41,24 @@ class SystemNavigationPlayerTest {
             }
             when {
                 method.name == "getAvailableCommands" -> nativeCommands
+
                 method.name == "hasNextMediaItem" -> nativeHasNext
+
+                method.name == "getShuffleModeEnabled" -> nativeShuffle
+
+                method.name == "setShuffleModeEnabled" -> {
+                    nativeShuffle = args[0] as Boolean
+                    null
+                }
+
                 method.returnType == Boolean::class.javaPrimitiveType -> false
+
                 method.returnType == Int::class.javaPrimitiveType -> 0
+
                 method.returnType == Long::class.javaPrimitiveType -> 0L
+
                 method.returnType == Float::class.javaPrimitiveType -> 0f
+
                 else -> null
             }
         } as Player
@@ -63,6 +77,19 @@ class SystemNavigationPlayerTest {
         }
         override fun seekToPrevious() {
             calls += "previous"
+        }
+
+        override var shuffleEnabled = false
+
+        /** False models the engine refusing (or ignoring) the command: its flag stays as it is. */
+        var applies = true
+        val shuffleRequests = mutableListOf<Boolean>()
+        override fun setShuffleFromSystem(enabled: Boolean) {
+            shuffleRequests += enabled
+            if (applies && enabled != shuffleEnabled) {
+                shuffleEnabled = enabled
+                SystemNavigationBridge.notifyChanged()
+            }
         }
     }
 
@@ -176,5 +203,139 @@ class SystemNavigationPlayerTest {
         delegate.listeners.single().onIsPlayingChanged(true)
 
         assertEquals(listOf(true), seen)
+    }
+
+    // --- shuffle: the app's, never ExoPlayer's ------------------------------------------------
+
+    private class HeardShuffle : Player.Listener {
+        val heard = mutableListOf<Boolean>()
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            heard += shuffleModeEnabled
+        }
+    }
+
+    private fun listen(): HeardShuffle = HeardShuffle().also(wrapper::addListener)
+
+    @Test
+    fun `a shuffle command goes to the engine and never to the raw player`() {
+        val handler = FakeHandler().also(SystemNavigationBridge::attach)
+
+        wrapper.setShuffleModeEnabled(true)
+
+        assertEquals(listOf(true), handler.shuffleRequests)
+        assertFalse("setShuffleModeEnabled" in delegate.calls, "forwarded to the raw player: ${delegate.calls}")
+        assertFalse(delegate.nativeShuffle)
+    }
+
+    @Test
+    fun `the reported shuffle flag is the engine's`() {
+        val handler = FakeHandler().also(SystemNavigationBridge::attach)
+        assertFalse(wrapper.shuffleModeEnabled)
+
+        handler.shuffleEnabled = true
+
+        assertTrue(wrapper.shuffleModeEnabled)
+        assertFalse(delegate.nativeShuffle)
+    }
+
+    @Test
+    fun `an applied shuffle command is published to session listeners once`() {
+        val handler = FakeHandler().also(SystemNavigationBridge::attach)
+        val session = listen()
+
+        wrapper.setShuffleModeEnabled(true)
+
+        assertTrue(handler.shuffleEnabled)
+        assertEquals(listOf(true), session.heard)
+    }
+
+    @Test
+    fun `a refused shuffle command re-publishes the unchanged flag`() {
+        val handler = FakeHandler().also(SystemNavigationBridge::attach)
+        handler.shuffleEnabled = true
+        handler.applies = false
+        // Already published, so only a forced re-publish reaches the listener below.
+        SystemNavigationBridge.notifyChanged()
+        val session = listen()
+
+        wrapper.setShuffleModeEnabled(false)
+
+        assertEquals(listOf(false), handler.shuffleRequests)
+        assertEquals(listOf(true), session.heard, "a controller's optimistic shuffle-off is reset")
+    }
+
+    @Test
+    fun `a shuffle command that changes nothing still re-publishes`() {
+        val handler = FakeHandler().also(SystemNavigationBridge::attach)
+        handler.shuffleEnabled = true
+        SystemNavigationBridge.notifyChanged()
+        val session = listen()
+
+        wrapper.setShuffleModeEnabled(true)
+
+        assertEquals(listOf(true), session.heard)
+    }
+
+    @Test
+    fun `without a ready engine a shuffle command is ignored`() {
+        wrapper.setShuffleModeEnabled(true)
+        assertFalse("setShuffleModeEnabled" in delegate.calls)
+        assertFalse(wrapper.shuffleModeEnabled)
+
+        val handler = FakeHandler(isReady = false).also(SystemNavigationBridge::attach)
+        handler.shuffleEnabled = true
+        wrapper.setShuffleModeEnabled(true)
+        assertTrue(handler.shuffleRequests.isEmpty())
+        assertFalse(wrapper.shuffleModeEnabled, "an engine that is not ready does not answer")
+        assertFalse(delegate.nativeShuffle)
+    }
+
+    @Test
+    fun `an engine-side shuffle change is published once and not repeated while unchanged`() {
+        val handler = FakeHandler().also(SystemNavigationBridge::attach)
+        val session = listen()
+
+        SystemNavigationBridge.notifyChanged()
+        assertTrue(session.heard.isEmpty())
+
+        handler.shuffleEnabled = true
+        SystemNavigationBridge.notifyChanged()
+        SystemNavigationBridge.notifyChanged()
+        assertEquals(listOf(true), session.heard)
+
+        handler.shuffleEnabled = false
+        SystemNavigationBridge.notifyChanged()
+        assertEquals(listOf(true, false), session.heard)
+    }
+
+    @Test
+    fun `a native shuffle seen on is set back off and the session hears the app's flag`() {
+        SystemNavigationBridge.attach(FakeHandler())
+        val session = listen()
+        delegate.nativeShuffle = true
+
+        delegate.listeners.single().onShuffleModeEnabledChanged(true)
+
+        assertFalse(delegate.nativeShuffle)
+        assertEquals(listOf(false), session.heard)
+    }
+
+    @Test
+    fun `creating the wrapper turns a native shuffle off`() {
+        val raw = RecordingPlayer().apply { nativeShuffle = true }
+
+        val second = SystemNavigationPlayer(raw.player)
+
+        assertFalse(raw.nativeShuffle)
+        second.detach()
+    }
+
+    @Test
+    fun `an engine attaching turns a native shuffle off`() {
+        delegate.nativeShuffle = true
+
+        SystemNavigationBridge.attach(FakeHandler())
+
+        assertFalse(delegate.nativeShuffle)
     }
 }

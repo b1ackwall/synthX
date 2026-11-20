@@ -32,6 +32,9 @@ class PlaybackController(private val engine: PlaybackEngine) {
     fun previous() = engine.previous()
     suspend fun setShuffleEnabled(enabled: Boolean) = engine.setShuffleEnabled(enabled)
     fun setRepeatMode(mode: RepeatMode) = engine.setRepeatMode(mode)
+
+    /** See [PlaybackEngine.currentRepeatMode]. */
+    fun currentRepeatMode(): RepeatMode = engine.currentRepeatMode()
     fun playNext(song: Song): Boolean = engine.playNext(song)
     fun addToQueue(song: Song): Boolean = engine.addToQueue(song)
 
@@ -45,7 +48,6 @@ class PlaybackController(private val engine: PlaybackEngine) {
     fun seekToQueueItem(slotId: String) = engine.seekToQueueItem(slotId)
     fun pause() = engine.pause()
     fun resume() = engine.resume()
-    fun stop() = engine.stop()
     fun seekTo(positionMs: Long) = engine.seekTo(positionMs)
     fun release() = engine.release()
     suspend fun reconcileWithDatabase() = engine.reconcileWithDatabase()

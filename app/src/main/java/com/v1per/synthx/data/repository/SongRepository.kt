@@ -232,7 +232,9 @@ data class QueueCursor(
  * [extras] holds the session-extra tag of every saved live row that has one, by slot id.
  * [storedPositions] is the stored queue position of every saved live row, resolved or not, and
  * [currentQueuePosition] the cursor's saved queue position (null when none is saved), which together
- * place a current slot whose song does not resolve.
+ * place a current slot whose song does not resolve. [missingSlots] are the saved live rows left out of
+ * [slots] because their song is flagged missing (its row is still there), in stored order, each with
+ * that song; rows whose song row is gone appear in neither list.
  */
 data class QueueSnapshot(
     val slots: List<QueueSlot>,
@@ -241,6 +243,7 @@ data class QueueSnapshot(
     val extras: Map<String, QueueExtraTag> = emptyMap(),
     val storedPositions: Map<String, Int> = emptyMap(),
     val currentQueuePosition: Int? = null,
+    val missingSlots: List<QueueSlot> = emptyList(),
 )
 
 /** Internal queue-only contract: the caller already owns a RestoreCoordinator operation permit. */

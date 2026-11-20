@@ -234,7 +234,8 @@ the repair makes a failed or stale baseline read lossless.
 
 ## 9. Out of scope
 
-- shuffle from external controllers (the media session's own shuffle command);
+- how other controllers reach this toggle (the media session's shuffle command applies these rules and
+  refuses OFF while the shuffled queue was reordered; see `docs/queue-engine.md`);
 - where Add to Queue places a new song (the end of live);
 - reshuffling at each Repeat All loop;
 - the Keep, Clear and Replace prompts;

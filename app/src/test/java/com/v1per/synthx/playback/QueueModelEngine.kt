@@ -148,7 +148,7 @@ internal class QueueModelEngine : PlaybackEngine {
         playing.value = true
     }
 
-    override fun stop() {}
+    override fun currentRepeatMode(): RepeatMode = RepeatMode.Off
     override fun seekTo(positionMs: Long) {}
     override fun release() {}
     override suspend fun reconcileWithDatabase() {}

@@ -12,15 +12,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * A song whose file is missing makes the player fail. The failing song stays shown with one error
- * message, and both Next and Previous then bring the player back to life on the target song
- * rather than seeking silently on a dead player.
+ * A song whose file is missing makes the player fail. With a next slot, playback moves on to it with
+ * one error message; with none, the failing song stays shown, and both Next and Previous then bring
+ * the player back to life on the target song rather than seeking silently on a dead player.
  */
 @RunWith(AndroidJUnit4::class)
 class PlaybackRecoveryInstrumentedTest : PlaybackServiceTestBase() {
@@ -49,19 +50,30 @@ class PlaybackRecoveryInstrumentedTest : PlaybackServiceTestBase() {
         }
     }
 
-    @Test fun aMissingFileKeepsTheSongShownAndSendsOneErrorMessage() {
-        playAndAwaitFailure(listOf(missingSong("err-shown"), song("err-after")), 0)
-        await("error message") { errors.isNotEmpty() }
+    @Test fun aMissingFileSkipsToTheNextSongAndSendsOneErrorMessage() {
+        // Undispatched, so the collector is subscribed before anything can fail (errors keep no replay).
+        collectorScope.launch(start = CoroutineStart.UNDISPATCHED) { engine.errors.collect { errors += it } }
+        runBlocking { engine.playQueue(listOf(missingSong("err-shown"), song("err-after")), 0) }
+        val next = onMain { engine.queue.now()[1].slotId }
+        await("the next song plays") {
+            onMain { extraController.currentMediaItem?.mediaId == next && extraController.isPlaying }
+        }
         settle()
 
         assertEquals(listOf<PlaybackError>(PlaybackError.PlaybackFailed("Missing err-shown")), errors.toList())
-        assertEquals("err-shown", onMain { engine.currentSongId.now() })
-        assertEquals(false, onMain { engine.isPlaying.now() })
+        assertEquals("err-after", onMain { engine.currentSongId.now() })
+        assertEquals(true, onMain { engine.isPlaying.now() })
     }
 
     @Test fun nextAfterAPlaybackErrorRecoversThePlayer() {
-        playAndAwaitFailure(listOf(missingSong("err-next"), song("ok-next")), 0)
-        val next = onMain { engine.queue.now()[1].slotId }
+        // Five bad songs in a row: the burst stops on the fifth at the cap, with "ok" still next.
+        collectorScope.launch(start = CoroutineStart.UNDISPATCHED) { engine.errors.collect { errors += it } }
+        runBlocking { engine.playQueue((0 until 5).map { missingSong("err-next-$it") } + song("ok-next"), 0) }
+        val stoppedOn = onMain { engine.queue.now()[4].slotId }
+        await("player failed on the fifth bad song") {
+            onMain { extraController.currentMediaItem?.mediaId == stoppedOn && extraController.playerError != null }
+        }
+        val next = onMain { engine.queue.now()[5].slotId }
 
         onMain { engine.next() }
 

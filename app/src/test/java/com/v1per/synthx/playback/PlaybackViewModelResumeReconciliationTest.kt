@@ -73,7 +73,7 @@ class PlaybackViewModelResumeReconciliationTest {
         // Deliberately does NOT flip _isPlaying — simulates a resume() that never actually
         // starts playback (focus denied, or a player still dead from a prior fatal error).
         override fun resume() {}
-        override fun stop() {}
+        override fun currentRepeatMode(): RepeatMode = RepeatMode.Off
         override fun seekTo(positionMs: Long) {}
         var releaseCount = 0
         override fun release() {

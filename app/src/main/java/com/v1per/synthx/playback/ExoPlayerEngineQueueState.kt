@@ -20,6 +20,7 @@ internal fun ExoPlayerEngine.onQueueStructureChanged(fresh: Boolean) {
     refreshQueue()
     refreshUpcomingQueue()
     refreshNavigationState()
+    refreshQueueEnded()
     // Before the save, so the edit's own write already carries the flag.
     _isQueueCustomized.value = !fresh
     persistQueue()
@@ -39,6 +40,7 @@ internal fun ExoPlayerEngine.onQueueReordered() {
     refreshQueue()
     refreshUpcomingQueue()
     refreshNavigationState()
+    refreshQueueEnded()
     persistQueue()
     prefetchArtwork()
 }
@@ -115,21 +117,34 @@ internal fun ExoPlayerEngine.persistUnifiedQueueState() {
  * the full order and the engine rewrites it on every structural change, so it is the right
  * thing to adopt; the caller reconciles the already-playing window against it afterwards.
  * The saved orders go through the same [repairRestoredQueue] as a cold restore.
+ *
+ * The slot the session is playing stays the current slot, and playback is not touched, also when
+ * its song is flagged missing: the read puts that slot back at its stored position from its saved
+ * row ([withPlayingSlotAdopted]). When its song row is gone (its queue rows went with it) there is
+ * nothing to rebuild it from, and its file is gone too: the cursor moves to the slot a cold restore
+ * starts on ([resolveRestoreStart]), and the window is rebuilt there at 0 ms, playing only if the
+ * session is playing at that moment. With no surviving slot nothing is adopted.
  */
 internal suspend fun ExoPlayerEngine.adoptRunningTimeline(ctrl: MediaController) {
     if (ctrl.mediaItemCount == 0) return
+    val playingSlotId = ctrl.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }
     // Read together as one consistent snapshot: two separate suspending reads would leave a
     // window where a write landing in between could hand this path an active order and a
     // baseline from two different generations.
-    val (restored, restoredBaseline) = persistence.loadQueueWithBaseline()
+    val (restored, restoredBaseline) = persistence.loadQueueWithBaseline(playingSlotId)
     restored ?: return
     restored.slots.forEach { songsBySlotId[it.slotId] = it.song }
+    val playingAdopted = playingSlotId != null && restored.slots.any { it.slotId == playingSlotId }
     adoptRestoredOrders(
         restored = restored,
         restoredBaseline = restoredBaseline,
-        currentSlotId = ctrl.currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }
-            ?: restored.slots[restored.startIndex].slotId,
+        currentSlotId = if (playingAdopted) playingSlotId else restored.slots[restored.startIndex].slotId,
     )
+    if (playingSlotId == null || playingAdopted) return
+    val wasPlaying = ctrl.isPlaying
+    // Cleared first so a stopped session that still holds play-when-ready does not start playing.
+    if (!wasPlaying) ctrl.pause()
+    rebuildWindowAround(restored.startIndex, positionMs = 0L, play = wasPlaying)
 }
 
 /**

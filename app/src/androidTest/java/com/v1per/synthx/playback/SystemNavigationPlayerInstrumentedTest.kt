@@ -48,8 +48,13 @@ class SystemNavigationPlayerInstrumentedTest {
         }
     } as Player
 
-    private class Handler(var next: Boolean = true, var previous: Boolean = true) : SystemNavigationHandler {
-        override val isReady = true
+    private class Handler(
+        var next: Boolean = true,
+        var previous: Boolean = true,
+        override var isReady: Boolean = true,
+    ) : SystemNavigationHandler {
+        override val shuffleEnabled = false
+        override fun setShuffleFromSystem(enabled: Boolean) = Unit
         override fun hasNext() = next
         override fun hasPrevious() = previous
         override fun seekToNext() = Unit
@@ -125,6 +130,26 @@ class SystemNavigationPlayerInstrumentedTest {
         assertTrue(wrapper.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
         assertFalse(wrapper.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
         assertFalse(wrapper.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM))
+    }
+
+    /** Shuffle is the app's, so it is offered exactly while an engine can take it, whatever ExoPlayer says. */
+    @Test fun shuffleIsOfferedOnlyWhileAnEngineIsReady() {
+        nativeCommands = commandsOf(Player.COMMAND_SET_SHUFFLE_MODE, Player.COMMAND_PLAY_PAUSE)
+        assertFalse("not offered without an engine", wrapper.isCommandAvailable(Player.COMMAND_SET_SHUFFLE_MODE))
+        assertTrue(wrapper.isCommandAvailable(Player.COMMAND_PLAY_PAUSE))
+
+        val handler = attach(Handler(isReady = false))
+        assertFalse(
+            "not offered while the engine is not ready",
+            wrapper.isCommandAvailable(Player.COMMAND_SET_SHUFFLE_MODE),
+        )
+
+        handler.isReady = true
+        nativeCommands = commandsOf(Player.COMMAND_PLAY_PAUSE)
+        assertTrue(
+            "offered while ready, even when ExoPlayer lacks it",
+            wrapper.isCommandAvailable(Player.COMMAND_SET_SHUFFLE_MODE),
+        )
     }
 
     /** ExoPlayer's own command events would otherwise overwrite the rewritten set on the session. */

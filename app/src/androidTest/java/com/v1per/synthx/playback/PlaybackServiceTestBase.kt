@@ -121,6 +121,11 @@ abstract class PlaybackServiceTestBase {
         releasedEngines += target
     }
 
+    /** Records that something other than this base already released [target], so teardown skips it. */
+    protected fun markReleased(target: ExoPlayerEngine = engine) {
+        releasedEngines += target
+    }
+
     /**
      * The service (and its player) is process-wide and outlives each test's engine, so whatever the
      * previous test left behind — a loaded timeline, a Repeat One — would be adopted by this test's

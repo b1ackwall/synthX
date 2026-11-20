@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.QueueSlot
+import com.v1per.synthx.ui.components.next
 import com.v1per.synthx.ui.player.PlayerAltStageStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -236,12 +237,6 @@ class PlaybackViewModel(
 
     fun previous() = controller.previous()
 
-    // Mirrors the queue loads of playQueue above: a large-queue reshuffle dispatches its MediaItem
-    // build off Main (see ExoPlayerEngine.setShuffleEnabled), so a rapid second toggle can
-    // land before the first's off-main work finishes. Cancelling the prior job keeps only
-    // the most recent tap's result reaching the controller.
-    private var setShuffleEnabledJob: Job? = null
-
     /**
      * The in-app shuffle toggle. Turning shuffle off after the user reordered the shuffled queue
      * would put the moved songs back in their original order, so that case only raises
@@ -267,12 +262,41 @@ class PlaybackViewModel(
         _shuffleOffConfirmation.value = false
     }
 
+    // Shared by setShuffleEnabled and confirmShuffleOff. The engine's toggle has no suspension
+    // point and viewModelScope runs on Main.immediate, so a toggle started from the main thread
+    // runs to completion before this returns, and a second toggle always sees the first's result.
     private fun launchShuffleToggle(enabled: Boolean) {
-        setShuffleEnabledJob?.cancel()
-        setShuffleEnabledJob = viewModelScope.launch { controller.setShuffleEnabled(enabled) }
+        viewModelScope.launch { controller.setShuffleEnabled(enabled) }
+    }
+
+    /**
+     * The shuffle button: the opposite of the engine's shuffle flag as it stands when this runs, not
+     * of a value a screen last drew, so two quick taps are two toggles. Turning shuffle off goes
+     * through the same guard as [setShuffleEnabled]; while that question is open, another tap
+     * changes nothing and does not ask again. Turning it on never asks.
+     */
+    fun toggleShuffle() {
+        viewModelScope.launch {
+            if (!controller.shuffleEnabled.first()) {
+                controller.setShuffleEnabled(true)
+                return@launch
+            }
+            if (_shuffleOffConfirmation.value) return@launch
+            if (controller.shuffleReorderedByUser.first()) {
+                _shuffleOffConfirmation.value = true
+                return@launch
+            }
+            controller.setShuffleEnabled(false)
+        }
     }
 
     fun setRepeatMode(mode: RepeatMode) = controller.setRepeatMode(mode)
+
+    /**
+     * The repeat button: Off, All, One, then Off again, stepping from the engine's current repeat
+     * mode ([PlaybackController.currentRepeatMode]) when this runs, so two quick taps are two steps.
+     */
+    fun cycleRepeat() = controller.setRepeatMode(controller.currentRepeatMode().next())
 
     /**
      * Queues [song] directly after the current item — or just plays it when there is no
@@ -396,8 +420,6 @@ class PlaybackViewModel(
             }
         }
     }
-
-    fun stop() = controller.stop()
 
     fun seekTo(positionMs: Long) = controller.seekTo(positionMs)
 

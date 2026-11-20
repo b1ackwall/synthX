@@ -28,8 +28,9 @@ private suspend fun SongRepositoryImpl.queueSnapshotOf(
     cursor: PlaybackCursorEntity?,
 ): QueueSnapshot {
     val records = items.map { QueueSlotRecord(it.slotId, it.songId) }
+    val (slots, missingSlots) = resolveQueueSlotsWithMissing(records)
     return QueueSnapshot(
-        slots = resolveQueueSlots(records),
+        slots = slots,
         storedSlotCount = records.size,
         cursor = cursor?.let {
             QueueCursor(
@@ -48,6 +49,7 @@ private suspend fun SongRepositoryImpl.queueSnapshotOf(
         }.toMap(),
         storedPositions = items.associate { it.slotId to it.position },
         currentQueuePosition = cursor?.currentQueuePosition,
+        missingSlots = missingSlots,
     )
 }
 
@@ -135,8 +137,17 @@ internal suspend fun SongRepositoryImpl.setUnifiedQueueStateInternal(
     }
 }
 
-private suspend fun SongRepositoryImpl.resolveQueueSlots(records: List<QueueSlotRecord>): List<QueueSlot> {
-    if (records.isEmpty()) return emptyList()
+private suspend fun SongRepositoryImpl.resolveQueueSlots(records: List<QueueSlotRecord>): List<QueueSlot> =
+    resolveQueueSlotsWithMissing(records).first
+
+/**
+ * [records] resolved to songs, in order: the slots whose song is playable, and the slots whose song
+ * row exists but is flagged missing. A record whose song row is gone is in neither.
+ */
+private suspend fun SongRepositoryImpl.resolveQueueSlotsWithMissing(
+    records: List<QueueSlotRecord>,
+): Pair<List<QueueSlot>, List<QueueSlot>> {
+    if (records.isEmpty()) return emptyList<QueueSlot>() to emptyList()
     val songIds = records.map { it.songId }.distinct()
     // Room expands each IN-list element to one SQLite bind parameter. Queues can contain
     // well over 999 entries, so hydrate in bounded batches instead of failing restore for
@@ -145,11 +156,9 @@ private suspend fun SongRepositoryImpl.resolveQueueSlots(records: List<QueueSlot
     val refsBySongId = details.map { it.song.id }
         .queryInBatches(songDao::getSongArtistRefsForSongs)
         .groupBy { it.songId }
-    val songsById = details
-        .asSequence()
-        .filterNot { it.song.isMissing }
-        .associate { it.song.id to it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
-    return records.mapNotNull { record ->
+    val songsById = details.associate { it.song.id to it.toDomain(refsBySongId[it.song.id] ?: emptyList()) }
+    val resolved = records.mapNotNull { record ->
         songsById[record.songId]?.let { song -> QueueSlot(record.slotId, song) }
     }
+    return resolved.partition { !it.song.isMissing }
 }

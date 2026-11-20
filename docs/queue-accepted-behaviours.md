@@ -106,17 +106,67 @@ and `docs/queue-persistence.md`.
   `QueuePersistenceRestoreReadTest.aLegacyCursorReadsAsUntouched`.
 - **Revisit when.** Never on its own; it settles after the first save.
 
+### A7. A missing song stays in the queue and is skipped when it comes up (#397)
+
+- **What.** A song whose file cannot be read keeps its slot in the live order, the baseline and the
+  saved queue. When it comes up and fails with a file-source error, playback skips to the next slot
+  (`docs/queue-engine.md` section 3). A song flagged missing mid-session stays queued the same way;
+  only a restart drops it.
+- **Why accepted.** Nothing is removed on a guess: a remounted card or a restored file brings the
+  song back, and the skip keeps playback going meanwhile.
+- **What pins it.** `PlaybackAutoSkipInstrumentedTest.aCorruptFirstSongIsSkippedAndTheNextSongPlays`
+  (the bad song keeps its slot), `PlaybackRecoveryInstrumentedTest.aMissingFileSkipsToTheNextSongAndSendsOneErrorMessage`.
+- **Revisit when.** Users ask for missing songs to leave the queue, or the queue gains a missing-song style.
+
+### A8. Repeat All skips a bad song again on every lap (#397)
+
+- **What.** Under Repeat All a queue with one bad song skips it on every lap. A good song playing resets
+  the failure counter, so each lap's failure starts a new burst and shows the playback-failed message
+  again.
+- **Why accepted.** The song may come back between laps; the cap only exists to stop a queue of bad
+  files from spinning, which a good song in between already rules out.
+- **What pins it.** `PlaybackAutoSkipInstrumentedTest.aGoodSongPlayingBetweenTwoBurstsResetsTheCounter`,
+  `PlaybackFailurePolicyTest`.
+- **Revisit when.** The repeated message is reported as noise.
+
+### A9. A system Play after a burst stopped retries the same file (#397)
+
+- **What.** When a burst stays on a bad song (no next slot, the cap, or a non-file error), a Play from
+  the notification, Bluetooth or the lock screen prepares the same song again. A file error fails
+  again within the same burst: no skip past the cap and no new message.
+- **Why accepted.** Play means "play this"; the user moves on with Next, which starts a new burst.
+- **What pins it.** `PlaybackAutoSkipInstrumentedTest.aUserNextAfterABurstStoppedStartsANewBurst`.
+- **Revisit when.** A system Play should count as a user action for the burst.
+
+### A10. Move, remove and shuffle during a reconnect rely on the window repair (#407)
+
+- **What.** While the engine reconnects to its session, moving or removing an Up Next row and toggling
+  shuffle still edit the order store and save it; their timeline edits go to the dropped controller. The
+  seek bar, Up Next taps and repeat are refused instead (`docs/queue-engine.md` section 4).
+- **Why accepted.** The reconnect rebuilds the window from the order store (`maintainWindow(force =
+  true)`), so nothing is lost and the edit shows up once connected.
+- **What pins it.** `ConnectionGateInstrumentedTest.moveRemoveAndShuffleStillEditTheQueueAndTheReconnectRepairsTheWindow`.
+- **Revisit when.** A reconnect stops rebuilding the window, or these edits must give feedback.
+
+### A11. Car, Bluetooth and assistant shuffle buttons are checked by hand only (#389)
+
+- **What.** The tests send the shuffle command through a media3 controller to the same wrapper the
+  session uses. How a car head unit, a Bluetooth (AVRCP) device, Android Auto or an assistant maps its
+  own shuffle button or voice command onto that command is not tested.
+- **Why accepted.** Those mappings live in other devices' software and need the real device.
+- **What pins it.** `ExternalShuffleInstrumentedTest`, `SystemNavigationPlayerTest`.
+- **Revisit when.** A real device shows a shuffle state that disagrees with the app.
+
 ## Deferred
 
 Known behaviours that are not fixed yet. The first group is the "out of scope" list of
-`docs/queue-shuffle-design.md` section 9, without the two items covered elsewhere: the order of the
-queue restore and the daily backup (`docs/queue-persistence.md` section 5), and the two commits of
-ordinary edits (A3). The second group comes from the queue-persistence work, the last two rows from
+`docs/queue-shuffle-design.md` section 9, without the three items covered elsewhere: the order of the
+queue restore and the daily backup (`docs/queue-persistence.md` section 5), the two commits of
+ordinary edits (A3), and shuffle from other controllers (`docs/queue-engine.md` section 2). The second group comes from the queue-persistence work, the last two rows from
 the queue entry-points work (`docs/queue-entry-points.md`).
 
 | Behaviour | Issue |
 |---|---|
-| Shuffle from external controllers (the media session's own shuffle command) is not intercepted. | #389 |
 | Add to Queue places a new song at the end of the live order, after the whole remaining context. | #430 |
 | Repeat All replays the same shuffled order on every loop. | #393 |
 | A shuffle tap that changes nothing leaves a scroll-to-top pending; the Shuffle and Repeat buttons expose no on/off state to accessibility. | #395, #421 |

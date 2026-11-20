@@ -79,6 +79,7 @@ internal suspend fun ExoPlayerEngine.setShuffleEnabledInternal(enabled: Boolean)
         refreshQueue()
         refreshUpcomingQueue()
         refreshNavigationState()
+        refreshQueueEnded()
         // Baseline + active order + shuffle + repeat + cursor, all in one atomic write: separate
         // writes would be independent commits for one logical change, and a process death
         // between any two of them could leave them mismatched.

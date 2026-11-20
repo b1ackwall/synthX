@@ -25,6 +25,16 @@ internal interface SystemNavigationHandler {
     fun seekToNext()
 
     fun seekToPrevious()
+
+    /** The app's own shuffle flag, which controllers are shown in place of ExoPlayer's. */
+    val shuffleEnabled: Boolean
+
+    /**
+     * A shuffle command from a controller (car, headset, assistant, notification). Applied with the
+     * in-app toggle's semantics, except that turning shuffle off while the shuffled queue has been
+     * reordered is refused, since no dialog can ask there; see [externalShuffleAction].
+     */
+    fun setShuffleFromSystem(enabled: Boolean)
 }
 
 /**
