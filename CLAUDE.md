@@ -186,10 +186,10 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
 - Lazy-flow trap: reading `.value` of a `WhileSubscribed` or `Lazily` StateFlow that nobody is
   collecting returns the stale initial value. Collect it, or use `Eagerly` when code reads
   `.value` (see the Eagerly copy of activeSongId in PlaybackViewModel).
-- Unit tests (app/src/test) cannot reach `String.toUri()`: with core-ktx 1.19 it fails on the JVM
-  android.net.Uri stub. 33 call sites exist (buildArtworkData, LibraryScanWorker.doWork,
-  ArtRecovery.defaultExtractArt, DestructiveFilePreflight, BackupManager). Test those paths on the
-  Redmi, or switch the one call a unit test needs to `Uri.parse`. Remove this bullet when #279 is fixed.
+- Unit tests (app/src/test) must not reach `String.toUri()`: under core-ktx 1.19 it throws an NPE
+  because `Uri.parse` returns null on the JVM stub (`isReturnDefaultValues`); the app is unaffected.
+  35 calls exist in app/src/main; `ScanDuplicateCopies.compare` is the likely first trap. Test those
+  paths as instrumented tests on a device or emulator, or pass the Uri-making code in as a parameter.
 - `UiState<T>.isReady()` (ui/common/UiState.kt) exists to gate destination-level readiness
   covers (ReadinessCoverOverlay): everything past the initial load, success or failure, is ready.
 
