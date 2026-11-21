@@ -10,16 +10,17 @@
   are fine on any branch.
 
 ## Connected Device — VERIFY BEFORE TOUCHING
-Every device task starts with a gate: run `adb devices -l` and confirm the Redmi Note 7 Pro is
-listed. If it is missing, STOP and report; do not fall back to the emulator.
+Every device task starts with a gate: run `adb devices -l` and confirm the targeted device is
+listed. The emulator is the default (see Emulator below). When a task targets the Redmi Note 7
+Pro and it is missing, STOP and report; do not fall back to the emulator.
 - Devices:
-  - Redmi Note 7 Pro (serial supplied in the task prompt, `device:violet`): the main judge for instrumented
-    tests. Only `com.v1per.synthx.debug` is installed. Dev-only device, safe to reinstall and
-    test on.
+  - Redmi Note 7 Pro (serial supplied in the task prompt, `device:violet`): used only when the
+    emulator is ruled out, for example performance benchmarks, behaviour that needs real
+    hardware, or a failure that must be confirmed on a second device. Only
+    `com.v1per.synthx.debug` is installed. Dev-only device, safe to reinstall and test on.
   - Samsung Galaxy S25 Ultra (serial withheld): OFF-LIMITS to agents. It holds the
     production package `com.v1per.synthx`.
-  - Emulator `emulator-5554` (Pixel_9a AVD): used only when the owner says so. Known unreliable
-    at API 37.
+  - Emulator `emulator-5554` (Pixel_9a AVD): the default device for all instrumented tests.
 - Rules:
   1. Run `adb devices -l` and confirm the targeted device before ANY adb command.
   2. Always pass `-s <serial>` to `adb`; never rely on `ANDROID_SERIAL` or on a single attached
@@ -34,11 +35,27 @@ listed. If it is missing, STOP and report; do not fall back to the emulator.
 - `com.v1per.synthx.debug` (note the `.debug` suffix) = the debug build package
   (`applicationIdSuffix` in app/build.gradle.kts), used by `assembleDebug` and instrumented
   tests. This one is fair game on the Redmi — clear it, uninstall it, wipe it, reinstall it
-  freely as needed for debugging or testing, no need to ask first.
+  freely as needed for debugging or testing, no need to ask first. On the emulator, clear or
+  uninstall it only when a test strictly needs it.
 - Before any adb command that touches app data or packages, double-check the package name
   argument is the `.debug`-suffixed one. If a command's target package is ambiguous, or more
   than one device is attached, or you're about to run something broad (e.g. an adb command
   without an explicit package filter), stop and ask first rather than guessing.
+- Emulator: an API 37 Google APIs (Play Store) x86_64 image with 16 KB pages, 6 GB RAM, 6 cores,
+  host GPU rendering and cold boot. Its large data partition holds a test library of about 1,270
+  songs (about 52 GB) under /sdcard/Music/Library.
+  1. Before using it, `adb devices -l` must show `emulator-5554` as `device`, and
+     `adb -s emulator-5554 shell dumpsys SurfaceFlinger | grep -i GLES` must name the discrete
+     NVIDIA GPU, not Intel, Mesa or SwiftShader. On a laptop with a discrete GPU, start the
+     emulator through `prime-run`; without it the suite is very slow and timing tests fail falsely.
+  2. Start it only when none is running: detached, with the host GPU. Leave it running. Never
+     start a second instance.
+  3. Never use `-wipe-data`, never wipe or reset it, never write to /sdcard and never touch
+     /sdcard/Music/Library. No `pm clear` or uninstall of any package other than
+     `com.v1per.synthx.debug`.
+  4. Always `adb -s emulator-5554`, never Gradle `connected*` tasks. Before a run, revoke
+     POST_NOTIFICATIONS on `com.v1per.synthx.debug` and record the stay-awake value; restore it
+     afterwards. Run instrumented tests one class per process. A full pass takes about 28 minutes.
 
 ## Environment Setup (machine-aware)
 
@@ -227,7 +244,7 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
   unit suite. It stops at the first failure. No device is involved.
 - No baselines and no blanket suppressions. Fix the finding, or record a narrow, commented
   ignore (`@SuppressLint` with a reason line, or an entry in `app/lint.xml`).
-- The instrumented suite on the Redmi (see Connected Device) stays a manual proof for risky
+- The instrumented suite on the emulator (see Connected Device) stays a manual proof for risky
   changes; `scripts/check.sh` does not replace it.
 
 ## Gesture and Animation Rules
