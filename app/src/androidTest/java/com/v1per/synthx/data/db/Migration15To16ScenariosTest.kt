@@ -228,7 +228,7 @@ class Migration15To16ScenariosTest {
             standalone.close()
         }
         SQLiteDatabase.openDatabase(context.getDatabasePath(name).path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
-            assertEquals(16, db.version)
+            assertEquals(SynthXDatabase.VERSION, db.version)
             assertEquals(
                 listOf("a-dup", "single"),
                 db.rawQuery("SELECT id FROM albums ORDER BY id", null).use {

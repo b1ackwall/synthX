@@ -124,7 +124,11 @@ class Migration15To16PinnedBehaviourTest {
                 SynthXDatabase.MIGRATION_15_16.migrate(db)
             }
         }
-        val room = Room.databaseBuilder(context, SynthXDatabase::class.java, name).addMigrations(spy).build()
+        // The full chain, with the spy standing in for the 15->16 step, so Room can open at the current version.
+        val chain = SynthXDatabase.ALL_MIGRATIONS
+            .map { if (it.startVersion == 15 && it.endVersion == 16) spy else it }
+            .toTypedArray()
+        val room = Room.databaseBuilder(context, SynthXDatabase::class.java, name).addMigrations(*chain).build()
         try {
             val db = room.openHelper.writableDatabase
             assertEquals("foreign_keys during 15->16", 0, foreignKeysDuringMigration)
@@ -173,7 +177,7 @@ class Migration15To16PinnedBehaviourTest {
         val standalone = SynthXDatabase.createStandalone(context, name)
         try {
             val db = standalone.openHelper.writableDatabase
-            assertEquals(16, db.singleInt("PRAGMA user_version"))
+            assertEquals(SynthXDatabase.VERSION, db.singleInt("PRAGMA user_version"))
             assertEquals(1, db.singleInt("PRAGMA foreign_keys"))
             assertEquals(mapOf("s1" to "a-one", "s2" to "a-one", "s3" to "c-two"), db.songAlbums())
             assertEquals(2, db.singleInt("SELECT COUNT(*) FROM albums"))
