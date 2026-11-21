@@ -42,7 +42,11 @@ class OwnerGateInstrumentedTest : PlaybackServiceTestBase() {
 
         release(secondOwner)
         settle()
-        assertTrue("one owner left, still playing", onMain { extraController.isPlaying })
+        // The gate's stop leaves the player IDLE; a focus or noisy-audio pause does not.
+        val (state, wantsToPlay, suppression) =
+            onMain { with(extraController) { Triple(playbackState, playWhenReady, playbackSuppressionReason) } }
+        val seen = "playbackState=$state, playWhenReady=$wantsToPlay, playbackSuppressionReason=$suppression"
+        assertTrue("one owner left, not stopped ($seen)", state != Player.STATE_IDLE)
 
         releaseEngine()
         awaitStopped()
