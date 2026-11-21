@@ -46,7 +46,7 @@ Pro and it is missing, STOP and report; do not fall back to the emulator.
   songs (about 52 GB) under /sdcard/Music/Library.
   1. Before using it, `adb devices -l` must show `emulator-5554` as `device`, and
      `adb -s emulator-5554 shell dumpsys SurfaceFlinger | grep -i GLES` must name the discrete
-     NVIDIA GPU, not Intel, Mesa or SwiftShader. On a laptop with a discrete GPU, start the
+     GPU, not Intel, Mesa or SwiftShader. On a laptop with a discrete GPU, start the
      emulator through `prime-run`; without it the suite is very slow and timing tests fail falsely.
   2. Start it only when none is running: detached, with the host GPU. Leave it running. Never
      start a second instance.
