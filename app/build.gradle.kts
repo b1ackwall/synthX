@@ -12,7 +12,7 @@ android {
     defaultConfig {
         applicationId = "com.v1per.synthx"
         minSdk = 32
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 15
         versionName = "2.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

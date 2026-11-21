@@ -29,7 +29,4 @@
 
     <!-- Newer versions are not reported; Coil 2.7.0 is held back on purpose (#354). -->
     <issue id="AndroidGradlePluginVersion" severity="ignore" />
-
-    <!-- Raising targetSdk to 37 is tracked in #247. -->
-    <issue id="OldTargetApi" severity="ignore" />
 </lint>
