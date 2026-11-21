@@ -51,7 +51,7 @@ internal class ShellTestHost(
         private set
 
     fun setUp() {
-        // WorkManager's manifest initializer is removed for androidTest; the shell reaches it.
+        // Swaps the test WorkManager in over the one the manifest initializer starts; the shell reaches it.
         RestoreStartup.await()
         TestWorkManager.ensureInitialized(context)
         SynthXDatabase.closeInstance()

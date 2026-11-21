@@ -52,9 +52,8 @@ class RestoreShellInstrumentedTest {
 
     @Before
     fun setUp() {
-        // Same order as PhaseBRestoreTestBase.setUp. WorkManager's manifest initializer
-        // is removed for androidTest, and the shell reaches it through PlaylistExportManager, so
-        // it has to be stood up explicitly or composing NormalShell takes the activity down.
+        // Same order as PhaseBRestoreTestBase.setUp. The shell's view models reach WorkManager, so the
+        // test WorkManager is swapped in over the one the manifest initializer starts.
         RestoreStartup.await()
         TestWorkManager.ensureInitialized(context)
         SynthXDatabase.closeInstance()
