@@ -444,6 +444,7 @@ class OnboardingRecoveryInstrumentedTest : OnboardingRecoveryTestBase() {
         assertNotNull("scan must start regardless of the notification permission", started)
         assertTrue(preferences.onboardingComplete)
         assertEquals(started.toString(), preferences.firstScanRequestId)
+        awaitState(scanIds().single(), WorkInfo.State.SUCCEEDED)
         assertEquals(WorkInfo.State.SUCCEEDED, workManager.getWorkInfoById(scanIds().single()).get()?.state)
     }
 }

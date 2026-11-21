@@ -6,7 +6,6 @@ import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
-import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.v1per.synthx.data.scanner.LibraryScanWorker
 import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
@@ -19,13 +18,14 @@ internal object TestWorkManager {
     @Synchronized
     fun ensureInitialized(context: Context) {
         if (initialized) return
+        // Callbacks run on the real executors and the main thread, like production.
         WorkManagerTestInitHelper.initializeTestWorkManager(
             context,
             Configuration.Builder()
                 .setMinimumLoggingLevel(android.util.Log.DEBUG)
-                .setExecutor(SynchronousExecutor())
                 .setWorkerFactory(ScanStubWorkerFactory)
                 .build(),
+            WorkManagerTestInitHelper.ExecutorsMode.PRESERVE_EXECUTORS,
         )
         initialized = true
     }

@@ -115,6 +115,8 @@ class OnboardingNotificationAndScreensInstrumentedTest : OnboardingRecoveryTestB
         ScanStubWorkerFactory.behavior = ScanStub.Succeed()
         saveOnboardingMusic()
         composeRule.runOnUiThread { library.startFirstScan() }
+        // The scan record is finished before the pruning check runs.
+        awaitState(scanIds().single(), WorkInfo.State.SUCCEEDED)
         // Complete flag is on, but the wizard has not handed over yet.
         assertTrue(preferences.onboardingComplete)
         assertFalse(com.v1per.synthx.shouldRunLaunchMaintenance(preferences))
