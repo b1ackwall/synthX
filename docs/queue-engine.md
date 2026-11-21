@@ -114,6 +114,17 @@ stays paused. The skip is the engine's own move and is never refused for lack of
 A skip happens only while the player is still idle on the failure. A failure reported after the user
 already moved playback on (a Next tap that landed first) does not skip past the song the user chose.
 
+An error is charged to the song that raised it. The player stamps a source error with the period that
+failed, and the engine looks that period up in the controller's timeline to name the slot. An error for a
+slot the engine has left is a late duplicate: the player can report the failure of the song a skip just moved
+on from a second time, after the skip landed on the next slot. It is not a failure of the current song, so it
+adds no failure, no message and no skip decision. An error that does not name its slot, or that arrives with
+no current slot, is the current song's and counts as usual.
+
+The player stops on every error, so a late duplicate leaves it idle on the slot the skip chose. While the
+player is idle the engine lands on that slot again through `seekToLiveIndex`, keeping play-when-ready: a user
+who was playing hears the song, a paused user stays paused on it.
+
 ### 3.3 Bursts and the cap
 
 - A burst is a run of consecutive failures. `PLAYBACK_FAILURE_CAP` is 5.
@@ -124,6 +135,8 @@ already moved playback on (a Next tap that landed first) does not skip past the 
   Previous (in-app or from a controller), a tap on an Up Next row, a fresh play.
 - The playback-failed message (the existing one) shows once per burst, for the first failed song; the
   songs a burst skips add no message. A new burst starts after a song plays.
+- A late duplicate error for a left slot (3.2) is not part of the burst: it adds no failure, so it neither
+  moves the cap nor shortens the limit of Repeat All and Repeat One.
 
 ### 3.4 What stays
 
@@ -239,6 +252,8 @@ Implementation choices:
 - The skip codes listed in 3.1.
 - Under Repeat Off the burst limit is the cap alone; under Repeat All and One it is min(cap, queue length).
 - A failure is skipped only while the player is still idle on it.
+- A failure is charged to the slot named by the period the player stamped on the error; a late error for a
+  left slot is ignored and the idle player is landed again on the current slot.
 - The app's shuffle flag is published by calling the session listeners' `onShuffleModeEnabledChanged`
   from the wrapper; a change caused by a controller's command is published once, at its end.
 - The native-shuffle guard lives in the wrapper (creation, its raw-player listeners, bridge changes).
@@ -267,6 +282,7 @@ JVM tests are in `app/src/test`, device tests in `app/src/androidTest`, both und
 | Native shuffle safety net (#389) | `SystemNavigationPlayerTest` (native cases); device `NativeShuffleGuardInstrumentedTest` |
 | Skip decision, codes, cap, idle guard (#397) | `PlaybackFailurePolicyTest` |
 | Auto-skip on the real engine: missing, corrupt, unreadable; paused; Repeat Off last; Repeat One wrap; Repeat All once round; cap; counter resets; one message per burst (#397) | device `PlaybackAutoSkipInstrumentedTest`, `PlaybackRecoveryInstrumentedTest` |
+| A late duplicate error for a left slot adds no failure, message or skip; the idle player is revived | `LateFailureAttributionTest`; device `PlaybackAutoSkipInstrumentedTest` (Repeat One wrap, paused user) |
 | Connection gate scope (#407) | device `ConnectionGateInstrumentedTest` |
 | Adoption: missing-flagged slot, shuffle off and on; row gone, playing and paused; nothing survives (#408) | `QueueAdoptionTest`; device `QueueAdoptMissingSongInstrumentedTest`, `QueueAdoptInstrumentedTest` |
 | No public stop; the restore's release clears the timeline (#408) | `PlaybackViewModelToggleTest.theViewModelHasNoPublicStop`; device `QueueAdoptInstrumentedTest.releasingEveryEngineForARestoreClearsTheSessionTimeline` |

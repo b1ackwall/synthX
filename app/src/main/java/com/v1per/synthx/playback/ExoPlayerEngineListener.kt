@@ -152,6 +152,11 @@ internal fun ExoPlayerEngine.createPlayerListener(): Player.Listener = object : 
      * so the user can move on without the chrome disappearing first.
      */
     override fun onPlayerError(error: PlaybackException) {
+        val failedSlotId = slotIdOfErrorSource(error)
+        if (isLateErrorForLeftSlot(failedSlotId, _currentSlotId.value)) {
+            handleLateError(failedSlotId, error.errorCode)
+            return
+        }
         val title = controller?.currentMediaItem?.mediaMetadata?.title?.toString()
             ?: _currentSlotId.value?.let { songsBySlotId[it]?.title }
         // Logged because the code/cause is what actually distinguishes

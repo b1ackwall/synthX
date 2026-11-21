@@ -1,8 +1,12 @@
 package com.v1per.synthx.playback
 
 import android.util.Log
+import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlaybackException
 
 // ExoPlayerEngine's policy for a song that fails to play.
 
@@ -52,6 +56,43 @@ internal fun playbackFailureActionFor(
     if (!isSourceFailure(errorCode) || !hasNext || !playerIdle) return PlaybackFailureAction.STAY
     val limit = if (repeatMode == RepeatMode.Off) cap else minOf(cap, queueLength)
     return if (consecutiveFailures >= limit) PlaybackFailureAction.STAY else PlaybackFailureAction.SKIP
+}
+
+/**
+ * Whether an error belongs to a slot the engine has already left: [failedSlotId] is the slot that raised it
+ * and [currentSlotId] the slot the engine is on. The player can report the failure of the song a skip just moved
+ * on from a second time, after the engine is on the next slot; that is not a failure of the current song. An
+ * error that does not name its slot, or that arrives with no current slot, is treated as the current song's.
+ */
+internal fun isLateErrorForLeftSlot(failedSlotId: String?, currentSlotId: String?): Boolean =
+    failedSlotId != null && currentSlotId != null && failedSlotId != currentSlotId
+
+/**
+ * The slot whose period raised [error], read from the period the player stamped on it and looked up in the
+ * controller's timeline. Null when the error carries no period, its period is not in the timeline, or the
+ * item has no id.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun ExoPlayerEngine.slotIdOfErrorSource(error: PlaybackException): String? {
+    val periodUid = (error as? ExoPlaybackException)?.mediaPeriodId?.periodUid ?: return null
+    val timeline = controller?.currentTimeline ?: return null
+    val periodIndex = timeline.getIndexOfPeriod(periodUid)
+    if (periodIndex == C.INDEX_UNSET) return null
+    val windowIndex = timeline.getPeriod(periodIndex, Timeline.Period()).windowIndex
+    return timeline.getWindow(windowIndex, Timeline.Window()).mediaItem.mediaId.takeIf { it.isNotEmpty() }
+}
+
+/**
+ * Handles an error for [failedSlotId], a slot the engine has left. It is not a failure of the current song, so it is
+ * neither counted nor reported. The player stops on any error, which leaves it idle on the slot the skip chose, so
+ * the engine lands on that slot again while the player is idle; the play-when-ready choice is kept.
+ */
+internal fun ExoPlayerEngine.handleLateError(failedSlotId: String?, errorCode: Int) {
+    val currentSlotId = _currentSlotId.value
+    Log.i(ExoPlayerEngine.TAG, "Ignoring late error code=$errorCode for left slot $failedSlotId; on $currentSlotId")
+    if (controller?.playbackState != Player.STATE_IDLE) return
+    val index = orderStore.indexOfSlot(currentSlotId)
+    if (index >= 0) seekToLiveIndex(index, play = false)
 }
 
 /**
