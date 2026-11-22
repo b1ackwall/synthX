@@ -18,23 +18,15 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import coil.Coil
-import coil.EventListener
-import coil.ImageLoader
-import coil.intercept.Interceptor
-import coil.request.CachePolicy
-import coil.request.ErrorResult
-import coil.request.ImageRequest
-import coil.request.ImageResult
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.screens.library.RecentlyAddedSection
+import com.v1per.synthx.ui.testing.ArtTestImageLoader
 import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.ArtSizes
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import java.io.File
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -48,8 +40,8 @@ import org.junit.runner.RunWith
  * A song whose art file cannot be read shows the flat SurfaceVariant square (the same pixels as
  * ArtPlaceholder), never a hole. Each site sits on a red host, so a hole reads as red.
  *
- * The test installs its own singleton ImageLoader: caches off, an event listener that counts failed
- * requests, and an interceptor that turns the crossfade off so a failed request is drawn at once.
+ * The test installs [ArtTestImageLoader]: caches off, failed requests counted, and the crossfade off
+ * so a failed request is drawn at once.
  */
 @RunWith(AndroidJUnit4::class)
 class UnreadableArtInstrumentedTest {
@@ -59,29 +51,18 @@ class UnreadableArtInstrumentedTest {
     @get:Rule val composeRule = createComposeRule()
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val failures = AtomicInteger(0)
+    private val loader = ArtTestImageLoader(context)
     private val goneUri = File(context.cacheDir, "unreadable_art_that_does_not_exist.png")
         .apply { delete() }.toURI().toString()
 
     @Before
     fun installImageLoader() {
-        Coil.setImageLoader(
-            ImageLoader.Builder(context)
-                .memoryCachePolicy(CachePolicy.DISABLED)
-                .diskCachePolicy(CachePolicy.DISABLED)
-                .components { add(NoCrossfadeInterceptor) }
-                .eventListener(object : EventListener {
-                    override fun onError(request: ImageRequest, result: ErrorResult) {
-                        failures.incrementAndGet()
-                    }
-                })
-                .build(),
-        )
+        loader.install()
     }
 
     @After
     fun resetImageLoader() {
-        Coil.reset()
+        loader.reset()
     }
 
     private fun song(id: String) = Song(
@@ -117,7 +98,7 @@ class UnreadableArtInstrumentedTest {
             }
         }
 
-        composeRule.waitUntil(LOAD_TIMEOUT_MS) { failures.get() > 0 }
+        composeRule.waitUntil(LOAD_TIMEOUT_MS) { loader.failureCount > 0 }
         composeRule.waitForIdle()
         val x = dpPx(Spacing.md.value + ArtSizes.Song.value / 2)
         assertEquals(SurfaceVariant.toArgb(), pixelAt(x, dpPx(ArtSizes.Song.value / 2)))
@@ -131,7 +112,7 @@ class UnreadableArtInstrumentedTest {
             }
         }
 
-        composeRule.waitUntil(LOAD_TIMEOUT_MS) { failures.get() > 0 }
+        composeRule.waitUntil(LOAD_TIMEOUT_MS) { loader.failureCount > 0 }
         composeRule.waitForIdle()
         val centre = dpPx(ArtSizes.Album.value / 2)
         assertEquals(SurfaceVariant.toArgb(), pixelAt(centre, centre))
@@ -149,7 +130,7 @@ class UnreadableArtInstrumentedTest {
             }
         }
 
-        composeRule.waitUntil(LOAD_TIMEOUT_MS) { failures.get() > 0 }
+        composeRule.waitUntil(LOAD_TIMEOUT_MS) { loader.failureCount > 0 }
         composeRule.waitForIdle()
         // Nothing else in the section paints SurfaceVariant, so any such pixel is a placeholder square.
         val pixels = composeRule.onNodeWithTag(HOST_TAG).captureToImage().toPixelMap()
@@ -160,11 +141,6 @@ class UnreadableArtInstrumentedTest {
             }
         }
         assertTrue("recently added tiles drew no flat placeholder square", flat > MIN_FLAT_PIXELS)
-    }
-
-    private object NoCrossfadeInterceptor : Interceptor {
-        override suspend fun intercept(chain: Interceptor.Chain): ImageResult =
-            chain.proceed(chain.request.newBuilder().crossfade(false).build())
     }
 
     private companion object {

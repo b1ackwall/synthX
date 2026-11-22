@@ -12,22 +12,13 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.core.graphics.createBitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import coil.Coil
-import coil.EventListener
-import coil.ImageLoader
-import coil.intercept.Interceptor
-import coil.request.CachePolicy
-import coil.request.ErrorResult
-import coil.request.ImageRequest
-import coil.request.ImageResult
-import coil.request.SuccessResult
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.common.UiState
 import com.v1per.synthx.ui.components.DetailHeroSize
+import com.v1per.synthx.ui.testing.ArtTestImageLoader
 import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -39,11 +30,10 @@ import org.junit.runner.RunWith
  * The album hero at [DetailHeroSize]: real art when the cover file decodes, and the flat
  * SurfaceVariant square (the same pixels as ArtPlaceholder) for a null cover or an unreadable file.
  *
- * The test installs its own singleton ImageLoader: caches off, an event listener that reports when
- * the request has finished, and an interceptor that turns off the crossfade for requests that reach
- * the interceptor chain, so a finished error state is drawn at once instead of fading over 100ms.
- * A null cover never reaches the chain (Coil fails it up front); it fades in from nothing, which
- * the null test waits out.
+ * The test installs [ArtTestImageLoader]: caches off, finished requests recorded, and the crossfade
+ * off for requests that reach the interceptor chain, so a finished error state is drawn at once
+ * instead of fading over 100ms. A null cover never reaches the chain (Coil fails it up front); it
+ * fades in from nothing, which the null test waits out.
  */
 @RunWith(AndroidJUnit4::class)
 class AlbumDetailCoverInstrumentedTest {
@@ -53,28 +43,17 @@ class AlbumDetailCoverInstrumentedTest {
     @get:Rule val composeRule = createComposeRule()
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val failed = AtomicBoolean(false)
-    private val succeeded = AtomicBoolean(false)
+    private val loader = ArtTestImageLoader(context)
     private var artFile: File? = null
 
     @Before
     fun installImageLoader() {
-        Coil.setImageLoader(
-            ImageLoader.Builder(context)
-                .memoryCachePolicy(CachePolicy.DISABLED)
-                .diskCachePolicy(CachePolicy.DISABLED)
-                .components { add(NoCrossfadeInterceptor) }
-                .eventListener(object : EventListener {
-                    override fun onError(request: ImageRequest, result: ErrorResult) = failed.set(true)
-                    override fun onSuccess(request: ImageRequest, result: SuccessResult) = succeeded.set(true)
-                })
-                .build(),
-        )
+        loader.install()
     }
 
     @After
     fun resetImageLoader() {
-        Coil.reset()
+        loader.reset()
         artFile?.delete()
     }
 
@@ -110,7 +89,7 @@ class AlbumDetailCoverInstrumentedTest {
     fun aNullCoverShowsTheFlatSquareAtHeroSize() {
         show(null)
 
-        composeRule.waitUntil(LOAD_TIMEOUT_MS) { failed.get() }
+        composeRule.waitUntil(LOAD_TIMEOUT_MS) { loader.failureCount > 0 }
         composeRule.waitUntil(LOAD_TIMEOUT_MS) { centrePixel() == SurfaceVariant.toArgb() }
         // The tag is inside the box's vertical padding, so this is the art's own height.
         composeRule.onNodeWithTag(ALBUM_DETAIL_COVER_TAG).assertHeightIsEqualTo(DetailHeroSize)
@@ -121,7 +100,7 @@ class AlbumDetailCoverInstrumentedTest {
         val gone = File(context.cacheDir, "album_cover_that_does_not_exist.png").apply { delete() }
         show(Uri.fromFile(gone).toString())
 
-        composeRule.waitUntil(LOAD_TIMEOUT_MS) { failed.get() }
+        composeRule.waitUntil(LOAD_TIMEOUT_MS) { loader.failureCount > 0 }
         composeRule.waitForIdle()
         assertEquals(SurfaceVariant.toArgb(), centrePixel())
     }
@@ -134,7 +113,9 @@ class AlbumDetailCoverInstrumentedTest {
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         show(Uri.fromFile(file).toString())
 
-        composeRule.waitUntil(LOAD_TIMEOUT_MS) { succeeded.get() && mostInteriorPixelsDifferFromThePlaceholder() }
+        composeRule.waitUntil(LOAD_TIMEOUT_MS) {
+            loader.successCount > 0 && mostInteriorPixelsDifferFromThePlaceholder()
+        }
         composeRule.onNodeWithTag(ALBUM_DETAIL_COVER_TAG).assertHeightIsEqualTo(DetailHeroSize)
     }
 
@@ -155,11 +136,6 @@ class AlbumDetailCoverInstrumentedTest {
             }
         }
         return differing > sampled / 2
-    }
-
-    private object NoCrossfadeInterceptor : Interceptor {
-        override suspend fun intercept(chain: Interceptor.Chain): ImageResult =
-            chain.proceed(chain.request.newBuilder().crossfade(false).build())
     }
 
     private companion object {
