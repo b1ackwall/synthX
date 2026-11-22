@@ -21,7 +21,7 @@ synthX is GPL-3.0-or-later (see LICENSE); the items below keep their own license
 | Media3 Session | `androidx.media3:media3-session` | 1.11.1 | The Apache Software License, Version 2.0 |
 | Media3 Common | `androidx.media3:media3-common` | 1.11.1 | The Apache Software License, Version 2.0 |
 | Accompanist Permissions | `com.google.accompanist:accompanist-permissions` | 0.37.3 | The Apache Software License, Version 2.0 |
-| Coil Compose | `io.coil-kt:coil-compose` | 2.7.0 | The Apache License, Version 2.0 |
+| Coil Compose | `io.coil-kt.coil3:coil-compose` | 3.6.3 | The Apache License, Version 2.0 |
 | AndroidX DocumentFile | `androidx.documentfile:documentfile` | 1.1.0 | The Apache Software License, Version 2.0 |
 | Room Runtime | `androidx.room:room-runtime` | 2.8.5 | The Apache Software License, Version 2.0 |
 | WorkManager Runtime KTX | `androidx.work:work-runtime-ktx` | 2.9.1 | The Apache Software License, Version 2.0 |

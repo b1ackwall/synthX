@@ -15,7 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.player.LocalPlayerContentColors
 import com.v1per.synthx.ui.theme.ArtSizes

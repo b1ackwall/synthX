@@ -21,12 +21,12 @@
     <!-- Job.cancel() resolving to the member is intended; the extension import is needed for CoroutineScope.cancel(). -->
     <issue id="MemberExtensionConflict" severity="ignore" />
 
-    <!-- Newer versions are not reported; Coil 2.7.0 is held back on purpose (#354). -->
+    <!-- Newer library versions are not reported; dependency updates are separate, deliberate work. -->
     <issue id="GradleDependency" severity="ignore" />
 
-    <!-- Newer versions are not reported; Coil 2.7.0 is held back on purpose (#354). -->
+    <!-- Newer versions found online are not reported; dependency updates are separate, deliberate work. -->
     <issue id="NewerVersionAvailable" severity="ignore" />
 
-    <!-- Newer versions are not reported; Coil 2.7.0 is held back on purpose (#354). -->
+    <!-- Newer Android Gradle Plugin and Gradle versions are not reported; tool updates are separate, deliberate work. -->
     <issue id="AndroidGradlePluginVersion" severity="ignore" />
 </lint>

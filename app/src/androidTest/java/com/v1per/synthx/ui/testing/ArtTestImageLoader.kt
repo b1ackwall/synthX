@@ -1,15 +1,17 @@
 package com.v1per.synthx.ui.testing
 
 import android.content.Context
-import coil.Coil
-import coil.EventListener
-import coil.ImageLoader
-import coil.intercept.Interceptor
-import coil.request.CachePolicy
-import coil.request.ErrorResult
-import coil.request.ImageRequest
-import coil.request.ImageResult
-import coil.request.SuccessResult
+import coil3.EventListener
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.annotation.DelicateCoilApi
+import coil3.intercept.Interceptor
+import coil3.request.CachePolicy
+import coil3.request.ErrorResult
+import coil3.request.ImageRequest
+import coil3.request.ImageResult
+import coil3.request.SuccessResult
+import coil3.request.crossfade
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
@@ -35,21 +37,23 @@ internal class ArtTestImageLoader(private val context: Context) {
     /** Width and height in pixels of the most recently delivered image. */
     val lastDecodedSize: Pair<Int, Int>? get() = lastSize.get()
 
+    // setUnsafe and reset are DelicateCoilApi: a test replaces the process-wide loader on purpose.
+    @OptIn(DelicateCoilApi::class)
     fun install() {
-        Coil.setImageLoader(
+        SingletonImageLoader.setUnsafe(
             ImageLoader.Builder(context)
                 .memoryCachePolicy(CachePolicy.DISABLED)
                 .diskCachePolicy(CachePolicy.DISABLED)
                 .components { add(NoCrossfadeInterceptor) }
                 .eventListener(
-                    object : EventListener {
+                    object : EventListener() {
                         override fun onError(request: ImageRequest, result: ErrorResult) {
                             lastThrowable.set(result.throwable)
                             failures.incrementAndGet()
                         }
 
                         override fun onSuccess(request: ImageRequest, result: SuccessResult) {
-                            lastSize.set(result.drawable.intrinsicWidth to result.drawable.intrinsicHeight)
+                            lastSize.set(result.image.width to result.image.height)
                             successes.incrementAndGet()
                         }
                     },
@@ -58,12 +62,13 @@ internal class ArtTestImageLoader(private val context: Context) {
         )
     }
 
+    @OptIn(DelicateCoilApi::class)
     fun reset() {
-        Coil.reset()
+        SingletonImageLoader.reset()
     }
 
     private object NoCrossfadeInterceptor : Interceptor {
         override suspend fun intercept(chain: Interceptor.Chain): ImageResult =
-            chain.proceed(chain.request.newBuilder().crossfade(false).build())
+            chain.withRequest(chain.request.newBuilder().crossfade(false).build()).proceed()
     }
 }
