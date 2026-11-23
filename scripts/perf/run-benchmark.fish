@@ -32,7 +32,11 @@ set -l scenario_table \
     "nextQueue PlayerTrackChangeBenchmark" \
     "nextMini PlayerTrackChangeBenchmark" \
     "homeExpandCollapse PlayerHomeBenchmark" \
-    "idleStates PlayerIdleStatesBenchmark"
+    "idleStates PlayerIdleStatesBenchmark" \
+    "songsScroll LibraryListScrollBenchmark" \
+    "starredScroll LibraryListScrollBenchmark" \
+    "playlistsScroll LibraryListScrollBenchmark" \
+    "coldStartup StartupBenchmark"
 set -l all_names
 for row in $scenario_table
     set -a all_names (string split ' ' -- $row)[1]

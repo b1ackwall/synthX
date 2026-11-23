@@ -33,6 +33,14 @@ in [docs/perf/README.md](../../docs/perf/README.md).
    scroll needs a queue several screens long (it checks this itself by scrolling once before it
    measures), and the track-change scenarios need a next song.
 6. Go back to the Library tab and leave the app.
+7. For `starredScroll` and `playlistsScroll` only: a large bench library, with on the order of a
+   thousand or more starred songs and enough playlists that two swipes in each direction all
+   move the list (both check this by scrolling once before they measure). A song is starred
+   only when the app first finds it in the New Arrivals folder, and a copy of a song already in
+   the library is never starred, so for these two New Arrivals holds those songs instead of
+   staying empty as step 3 says. Never use Remove from Starred in synthX bench: it moves the
+   file into the music folder. Write down the playlist count with the run; the benchmark cannot
+   report it.
 
 The benchmarks check this on every run and stop with a message saying which step is missing.
 
@@ -61,7 +69,7 @@ Set `JAVA_HOME` as in CLAUDE.md, then from the repo root:
 
 ```fish
 adb devices -l                                                # find the serial
-scripts/perf/run-benchmark.fish <serial>                      # every scenario, about 20 minutes
+scripts/perf/run-benchmark.fish <serial>                      # every scenario, about 30 minutes
 scripts/perf/run-benchmark.fish <serial> --scenario slowDrag  # one scenario
 scripts/perf/run-benchmark.fish <serial> --scenario slowDrag,fling
 scripts/perf/run-benchmark.fish <serial> --none               # CompilationMode.None (worst case)
@@ -123,8 +131,21 @@ counts and about four seconds of tracing overhead per iteration.
 | `nextMini` | `PlayerTrackChangeBenchmark` | 8 | 1 min | Collapsed, playing: a MEDIA_NEXT key, because the mini player has no next button. |
 | `homeExpandCollapse` | `PlayerHomeBenchmark` | 10 | 1 min | `expandCollapse` on the Home tab, whose animated background keeps running under the mini player. |
 | `idleStates` | `PlayerIdleStatesBenchmark` | 4 | 3.5 min | No gesture inside the windows: four seconds each with the mini player paused and playing, expanded playing and paused, queue mode paused, and Home. Reports `<state>DrawnFps`, `<state>CallbackFps` and `<state>WindowMs` per iteration in the result file. Plays audio. |
+| `songsScroll` | `LibraryListScrollBenchmark` | 8 | 1.5 min | Player collapsed, Library > Songs opened once: two swipes toward the end of the list, two back, with the `queueScroll` gesture. |
+| `starredScroll` | `LibraryListScrollBenchmark` | 8 | 1.5 min | The same on Library > Starred. Needs setup step 7. |
+| `playlistsScroll` | `LibraryListScrollBenchmark` | 8 | 1.5 min | The same on Library > Playlists. Needs setup step 7. |
+| `coldStartup` | `StartupBenchmark` | 10 | 2 min | Cold start from the launcher to the first frame (`timeToInitialDisplay`). It then waits for the main screen and launch-time background work, which does not change the metric. |
 
-Every scenario records `FrameTimingMetric` and one `TraceSectionMetric` per `synthX.*` section.
+Every scenario except `coldStartup` records `FrameTimingMetric` and one `TraceSectionMetric` per
+`synthX.*` section. `coldStartup` is also the exception to the paragraph above the table: it
+presses Home and kills the app before every iteration instead of keeping it at the baseline, and
+it records only `StartupTimingMetric`. `summarize.py` shows it as 0 frames sampled; read
+`timeToInitialDisplayMs` in its result file.
+
+The Redmi Note 7 Pro's bench library is too small for `starredScroll` and `playlistsScroll` (a
+short Starred list and no playlists), so they cannot run there yet, and a full run there lists
+them as failed; pass `--scenario` with the other names on that phone. They were run on the
+Galaxy S25 Ultra's bench with the large library of setup step 7.
 
 ### When the frame timeline cannot be trusted (`--slice-frames`)
 
@@ -163,10 +184,10 @@ iterations are still in the run folder.
 
 ### What the scenarios touch
 
-They tap, press back, drag vertically, and skip tracks. They never reorder or remove a queue
-row, delete or replace a song, change a folder, or write to the music folder, and they never
-target the production or debug packages. Track skips are undone with Previous, so a scenario
-ends on the song it started on (at position zero).
+They tap, press back or Home, drag vertically, and skip tracks. They never reorder or remove a
+queue row, delete or replace a song, change a folder, or write to the music folder, and they
+never target the production or debug packages. Track skips are undone with Previous, so a
+scenario ends on the song it started on (at position zero).
 
 ### Flaky and less safe scenarios
 
@@ -188,6 +209,12 @@ ends on the song it started on (at position zero).
 - `miniIdlePlaying`: a song ending inside a ten-second window adds a track-change burst.
 - `homeExpandCollapse`: with the system animation scale at 0, or battery saver on, the Home
   background stands still and the result matches `expandCollapse`.
+- `playlistsScroll`: its frame times sit close to the 16.67 ms budget, so p90 moves between runs
+  of the same build. Read the share of frames over 16.67 ms and p99 instead, as
+  [docs/perf/README.md](../../docs/perf/README.md) advises for the Redmi scenarios whose P50 is
+  not stable. In both list scrolls the frame timeline counts most frames as buffer stuffing, so
+  the "deadline missed" row is high even when the app's work fits the budget; do not read it on
+  its own.
 - The class comment at the top of each benchmark file has the full notes.
 
 ## Cooldown and heat
@@ -199,7 +226,9 @@ line:
 
 - At or below `--cooldown-temp` (default 33.0 C, the limit used for the Redmi A-B runs): no wait.
 - Above it: it re-reads every 5 s until the battery is at or below the limit, for at most
-  `--cooldown-max` seconds (default 120). After that it prints a warning and continues.
+  `--cooldown-max` seconds (default 120). After that it prints a warning and continues. A phone
+  that charges over USB may never get down to the default 33.0 C; every wait then lasts the
+  full `--cooldown-max` and the run continues with the warning.
 - If the temperature cannot be read: a fixed 30 s pause, the old behavior.
 - `--cooldown-fixed S` (or `--cooldown S`) skips the temperature check and always pauses S
   seconds.
