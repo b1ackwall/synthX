@@ -85,6 +85,8 @@ MAIN_THREAD_RULES = _SHARED_RULES + [
     (EXACT, "compose:lazy:prefetch:compose", "main.recomposition"),
     (EXACT, "compose:lazy:prefetch:apply", "main.recomposition"),
     (EXACT, "compose:lazy:prefetch:resolve-nested", "main.recomposition"),
+    # Wraps the prefetch compose, measure, apply and resolve-nested slices of one urgent prefetch.
+    (EXACT, "compose:lazy:prefetch:execute:urgent", "main.recomposition"),
     (EXACT, "compose:lazy:prefetch:measure", "main.measure_layout"),
     # Coil's painter for a row's album art, set up while the row composes.
     (EXACT, "rememberAsyncImagePainter", "main.recomposition"),
@@ -155,6 +157,8 @@ RENDER_THREAD_RULES = _SHARED_RULES + [
     (PREFIX, "alpha caused saveLayer", "rt.layers"),
     (EXACT, "flush commands", "rt.gpu_flush"),
     (EXACT, "Vulkan finish frame", "rt.gpu_flush"),
+    # Runs inside "Vulkan finish frame"; the sizes are the copied surface's.
+    (REGEX, r"copySurface src=\d+x\d+ dst=\d+x\d+", "rt.gpu_flush"),
     (PREFIX, "auto skgpu::ganesh::OpsTask::", "rt.gpu_flush"),
     (EXACT, "FillRectOp", "rt.gpu_flush"),
     (EXACT, "TextureOp", "rt.gpu_flush"),
@@ -163,6 +167,8 @@ RENDER_THREAD_RULES = _SHARED_RULES + [
     (EXACT, "CircleOp", "rt.gpu_flush"),
     (EXACT, "TriangulatingPathOp", "rt.gpu_flush"),
     (EXACT, "AAConvexPathOp", "rt.gpu_flush"),
+    (EXACT, "DrawAtlasPathOp", "rt.gpu_flush"),
+    (EXACT, "PathStencilCoverOp", "rt.gpu_flush"),
     (EXACT, "AllocateCommandBuffers", "rt.gpu_flush"),
     (EXACT, "Clear", "rt.gpu_flush"),
     (EXACT, "QueueSubmit", "rt.gpu_flush"),
