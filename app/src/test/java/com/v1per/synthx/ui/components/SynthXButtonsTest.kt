@@ -96,18 +96,30 @@ class SynthXButtonsTest {
         assertEquals(expected.centered, layout.centered, "centered")
     }
 
-    @Test fun aPairWithAStandardOrWideButtonStacksBelow600dp() {
+    @Test fun aPairWithAStandardOrWideButtonStacksCentredBelow600dp() {
         listOf(360.dp, 599.dp).forEach {
-            assertLayout(resolveButtonPairLayout(it, Wide, Wide), Expected(Stacked, 240f, 240f, 12f, 12f))
+            assertLayout(
+                resolveButtonPairLayout(it, Wide, Wide),
+                Expected(Stacked, 240f, 240f, 12f, 12f, centered = true),
+            )
         }
-        assertLayout(resolveButtonPairLayout(599.dp, Compact, Standard), Expected(Stacked, 168f, 168f, 12f, 12f))
+        assertLayout(
+            resolveButtonPairLayout(599.dp, Compact, Standard),
+            Expected(Stacked, 168f, 168f, 12f, 12f, centered = true),
+        )
     }
 
-    @Test fun aPairWithAStandardOrWideButtonSitsSideBySideFrom600dp() {
+    @Test fun aPairWithAStandardOrWideButtonSitsSideBySideCentredFrom600dp() {
         listOf(600.dp, 840.dp, Dp.Infinity).forEach {
-            assertLayout(resolveButtonPairLayout(it, Wide, Wide), Expected(SideBySide, 240f, 240f, 12f, 12f))
+            assertLayout(
+                resolveButtonPairLayout(it, Wide, Wide),
+                Expected(SideBySide, 240f, 240f, 12f, 12f, centered = true),
+            )
         }
-        assertLayout(resolveButtonPairLayout(600.dp, Compact, Standard), Expected(SideBySide, 112f, 168f, 12f, 12f))
+        assertLayout(
+            resolveButtonPairLayout(600.dp, Compact, Standard),
+            Expected(SideBySide, 112f, 168f, 12f, 12f, centered = true),
+        )
     }
 
     @Test fun twoCompactButtonsSitSideBySideAndCentredOnEveryPhoneWidth() {

@@ -9,10 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +30,10 @@ import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.components.rememberNotificationPermissionGate
+import com.v1per.synthx.ui.components.SynthXButtonPair
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
+import com.v1per.synthx.ui.components.SynthXSecondaryButton
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
@@ -185,33 +186,18 @@ private fun ChoiceStep(onFreshInstall: () -> Unit, onRecoverFromBackup: () -> Un
         )
         Spacer(modifier = Modifier.height(Spacing.xxl))
 
-        Button(
-            onClick = onFreshInstall,
-            modifier = Modifier.fillMaxWidth().height(Spacing.xxl),
-            shape = MaterialTheme.shapes.small,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SurfaceVariant,
-                contentColor = TextPrimary,
-            ),
-        ) {
-            Text(
-                text = stringResource(R.string.onboarding_fresh_install),
-                style = MaterialTheme.typography.labelLarge,
-                color = TextPrimary,
-            )
-        }
-        Spacer(modifier = Modifier.height(Spacing.md))
-        OutlinedButton(
-            onClick = onRecoverFromBackup,
-            modifier = Modifier.fillMaxWidth().height(Spacing.xxl),
-            shape = MaterialTheme.shapes.small,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-            border = ButtonDefaults.outlinedButtonBorder(enabled = true),
-        ) {
-            Text(
-                text = stringResource(R.string.onboarding_recover_backup),
-                style = MaterialTheme.typography.labelLarge,
-            )
-        }
+        // Stacked below 600dp of width, Fresh install on top; side by side from there. Centred either way.
+        SynthXButtonPair(
+            primary = {
+                SynthXPrimaryButton(onClick = onFreshInstall, width = SynthXButtonWidth.Wide) {
+                    Text(text = stringResource(R.string.onboarding_fresh_install))
+                }
+            },
+            secondary = {
+                SynthXSecondaryButton(onClick = onRecoverFromBackup, width = SynthXButtonWidth.Wide) {
+                    Text(text = stringResource(R.string.onboarding_recover_backup))
+                }
+            },
+        )
     }
 }

@@ -187,24 +187,29 @@ class SynthXButtonsLayoutInstrumentedTest {
         assertNear("centred", secondary.left - container.left, container.right - primary.right)
     }
 
-    @Test fun aStandardAndWidePairStacksAt360dpAtTheWiderWidth12dpApart() {
+    @Test fun aStandardAndWidePairStacksCentredAt360dpAtTheWiderWidth12dpApart() {
         show(360.dp) { TaggedPair(Standard, "Fresh install", Wide, "Recover from backup") }
+        val container = bounds(CONTAINER)
         val primary = bounds(PRIMARY)
         val secondary = bounds(SECONDARY)
         assertTrue("the primary button is on top", primary.bottom < secondary.top)
         assertNear("gap", 12.dp, secondary.top - primary.bottom)
         assertNear("primary takes the wider token", 240.dp, primary.widthDp())
         assertNear("secondary width", 240.dp, secondary.widthDp())
+        assertNear("primary centred", primary.left - container.left, container.right - primary.right)
+        assertNear("secondary centred", secondary.left - container.left, container.right - secondary.right)
     }
 
-    @Test fun aStandardAndWidePairSitsSideBySideAt700dpAtItsOwnWidths() {
+    @Test fun aStandardAndWidePairSitsSideBySideCentredAt700dpAtItsOwnWidths() {
         show(700.dp) { TaggedPair(Standard, "Fresh install", Wide, "Recover from backup") }
+        val container = bounds(CONTAINER)
         val primary = bounds(PRIMARY)
         val secondary = bounds(SECONDARY)
         assertNear("same row", secondary.top, primary.top)
         assertNear("gap", 12.dp, primary.left - secondary.right)
         assertNear("primary keeps Standard", 168.dp, primary.widthDp())
         assertNear("secondary keeps Wide", 240.dp, secondary.widthDp())
+        assertNear("centred as a pair", secondary.left - container.left, container.right - primary.right)
     }
 
     @Test fun aDisabledButtonDrawsAt38PercentAndIgnoresClicks() {

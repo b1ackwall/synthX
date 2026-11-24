@@ -36,8 +36,9 @@ enum class ButtonPairArrangement { SideBySide, Stacked }
 /**
  * The result of [resolveButtonPairLayout]. [gap] is the layout space between the two buttons'
  * layout boxes; [visibleGap] is the space between their drawn edges, which is larger when a
- * button's 48dp tap area extends past its drawn height. [centered] pairs take the whole available
- * width and centre the buttons in it; the others are as wide as their buttons.
+ * button's 48dp tap area extends past its drawn height. [centered] pairs (every screen pair) take
+ * the whole available width and centre the buttons in it; Dialog pairs are as wide as their
+ * buttons.
  */
 @Immutable
 data class ButtonPairLayout(
@@ -52,13 +53,12 @@ data class ButtonPairLayout(
 /**
  * Decides how a pair of buttons is laid out in [availableWidth] ([Dp.Infinity] when unbounded).
  *
- * Two Compact buttons sit side by side, [ButtonSizes.ScreenGap] apart, whenever both fit, and the
- * pair is centred; they stack only when the width cannot hold both.
- *
- * Other screen pairs (with a Standard or Wide button) sit side by side when [availableWidth] is at
- * least [ButtonSizes.PairSideBySideMinWidth] and both fit, and stack otherwise. Side by side, each
- * keeps its own fixed width; stacked, both take the wider of the two. Their gap is
- * [ButtonSizes.ScreenGap], drawn as well as laid out.
+ * Every screen pair is centred in [availableWidth], stacked or side by side, with a
+ * [ButtonSizes.ScreenGap] gap that is drawn as well as laid out. Two Compact buttons sit side by
+ * side whenever both fit and stack only when the width cannot hold both. Other screen pairs (with
+ * a Standard or Wide button) sit side by side when [availableWidth] is at least
+ * [ButtonSizes.PairSideBySideMinWidth] and both fit, and stack otherwise. Side by side, each
+ * button keeps its own fixed width; stacked, both take the wider of the two.
  *
  * Dialog pairs need each button's measured natural width (label plus padding), floored at
  * [ButtonSizes.DialogMinWidth]. They sit side by side, [ButtonSizes.DialogGap] apart, when both
@@ -99,10 +99,10 @@ private fun screenPairLayout(availableWidth: Dp, primary: Dp, secondary: Dp, bot
     val fits = primary + gap + secondary <= availableWidth
     val sideBySide = fits && (bothCompact || availableWidth >= ButtonSizes.PairSideBySideMinWidth)
     if (sideBySide) {
-        return ButtonPairLayout(ButtonPairArrangement.SideBySide, primary, secondary, gap, gap, centered = bothCompact)
+        return ButtonPairLayout(ButtonPairArrangement.SideBySide, primary, secondary, gap, gap, centered = true)
     }
     val shared = max(primary, secondary)
-    return ButtonPairLayout(ButtonPairArrangement.Stacked, shared, shared, gap, gap, centered = bothCompact)
+    return ButtonPairLayout(ButtonPairArrangement.Stacked, shared, shared, gap, gap, centered = true)
 }
 
 private fun dialogPairLayout(availableWidth: Dp, primary: Dp, secondary: Dp): ButtonPairLayout {
@@ -149,8 +149,9 @@ internal fun Modifier.buttonSize(token: SynthXButtonWidth): Modifier {
  * button at the resolved width, so stacked buttons share one width. Side by side, a shorter button
  * is centred vertically against a taller one.
  *
- * A pair of two Compact buttons fills the available width and centres its buttons; every other
- * pair is as wide as its buttons. Stacked Dialog buttons are drawn [ButtonSizes.DialogGap] apart.
+ * A screen pair (Compact, Standard or Wide) fills the available width and centres its buttons,
+ * stacked or side by side; a Dialog pair is as wide as its buttons. Stacked Dialog buttons are
+ * drawn [ButtonSizes.DialogGap] apart.
  */
 @Composable
 fun SynthXButtonPair(

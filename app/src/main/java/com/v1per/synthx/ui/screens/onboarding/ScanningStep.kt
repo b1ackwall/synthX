@@ -7,14 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,13 +22,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import com.v1per.synthx.R
+import com.v1per.synthx.ui.components.SynthXButtonPair
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
+import com.v1per.synthx.ui.components.SynthXSecondaryButton
 import com.v1per.synthx.ui.screens.librarymanagement.FirstScanState
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementViewModel
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Strokes
-import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 
@@ -146,35 +145,28 @@ private fun ScanFailed(
         )
         Spacer(modifier = Modifier.height(Spacing.xxl))
 
+        // Retry leads when it can work; without it Change folder is the one way on, so it takes Primary.
         if (canRetry) {
-            Button(
-                onClick = onRetry,
-                modifier = Modifier.fillMaxWidth().height(Spacing.xxl),
-                shape = MaterialTheme.shapes.small,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SurfaceVariant,
-                    contentColor = TextPrimary,
-                ),
-            ) {
-                Text(
-                    text = stringResource(R.string.action_retry),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = TextPrimary,
-                )
-            }
-            Spacer(modifier = Modifier.height(Spacing.md))
-        }
-        OutlinedButton(
-            onClick = onChangeFolder,
-            modifier = Modifier.fillMaxWidth().height(Spacing.xxl),
-            shape = MaterialTheme.shapes.small,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-            border = ButtonDefaults.outlinedButtonBorder(enabled = true),
-        ) {
-            Text(
-                text = stringResource(R.string.onboarding_scan_change_folder),
-                style = MaterialTheme.typography.labelLarge,
+            SynthXButtonPair(
+                primary = {
+                    SynthXPrimaryButton(onClick = onRetry, width = SynthXButtonWidth.Standard) {
+                        Text(text = stringResource(R.string.action_retry))
+                    }
+                },
+                secondary = {
+                    SynthXSecondaryButton(onClick = onChangeFolder, width = SynthXButtonWidth.Standard) {
+                        Text(text = stringResource(R.string.onboarding_scan_change_folder))
+                    }
+                },
             )
+        } else {
+            SynthXPrimaryButton(
+                onClick = onChangeFolder,
+                width = SynthXButtonWidth.Standard,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                Text(text = stringResource(R.string.onboarding_scan_change_folder))
+            }
         }
     }
 }

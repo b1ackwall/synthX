@@ -6,19 +6,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -26,6 +23,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.UUID
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.DetailTopBar
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
 import com.v1per.synthx.ui.screens.backupsandrestore.BackupsAndRestoreViewModel
 import com.v1per.synthx.ui.screens.librarymanagement.FolderPathFormatter
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementViewModel
@@ -43,8 +42,6 @@ import com.v1per.synthx.ui.screens.restore.RestoreViewModel
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.SurfaceVariant
-import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 
 /** Matches FolderSetupStep's rows, optional-folder gate, scrolling and bottom Done button. */
@@ -129,24 +126,13 @@ internal fun RecoveryFolderSetupStep(
             MusicFolderRequiredHint()
         }
 
-        Button(
+        SynthXPrimaryButton(
             onClick = onDone,
+            width = SynthXButtonWidth.Standard,
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = Spacing.md),
             enabled = folderStepGate.doneEnabled,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.HorizontalPadding)
-                .height(Spacing.xxl),
-            shape = MaterialTheme.shapes.small,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SurfaceVariant,
-                contentColor = TextPrimary,
-            ),
         ) {
-            Text(
-                text = stringResource(R.string.action_done),
-                style = MaterialTheme.typography.labelLarge,
-                color = TextPrimary,
-            )
+            Text(text = stringResource(R.string.action_done))
         }
     }
 }
