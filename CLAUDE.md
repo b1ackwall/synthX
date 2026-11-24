@@ -218,7 +218,8 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
   2. Selected bottom nav item
   3. Playing indicator bar in song rows
   4. Ripple on clickable rows
-  5. Hairline (Color.kt: Accent at 8% alpha) for dividers, borders and the theme outline
+  5. Hairline (Color.kt: Accent at 8% alpha) for dividers, card borders and the theme outline.
+     The Secondary button border uses ButtonBorder (Color.kt: TextPrimary at 38% alpha), not Hairline
 - The theme's primary and secondary are Accent, so a TextButton or other primary-coloured
   control without an explicit colour inherits it.
 - Outfit font (body/UI). The wordmark is the fixed-colour vector drawable ic_wordmark (no font).

@@ -20,5 +20,8 @@ val TextTertiary = Color(0xFFDAE7DC)
 // Derived from Accent, never a standalone hex — it must follow the accent automatically.
 val Hairline = Accent.copy(alpha = 0.08f) // neon at 8% alpha — 1dp dividers and borders
 
+// Buttons
+val ButtonBorder = TextPrimary.copy(alpha = 0.38f) // TextPrimary at 38% alpha — the Secondary button's border
+
 // Status
 val Error = Color(0xFFEE6363) // HSL(360, 80%, 66%)

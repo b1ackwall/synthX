@@ -13,6 +13,22 @@ class DesignTokenValuesTest {
     @Test fun strokesKeepTheirWidths() {
         assertEquals(1f, Strokes.Hairline.value)
         assertEquals(2f, Strokes.ProgressRing.value)
+        assertEquals(1f, Strokes.ButtonBorder.value)
+    }
+
+    @Test fun buttonSizesKeepTheirValues() {
+        assertEquals(112f, ButtonSizes.Compact.value)
+        assertEquals(168f, ButtonSizes.Standard.value)
+        assertEquals(240f, ButtonSizes.Wide.value)
+        assertEquals(64f, ButtonSizes.DialogMinWidth.value)
+        assertEquals(48f, ButtonSizes.ScreenMinHeight.value)
+        assertEquals(40f, ButtonSizes.DialogMinHeight.value)
+        assertEquals(24f, ButtonSizes.HorizontalPadding.value)
+        assertEquals(12f, ButtonSizes.ScreenGap.value)
+        assertEquals(8f, ButtonSizes.DialogGap.value)
+        assertEquals(8f, ButtonSizes.DialogTapAreaReserve.value)
+        assertEquals(0f, ButtonSizes.StackedDialogLayoutGap.value)
+        assertEquals(600f, ButtonSizes.PairSideBySideMinWidth.value)
     }
 
     @Test fun gapsKeepTheirHeights() {
