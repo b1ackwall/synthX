@@ -11,7 +11,7 @@ import kotlinx.coroutines.ensureActive
 
 private const val TAG = "SynthXScan"
 
-private val SUPPORTED_EXTENSIONS = setOf("mp3", "flac", "aac", "m4a", "wav", "ogg")
+private val SUPPORTED_EXTENSIONS = setOf("mp3", "flac", "aac", "m4a", "wav", "ogg", "oga", "opus")
 
 /**
  * Reachability precondition for a configured SAF root: is [uri] still granted, and does it

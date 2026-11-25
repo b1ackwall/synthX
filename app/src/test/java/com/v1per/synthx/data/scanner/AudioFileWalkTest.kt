@@ -34,6 +34,16 @@ class AudioFileWalkTest {
         assertTrue(isScannableAudioName("graduating_Song.mp3"))
     }
 
+    @Test fun oggFamilyExtensionsAreScannableAndMatroskaIsNot() {
+        assertTrue(isScannableAudioName("Song.opus"))
+        assertTrue(isScannableAudioName("Song.OPUS"))
+        assertTrue(isScannableAudioName("Song.oga"))
+        assertTrue(isScannableAudioName("Song.ogg"))
+        assertFalse(isScannableAudioName("Song.webm"))
+        assertFalse(isScannableAudioName("Song.mka"))
+        assertFalse(isScannableAudioName(".graduating_Song.opus"))
+    }
+
     /** Walks a real directory tree through DocumentFile, not just the name predicate. */
     @Test fun walkSkipsGraduationTempFilesAtEveryDepth() = runTest {
         File(root, "Song.mp3").writeText("a")

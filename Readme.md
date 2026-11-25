@@ -21,7 +21,7 @@ synthX does not ask for the Internet permission, so it cannot connect to the net
 ## Requirements
 
 - Android 12L (API 32) or newer.
-- A folder of music files: FLAC, MP3, AAC, M4A (AAC), WAV or Ogg. Decoding uses your phone's built-in codecs. Other formats, such as Opus, WMA, APE and ALAC, are not scanned.
+- A folder of music files ending in .flac, .mp3, .aac, .m4a, .wav, .ogg, .oga or .opus. Decoding uses your phone's built-in codecs. Files with other extensions, such as .wma or .ape, are not scanned.
 
 ## Install
 
