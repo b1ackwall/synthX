@@ -26,9 +26,9 @@ class PlayerContentColorsTest {
         assertEquals(Background, PlayerContentColors.Dark.content)
     }
 
-    @Test fun offIsTheContentColorAtSixtyPercent() {
-        assertEquals(TextPrimary.copy(alpha = 0.6f), PlayerContentColors.Light.off)
-        assertEquals(Background.copy(alpha = 0.6f), PlayerContentColors.Dark.off)
+    @Test fun onContentIsTheOtherContentColor() {
+        assertEquals(Background, PlayerContentColors.Light.onContent)
+        assertEquals(TextPrimary, PlayerContentColors.Dark.onContent)
     }
 
     @Test fun disabledIsTheContentColorAtThirtyEightPercent() {
@@ -37,7 +37,6 @@ class PlayerContentColorsTest {
     }
 
     @Test fun alphaTokensHaveTheAgreedValues() {
-        assertEquals(0.6f, Alpha.ToggleOff)
         assertEquals(0.25f, Alpha.SeekTrackUnplayed)
         assertEquals(0.75f, Alpha.SeekTrackPlayed)
         assertEquals(0.38f, Alpha.Disabled)

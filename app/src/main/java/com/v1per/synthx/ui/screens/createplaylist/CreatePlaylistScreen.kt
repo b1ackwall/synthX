@@ -16,8 +16,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,10 +48,12 @@ import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.RingSizes
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Strokes
-import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
+import androidx.compose.material3.LocalContentColor
 
 @Composable
 fun CreatePlaylistScreen(
@@ -103,6 +103,7 @@ fun CreatePlaylistScreen(
                     enabled = name.isNotBlank() && !isCreating,
                     isCreating = isCreating,
                     onClick = { viewModel.createPlaylist(name, selectedGroupId) },
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
                 )
                 Spacer(modifier = Modifier.height(Spacing.lg))
             }
@@ -202,31 +203,16 @@ fun CreatePlaylistScreen(
 }
 
 @Composable
-private fun CreateButton(enabled: Boolean, isCreating: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(Spacing.xxl),
-        shape = MaterialTheme.shapes.small,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = SurfaceVariant,
-            contentColor = TextPrimary,
-        ),
-    ) {
+private fun CreateButton(enabled: Boolean, isCreating: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    SynthXPrimaryButton(onClick = onClick, width = SynthXButtonWidth.Standard, modifier = modifier, enabled = enabled) {
         if (isCreating) {
             CircularProgressIndicator(
                 modifier = Modifier.size(RingSizes.Small),
-                color = TextPrimary,
+                color = LocalContentColor.current,
                 strokeWidth = Strokes.ProgressRing,
             )
         } else {
-            Text(
-                text = stringResource(R.string.action_create_playlist),
-                style = MaterialTheme.typography.labelLarge,
-                color = TextPrimary,
-            )
+            Text(text = stringResource(R.string.action_create_playlist))
         }
     }
 }

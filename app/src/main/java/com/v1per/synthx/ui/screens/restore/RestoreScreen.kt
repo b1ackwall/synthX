@@ -12,12 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,8 +42,11 @@ import com.v1per.synthx.ui.theme.TextSecondary
 import kotlin.system.exitProcess
 import android.net.Uri
 import java.util.UUID
+import com.v1per.synthx.ui.components.SynthXAlertDialog
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
+import com.v1per.synthx.ui.components.SynthXSecondaryButton
 // Aliased: the Material3 `Surface` composable already owns this simple name in this file.
-import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
 @Composable
 fun RestoreScreen(
@@ -104,21 +104,9 @@ fun RestoreScreen(
             onDismiss = { viewModel.dismissPreview() },
         )
 
-        is RestorePreview.Failed -> AlertDialog(
-            onDismissRequest = viewModel::dismissPreview,
-            title = { Text(stringResource(R.string.restore_preview_error_title)) },
-            text = { Text(current.message) },
-            confirmButton = {
-                TextButton(
-                    onClick = viewModel::dismissPreview,
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) {
-                    Text(stringResource(R.string.action_ok))
-                }
-            },
-            containerColor = SurfaceColor,
-            titleContentColor = TextPrimary,
-            textContentColor = TextSecondary,
+        is RestorePreview.Failed -> RestorePreviewFailedDialog(
+            message = current.message,
+            onDismiss = viewModel::dismissPreview,
         )
 
         RestorePreview.Idle -> Unit
@@ -148,57 +136,74 @@ fun RestoreScreen(
             },
         )
 
-        is RestoreOutcome.Complete -> AlertDialog(
-            // Not dismissible: the DB handle is closed and every live ViewModel is stale.
-            // The only correct next step is a cold start.
-            onDismissRequest = {},
-            title = { Text(stringResource(R.string.restore_done_title)) },
-            text = { Text(stringResource(R.string.restore_done_message)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        try {
-                            viewModel.terminalOutcomeWasShown(onTerminalOutcomeShown)
-                        } finally {
-                            exitProcess(0)
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) {
-                    Text(stringResource(R.string.action_ok))
+        is RestoreOutcome.Complete -> RestoreCompleteDialog(
+            onOk = {
+                try {
+                    viewModel.terminalOutcomeWasShown(onTerminalOutcomeShown)
+                } finally {
+                    exitProcess(0)
                 }
             },
-            containerColor = SurfaceColor,
-            titleContentColor = TextPrimary,
-            textContentColor = TextSecondary,
         )
 
-        is RestoreOutcome.Failed -> AlertDialog(
-            onDismissRequest = dismissFailedOutcome,
-            title = { Text(stringResource(R.string.restore_failed_title)) },
-            text = { Text(current.message) },
-            confirmButton = {
-                TextButton(
-                    onClick = dismissFailedOutcome,
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) {
-                    Text(stringResource(R.string.action_ok))
-                }
-            },
-            containerColor = SurfaceColor,
-            titleContentColor = TextPrimary,
-            textContentColor = TextSecondary,
-        )
+        is RestoreOutcome.Failed -> RestoreFailedDialog(message = current.message, onDismiss = dismissFailedOutcome)
 
         else -> Unit
     }
+}
+
+/** The backup's preview could not be built; OK, Back and an outside tap all call [onDismiss]. */
+@Composable
+internal fun RestorePreviewFailedDialog(message: String, onDismiss: () -> Unit) {
+    SynthXAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.restore_preview_error_title)) },
+        text = { Text(message) },
+        confirmButton = {
+            SynthXPrimaryButton(onClick = onDismiss, width = SynthXButtonWidth.Dialog) {
+                Text(stringResource(R.string.action_ok))
+            }
+        },
+    )
+}
+
+/** The restore finished; [onOk] is the only way out. */
+@Composable
+internal fun RestoreCompleteDialog(onOk: () -> Unit) {
+    SynthXAlertDialog(
+        // Not dismissible: the DB handle is closed and every live ViewModel is stale.
+        // The only correct next step is a cold start.
+        onDismissRequest = {},
+        title = { Text(stringResource(R.string.restore_done_title)) },
+        text = { Text(stringResource(R.string.restore_done_message)) },
+        confirmButton = {
+            SynthXPrimaryButton(onClick = onOk, width = SynthXButtonWidth.Dialog) {
+                Text(stringResource(R.string.action_ok))
+            }
+        },
+    )
+}
+
+/** The restore failed with [message]; OK, Back and an outside tap all call [onDismiss]. */
+@Composable
+internal fun RestoreFailedDialog(message: String, onDismiss: () -> Unit) {
+    SynthXAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.restore_failed_title)) },
+        text = { Text(message) },
+        confirmButton = {
+            SynthXPrimaryButton(onClick = onDismiss, width = SynthXButtonWidth.Dialog) {
+                Text(stringResource(R.string.action_ok))
+            }
+        },
+    )
 }
 
 /**
  * The shared full-screen overlay for both the preview-staging and restore-in-progress
  * waits — determinate once a [RestoreProgressStep] is known, indeterminate
  * otherwise, crossfading between the two exactly like [com.v1per.synthx.ui.screens.librarymanagement.ScanSection]'s
- * `ScanProgressBar`. [onCancel] is null to hide the cancel row entirely — used once a restore
+ * `ScanProgressBar`. [onCancel] is null to hide the Cancel button entirely — used once a restore
  * has passed into its uninterruptible install phase.
  */
 @Composable
@@ -236,10 +241,7 @@ private fun RestoreProgressOverlay(step: RestoreProgressStep?, fallbackText: Str
             Text(text = label, style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
             if (onCancel != null) {
                 Spacer(modifier = Modifier.height(Spacing.md))
-                TextButton(
-                    onClick = onCancel,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Error),
-                ) {
+                SynthXSecondaryButton(onClick = onCancel, width = SynthXButtonWidth.Compact) {
                     Text(text = stringResource(R.string.action_cancel))
                 }
             }

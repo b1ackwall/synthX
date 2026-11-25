@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.DeviceConfigurationOverride
@@ -20,6 +18,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
@@ -27,6 +26,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.R
 import com.v1per.synthx.data.backup.ScanStub
 import com.v1per.synthx.data.backup.ScanStubWorkerFactory
+import com.v1per.synthx.ui.testing.assertPixelEventually
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextPrimary
 import org.junit.Assert.assertEquals
@@ -94,14 +94,15 @@ class OnboardingButtonsLayoutInstrumentedTest : OnboardingRecoveryTestBase() {
     private fun assertLabelColour(text: String, primary: Boolean) =
         assertEquals("$text label colour", if (primary) Background else TextPrimary, textColorOf(text))
 
-    // Sampled just inside the start edge, clear of the centred label.
+    // Sampled just inside the start edge, clear of the centred label. Re-captured until it shows: a capture
+    // right after Retry disappears can still be the frame where this point was the gap below Retry.
     private fun assertTextPrimaryFill(text: String) {
-        val image = composeRule.onNodeWithText(text).captureToImage()
         val x = with(composeRule.density) { PIXEL_INSET.roundToPx() }
-        val actual = image.toPixelMap()[x, image.height / 2]
-        assertEquals("$text fill red", TextPrimary.red, actual.red, COLOR_TOLERANCE)
-        assertEquals("$text fill green", TextPrimary.green, actual.green, COLOR_TOLERANCE)
-        assertEquals("$text fill blue", TextPrimary.blue, actual.blue, COLOR_TOLERANCE)
+        composeRule.assertPixelEventually(
+            description = "$text fill",
+            expected = TextPrimary,
+            capture = { composeRule.onNodeWithText(text).captureToImage() },
+        ) { image -> IntOffset(x, image.height / 2) }
     }
 
     @Test fun onA360dpScreenTheChoiceButtonsAreWideStackedCentredAndOnOneLine() {
@@ -229,7 +230,6 @@ class OnboardingButtonsLayoutInstrumentedTest : OnboardingRecoveryTestBase() {
     private companion object {
         const val SCREEN_TAG = "onboarding_screen"
         const val TOLERANCE_DP = 0.5f
-        const val COLOR_TOLERANCE = 3f / 255f
         val PIXEL_INSET = 6.dp
     }
 }

@@ -20,6 +20,7 @@ import com.v1per.synthx.ui.screens.restore.BackupRow
 import com.v1per.synthx.ui.screens.restore.RestoreAppStatus
 import com.v1per.synthx.ui.testing.TestTimeouts
 import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextPrimary
 import java.util.UUID
@@ -30,8 +31,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Text that sits outside the five accent contexts must paint a neutral token, never Accent.
- * Buttons left on the Material default would take the theme's primary role, which is Accent.
+ * Text that sits outside the five accent contexts paints a neutral token, never Accent. A button paints its
+ * role's label colour: Background on the Primary and Destructive fills, TextPrimary for Secondary and
+ * Tertiary. A button left on a Material default would take the theme's primary role, which is Accent.
  */
 @RunWith(AndroidJUnit4::class)
 class AccentContextColorInstrumentedTest {
@@ -50,10 +52,10 @@ class AccentContextColorInstrumentedTest {
         return layouts.first().layoutInput.style.color
     }
 
-    private fun assertNeutral(text: String) {
+    private fun assertPaints(text: String, expected: Color) {
         val color = textColorOf(text)
         assertNotEquals("'$text' paints Accent", Accent, color)
-        assertEquals("'$text' paints the wrong colour", TextPrimary, color)
+        assertEquals("'$text' paints the wrong colour", expected, color)
     }
 
     @Test
@@ -71,11 +73,11 @@ class AccentContextColorInstrumentedTest {
         composeRule.setContent {
             SynthXTheme { BackupRow(backup = backup, isMostRecent = true, onClick = {}) }
         }
-        assertNeutral(context.getString(R.string.restore_row_most_recent))
+        assertPaints(context.getString(R.string.restore_row_most_recent), TextPrimary)
     }
 
     @Test
-    fun restoreOutcomeOkButtonIsNotAccent() {
+    fun restoreOutcomeOkButtonPaintsThePrimaryLabel() {
         composeRule.setContent {
             SynthXTheme {
                 RestoreObservedStatusHost(
@@ -85,11 +87,11 @@ class AccentContextColorInstrumentedTest {
                 )
             }
         }
-        assertNeutral(context.getString(R.string.action_ok))
+        assertPaints(context.getString(R.string.action_ok), Background)
     }
 
     @Test
-    fun deleteSongRetryButtonIsNotAccent() {
+    fun deleteSongRetryButtonPaintsTheTertiaryLabel() {
         composeRule.setContent {
             SynthXTheme {
                 DeleteSongDisclosure(
@@ -99,16 +101,16 @@ class AccentContextColorInstrumentedTest {
                 )
             }
         }
-        assertNeutral(context.getString(R.string.action_retry))
+        assertPaints(context.getString(R.string.action_retry), TextPrimary)
     }
 
     @Test
-    fun emergencyScreenButtonsAreNotAccent() {
+    fun emergencyScreenButtonsPaintTheirRolesLabels() {
         composeRule.setContent {
             SynthXTheme { RestoreTerminalContent(RestoreCoordinator.Terminal.EMERGENCY) }
         }
-        assertNeutral("Export diagnostics")
-        assertNeutral("Choose backup")
-        assertNeutral(context.getString(R.string.action_close))
+        assertPaints("Export diagnostics", TextPrimary)
+        assertPaints("Choose backup", Background)
+        assertPaints(context.getString(R.string.action_close), TextPrimary)
     }
 }

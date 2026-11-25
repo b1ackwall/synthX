@@ -1,7 +1,6 @@
 package com.v1per.synthx.ui.screens.issues
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
@@ -42,9 +40,10 @@ import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Strokes
-import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
-import com.v1per.synthx.ui.theme.TextTertiary
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXTextButton
+import com.v1per.synthx.ui.components.SynthXSnackbarHost
 // Aliased: the Material3 `Surface` composable already owns this simple name in this file.
 
 @Composable
@@ -148,7 +147,7 @@ fun IssuesScreen(
                 modifier = Modifier.weight(1f),
             )
         }
-        SnackbarHost(
+        SynthXSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
@@ -168,7 +167,7 @@ internal fun ScanStatusBar(status: IssuesScanStatus, onScan: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = Spacing.HorizontalPadding, top = Spacing.md, bottom = Spacing.md),
+                .padding(start = Spacing.HorizontalPadding, top = Spacing.sm, bottom = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -181,14 +180,9 @@ internal fun ScanStatusBar(status: IssuesScanStatus, onScan: () -> Unit) {
             )
             // Disabled for Resolving as well as Scanning: until WorkManager has reported, a
             // scan may already be running and this would be a second, pointless request.
-            Text(
-                text = stringResource(R.string.issues_scan),
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (idle) TextPrimary else TextTertiary,
-                modifier = Modifier
-                    .clickable(enabled = idle, onClick = onScan)
-                    .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
-            )
+            SynthXTextButton(onClick = onScan, width = SynthXButtonWidth.Compact, enabled = idle) {
+                Text(text = stringResource(R.string.issues_scan))
+            }
         }
         HorizontalDivider(
             thickness = Strokes.Hairline,

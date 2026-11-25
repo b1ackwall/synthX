@@ -116,10 +116,11 @@ fun Modifier.dragResistantClickable(
 /**
  * Drop-in replacement for Material3's [androidx.compose.material3.IconButton] built on
  * [dragResistantClickable] instead of `clickable`, for icon buttons nested inside an
- * ancestor drag detector. [size] defaults to IconButton's own default 40dp circular
- * touch target; callers with a larger custom touch target (e.g. PlayerSkeletonControlsOverlay's
+ * ancestor drag detector. [size] is the drawn circular size, IconButton's own default 40dp
+ * unless given; below 48dp, Compose still takes taps within the 48dp minimum touch target it
+ * gives a clickable. Callers with a larger custom size (e.g. PlayerSkeletonControlsOverlay's
  * 72dp/96dp transport buttons) pass it explicitly rather than layering a conflicting
- * `Modifier.size(...)` on top.
+ * `Modifier.size(...)` on top. The player's on/off controls use [PlayerToggleButton] instead.
  */
 @Composable
 fun DragResistantIconButton(

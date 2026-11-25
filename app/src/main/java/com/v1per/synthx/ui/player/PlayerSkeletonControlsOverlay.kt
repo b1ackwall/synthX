@@ -36,11 +36,12 @@ import com.v1per.synthx.perf.PerfTestTags
 import com.v1per.synthx.perf.PerfTraceSections
 import com.v1per.synthx.ui.components.DragResistantIconButton
 import com.v1per.synthx.ui.components.PlayerSeekBar
+import com.v1per.synthx.ui.components.PlayerToggleButton
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Spacing
 
 /**
- * Controls overlay: seek bar, transport controls, queue placeholder, laid out as a Column.
+ * Controls overlay: seek bar, transport controls, queue button, laid out as a Column.
  * Queue-mode content (PlayerSkeletonQueueContent's QueueList) sits beneath this overlay in
  * the same screen region, so a no-op `.clickable(indication = null, onClick = {})`
  * touch-blocker on the outer Column keeps taps in the transparent controls area from
@@ -296,25 +297,23 @@ internal fun BoxScope.PlayerSkeletonControlsOverlay(
                 horizontalArrangement = Arrangement.Center,
             ) {
                 // Toggles the queueProgress animation that crossfades between player mode
-                // and queue mode. Same enabled gate as the
-                // transport buttons and PlayerSeekBar (overlayControlsEnabled). onClick is the
-                // remember-ed stable reference from PlayerSheetSkeleton, not an inline closure —
-                // see its doc comment for why.
-                DragResistantIconButton(
+                // and queue mode: filled while in queue mode, plain in player mode, and a switch
+                // that is on in queue mode to accessibility services. Same click gate as the
+                // transport buttons and PlayerSeekBar (overlayControlsEnabled), which never dims it.
+                // onClick is the remember-ed stable reference from PlayerSheetSkeleton, not an
+                // inline closure — see its doc comment for why.
+                PlayerToggleButton(
+                    checked = isQueueMode,
                     onClick = onQueueClick,
+                    icon = Icons.AutoMirrored.Filled.QueueMusic,
+                    contentDescription = stringResource(R.string.cd_queue),
                     modifier = Modifier.testTag(PerfTestTags.QueueButton),
-                    enabled = overlayControlsEnabled,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                        contentDescription = stringResource(R.string.cd_queue),
-                        tint = if (isQueueMode) contentColors.content else contentColors.off,
-                        modifier = Modifier.size(28.dp),
-                    )
-                }
+                    iconSize = 28.dp,
+                    interactive = overlayControlsEnabled,
+                )
             }
 
-            // Fills the remaining height; 44dp remains at 300dp height with 40dp gaps.
+            // Fills the remaining height; 36dp remains at 300dp height with 40dp gaps and the 48dp queue toggle.
             Spacer(modifier = Modifier.weight(1f))
         }
     }

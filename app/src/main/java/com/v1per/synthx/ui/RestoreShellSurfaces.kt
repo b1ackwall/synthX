@@ -10,10 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +25,9 @@ import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlin.system.exitProcess
+import com.v1per.synthx.ui.components.SynthXAlertDialog
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
 
 /**
  * Shown for the whole of [RestoreCoordinator.Mode.RESTORE_PREPARING]: database admission is
@@ -75,14 +75,14 @@ internal fun RestoreMaintenanceSurface() {
 @Composable
 internal fun RestoreTerminalSurface(restoreTerminal: RestoreCoordinator.Terminal, diagnosticOperationId: String?) {
     val diagnosticId = diagnosticOperationId ?: stringResource(R.string.restore_terminal_diagnostic_unavailable)
-    AlertDialog(
+    SynthXAlertDialog(
         onDismissRequest = {},
         title = { Text(restoreTerminalTitle(restoreTerminal)) },
         text = { Text(restoreTerminalMessage(restoreTerminal, diagnosticId)) },
         confirmButton = {
-            TextButton(
+            SynthXPrimaryButton(
                 onClick = { exitProcess(0) },
-                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                width = SynthXButtonWidth.Dialog,
             ) { Text(stringResource(R.string.action_close)) }
         },
     )

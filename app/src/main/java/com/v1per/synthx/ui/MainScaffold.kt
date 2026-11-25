@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +57,7 @@ import com.v1per.synthx.ui.screens.restore.RestoreStatusViewModel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import com.v1per.synthx.ui.components.SynthXSnackbarHost
 
 /**
  * The app shell. Which of three surfaces it composes is decided by [RestoreShellPolicy] from
@@ -347,7 +347,7 @@ private fun NormalShell(
                     .padding(bottom = chromeBottomPadding),
                 contentAlignment = Alignment.BottomCenter,
             ) {
-                SnackbarHost(hostState = snackbarHostState)
+                SynthXSnackbarHost(hostState = snackbarHostState)
             }
 
             // Keep plays the tapped song next; Clear rebuilds from the list it came from.

@@ -3,10 +3,7 @@ package com.v1per.synthx.ui.components
 import android.Manifest
 import android.annotation.SuppressLint
 import android.os.Build
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,7 +17,6 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.v1per.synthx.R
 import com.v1per.synthx.preferences.PreferencesManager
-import com.v1per.synthx.ui.theme.TextPrimary
 
 /**
  * When synthX asks for POST_NOTIFICATIONS: only once the user has started work that posts a
@@ -118,15 +114,15 @@ internal fun rememberNotificationPermissionGate(): NotificationPermissionGate {
 @Composable
 internal fun NotificationRationaleDialog(visible: Boolean, onContinue: () -> Unit) {
     if (!visible) return
-    AlertDialog(
+    SynthXAlertDialog(
         // Single-path dialog: the system prompt that follows carries the real allow/deny choice.
         onDismissRequest = {},
         title = { Text(stringResource(R.string.notification_permission_title)) },
         text = { Text(stringResource(R.string.notification_permission_message)) },
         confirmButton = {
-            TextButton(
+            SynthXPrimaryButton(
                 onClick = onContinue,
-                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                width = SynthXButtonWidth.Dialog,
             ) { Text(stringResource(R.string.action_continue)) }
         },
     )

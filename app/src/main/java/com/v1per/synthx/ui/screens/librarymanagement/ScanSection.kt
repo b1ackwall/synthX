@@ -7,9 +7,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.LinearProgressIndicator
@@ -26,6 +24,9 @@ import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Motion
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.TextPrimary
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXSecondaryButton
+import androidx.compose.foundation.layout.Box
 
 @Composable
 internal fun ScanSection(
@@ -42,8 +43,9 @@ internal fun ScanSection(
         isScanning = isScanning,
         onClick = onRescan,
     )
-    // expandVertically/shrinkVertically (not a plain fade) since the two rows occupy real
-    // layout space — a bare fade would leave a blank gap/jump as they appear or disappear.
+    // expandVertically/shrinkVertically (not a plain fade) since the progress bar and the Cancel
+    // button occupy real layout space — a bare fade would leave a blank gap/jump as they appear or
+    // disappear.
     // Same enter/exit token pairing as PlaylistListScreen's CreateGroupCard reveal.
     AnimatedVisibility(
         visible = isScanning,
@@ -56,7 +58,7 @@ internal fun ScanSection(
     ) {
         Column {
             ScanProgressBar(progress = progress)
-            CancelScanRow(onClick = onCancelScan)
+            CancelScanButton(onClick = onCancelScan)
         }
     }
 }
@@ -115,18 +117,15 @@ private fun ScanProgressBar(progress: ScanProgress?) {
 }
 
 @Composable
-private fun CancelScanRow(onClick: () -> Unit) {
-    Row(
+private fun CancelScanButton(onClick: () -> Unit) {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = stringResource(R.string.action_cancel),
-            style = MaterialTheme.typography.bodyLarge,
-            color = Error,
-        )
+        SynthXSecondaryButton(onClick = onClick, width = SynthXButtonWidth.Compact) {
+            Text(text = stringResource(R.string.action_cancel))
+        }
     }
 }

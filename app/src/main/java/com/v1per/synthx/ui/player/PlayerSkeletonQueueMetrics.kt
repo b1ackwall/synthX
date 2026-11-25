@@ -3,6 +3,7 @@ package com.v1per.synthx.ui.player
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.v1per.synthx.ui.theme.ButtonSizes
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SynthXTypography
 
@@ -15,21 +16,36 @@ val QueueModeArtSize: Dp = 44.dp
  * Queue-mode-only positioning height used to establish the header Column's top anchor. This
  * deliberately remains independent of the regular player's title-row reservation: the two
  * layouts have separate spacing requirements and must be free to change without moving each
- * other. Restoring 68dp preserves the queue thumbnail's intended 72dp resting position.
+ * other. At 68dp the queue thumbnail's top rests 80dp below the sheet's top (QueueArtPositioningTest pins it).
  */
 val QueueHeaderRowHeight: Dp = 68.dp
+
+/**
+ * [com.v1per.synthx.ui.components.QueuePlaybackModeRow]'s real intrinsic height, as rendered
+ * in PlayerSkeletonQueueContent: its own [Spacing.sm] (8dp) vertical padding on both sides of
+ * its [ButtonSizes.PlayerToggle] (48dp) toggles, 8 + 48 + 8 = 64dp. Not measured at runtime,
+ * same reasoning as [QueueHeaderRowIntrinsicHeight] below.
+ *
+ * Declared before [QueueHeaderRegionHeight], which reads it while the file's properties are
+ * initialised in order. MUST be kept in sync with QueuePlaybackModeRow.kt's actual layout: if
+ * its padding or toggle size changes, update this to match, for the same reason as
+ * [QueueHeaderRowIntrinsicHeight]. QueuePlaybackModeRowLayoutInstrumentedTest compares the two.
+ */
+val QueuePlaybackModeRowIntrinsicHeight: Dp = Spacing.sm * 2 + ButtonSizes.PlayerToggle
 
 /**
  * Height of the queue-mode header-to-playback-row region — a real Column (header Row +
  * a single leading weight(1f) spacer + [com.v1per.synthx.ui.components.QueuePlaybackModeRow],
  * built in PlayerSkeletonQueueContent) is given exactly this much bounded height so that
- * spacer has real slack to distribute. Composed from existing [Spacing] tokens rather than a
- * bespoke literal: [Spacing.xxl] for the header row's own footprint, [Spacing.RowHeight] for
- * the playback row's, and [Spacing.xl] as the slack absorbed entirely by the one leading
- * spacer. It is independent of both [QueueHeaderRowHeight] and the regular player's title-row
- * reservation, so those concerns can be tuned without changing this region's height.
+ * spacer has real slack to distribute: [Spacing.xxl] for the header row's own footprint,
+ * [QueuePlaybackModeRowIntrinsicHeight] for the playback row's, and [Spacing.xl] as the slack
+ * absorbed entirely by the one leading spacer, 48 + 64 + 32 = 144dp. Because the playback row's
+ * full height is counted, the header Row and the art sit where they would with any row height,
+ * and the Up Next list starts right below the region. It is independent of both
+ * [QueueHeaderRowHeight] and the regular player's title-row reservation, so those concerns can
+ * be tuned without changing this region's height.
  */
-val QueueHeaderRegionHeight: Dp = Spacing.xxl + Spacing.RowHeight + Spacing.xl
+val QueueHeaderRegionHeight: Dp = Spacing.xxl + QueuePlaybackModeRowIntrinsicHeight + Spacing.xl
 
 /**
  * Queue-mode header Row's real intrinsic height, as rendered in PlayerSkeletonQueueContent —
@@ -60,18 +76,6 @@ val QueueHeaderRegionHeight: Dp = Spacing.xxl + Spacing.RowHeight + Spacing.xl
 val Density.QueueHeaderRowIntrinsicHeight: Dp
     get() = SynthXTypography.bodyLarge.lineHeight.toDp() +
         SynthXTypography.bodyMedium.lineHeight.toDp()
-
-/**
- * [com.v1per.synthx.ui.components.QueuePlaybackModeRow]'s real intrinsic height, as rendered
- * in PlayerSkeletonQueueContent — its own `Spacing.sm` (8dp) vertical padding on both sides of
- * its default-sized (40dp) `DragResistantIconButton`s: 8 + 40 + 8 = 56dp. Not measured at
- * runtime, same
- * reasoning as [QueueHeaderRowIntrinsicHeight] above.
- *
- * MUST be kept in sync with QueuePlaybackModeRow.kt's actual layout: if its padding or icon
- * size changes, update this to match, for the same reason as [QueueHeaderRowIntrinsicHeight].
- */
-val QueuePlaybackModeRowIntrinsicHeight: Dp = 56.dp
 
 /**
  * The queue-mode Column's single leading weight(1f) spacer's real height — [QueueHeaderRegionHeight]

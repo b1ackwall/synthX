@@ -21,7 +21,7 @@ internal val ExpandedTopMargin: Dp = 32.dp
 
 /**
  * Fixed footprint of the bottom controls overlay (seek bar, transport controls, queue
- * placeholder). Used *without* adding a navigation-bar inset on top — PlayerSheetSkeleton
+ * button). Used *without* adding a navigation-bar inset on top — PlayerSheetSkeleton
  * is hosted inside SynthXBottomNav's Box, which already applies `.navigationBarsPadding()`
  * around both the nav and the sheet, so the inset is already excluded from this composable's
  * own `maxHeight`. Re-adding it here would double-count it.

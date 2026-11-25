@@ -9,14 +9,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -31,6 +27,27 @@ import com.v1per.synthx.data.backup.UnsupportedLiveDatabaseVersionException
 import com.v1per.synthx.ui.restoreTerminalMessage
 import com.v1per.synthx.ui.restoreTerminalTitle
 import com.v1per.synthx.ui.theme.TextPrimary
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ripple
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.Role
+import com.v1per.synthx.data.backup.BackupInfo
+import com.v1per.synthx.ui.components.SynthXAlertDialog
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXDestructiveButton
+import com.v1per.synthx.ui.components.SynthXDialogButtonStack
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
+import com.v1per.synthx.ui.components.SynthXSecondaryButton
+import com.v1per.synthx.ui.theme.Accent
+import com.v1per.synthx.ui.theme.Alpha
+import com.v1per.synthx.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
@@ -53,15 +70,14 @@ internal fun DatabaseStartupFailureContent(error: Throwable, onRetry: () -> Unit
             (error.message?.takeIf(String::isNotBlank)?.let { "\n\n$it" } ?: "")
     }
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AlertDialog(
+        SynthXAlertDialog(
             onDismissRequest = {},
             title = { Text(stringResource(R.string.startup_failure_title)) },
             text = { Text(message) },
             confirmButton = {
-                TextButton(
-                    onClick = onRetry,
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) { Text(stringResource(R.string.action_retry)) }
+                SynthXPrimaryButton(onClick = onRetry, width = SynthXButtonWidth.Dialog) {
+                    Text(stringResource(R.string.action_retry))
+                }
             },
         )
     }
@@ -88,15 +104,14 @@ internal fun MigrationRecoveryContent(
 ) {
     if (!snapshotAvailable) {
         Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            AlertDialog(
+            SynthXAlertDialog(
                 onDismissRequest = {},
                 title = { Text(stringResource(R.string.migration_recovery_unavailable_title)) },
                 text = { Text(stringResource(R.string.migration_recovery_unavailable_message)) },
                 confirmButton = {
-                    TextButton(
-                        onClick = { exitProcess(0) },
-                        colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                    ) { Text(stringResource(R.string.action_close)) }
+                    SynthXPrimaryButton(onClick = { exitProcess(0) }, width = SynthXButtonWidth.Dialog) {
+                        Text(stringResource(R.string.action_close))
+                    }
                 },
             )
         }
@@ -114,14 +129,14 @@ internal fun MigrationRecoveryContent(
             )
 
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AlertDialog(
+        SynthXAlertDialog(
             onDismissRequest = {},
             title = { Text(stringResource(R.string.migration_recovery_title)) },
             text = { Text(message) },
             confirmButton = {
-                TextButton(
+                SynthXDestructiveButton(
                     enabled = !isRestoring,
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                    width = SynthXButtonWidth.Dialog,
                     onClick = {
                         isRestoring = true
                         scope.launch(Dispatchers.IO) {
@@ -166,73 +181,84 @@ internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
     val noBackupsError = stringResource(R.string.restore_terminal_error_no_backups)
     val readBackupsError = stringResource(R.string.restore_terminal_error_read_backups)
     val exportChooserTitle = stringResource(R.string.restore_terminal_export_chooser)
-    var availableBackups by remember { mutableStateOf<List<com.v1per.synthx.data.backup.BackupInfo>?>(null) }
+    var availableBackups by remember { mutableStateOf<List<BackupInfo>?>(null) }
     var actionError by remember { mutableStateOf<String?>(null) }
     var actionRunning by remember { mutableStateOf(false) }
     val message = restoreTerminalMessage(state, diagnosticId) +
         if (state == RestoreCoordinator.Terminal.EMERGENCY) (actionError?.let { "\n\n$it" } ?: "") else ""
     Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AlertDialog(
+        SynthXAlertDialog(
             onDismissRequest = {},
             title = { Text(restoreTerminalTitle(state)) },
             text = { Text(message) },
-            confirmButton = {
-                TextButton(
-                    onClick = { exitProcess(0) },
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) { Text(stringResource(R.string.action_close)) }
-            },
-            dismissButton = {
-                if (state == RestoreCoordinator.Terminal.EMERGENCY) {
-                    Row {
-                        TextButton(
-                            enabled = !actionRunning,
-                            colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                            onClick = {
-                                val uri = RestoreIncidentReports.shareUri(context, diagnosticId)
-                                if (uri == null) {
-                                    actionError = noReportError
-                                } else {
-                                    val send = Intent(Intent.ACTION_SEND)
-                                        .setType("application/json")
-                                        .putExtra(Intent.EXTRA_STREAM, uri)
-                                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    runCatching {
-                                        context.startActivity(Intent.createChooser(send, exportChooserTitle))
-                                    }.onFailure { actionError = noExporterError }
-                                }
-                            },
-                        ) { Text(stringResource(R.string.restore_terminal_export_action)) }
-                        TextButton(
-                            enabled = !actionRunning,
-                            colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                            onClick = {
-                                actionRunning = true
-                                scope.launch {
-                                    runCatching { BackupManager.create(context).listBackups().backupsOrEmpty() }
-                                        .onSuccess { backups ->
-                                            availableBackups = backups.filter { it.restoreEligible }
-                                            actionError = if (availableBackups.isNullOrEmpty()) {
-                                                noBackupsError
-                                            } else {
-                                                null
-                                            }
+            confirmButton = if (state == RestoreCoordinator.Terminal.EMERGENCY) {
+                {
+                    SynthXDialogButtonStack(
+                        buttons = listOf(
+                            {
+                                SynthXPrimaryButton(
+                                    enabled = !actionRunning,
+                                    width = SynthXButtonWidth.Dialog,
+                                    onClick = {
+                                        actionRunning = true
+                                        scope.launch {
+                                            runCatching { BackupManager.create(context).listBackups().backupsOrEmpty() }
+                                                .onSuccess { backups ->
+                                                    availableBackups = backups.filter { it.restoreEligible }
+                                                    actionError = if (availableBackups.isNullOrEmpty()) {
+                                                        noBackupsError
+                                                    } else {
+                                                        null
+                                                    }
+                                                }
+                                                .onFailure { actionError = it.message ?: readBackupsError }
+                                            actionRunning = false
                                         }
-                                        .onFailure { actionError = it.message ?: readBackupsError }
-                                    actionRunning = false
+                                    },
+                                ) {
+                                    Text(
+                                        stringResource(
+                                            if (actionRunning) {
+                                                R.string.restore_terminal_checking
+                                            } else {
+                                                R.string.restore_terminal_choose_backup
+                                            },
+                                        ),
+                                    )
                                 }
                             },
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (actionRunning) {
-                                        R.string.restore_terminal_checking
-                                    } else {
-                                        R.string.restore_terminal_choose_backup
+                            {
+                                SynthXSecondaryButton(
+                                    enabled = !actionRunning,
+                                    width = SynthXButtonWidth.Dialog,
+                                    onClick = {
+                                        val uri = RestoreIncidentReports.shareUri(context, diagnosticId)
+                                        if (uri == null) {
+                                            actionError = noReportError
+                                        } else {
+                                            val send = Intent(Intent.ACTION_SEND)
+                                                .setType("application/json")
+                                                .putExtra(Intent.EXTRA_STREAM, uri)
+                                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            runCatching {
+                                                context.startActivity(Intent.createChooser(send, exportChooserTitle))
+                                            }.onFailure { actionError = noExporterError }
+                                        }
                                     },
-                                ),
-                            )
-                        }
+                                ) { Text(stringResource(R.string.restore_terminal_export_action)) }
+                            },
+                            {
+                                SynthXSecondaryButton(onClick = { exitProcess(0) }, width = SynthXButtonWidth.Dialog) {
+                                    Text(stringResource(R.string.action_close))
+                                }
+                            },
+                        ),
+                    )
+                }
+            } else {
+                {
+                    SynthXPrimaryButton(onClick = { exitProcess(0) }, width = SynthXButtonWidth.Dialog) {
+                        Text(stringResource(R.string.action_close))
                     }
                 }
             },
@@ -240,40 +266,75 @@ internal fun RestoreTerminalContent(state: RestoreCoordinator.Terminal) {
     }
 
     availableBackups?.takeIf { it.isNotEmpty() }?.let { backups ->
-        AlertDialog(
-            onDismissRequest = { if (!actionRunning) availableBackups = null },
-            title = { Text(stringResource(R.string.restore_terminal_choose_backup_title)) },
-            text = {
-                Column(modifier = androidx.compose.ui.Modifier.verticalScroll(rememberScrollState())) {
-                    backups.forEach { backup ->
-                        TextButton(
-                            enabled = !actionRunning,
-                            colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                            onClick = {
-                                actionRunning = true
-                                scope.launch {
-                                    BackupManager.create(context)
-                                        .emergencyRestore(backup, UUID.randomUUID().toString())
-                                        .onSuccess { exitProcess(0) }
-                                        .onFailure {
-                                            actionError = RestoreFailureFormatter.describe(it, diagnosticId)
-                                            actionRunning = false
-                                            availableBackups = null
-                                        }
-                                }
-                            },
-                        ) { Text(backup.fileName) }
-                    }
+        EmergencyBackupChooserDialog(
+            backups = backups,
+            actionRunning = actionRunning,
+            onPick = { backup ->
+                actionRunning = true
+                scope.launch {
+                    BackupManager.create(context)
+                        .emergencyRestore(backup, UUID.randomUUID().toString())
+                        .onSuccess { exitProcess(0) }
+                        .onFailure {
+                            actionError = RestoreFailureFormatter.describe(it, diagnosticId)
+                            actionRunning = false
+                            availableBackups = null
+                        }
                 }
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(
-                    enabled = !actionRunning,
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                    onClick = { availableBackups = null },
-                ) { Text(stringResource(R.string.action_cancel)) }
-            },
+            onDismiss = { if (!actionRunning) availableBackups = null },
         )
+    }
+}
+
+/**
+ * The emergency screen's backup list: one row per eligible backup, named by its file. A tap on a row calls
+ * [onPick] at once, with no further confirmation; Cancel, Back and an outside tap call [onDismiss]. While
+ * [actionRunning], the rows and Cancel ignore taps and the rows draw at the disabled alpha.
+ */
+@Composable
+internal fun EmergencyBackupChooserDialog(
+    backups: List<BackupInfo>,
+    actionRunning: Boolean,
+    onPick: (BackupInfo) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    SynthXAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.restore_terminal_choose_backup_title)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                backups.forEach { backup ->
+                    BackupChoiceRow(fileName = backup.fileName, enabled = !actionRunning, onClick = { onPick(backup) })
+                }
+            }
+        },
+        confirmButton = {
+            SynthXSecondaryButton(onClick = onDismiss, width = SynthXButtonWidth.Dialog, enabled = !actionRunning) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+/** A full-width row in the ManagementRow look: TextPrimary, at least 48dp tall, with the Accent row ripple. */
+@Composable
+private fun BackupChoiceRow(fileName: String, enabled: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = Spacing.xxl)
+            .alpha(if (enabled) 1f else Alpha.Disabled)
+            .clickable(
+                enabled = enabled,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(color = Accent),
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = fileName, style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
     }
 }

@@ -31,7 +31,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -78,6 +77,7 @@ import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 import kotlinx.coroutines.flow.SharedFlow
+import com.v1per.synthx.ui.components.SynthXSnackbarHost
 
 @Composable
 fun SearchScreen(
@@ -286,7 +286,7 @@ fun SearchScreen(
                 }
             }
 
-            SnackbarHost(
+            SynthXSnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )

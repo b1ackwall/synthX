@@ -11,20 +11,18 @@ import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextPrimary
 
 /**
- * The one color everything readable in the player sheet is drawn in: [Light] over a dark
- * background, [Dark] over a bright one. Only these two instances exist.
+ * The colors everything readable in the player sheet is drawn in: [Light] over a dark background,
+ * [Dark] over a bright one. Only these two instances exist. [content] is the one color text, icons and
+ * controls use; [onContent] is the other one, for an icon drawn on a [content]-filled shape.
  */
 @Immutable
-internal class PlayerContentColors private constructor(val content: Color) {
-    /** An on/off control in its "off" state (queue button, shuffle, repeat). */
-    val off: Color = content.copy(alpha = Alpha.ToggleOff)
-
+internal class PlayerContentColors private constructor(val content: Color, val onContent: Color) {
     /** A disabled control. */
     val disabled: Color = content.copy(alpha = Alpha.Disabled)
 
     companion object {
-        val Light = PlayerContentColors(TextPrimary)
-        val Dark = PlayerContentColors(Background)
+        val Light = PlayerContentColors(content = TextPrimary, onContent = Background)
+        val Dark = PlayerContentColors(content = Background, onContent = TextPrimary)
     }
 }
 

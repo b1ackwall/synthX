@@ -29,6 +29,7 @@ class DesignTokenValuesTest {
         assertEquals(8f, ButtonSizes.DialogTapAreaReserve.value)
         assertEquals(0f, ButtonSizes.StackedDialogLayoutGap.value)
         assertEquals(600f, ButtonSizes.PairSideBySideMinWidth.value)
+        assertEquals(48f, ButtonSizes.PlayerToggle.value)
     }
 
     @Test fun gapsKeepTheirHeights() {

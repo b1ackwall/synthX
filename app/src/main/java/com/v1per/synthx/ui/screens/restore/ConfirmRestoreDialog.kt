@@ -3,10 +3,7 @@ package com.v1per.synthx.ui.screens.restore
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,11 +17,11 @@ import com.v1per.synthx.data.backup.BackupInfo
 import com.v1per.synthx.data.backup.BackupPreviewCounts
 import com.v1per.synthx.ui.components.TypedConfirmationField
 import com.v1per.synthx.ui.components.typedConfirmationMatches
-import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
-import com.v1per.synthx.ui.theme.Surface as SurfaceColor
+import com.v1per.synthx.ui.components.SynthXAlertDialog
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXDestructiveButton
+import com.v1per.synthx.ui.components.SynthXSecondaryButton
 
 /** Internal (not private) so instrumented tests can drive it directly, the same seam
  *  [RestoreContent] already uses. */
@@ -42,7 +39,7 @@ internal fun ConfirmRestoreDialog(
     val requiredWord = stringResource(R.string.restore_confirm_action)
     var typedConfirmation by remember { mutableStateOf("") }
 
-    AlertDialog(
+    SynthXAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.restore_confirm_title)) },
         text = {
@@ -74,24 +71,21 @@ internal fun ConfirmRestoreDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            SynthXDestructiveButton(
                 onClick = onConfirm,
                 enabled = typedConfirmationMatches(typedConfirmation, requiredWord),
-                colors = ButtonDefaults.textButtonColors(contentColor = Error),
+                width = SynthXButtonWidth.Dialog,
             ) {
                 Text(text = requiredWord)
             }
         },
         dismissButton = {
-            TextButton(
+            SynthXSecondaryButton(
                 onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
+                width = SynthXButtonWidth.Dialog,
             ) {
                 Text(stringResource(R.string.action_cancel))
             }
         },
-        containerColor = SurfaceColor,
-        titleContentColor = TextPrimary,
-        textContentColor = TextSecondary,
     )
 }

@@ -2,6 +2,18 @@ package com.v1per.synthx.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.filterToOne
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.unit.dp
+import com.v1per.synthx.R
+import com.v1per.synthx.data.db.SongEntity
+import com.v1per.synthx.data.db.SynthXDatabase
 import androidx.compose.ui.test.TouchInjectionScope
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -21,6 +33,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlinx.coroutines.runBlocking
 
 /**
  * The real player sheet in the real shell, driven by touch: drag, fling, release short of or past
@@ -159,6 +172,92 @@ class PlayerSheetGestureInstrumentedTest {
         assertEquals("the button's own tap reaches the player", 1, engine.resumeCalls.get())
     }
 
+    /**
+     * A real touch 3dp to the left of [button]'s drawn 40dp edge: outside what it draws, inside the 48dp tap
+     * target Compose gives a small clickable.
+     */
+    private fun tapJustOutsideTheLeftEdgeOf(button: Rect) {
+        val gap = with(composeRule.density) { TAP_OUTSIDE.toPx() }
+        composeRule.onRoot().performTouchInput { click(Offset(button.left - gap, button.center.y)) }
+        composeRule.waitForIdle()
+    }
+
+    private fun drawnBounds(node: SemanticsNodeInteraction): Rect {
+        val bounds = node.fetchSemanticsNode().boundsInRoot
+        val drawn = with(composeRule.density) { DRAWN_EDGE.toPx() }
+        assertEquals("drawn width", drawn, bounds.width, 1f)
+        return bounds
+    }
+
+    /** The enabled More options button inside the player sheet that sits highest on screen. */
+    private fun playerMoreOptions(): SemanticsNodeInteraction {
+        val description = composeRule.activity.getString(R.string.cd_more_options)
+        val matcher = hasContentDescription(description) and isEnabled() and
+            hasAnyAncestor(hasTestTag(PerfTestTags.PlayerSheet))
+        val nodes = composeRule.onAllNodes(matcher).fetchSemanticsNodes()
+        val top = nodes.minOf { it.boundsInRoot.top }
+        return composeRule.onAllNodes(matcher).filterToOne(
+            SemanticsMatcher("highest") { it.boundsInRoot.top == top },
+        )
+    }
+
+    @Test fun aTapJustOutsideTheMiniPlayPausesDrawnEdgeStillReachesIt() {
+        start()
+
+        tapJustOutsideTheLeftEdgeOf(drawnBounds(composeRule.onNodeWithTag(PerfTestTags.MiniPlayPause)))
+
+        assertEquals(Sheet.Closed, settled())
+        assertEquals("the tap reaches the button, not the sheet", 1, engine.resumeCalls.get())
+    }
+
+    /**
+     * Runs [block] with [current] in the library: the song actions sheet only opens on a song it finds there.
+     * The row is removed again afterwards.
+     */
+    private fun withCurrentSongInTheLibrary(block: () -> Unit) {
+        val database = SynthXDatabase.getInstance(shell.context)
+        runBlocking {
+            database.songDao().upsertSong(
+                SongEntity(
+                    id = current.id,
+                    title = current.title,
+                    albumId = null,
+                    duration = 60_000L,
+                    filePath = current.filePath,
+                    albumArtUri = null,
+                    year = null,
+                    dateAdded = 1L,
+                ),
+            )
+        }
+        try {
+            block()
+        } finally {
+            runBlocking { database.songDao().deleteSongById(current.id) }
+        }
+    }
+
+    @Test fun aTapJustOutsideTheExpandedMoreOptionsDrawnEdgeStillReachesIt() = withCurrentSongInTheLibrary {
+        val travel = start()
+        open(travel)
+
+        tapJustOutsideTheLeftEdgeOf(drawnBounds(playerMoreOptions()))
+
+        shell.awaitText(composeRule.activity.getString(R.string.actions_add_to_playlist))
+    }
+
+    @Test fun aTapJustOutsideTheQueueHeaderMoreOptionsDrawnEdgeStillReachesIt() = withCurrentSongInTheLibrary {
+        val travel = start()
+        open(travel)
+        composeRule.onNodeWithTag(PerfTestTags.QueueButton).performClick()
+        composeRule.waitUntil(ShellTestHost.WAIT_MS) { shell.tagDisplayed(PerfTestTags.QueueList) }
+        composeRule.waitForIdle()
+
+        tapJustOutsideTheLeftEdgeOf(drawnBounds(playerMoreOptions()))
+
+        shell.awaitText(composeRule.activity.getString(R.string.actions_add_to_playlist))
+    }
+
     @Test fun tappingTheOpenSheetKeepsItOpen() {
         val travel = start()
         open(travel)
@@ -194,5 +293,10 @@ class PlayerSheetGestureInstrumentedTest {
         composeRule.onRoot().performTouchInput { slowDrag(from, travel * 0.5f) }
 
         assertEquals("the controls band does not close the queue", Sheet.Open, settled())
+    }
+
+    private companion object {
+        val TAP_OUTSIDE = 3.dp
+        val DRAWN_EDGE = 40.dp
     }
 }

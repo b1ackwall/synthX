@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,10 +33,11 @@ import com.v1per.synthx.ui.theme.Gaps
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Strokes
-import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
 
 @Composable
 internal fun AllIneligibleBanner(onBack: () -> Unit) {
@@ -53,13 +52,10 @@ internal fun AllIneligibleBanner(onBack: () -> Unit) {
             color = TextSecondary,
         )
         Spacer(modifier = Modifier.height(Spacing.sm))
-        Button(
+        SynthXPrimaryButton(
             onClick = onBack,
-            shape = MaterialTheme.shapes.small,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SurfaceVariant,
-                contentColor = TextPrimary,
-            ),
+            width = SynthXButtonWidth.Compact,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
         ) {
             Text(text = stringResource(R.string.action_go_back))
         }

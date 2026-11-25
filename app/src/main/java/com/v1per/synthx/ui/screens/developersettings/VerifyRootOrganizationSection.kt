@@ -8,13 +8,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,7 +27,10 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
-import com.v1per.synthx.ui.theme.Surface as SurfaceColor
+import com.v1per.synthx.ui.components.SynthXAlertDialog
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
+import com.v1per.synthx.ui.components.SynthXSecondaryButton
 
 /**
  * Debug tooling — read-only audit of the root music folder: walks the live filesystem and
@@ -68,38 +68,12 @@ internal fun VerifyRootOrganizationSection(
     }
 
     if (showConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            title = { Text("Check root library?") },
-            text = {
-                Text(
-                    "Walk the configured music folder and report songs not yet in a " +
-                        "playlist, plus any files on disk with no matching library entry. " +
-                        "Read-only — nothing is changed.",
-                )
+        RootOrganizationCheckDialog(
+            onCheck = {
+                showConfirmDialog = false
+                onCheckRootLibraryOrganization()
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showConfirmDialog = false
-                        onCheckRootLibraryOrganization()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) {
-                    Text("Check")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showConfirmDialog = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
-                ) {
-                    Text("Cancel")
-                }
-            },
-            containerColor = SurfaceColor,
-            titleContentColor = TextPrimary,
-            textContentColor = TextSecondary,
+            onDismiss = { showConfirmDialog = false },
         )
     }
 
@@ -108,9 +82,35 @@ internal fun VerifyRootOrganizationSection(
     }
 }
 
+/** Debug: asks before walking the music folder; the check itself is read-only. */
 @Composable
-private fun RootOrganizationResultDialog(result: RootOrganizationCheckResult, onDismiss: () -> Unit) {
-    AlertDialog(
+internal fun RootOrganizationCheckDialog(onCheck: () -> Unit, onDismiss: () -> Unit) {
+    SynthXAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Check root library?") },
+        text = {
+            Text(
+                "Walk the configured music folder and report songs not yet in a " +
+                    "playlist, plus any files on disk with no matching library entry. " +
+                    "Read-only — nothing is changed.",
+            )
+        },
+        confirmButton = {
+            SynthXPrimaryButton(onClick = onCheck, width = SynthXButtonWidth.Dialog) {
+                Text("Check")
+            }
+        },
+        dismissButton = {
+            SynthXSecondaryButton(onClick = onDismiss, width = SynthXButtonWidth.Dialog) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+@Composable
+internal fun RootOrganizationResultDialog(result: RootOrganizationCheckResult, onDismiss: () -> Unit) {
+    SynthXAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Root library check") },
         text = {
@@ -179,15 +179,12 @@ private fun RootOrganizationResultDialog(result: RootOrganizationCheckResult, on
             }
         },
         confirmButton = {
-            TextButton(
+            SynthXPrimaryButton(
                 onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                width = SynthXButtonWidth.Dialog,
             ) {
                 Text("OK")
             }
         },
-        containerColor = SurfaceColor,
-        titleContentColor = TextPrimary,
-        textContentColor = TextSecondary,
     )
 }

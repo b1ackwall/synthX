@@ -5,11 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.runtime.Composable
@@ -26,10 +22,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.DetailTopBar
 import com.v1per.synthx.ui.theme.Background
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
-// Aliased: the Material3 `Surface` composable owns the simple name in Compose files.
-import com.v1per.synthx.ui.theme.Surface as SurfaceColor
+import com.v1per.synthx.ui.components.SynthXAlertDialog
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
+import com.v1per.synthx.ui.components.SynthXSecondaryButton
+import com.v1per.synthx.ui.components.SynthXSnackbarHost
 
 /**
  * Swaps one song's library identity onto another and completely deletes the original.
@@ -142,7 +139,7 @@ fun ReplaceSongScreen(
                     ReplaceSongBusyCover(R.string.replace_song_working)
                 }
             }
-            SnackbarHost(
+            SynthXSnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
@@ -171,34 +168,44 @@ fun ReplaceSongScreen(
                 if (complete != null) onExit()
             }
         }
-        AlertDialog(
-            onDismissRequest = onAcknowledge,
-            title = { Text(stringResource(R.string.screen_replace_song)) },
-            text = { Text(message) },
-            confirmButton = {
-                TextButton(
-                    onClick = onAcknowledge,
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) {
-                    Text(stringResource(R.string.action_ok))
-                }
-            },
-            dismissButton = complete?.retryFilePath?.let { filePath ->
-                {
-                    TextButton(
-                        onClick = { viewModel.retryAudioFileDeletion(filePath) },
-                        enabled = !cleanupRetryInProgress,
-                        colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                    ) {
-                        Text(stringResource(R.string.action_retry))
-                    }
-                }
-            },
-            containerColor = SurfaceColor,
-            titleContentColor = TextPrimary,
-            textContentColor = TextSecondary,
+        ReplaceSongOutcomeDialog(
+            message = message,
+            onAcknowledge = onAcknowledge,
+            onRetry = complete?.retryFilePath?.let { filePath -> { viewModel.retryAudioFileDeletion(filePath) } },
+            retryEnabled = !cleanupRetryInProgress,
         )
     }
+}
+
+/**
+ * The wizard's failure or completion-with-warning message. OK, Back and an outside tap call [onAcknowledge];
+ * [onRetry], when the old audio file is still on the device, adds Retry, which [retryEnabled] turns off while a
+ * retry runs.
+ */
+@Composable
+internal fun ReplaceSongOutcomeDialog(
+    message: String,
+    onAcknowledge: () -> Unit,
+    onRetry: (() -> Unit)?,
+    retryEnabled: Boolean,
+) {
+    SynthXAlertDialog(
+        onDismissRequest = onAcknowledge,
+        title = { Text(stringResource(R.string.screen_replace_song)) },
+        text = { Text(message) },
+        confirmButton = {
+            SynthXPrimaryButton(onClick = onAcknowledge, width = SynthXButtonWidth.Dialog) {
+                Text(stringResource(R.string.action_ok))
+            }
+        },
+        dismissButton = onRetry?.let { retry ->
+            {
+                SynthXSecondaryButton(onClick = retry, width = SynthXButtonWidth.Dialog, enabled = retryEnabled) {
+                    Text(stringResource(R.string.action_retry))
+                }
+            }
+        },
+    )
 }
 
 /** Warning-free completion is acknowledged transiently; warnings remain blocking above. */

@@ -13,15 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -44,11 +41,13 @@ import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Strokes
-import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 import com.v1per.synthx.preferences.DestructiveActionTracker
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXDestructiveButton
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
 
 /**
  * The dry-run review and destructive confirm.
@@ -139,20 +138,15 @@ internal fun ReplaceSongReviewStep(
             Spacer(modifier = Modifier.height(Spacing.md))
         }
 
-        Button(
+        SynthXDestructiveButton(
             onClick = onConfirm,
-            enabled = confirmEnabled && typedConfirmationMatches(typedConfirmation, requiredWord),
+            width = SynthXButtonWidth.Standard,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.HorizontalPadding)
-                .height(Spacing.xxl),
-            shape = MaterialTheme.shapes.small,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SurfaceVariant,
-                contentColor = Error,
-            ),
+                .align(Alignment.CenterHorizontally)
+                .padding(Spacing.HorizontalPadding),
+            enabled = confirmEnabled && typedConfirmationMatches(typedConfirmation, requiredWord),
         ) {
-            Text(text = requiredWord, style = MaterialTheme.typography.labelLarge)
+            Text(text = requiredWord)
         }
     }
 }
@@ -319,10 +313,8 @@ internal fun ReplaceSongPreviewFailure(message: String, onRetry: (() -> Unit)?) 
                 modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
             )
             if (onRetry != null) {
-                TextButton(
-                    onClick = onRetry,
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) {
+                Spacer(modifier = Modifier.height(Spacing.md))
+                SynthXPrimaryButton(onClick = onRetry, width = SynthXButtonWidth.Compact) {
                     Text(stringResource(R.string.action_retry))
                 }
             }

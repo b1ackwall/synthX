@@ -3,10 +3,7 @@ package com.v1per.synthx.ui.screens.backupsandrestore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,9 +18,10 @@ import com.v1per.synthx.ui.components.SettingsDetailScaffold
 import com.v1per.synthx.ui.screens.librarymanagement.FolderPathFormatter
 import com.v1per.synthx.ui.screens.librarymanagement.handleFolderPick
 import com.v1per.synthx.ui.screens.librarymanagement.takeFolderGrant
-import com.v1per.synthx.ui.theme.Surface as SurfaceColor
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
+import com.v1per.synthx.ui.components.SynthXAlertDialog
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
+import com.v1per.synthx.ui.components.SynthXSecondaryButton
 
 @Composable
 fun BackupsAndRestoreScreen(
@@ -83,34 +81,34 @@ fun BackupsAndRestoreScreen(
     }
 
     if (showMusicFolderRequiredDialog) {
-        AlertDialog(
-            onDismissRequest = { showMusicFolderRequiredDialog = false },
-            title = { Text(stringResource(R.string.restore_music_folder_required_title)) },
-            text = { Text(stringResource(R.string.restore_music_folder_required_message)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showMusicFolderRequiredDialog = false
-                        onManageLibraryClick()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
-                ) {
-                    Text(stringResource(R.string.restore_music_folder_required_action))
-                }
+        MusicFolderRequiredDialog(
+            onSelectFolder = {
+                showMusicFolderRequiredDialog = false
+                onManageLibraryClick()
             },
-            dismissButton = {
-                TextButton(
-                    onClick = { showMusicFolderRequiredDialog = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
-                ) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
-            containerColor = SurfaceColor,
-            titleContentColor = TextPrimary,
-            textContentColor = TextSecondary,
+            onDismiss = { showMusicFolderRequiredDialog = false },
         )
     }
+}
+
+/** Asked when Restore is tapped before a music folder is set: Select folder opens Library Management. */
+@Composable
+internal fun MusicFolderRequiredDialog(onSelectFolder: () -> Unit, onDismiss: () -> Unit) {
+    SynthXAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.restore_music_folder_required_title)) },
+        text = { Text(stringResource(R.string.restore_music_folder_required_message)) },
+        confirmButton = {
+            SynthXPrimaryButton(onClick = onSelectFolder, width = SynthXButtonWidth.Dialog) {
+                Text(stringResource(R.string.restore_music_folder_required_action))
+            }
+        },
+        dismissButton = {
+            SynthXSecondaryButton(onClick = onDismiss, width = SynthXButtonWidth.Dialog) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
 }
 
 @Composable

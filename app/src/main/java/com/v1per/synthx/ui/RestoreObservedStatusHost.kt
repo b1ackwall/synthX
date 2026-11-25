@@ -6,10 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -20,6 +17,9 @@ import com.v1per.synthx.ui.screens.restore.RestoreStatusViewModel
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
+import com.v1per.synthx.ui.components.SynthXAlertDialog
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
 
 @Composable
 internal fun RestoreObservedStatusHost(
@@ -62,7 +62,7 @@ private fun RestorePendingBanner() {
 @Composable
 private fun RestoreObservedOutcomeDialog(terminal: RestoreAppStatus.Terminal, onDismiss: () -> Unit) {
     val succeeded = terminal is RestoreAppStatus.Succeeded
-    AlertDialog(
+    SynthXAlertDialog(
         onDismissRequest = {},
         title = {
             Text(stringResource(if (succeeded) R.string.restore_done_title else R.string.restore_failed_title))
@@ -77,9 +77,9 @@ private fun RestoreObservedOutcomeDialog(terminal: RestoreAppStatus.Terminal, on
             )
         },
         confirmButton = {
-            TextButton(
+            SynthXPrimaryButton(
                 onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                width = SynthXButtonWidth.Dialog,
             ) { Text(stringResource(R.string.action_ok)) }
         },
     )

@@ -5,9 +5,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 
 /**
- * Sizes for the shared buttons in ui/components/SynthXButtons.kt. The three screen widths are
- * fixed: a button keeps its width whatever its label, and a label that does not fit wraps onto
- * more lines while the height grows past its minimum.
+ * Sizes for the shared buttons in ui/components/SynthXButtons.kt and the player's toggles in
+ * ui/components/PlayerToggleButton.kt. The three screen widths are fixed: a button keeps its width
+ * whatever its label, and a label that does not fit wraps onto more lines while the height grows past
+ * its minimum.
  */
 object ButtonSizes {
     /** The fixed width of a Compact screen button. */
@@ -54,4 +55,7 @@ object ButtonSizes {
      * below it the pair stacks. Two Compact buttons ignore it.
      */
     val PairSideBySideMinWidth = 600.dp
+
+    /** The edge of a player toggle (shuffle, repeat, queue): drawn and tapped at this square size. */
+    val PlayerToggle = 48.dp
 }

@@ -10,7 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsEnabled
@@ -24,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.ui.components.SynthXButtonWidth.Compact
@@ -31,6 +31,8 @@ import com.v1per.synthx.ui.components.SynthXButtonWidth.Dialog
 import com.v1per.synthx.ui.components.SynthXButtonWidth.Standard
 import com.v1per.synthx.ui.components.SynthXButtonWidth.Wide
 import com.v1per.synthx.ui.testing.TestTimeouts
+import com.v1per.synthx.ui.testing.assertPixelEventually
+import com.v1per.synthx.ui.testing.over
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -244,13 +246,12 @@ class SynthXButtonsLayoutInstrumentedTest {
      * compares it with [color] drawn at [alpha] over Background.
      */
     private fun assertContainerPixel(tag: String, color: Color, alpha: Float) {
-        val image = composeRule.onNodeWithTag(tag).captureToImage()
         val x = with(composeRule.density) { PIXEL_INSET.roundToPx() }
-        val actual = image.toPixelMap()[x, image.height / 2]
-        fun over(top: Float, bottom: Float) = top * alpha + bottom * (1f - alpha)
-        assertEquals("$tag red", over(color.red, Background.red), actual.red, COLOR_TOLERANCE)
-        assertEquals("$tag green", over(color.green, Background.green), actual.green, COLOR_TOLERANCE)
-        assertEquals("$tag blue", over(color.blue, Background.blue), actual.blue, COLOR_TOLERANCE)
+        composeRule.assertPixelEventually(
+            description = "$tag container",
+            expected = color.over(Background, alpha),
+            capture = { composeRule.onNodeWithTag(tag).captureToImage() },
+        ) { image -> IntOffset(x, image.height / 2) }
     }
 
     private companion object {
@@ -260,7 +261,6 @@ class SynthXButtonsLayoutInstrumentedTest {
         const val TURN_OFF = "Turn off shuffle"
         const val KEEP_ON = "Keep shuffle on"
         const val TOLERANCE_DP = 0.5f
-        const val COLOR_TOLERANCE = 3f / 255f
         val PIXEL_INSET = 6.dp
     }
 }

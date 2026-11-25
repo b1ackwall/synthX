@@ -163,10 +163,10 @@ fun SynthXButtonPair(
 }
 
 private val ButtonPairMeasurePolicy = MultiContentMeasurePolicy { measurables, constraints ->
-    val primary = measurables[0].singleButton("primary")
-    val secondary = measurables[1].singleButton("secondary")
-    val primaryToken = primary.widthToken("primary")
-    val secondaryToken = secondary.widthToken("secondary")
+    val primary = measurables[0].singleButton("SynthXButtonPair's primary slot")
+    val secondary = measurables[1].singleButton("SynthXButtonPair's secondary slot")
+    val primaryToken = primary.widthToken("SynthXButtonPair's primary slot")
+    val secondaryToken = secondary.widthToken("SynthXButtonPair's secondary slot")
     val resolved = resolveButtonPairLayout(
         availableWidth = if (constraints.hasBoundedWidth) constraints.maxWidth.toDp() else Dp.Infinity,
         primary = primaryToken,
@@ -204,12 +204,12 @@ private val ButtonPairMeasurePolicy = MultiContentMeasurePolicy { measurables, c
 }
 
 private fun List<Measurable>.singleButton(slot: String): Measurable {
-    require(size == 1) { "SynthXButtonPair's $slot slot must emit exactly one SynthX button, not $size layout nodes" }
+    require(size == 1) { "$slot must emit exactly one SynthX button, not $size layout nodes" }
     return first()
 }
 
 private fun Measurable.widthToken(slot: String): SynthXButtonWidth = requireNotNull(layoutId as? SynthXButtonWidth) {
-    "SynthXButtonPair's $slot slot holds no SynthX button width token (found layoutId $layoutId); use a " +
+    "$slot holds no SynthX button width token (found layoutId $layoutId); use a " +
         "SynthXPrimaryButton, SynthXSecondaryButton, SynthXTextButton or SynthXDestructiveButton without its own layoutId"
 }
 
@@ -218,3 +218,67 @@ private fun Measurable.measuredWidthIfDialog(token: SynthXButtonWidth): Int? =
 
 private fun Constraints.atWidth(width: Int): Constraints =
     Constraints(minWidth = width, maxWidth = width, minHeight = 0, maxHeight = maxHeight)
+
+/**
+ * The result of [resolveDialogButtonStackLayout]. Every button of the stack is [width] wide; [gap] is the
+ * layout space between two buttons and [visibleGap] the space between their drawn edges.
+ */
+@Immutable
+data class DialogButtonStackLayout(val width: Dp, val gap: Dp, val visibleGap: Dp)
+
+/**
+ * Decides how a [SynthXDialogButtonStack] lays out its buttons in [availableWidth] ([Dp.Infinity] when
+ * unbounded), given each button's measured natural width (label plus padding).
+ *
+ * Every button takes the widest of [measuredWidths], floored at [ButtonSizes.DialogMinWidth] and capped at
+ * [availableWidth]. The layout gap is [ButtonSizes.StackedDialogLayoutGap], because each button's tap-area
+ * reserve already separates the drawn buttons; the visible gap is [ButtonSizes.DialogGap].
+ *
+ * @throws IllegalArgumentException when [measuredWidths] is empty.
+ */
+fun resolveDialogButtonStackLayout(availableWidth: Dp, measuredWidths: List<Dp>): DialogButtonStackLayout {
+    require(measuredWidths.isNotEmpty()) { "A dialog button stack needs at least one button" }
+    val widest = measuredWidths.fold(ButtonSizes.DialogMinWidth) { widest, width -> max(widest, width) }
+    return DialogButtonStackLayout(
+        width = min(widest, availableWidth),
+        gap = ButtonSizes.StackedDialogLayoutGap,
+        visibleGap = ButtonSizes.DialogGap,
+    )
+}
+
+/**
+ * Dialog buttons stacked in [buttons] order, the first on top, all at the one width
+ * [resolveDialogButtonStackLayout] gives and drawn [ButtonSizes.DialogGap] apart. The stack is as wide as
+ * its buttons, so a dialog's button row aligns it to its end.
+ *
+ * Each entry must emit exactly one Dialog-width SynthX button, which hands its width token to the stack; do
+ * not set a layoutId on it.
+ */
+@Composable
+fun SynthXDialogButtonStack(buttons: List<@Composable () -> Unit>, modifier: Modifier = Modifier) {
+    Layout(contents = buttons, modifier = modifier, measurePolicy = DialogButtonStackMeasurePolicy)
+}
+
+private val DialogButtonStackMeasurePolicy = MultiContentMeasurePolicy { measurables, constraints ->
+    val buttons = measurables.mapIndexed { index, slot -> slot.singleButton("SynthXDialogButtonStack entry $index") }
+    buttons.forEachIndexed { index, button ->
+        require(button.widthToken("SynthXDialogButtonStack entry $index") == SynthXButtonWidth.Dialog) {
+            "SynthXDialogButtonStack holds only Dialog-width buttons; stack entry $index is not one"
+        }
+    }
+    val resolved = resolveDialogButtonStackLayout(
+        availableWidth = if (constraints.hasBoundedWidth) constraints.maxWidth.toDp() else Dp.Infinity,
+        measuredWidths = buttons.map { it.maxIntrinsicWidth(Constraints.Infinity).toDp() },
+    )
+    val placeables = buttons.map { it.measure(constraints.atWidth(resolved.width.roundToPx())) }
+    val gap = resolved.gap.roundToPx()
+    val width = placeables.maxOf { it.width }
+    val height = placeables.sumOf { it.height } + gap * (placeables.size - 1)
+    layout(constraints.constrainWidth(width), constraints.constrainHeight(height)) {
+        var y = 0
+        placeables.forEach { placeable ->
+            placeable.place(width - placeable.width, y)
+            y += placeable.height + gap
+        }
+    }
+}

@@ -75,6 +75,15 @@ class QueueArtPositioningTest {
     }
 
     @Test
+    fun `queue mode rests the art top at 80dp and starts the Up Next list at 188dp`() {
+        val queue = position(queueProgress = 1f)
+        assertDpEquals(80.dp, queue.artOffsetY)
+        assertDpEquals(44.dp, queue.finalArtSize)
+        assertDpEquals(44.dp, queue.artOffsetYQueue)
+        assertDpEquals(188.dp, queue.queueListOffsetY)
+    }
+
+    @Test
     fun `queue resting geometry is independent of both tuning sliders`() {
         val original = position(queueProgress = 1f)
         for (aboveFraction in listOf(0f, 0.6f, 1f)) {

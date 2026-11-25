@@ -4,12 +4,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -21,7 +18,6 @@ import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
-import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
 /**
  * Staged progress for [SongActionsViewModel.removeFromStarred]'s file-move-then-DB-update
@@ -30,7 +26,7 @@ import com.v1per.synthx.ui.theme.Surface as SurfaceColor
  */
 @Composable
 fun GraduationProgressDialog(stage: GraduationStage, onDismiss: () -> Unit) {
-    AlertDialog(
+    SynthXAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.graduation_dialog_title)) },
         text = {
@@ -53,16 +49,13 @@ fun GraduationProgressDialog(stage: GraduationStage, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(
+            SynthXPrimaryButton(
                 onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                width = SynthXButtonWidth.Dialog,
             ) {
                 Text(stringResource(R.string.graduation_dialog_close))
             }
         },
-        containerColor = SurfaceColor,
-        titleContentColor = TextPrimary,
-        textContentColor = TextSecondary,
     )
 }
 

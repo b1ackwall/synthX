@@ -6,11 +6,9 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,12 +24,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,13 +35,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -82,10 +73,15 @@ import com.v1per.synthx.ui.theme.RingSizes
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.Surface
-import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
+import com.v1per.synthx.ui.components.SynthXButtonPair
+import com.v1per.synthx.ui.components.SynthXButtonWidth
+import com.v1per.synthx.ui.components.SynthXPrimaryButton
+import com.v1per.synthx.ui.components.SynthXSecondaryButton
+import com.v1per.synthx.ui.components.SynthXSnackbarHost
+import androidx.compose.material3.LocalContentColor
 
 @Composable
 fun PlaylistListScreen(
@@ -127,49 +123,20 @@ fun PlaylistListScreen(
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
         topBar()
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            OutlinedButton(
-                onClick = onCreatePlaylistClick,
-                border = BorderStroke(Strokes.Hairline, TextSecondary),
-                shape = MaterialTheme.shapes.small,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                )
-                Spacer(modifier = Modifier.width(Spacing.xs))
-                Text(
-                    text = stringResource(R.string.action_new_playlist),
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-            OutlinedButton(
-                onClick = viewModel::onCreateGroupClick,
-                border = BorderStroke(Strokes.Hairline, TextSecondary),
-                shape = MaterialTheme.shapes.small,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CreateNewFolder,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                )
-                Spacer(modifier = Modifier.width(Spacing.xs))
-                Text(
-                    text = stringResource(R.string.action_new_group),
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-        }
+        // Stacked below 600dp of width, New Playlist on top; side by side from there, New Playlist on the right.
+        SynthXButtonPair(
+            primary = {
+                SynthXSecondaryButton(onClick = onCreatePlaylistClick, width = SynthXButtonWidth.Standard) {
+                    Text(text = stringResource(R.string.action_new_playlist))
+                }
+            },
+            secondary = {
+                SynthXSecondaryButton(onClick = viewModel::onCreateGroupClick, width = SynthXButtonWidth.Standard) {
+                    Text(text = stringResource(R.string.action_new_group))
+                }
+            },
+            modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md),
+        )
 
         AnimatedVisibility(
             visible = showCreateGroup,
@@ -260,7 +227,7 @@ fun PlaylistListScreen(
                 )
             }
 
-            SnackbarHost(
+            SynthXSnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
@@ -304,41 +271,37 @@ private fun CreateGroupCard(isCreating: Boolean, onConfirm: (String) -> Unit, on
                 ),
             )
             Spacer(modifier = Modifier.height(Spacing.sm))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(
-                    onClick = onDismiss,
-                    // Dismissing mid-write would close the card on a group that then appears anyway.
-                    enabled = !isCreating,
-                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
-                ) {
-                    Text(text = stringResource(R.string.action_cancel), color = TextSecondary)
-                }
-                Spacer(modifier = Modifier.width(Spacing.sm))
-                Button(
-                    onClick = { onConfirm(name) },
-                    // Same shape as Create Playlist's button: disabled for a blank name and while
-                    // the write is in flight.
-                    enabled = name.isNotBlank() && !isCreating,
-                    shape = MaterialTheme.shapes.small,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SurfaceVariant,
-                        contentColor = TextPrimary,
-                    ),
-                ) {
-                    if (isCreating) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(RingSizes.Small),
-                            color = TextPrimary,
-                            strokeWidth = Strokes.ProgressRing,
-                        )
-                    } else {
-                        Text(text = stringResource(R.string.action_create), color = TextPrimary)
+            SynthXButtonPair(
+                primary = {
+                    SynthXPrimaryButton(
+                        onClick = { onConfirm(name) },
+                        width = SynthXButtonWidth.Compact,
+                        // Same shape as Create Playlist's button: disabled for a blank name and while
+                        // the write is in flight.
+                        enabled = name.isNotBlank() && !isCreating,
+                    ) {
+                        if (isCreating) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(RingSizes.Small),
+                                color = LocalContentColor.current,
+                                strokeWidth = Strokes.ProgressRing,
+                            )
+                        } else {
+                            Text(text = stringResource(R.string.action_create))
+                        }
                     }
-                }
-            }
+                },
+                secondary = {
+                    SynthXSecondaryButton(
+                        onClick = onDismiss,
+                        width = SynthXButtonWidth.Compact,
+                        // Dismissing mid-write would close the card on a group that then appears anyway.
+                        enabled = !isCreating,
+                    ) {
+                        Text(text = stringResource(R.string.action_cancel))
+                    }
+                },
+            )
         }
     }
 }

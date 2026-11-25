@@ -24,6 +24,11 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.Role
 
 /**
  * The Up Next shuffle and repeat buttons in the real shell: two taps that land before the screen
@@ -47,8 +52,8 @@ class QueueModeTogglesShellInstrumentedTest {
 
     @After fun tearDown() = shell.tearDown()
 
-    /** Opens the player sheet with a slow drag up from the mini player, then enters queue mode. */
-    private fun openQueueMode() {
+    /** Opens the player sheet with a slow drag up from the mini player. */
+    private fun openPlayer() {
         shell.startShell(engine)
         composeRule.waitForIdle()
         val root = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
@@ -73,6 +78,11 @@ class QueueModeTogglesShellInstrumentedTest {
         ) {
             "the player sheet did not open"
         }
+    }
+
+    /** Opens the player sheet, then enters queue mode through the queue button. */
+    private fun openQueueMode() {
+        openPlayer()
         composeRule.onNodeWithTag(PerfTestTags.QueueButton).performClick()
         composeRule.waitUntil(ShellTestHost.WAIT_MS) { shell.tagDisplayed(PerfTestTags.QueueList) }
         composeRule.waitForIdle()
@@ -87,6 +97,19 @@ class QueueModeTogglesShellInstrumentedTest {
             click()
         }
         composeRule.waitForIdle()
+    }
+
+    @Test fun theQueueButtonIsASwitchThatIsOffInPlayerModeAndOnInQueueMode() {
+        openPlayer()
+        val queueButton = composeRule.onNodeWithTag(PerfTestTags.QueueButton)
+        queueButton.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
+        queueButton.assert(SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, ToggleableState.Off))
+
+        queueButton.performClick()
+        composeRule.waitUntil(ShellTestHost.WAIT_MS) { shell.tagDisplayed(PerfTestTags.QueueList) }
+        composeRule.waitForIdle()
+
+        queueButton.assert(SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, ToggleableState.On))
     }
 
     @Test fun twoQuickShuffleTapsAreTwoToggles() {

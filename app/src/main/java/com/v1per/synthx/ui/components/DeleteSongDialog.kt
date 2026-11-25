@@ -5,10 +5,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -23,14 +20,10 @@ import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.data.repository.DeleteSongPreview
 import com.v1per.synthx.ui.theme.Error
 import com.v1per.synthx.ui.theme.Spacing
-import com.v1per.synthx.ui.theme.TextPrimary
-import com.v1per.synthx.ui.theme.TextSecondary
-// Aliased: the Material3 `Surface` composable owns the simple name in Compose files.
-import com.v1per.synthx.ui.theme.Surface as SurfaceColor
 
 /**
- * Confirmation for the one irreversible action in the app. Shared by the Issues screen
- * and the song actions sheet so both describe the same consequences in the same words.
+ * Confirmation for deleting a song from the library and from the device. Shared by the Issues
+ * screen and the song actions sheet so both describe the same consequences in the same words.
  *
  * Reads [DestructiveActionTracker] directly, the same way MainScaffold reads
  * BackupFolderLaunchCheck.grantLost — a process-wide StateFlow, not plumbed through every
@@ -60,7 +53,7 @@ fun DeleteSongDialog(
     val requiredWord = stringResource(R.string.action_delete)
     var typedConfirmation by remember { mutableStateOf("") }
 
-    AlertDialog(
+    SynthXAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.delete_song_dialog_title)) },
         text = {
@@ -75,26 +68,23 @@ fun DeleteSongDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            SynthXDestructiveButton(
                 onClick = onConfirm,
                 enabled = previewState is DeleteSongPreviewState.Ready &&
                     typedConfirmationMatches(typedConfirmation, requiredWord) && confirmEnabled,
-                colors = ButtonDefaults.textButtonColors(contentColor = Error),
+                width = SynthXButtonWidth.Dialog,
             ) {
                 Text(text = requiredWord)
             }
         },
         dismissButton = {
-            TextButton(
+            SynthXSecondaryButton(
                 onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
+                width = SynthXButtonWidth.Dialog,
             ) {
                 Text(stringResource(R.string.action_cancel))
             }
         },
-        containerColor = SurfaceColor,
-        titleContentColor = TextPrimary,
-        textContentColor = TextSecondary,
     )
 }
 
@@ -112,9 +102,9 @@ internal fun DeleteSongDisclosure(
 
         DeleteSongPreviewState.Failed -> {
             Text(stringResource(R.string.delete_song_preview_failed), color = Error)
-            TextButton(
+            SynthXTextButton(
                 onClick = onRetryPreview,
-                colors = ButtonDefaults.textButtonColors(contentColor = TextPrimary),
+                width = SynthXButtonWidth.Dialog,
             ) { Text(stringResource(R.string.action_retry)) }
         }
 
