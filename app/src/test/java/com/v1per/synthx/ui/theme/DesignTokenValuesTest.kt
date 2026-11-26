@@ -51,4 +51,11 @@ class DesignTokenValuesTest {
         assertEquals(28f, RingSizes.Medium.value)
         assertEquals(32f, RingSizes.Large.value)
     }
+
+    @Test fun tileSizesKeepTheirValues() {
+        assertEquals(168f, TileSizes.MaxWidth.value)
+        assertEquals(12f, TileSizes.MinGap.value)
+        assertEquals(24f, TileSizes.MaxGap.value)
+        assertEquals(16f, TileSizes.SideMargin.value)
+    }
 }

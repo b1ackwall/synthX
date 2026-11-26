@@ -19,7 +19,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SynthX">
 
-        <!-- Portrait-only by design; how the lock behaves on large screens is tracked in #250. -->
+        <!-- Portrait-only by design; how the lock behaves on large screens is tracked in #436. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
