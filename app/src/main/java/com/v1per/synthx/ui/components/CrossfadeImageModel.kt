@@ -14,10 +14,13 @@ import coil3.size.Size
  * @param original when true, decodes at [Size.ORIGINAL] instead of the view's measured size, still
  *   within Coil's maximum bitmap size (4096 px a side by default) — the expanded player opts into this
  *   so Coil doesn't upscale a small cached thumbnail.
+ * @param crossfadeMillis the fade's length, or null for Coil's default. Coil fades linearly and takes
+ *   no easing.
  */
 @Composable
-fun crossfadeModel(uri: Any?, original: Boolean = false): Any = ImageRequest.Builder(LocalContext.current)
-    .data(uri)
-    .crossfade(true)
-    .apply { if (original) size(Size.ORIGINAL) }
-    .build()
+fun crossfadeModel(uri: Any?, original: Boolean = false, crossfadeMillis: Int? = null): Any =
+    ImageRequest.Builder(LocalContext.current)
+        .data(uri)
+        .apply { if (crossfadeMillis == null) crossfade(true) else crossfade(crossfadeMillis) }
+        .apply { if (original) size(Size.ORIGINAL) }
+        .build()

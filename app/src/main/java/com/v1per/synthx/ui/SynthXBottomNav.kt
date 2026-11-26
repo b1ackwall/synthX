@@ -51,6 +51,7 @@ import com.v1per.synthx.playback.PlayerBackgroundArtRequest
 import com.v1per.synthx.ui.components.BottomNavHeight
 import com.v1per.synthx.ui.player.PlayerSheetSkeleton
 import com.v1per.synthx.ui.player.ProvidePlayerContentColors
+import com.v1per.synthx.ui.player.rememberPlayerArtTransition
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Hairline
 import com.v1per.synthx.ui.theme.Strokes
@@ -163,12 +164,14 @@ internal fun BottomChromeOverlay(
             // Skeleton renders mini content + expanded transport controls + full
             // queue-mode list (reorder, tap-to-play, swipe-to-remove, shuffle/repeat,
             // real MoreOptionsButton).
-            // The light/dark content color is decided once here, from the brightness that travels
-            // with the displayed art, and provided to the sheet alone — not to the nav above.
-            ProvidePlayerContentColors(brightness = backgroundArt?.brightness) {
+            // The background picture and the light/dark content color change through one
+            // transition, decided from the brightness that travels with the decoded art, and
+            // provided to the sheet alone — not to the nav above.
+            val artTransition = rememberPlayerArtTransition(backgroundArt)
+            ProvidePlayerContentColors(artTransition) {
                 PlayerSheetSkeleton(
                     song = song,
-                    backgroundArt = backgroundArt?.image,
+                    backgroundArt = artTransition,
                     isPlaying = isPlaying,
                     isBuffering = isBuffering,
                     currentPosition = currentPosition,

@@ -35,8 +35,9 @@ fun PlayerAlbumArt(
             // The mini thumbnail loads at its 44dp display size. The expanded player
             // opts into original resolution so Coil decodes the artwork at full size,
             // up to its maximum bitmap size, instead of upscaling the small cached thumbnail.
+            // The cover fades as long as the background's art transition.
             AsyncImage(
-                model = crossfadeModel(artUri, original = fullResolution),
+                model = crossfadeModel(artUri, original = fullResolution, crossfadeMillis = Motion.DurationNormal),
                 contentDescription = null,
                 error = ArtPlaceholderPainter,
                 fallback = ArtPlaceholderPainter,

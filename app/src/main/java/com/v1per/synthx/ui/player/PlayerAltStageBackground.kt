@@ -1,13 +1,13 @@
 package com.v1per.synthx.ui.player
 
 import android.annotation.SuppressLint
-import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
@@ -49,15 +48,17 @@ private val CopyDrawOrder = PlayerAltStageStyle.Copies.indices
 /**
  * The expanded player's art background: an opaque SurfaceVariant fill, the stretched and drifting
  * base layer, then the four spinning and orbiting copies, all centered on this layer, under one
- * blur, twist and saturation effect. With no [art] only the fill is drawn. The layer is drawn and
- * filtered at [PlayerAltStageStyle.FilterResolutionDivisor] times less resolution per side.
- * While the music is not [isPlaying] the motion stops and the last drawn frame stays.
+ * blur, twist and saturation effect. While [art] fades, each of those is drawn from the outgoing
+ * picture and then from the incoming one over it, so the one effect still runs once. With no
+ * picture only the fill is drawn, without the effect. The layer is drawn and filtered at
+ * [PlayerAltStageStyle.FilterResolutionDivisor] times less resolution per side. While the music is
+ * not [isPlaying] the motion stops and the last drawn frame stays.
  */
 // Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
 @SuppressLint("UnclosedTrace")
 @Composable
 internal fun BoxScope.PlayerAltStageBackground(
-    art: Bitmap?,
+    art: PlayerArtTransition<ImageBitmap>,
     hasSong: Boolean,
     isPlaying: Boolean,
     fullHeight: Dp,
@@ -66,8 +67,8 @@ internal fun BoxScope.PlayerAltStageBackground(
     Trace.beginSection(PerfTraceSections.Background)
     val paused = shouldPausePlayerAltStageMotion(hasSong, isPlaying, progress, rememberSystemReducedMotionActive())
     val motion = rememberAltStageMotion(paused)
-    val image = remember(art) { art?.asImageBitmap() }
-    val hasArt = image != null
+    // Presence only: a new picture redraws the layer without recomposing it.
+    val hasArt by remember(art) { derivedStateOf { art.to != null } }
     var layerSize by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current.density
     // Rebuilt only when the layer size, density or art presence changes; blur, twist and edge mode are the locked ones.
@@ -95,12 +96,12 @@ internal fun BoxScope.PlayerAltStageBackground(
                 clip = true
             },
     ) {
-        // Read here so a motion update invalidates only this draw pass.
+        // Read here so a motion update or a fade frame invalidates only this draw pass.
         motion.frame.longValue
         trace(PerfTraceSections.BackgroundDraw) {
             drawRect(SurfaceVariant)
-            val source = image ?: return@Canvas
-            drawAltStageArt(source, motion.angles)
+            val incoming = art.to ?: return@Canvas
+            drawAltStageArt(art.from, incoming, art.alpha, motion.angles)
         }
     }
     Trace.endSection()
@@ -145,12 +146,14 @@ private fun Modifier.altStageScrim(color: Color?): Modifier = if (color == null)
     }
 }
 
-/** Draws the base layer, then the copies largest first, each spinning about its own center. */
-private fun DrawScope.drawAltStageArt(art: ImageBitmap, angles: AltStageAngles) {
+/**
+ * Draws the base layer, then the copies largest first, each spinning about its own center. Each is
+ * drawn from [from], when set, and then from [to] at [alpha] in the same place.
+ */
+private fun DrawScope.drawAltStageArt(from: ImageBitmap?, to: ImageBitmap, alpha: Float, angles: AltStageAngles) {
     val width = size.width
     val center = this.center
-    val src = IntSize(art.width, art.height)
-    drawBaseLayer(art, src, angles.baseRotation)
+    drawBaseLayer(from, to, alpha, angles.baseRotation)
     for (index in CopyDrawOrder) {
         val copy = PlayerAltStageStyle.Copies[index]
         val side = (copy.sizeFraction * width).roundToInt()
@@ -167,14 +170,7 @@ private fun DrawScope.drawAltStageArt(art: ImageBitmap, angles: AltStageAngles) 
             translate(position.x, position.y)
             rotate(Math.toDegrees(angles.spin[index].toDouble()).toFloat(), pivot = Offset.Zero)
         }) {
-            drawImage(
-                image = art,
-                srcOffset = IntOffset.Zero,
-                srcSize = src,
-                dstOffset = IntOffset(-side / 2, -side / 2),
-                dstSize = IntSize(side, side),
-                filterQuality = FilterQuality.High,
-            )
+            drawArtPair(from, to, alpha, IntOffset(-side / 2, -side / 2), IntSize(side, side))
         }
     }
 }
@@ -184,7 +180,7 @@ private fun DrawScope.drawAltStageArt(art: ImageBitmap, angles: AltStageAngles) 
  * rotated in place by [rotation] and scaled so both sides reach the layer diagonal, so no corner
  * is exposed at any angle.
  */
-private fun DrawScope.drawBaseLayer(art: ImageBitmap, src: IntSize, rotation: Float) {
+private fun DrawScope.drawBaseLayer(from: ImageBitmap?, to: ImageBitmap, alpha: Float, rotation: Float) {
     val layerWidth = size.width
     val layerHeight = size.height
     val scale = PlayerAltStageStyle.BaseScale.coerceAtLeast(1f)
@@ -199,13 +195,30 @@ private fun DrawScope.drawBaseLayer(art: ImageBitmap, src: IntSize, rotation: Fl
         translate(center.x, center.y)
         rotate(Math.toDegrees(rotation.toDouble()).toFloat(), pivot = Offset.Zero)
     }) {
-        drawImage(
-            image = art,
-            srcOffset = IntOffset.Zero,
-            srcSize = src,
-            dstOffset = IntOffset(-dst.width / 2, -dst.height / 2),
-            dstSize = dst,
-            filterQuality = FilterQuality.High,
-        )
+        drawArtPair(from, to, alpha, IntOffset(-dst.width / 2, -dst.height / 2), dst)
     }
+}
+
+/** [from] opaque, then [to] at [alpha] over it, into the same destination. */
+private fun DrawScope.drawArtPair(
+    from: ImageBitmap?,
+    to: ImageBitmap,
+    alpha: Float,
+    dstOffset: IntOffset,
+    dstSize: IntSize,
+) {
+    if (from != null) drawArt(from, dstOffset, dstSize, alpha = 1f)
+    drawArt(to, dstOffset, dstSize, alpha)
+}
+
+private fun DrawScope.drawArt(art: ImageBitmap, dstOffset: IntOffset, dstSize: IntSize, alpha: Float) {
+    drawImage(
+        image = art,
+        srcOffset = IntOffset.Zero,
+        srcSize = IntSize(art.width, art.height),
+        dstOffset = dstOffset,
+        dstSize = dstSize,
+        alpha = alpha,
+        filterQuality = FilterQuality.High,
+    )
 }

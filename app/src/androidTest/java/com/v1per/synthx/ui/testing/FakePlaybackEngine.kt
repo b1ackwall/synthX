@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 
 /**
  * Device-side fake [PlaybackEngine] for shell and MainActivity tests: no service, no ExoPlayer.
@@ -54,8 +55,11 @@ internal class FakePlaybackEngine(
     override val isQueueEnded: Flow<Boolean> = MutableStateFlow(false)
     override val isPlaying: Flow<Boolean> = playingState
     override val isBuffering: Flow<Boolean> = MutableStateFlow(false)
-    override val currentSongId: Flow<String?> = MutableStateFlow(current?.id)
-    override val currentSong: Flow<Song?> = MutableStateFlow(current)
+
+    /** The song the shell shows as current; a test replaces it to model a track change. */
+    val currentSongState = MutableStateFlow(current)
+    override val currentSongId: Flow<String?> = currentSongState.map { it?.id }
+    override val currentSong: Flow<Song?> = currentSongState
     override val currentPosition: Flow<Long> = MutableStateFlow(0L)
     override val duration: Flow<Long> = MutableStateFlow(60_000L)
     override val errors: Flow<PlaybackError> = errorEvents

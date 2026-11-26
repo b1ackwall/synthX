@@ -1,7 +1,6 @@
 package com.v1per.synthx.ui.player
 
 import android.annotation.SuppressLint
-import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -33,6 +32,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -65,7 +65,7 @@ import kotlin.math.roundToInt
 @Composable
 internal fun PlayerSheetSkeleton(
     song: Song,
-    backgroundArt: Bitmap?,
+    backgroundArt: PlayerArtTransition<ImageBitmap>,
     isPlaying: Boolean,
     isBuffering: Boolean,
     currentPosition: Long,

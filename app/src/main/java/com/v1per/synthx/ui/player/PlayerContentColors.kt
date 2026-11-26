@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Background
@@ -43,9 +42,11 @@ internal fun playerContentColorsFor(brightness: Float?): PlayerContentColors {
     return if (dark) PlayerContentColors.Dark else PlayerContentColors.Light
 }
 
-/** Decides the player's content colors from [brightness] and provides them to [content]. */
+/**
+ * Provides the content colors [transition] displays to [content]. They change once per flip, halfway
+ * through a fade, so readers recompose once rather than on every frame of it.
+ */
 @Composable
-internal fun ProvidePlayerContentColors(brightness: Float?, content: @Composable () -> Unit) {
-    val colors = remember(brightness) { playerContentColorsFor(brightness) }
-    CompositionLocalProvider(LocalPlayerContentColors provides colors, content = content)
+internal fun ProvidePlayerContentColors(transition: PlayerArtTransition<*>, content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalPlayerContentColors provides transition.displayedColors, content = content)
 }

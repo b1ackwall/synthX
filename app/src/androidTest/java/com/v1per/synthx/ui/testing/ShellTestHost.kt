@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.testing
 
+import android.graphics.Bitmap
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
@@ -31,6 +32,7 @@ import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.navigation.Screen
 import com.v1per.synthx.playback.PlaybackController
 import com.v1per.synthx.playback.PlaybackViewModel
+import com.v1per.synthx.playback.PlayerBackgroundArtRequest
 import com.v1per.synthx.ui.MainScaffold
 import com.v1per.synthx.ui.ShellTestTags
 import com.v1per.synthx.ui.screens.restore.RestoreStatusViewModel
@@ -78,8 +80,14 @@ internal class ShellTestHost(
         }
     }
 
-    /** Puts a PlaybackViewModel on [engine] into the activity's store; MainScaffold then gets it. */
-    fun installPlayback(engine: FakePlaybackEngine): PlaybackViewModel {
+    /**
+     * Puts a PlaybackViewModel on [engine] into the activity's store; MainScaffold then gets it.
+     * [loadBackgroundArt] decodes the player background's art; the default yields none.
+     */
+    fun installPlayback(
+        engine: FakePlaybackEngine,
+        loadBackgroundArt: suspend (PlayerBackgroundArtRequest) -> Bitmap? = { null },
+    ): PlaybackViewModel {
         lateinit var viewModel: PlaybackViewModel
         rule.runOnUiThread {
             viewModel = ViewModelProvider(
@@ -87,7 +95,7 @@ internal class ShellTestHost(
                 object : ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST")
                     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                        PlaybackViewModel(PlaybackController(engine)) as T
+                        PlaybackViewModel(PlaybackController(engine), loadBackgroundArt) as T
                 },
             )[PlaybackViewModel::class.java]
         }
@@ -98,9 +106,10 @@ internal class ShellTestHost(
         engine: FakePlaybackEngine = FakePlaybackEngine(),
         start: String = Screen.Home.route,
         restoreStatusViewModel: RestoreStatusViewModel? = null,
+        loadBackgroundArt: suspend (PlayerBackgroundArtRequest) -> Bitmap? = { null },
         wrap: @Composable (@Composable () -> Unit) -> Unit = { it() },
     ): PlaybackViewModel {
-        val viewModel = installPlayback(engine)
+        val viewModel = installPlayback(engine, loadBackgroundArt)
         rule.setContent {
             wrap {
                 SynthXTheme {
