@@ -38,8 +38,12 @@ interface SongRepository {
     /** Resolves named playlist consequences immediately before delete confirmation. */
     suspend fun previewDeleteSong(id: String): DeleteSongPreview
 
-    /** Retries only the physical audio cleanup after the library row has already been removed. */
-    suspend fun retryAudioFileDeletion(filePath: String): SongDeletionOutcome
+    /**
+     * Retries only the physical audio cleanup after [songId]'s library row has already been
+     * removed. Holds [songId]'s song lock and a restore-admission permit, like the delete itself,
+     * and leaves the file alone when a song row now owns [filePath] (a scan imported it again).
+     */
+    suspend fun retryAudioFileDeletion(songId: String, filePath: String): AudioFileRetryOutcome
 
     /**
      * Same effect as [deleteSong], but the call itself is launched on this repository's own
@@ -67,18 +71,22 @@ interface SongRepository {
      * "Identity" is: every playlist membership the old song held, at the same position (see
      * [PlaylistConflictResolution] for what happens where both songs are already members), and
      * its `date_added`. Starred status is *not* copied — the new song's own value is kept, except
-     * that a new song which ends up in at least one playlist is un-starred, since starred means
-     * "not yet organized into a playlist".
+     * for a new song that ends up in at least one playlist, since starred means "not yet
+     * organized into a playlist": under the Music folder it is un-starred in the same
+     * transaction; under the New Arrivals folder it is graduated into the Music folder after the
+     * commit (graduation un-stars it), and stays starred if that move does not finish.
      *
      * [expectedMemberships] must be the snapshot returned by [previewReplaceSong]. If either
      * song's membership rows changed, the operation returns [ReplaceSongResult.PreviewStale]
-     * before writing anything.
+     * before writing anything. [onStage] reports [ReplaceSongStage.MovingReplacement] before the
+     * graduation starts.
      */
     suspend fun replaceSong(
         oldSongId: String,
         newSongId: String,
         conflictResolution: PlaylistConflictResolution,
         expectedMemberships: ReplaceSongMembershipSnapshot,
+        onStage: (ReplaceSongStage) -> Unit = {},
     ): ReplaceSongResult
 
     // Starred — songs not yet organized into a playlist
@@ -211,6 +219,19 @@ sealed interface SongDeletionOutcome {
     data object FileRemained : SongDeletionOutcome
     data object CleanupUncertain : SongDeletionOutcome
     data class Blocked(val reason: DestructiveFilePreflightResult.Blocking) : SongDeletionOutcome
+}
+
+/**
+ * Result of [SongRepository.retryAudioFileDeletion]. [Deleted] means the file is gone (deleted
+ * now or confirmed absent). [FileRemained] and [CleanupUncertain] mirror [SongDeletionOutcome];
+ * [CleanupUncertain] also covers a retry that could not get restore admission and so deleted
+ * nothing. [FileInLibrary] means a song row owns the path again, so the file was left in place.
+ */
+sealed interface AudioFileRetryOutcome {
+    data object Deleted : AudioFileRetryOutcome
+    data object FileRemained : AudioFileRetryOutcome
+    data object CleanupUncertain : AudioFileRetryOutcome
+    data object FileInLibrary : AudioFileRetryOutcome
 }
 
 /**

@@ -1,33 +1,32 @@
 package com.v1per.synthx.ui.screens.replacesong
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.DetailTopBar
+import com.v1per.synthx.ui.theme.Alpha
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.components.SynthXAlertDialog
 import com.v1per.synthx.ui.components.SynthXButtonWidth
 import com.v1per.synthx.ui.components.SynthXPrimaryButton
 import com.v1per.synthx.ui.components.SynthXSecondaryButton
-import com.v1per.synthx.ui.components.SynthXSnackbarHost
-import com.v1per.synthx.ui.components.showSynthXSnackbar
 
 /**
  * Swaps one song's library identity onto another and completely deletes the original.
@@ -42,10 +41,16 @@ import com.v1per.synthx.ui.components.showSynthXSnackbar
  * three steps — the same reason `RecoverySteps` builds its own. [SettingsDetailScaffold] is
  * likewise not used: two of the three steps are a `LazyColumn` over the whole library, which
  * cannot live inside that scaffold's `verticalScroll` column.
+ *
+ * A replace that completes without a warning leaves at once: [onCompleted] receives the
+ * confirmation to show, and the route pops the wizard and shows it on the shell's snackbar host,
+ * which outlives this screen. A warning stays in [ReplaceSongOutcomeDialog] until acknowledged,
+ * and [onExit] then closes the wizard.
  */
 @Composable
 fun ReplaceSongScreen(
     onExit: () -> Unit,
+    onCompleted: (message: String) -> Unit,
     viewModel: ReplaceSongViewModel = viewModel(
         factory = ReplaceSongViewModel.Factory(LocalContext.current),
     ),
@@ -58,7 +63,7 @@ fun ReplaceSongScreen(
     val conflictResolution by viewModel.conflictResolution.collectAsState()
     val outcome by viewModel.outcome.collectAsState()
     val cleanupRetryInProgress by viewModel.cleanupRetryInProgress.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val movingReplacement by viewModel.movingReplacement.collectAsState()
 
     val replaceInFlight = outcome is ReplaceSongOutcome.InProgress
 
@@ -132,28 +137,24 @@ fun ReplaceSongScreen(
             }
 
             if (replaceInFlight) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Background.copy(alpha = 0.85f)),
-                ) {
-                    ReplaceSongBusyCover(R.string.replace_song_working)
-                }
+                ReplaceSongWorkingOverlay(
+                    messageRes = if (movingReplacement) {
+                        R.string.replace_song_stage_moving
+                    } else {
+                        R.string.replace_song_working
+                    },
+                )
             }
-            SynthXSnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
         }
     }
 
     val complete = outcome as? ReplaceSongOutcome.Complete
-    ReplaceSongSuccessAcknowledgement(
-        complete = complete,
-        snackbarHostState = snackbarHostState,
-        message = resources.getString(R.string.replace_song_done),
-        onExit = onExit,
-    )
+    val latestOnCompleted by rememberUpdatedState(onCompleted)
+    LaunchedEffect(complete) {
+        if (complete != null && complete.warning == null) {
+            latestOnCompleted(complete.exitMessage ?: resources.getString(R.string.replace_song_done))
+        }
+    }
 
     val dialogMessage = when (val current = outcome) {
         is ReplaceSongOutcome.Failed -> current.message
@@ -172,10 +173,40 @@ fun ReplaceSongScreen(
         ReplaceSongOutcomeDialog(
             message = message,
             onAcknowledge = onAcknowledge,
-            onRetry = complete?.retryFilePath?.let { filePath -> { viewModel.retryAudioFileDeletion(filePath) } },
+            onRetry = complete?.retryTarget?.let { target -> { viewModel.retryAudioFileDeletion(target) } },
             retryEnabled = !cleanupRetryInProgress,
         )
     }
+}
+
+/**
+ * The cover drawn over the review step while a confirmed replace runs. It takes every pointer
+ * event, so nothing under it (the conflict choices, the scrolling review) can be touched until
+ * the replace finishes.
+ */
+@Composable
+internal fun ReplaceSongWorkingOverlay(@StringRes messageRes: Int) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background.copy(alpha = Alpha.BusyScrim))
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent().changes.forEach { it.consume() }
+                    }
+                }
+            }
+            .testTag(ReplaceSongTestTags.WorkingOverlay),
+    ) {
+        ReplaceSongBusyCover(messageRes)
+    }
+}
+
+/** Test tags for the Replace Song screen. */
+internal object ReplaceSongTestTags {
+    const val WorkingOverlay = "replace_song_working_overlay"
+    const val BusyCoverMessage = "replace_song_busy_cover_message"
 }
 
 /**
@@ -207,20 +238,4 @@ internal fun ReplaceSongOutcomeDialog(
             }
         },
     )
-}
-
-/** Warning-free completion is acknowledged transiently; warnings remain blocking above. */
-@Composable
-internal fun ReplaceSongSuccessAcknowledgement(
-    complete: ReplaceSongOutcome.Complete?,
-    snackbarHostState: SnackbarHostState,
-    message: String,
-    onExit: () -> Unit,
-) {
-    LaunchedEffect(complete) {
-        if (complete != null && complete.warning == null) {
-            snackbarHostState.showSynthXSnackbar(message, duration = SnackbarDuration.Short)
-            onExit()
-        }
-    }
 }

@@ -15,7 +15,15 @@ import com.v1per.synthx.ui.screens.issues.IssuesViewModel
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementScreen
 import com.v1per.synthx.ui.screens.replacesong.ReplaceSongScreen
 
-fun NavGraphBuilder.libraryManagementRoutes(navController: NavHostController, chromeBottomPadding: Dp) {
+/**
+ * [onShowShellMessage] shows a snackbar on MainScaffold's shell host, which outlives every route:
+ * Replace Song pops itself on success and confirms it on the screen the user lands on.
+ */
+fun NavGraphBuilder.libraryManagementRoutes(
+    navController: NavHostController,
+    chromeBottomPadding: Dp,
+    onShowShellMessage: (String) -> Unit,
+) {
     composable(Screen.LibraryManagement.route) {
         RouteContent(chromeBottomPadding) {
             LibraryManagementScreen(
@@ -41,6 +49,7 @@ fun NavGraphBuilder.libraryManagementRoutes(navController: NavHostController, ch
             // screen owns its own bar. See ReplaceSongScreen's kdoc.
             ReplaceSongScreen(
                 onExit = { navController.popBackStack() },
+                onCompleted = replaceSongCompletion(navController, onShowShellMessage),
             )
         }
     }
@@ -63,4 +72,16 @@ fun NavGraphBuilder.libraryManagementRoutes(navController: NavHostController, ch
             )
         }
     }
+}
+
+/**
+ * What Replace Song does once a replace completes without a warning: leave the wizard at once,
+ * then confirm on the shell's snackbar host, so the message shows on the screen the user lands on.
+ */
+internal fun replaceSongCompletion(
+    navController: NavHostController,
+    onShowShellMessage: (String) -> Unit,
+): (String) -> Unit = { message ->
+    navController.popBackStack()
+    onShowShellMessage(message)
 }

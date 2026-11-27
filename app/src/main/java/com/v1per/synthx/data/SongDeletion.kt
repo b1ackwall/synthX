@@ -69,6 +69,19 @@ fun deleteSongArtFile(context: Context, songId: String): Boolean {
  */
 enum class AudioFileDeletion { Deleted, ConfirmedAbsent, Unknown, Failed }
 
+/** True when the file is known to be gone: deleted just now, or confirmed absent. */
+val AudioFileDeletion.confirmsGone: Boolean
+    get() = this == AudioFileDeletion.Deleted || this == AudioFileDeletion.ConfirmedAbsent
+
+/**
+ * Whether [filePath] is the per-row sentinel a scan writes when it gives a stale row's path to a
+ * new row (`stale://<id>`, see SongDao.clearFilePathForRetag). It names no file, so there is
+ * nothing on disk to delete or to keep a cleanup record for.
+ */
+fun isStaleFilePathSentinel(filePath: String): Boolean = filePath.startsWith(STALE_FILE_PATH_PREFIX)
+
+private const val STALE_FILE_PATH_PREFIX = "stale://"
+
 /**
  * Permanently deletes the song's own audio file from disk, given the `file_path` its row carried.
  *

@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.screens.replacesong
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,8 +11,8 @@ import com.v1per.synthx.data.repository.ReplaceSongPreview
 import com.v1per.synthx.data.repository.ReplaceSongMembershipSnapshot
 import com.v1per.synthx.data.repository.ReplaceSongPreviewResult
 import com.v1per.synthx.data.repository.ReplaceSongResult
+import com.v1per.synthx.data.repository.ReplaceSongStage
 import com.v1per.synthx.data.repository.Song
-import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
@@ -60,24 +61,10 @@ sealed class ReplaceSongPreviewState {
     data class Failed(val message: String, val retryable: Boolean) : ReplaceSongPreviewState()
 }
 
-/** Terminal state of the replace itself, once confirmed. */
-sealed class ReplaceSongOutcome {
-    data object InProgress : ReplaceSongOutcome()
-
-    /**
-     * The replacement landed. [warning] is null for the ordinary case, where the screen simply
-     * navigates away — the changed library is its own feedback and a "done" dialog on a wizard
-     * that is closing itself is noise. It is non-null only when the old song's audio file could
-     * not be deleted, which the user has no other way to find out and must acknowledge before
-     * the screen closes.
-     */
-    data class Complete(val warning: String?, val retryFilePath: String? = null) : ReplaceSongOutcome()
-
-    data class Failed(val message: String) : ReplaceSongOutcome()
-}
-
 /** Matches SearchViewModel's own query debounce — same in-memory filter over the same list. */
 private const val QueryDebounceMs = 200L
+
+private const val TAG = "ReplaceSongViewModel"
 
 /**
  * Thin step-sequencer plus the two things a step alone cannot own: the filtered song list both
@@ -118,6 +105,11 @@ class ReplaceSongViewModel(
     val outcome: StateFlow<ReplaceSongOutcome?> = _outcome.asStateFlow()
     private val _cleanupRetryInProgress = MutableStateFlow(false)
     val cleanupRetryInProgress: StateFlow<Boolean> = _cleanupRetryInProgress.asStateFlow()
+
+    private val _movingReplacement = MutableStateFlow(false)
+
+    /** True while a committed replace graduates its New Arrivals replacement into Music. */
+    val movingReplacement: StateFlow<Boolean> = _movingReplacement.asStateFlow()
 
     /**
      * What the current picker step should list.
@@ -228,6 +220,8 @@ class ReplaceSongViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
+                // A preview only reads, so nothing can have changed.
+                Log.w(TAG, "Replace preview failed", e)
                 ReplaceSongPreviewState.Failed(
                     stringResource(R.string.replace_song_failed_generic),
                     retryable = true,
@@ -247,111 +241,111 @@ class ReplaceSongViewModel(
      * Confirms the replacement described by [ready]'s own preview and pins its membership
      * snapshot through the repository's transaction-time validation.
      *
+     * Does nothing while a replace is running or once one has completed: a second confirm on a
+     * finished replace would only take another backup and report the deleted song as missing.
+     * After a failure the user may confirm again.
+     *
      * Navigation is deliberately not done here: the screen reacts to [outcome] instead, so this
      * holds no callback into the composition it would outlive.
      */
     fun replace(ready: ReplaceSongPreviewState.Ready) {
-        if (_outcome.value == ReplaceSongOutcome.InProgress) return
+        val current = _outcome.value
+        if (current is ReplaceSongOutcome.InProgress || current is ReplaceSongOutcome.Complete) return
         _outcome.value = ReplaceSongOutcome.InProgress
         viewModelScope.launch {
             _outcome.value = try {
-                when (
-                    val result = repository.replaceSong(
-                        oldSongId = ready.preview.oldSong.id,
-                        newSongId = ready.preview.newSong.id,
-                        conflictResolution = _conflictResolution.value,
-                        expectedMemberships = ready.membershipSnapshot,
-                    )
-                ) {
-                    is ReplaceSongResult.Success -> ReplaceSongOutcome.Complete(
-                        warning = when (result.oldAudioCleanup) {
-                            SongDeletionOutcome.Deleted -> null
-
-                            SongDeletionOutcome.FileRemained ->
-                                stringResource(R.string.replace_song_done_file_remained)
-
-                            SongDeletionOutcome.CleanupUncertain ->
-                                stringResource(R.string.replace_song_done_cleanup_uncertain)
-
-                            is SongDeletionOutcome.Blocked ->
-                                appContext.destructiveFileBlockMessage(result.oldAudioCleanup.reason)
-                        },
-                        retryFilePath = ready.preview.oldSong.filePath.takeIf {
-                            result.oldAudioCleanup == SongDeletionOutcome.FileRemained ||
-                                result.oldAudioCleanup == SongDeletionOutcome.CleanupUncertain
-                        },
-                    )
-
-                    ReplaceSongResult.OldSongMissing -> ReplaceSongOutcome.Failed(
-                        stringResource(R.string.replace_song_failed_old_missing),
-                    )
-
-                    ReplaceSongResult.NewSongMissing -> ReplaceSongOutcome.Failed(
-                        stringResource(R.string.replace_song_failed_new_missing),
-                    )
-
-                    ReplaceSongResult.PreviewStale -> {
-                        beginPreview(ready.preview.oldSong, ready.preview.newSong)
-                        ReplaceSongOutcome.Failed(
-                            stringResource(R.string.replace_song_preview_stale),
-                        )
-                    }
-
-                    is ReplaceSongResult.OldSongBlocked -> ReplaceSongOutcome.Failed(
-                        appContext.destructiveFileBlockMessage(result.reason),
-                    )
-
-                    is ReplaceSongResult.NewSongUnusable -> ReplaceSongOutcome.Failed(
-                        stringResource(
-                            when (result.reason) {
-                                ReplacementFilePreflightResult.SourceGone ->
-                                    R.string.replace_song_new_file_gone
-
-                                ReplacementFilePreflightResult.IdentityMismatch ->
-                                    R.string.replace_song_new_file_changed
-                            },
-                        ),
-                    )
-
-                    ReplaceSongResult.SameSong -> ReplaceSongOutcome.Failed(
-                        stringResource(R.string.replace_song_failed_same_song),
-                    )
-                }
+                val result = repository.replaceSong(
+                    oldSongId = ready.preview.oldSong.id,
+                    newSongId = ready.preview.newSong.id,
+                    conflictResolution = _conflictResolution.value,
+                    expectedMemberships = ready.membershipSnapshot,
+                    onStage = { stage ->
+                        if (stage == ReplaceSongStage.MovingReplacement) _movingReplacement.value = true
+                    },
+                )
+                outcomeFor(result, ready)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
+                // Only a failure before the commit reaches here: the repository reports everything
+                // after the commit inside its Success result, so "Nothing was changed" holds.
+                Log.w(TAG, "Replace failed before it committed", e)
                 ReplaceSongOutcome.Failed(
                     stringResource(R.string.replace_song_failed_generic),
                 )
+            } finally {
+                _movingReplacement.value = false
             }
         }
     }
 
-    fun retryAudioFileDeletion(filePath: String) {
+    private fun outcomeFor(result: ReplaceSongResult, ready: ReplaceSongPreviewState.Ready): ReplaceSongOutcome =
+        when (result) {
+            is ReplaceSongResult.Success -> completedReplaceOutcome(result, ready.preview.oldSong, stringResource)
+
+            ReplaceSongResult.OldSongMissing -> ReplaceSongOutcome.Failed(
+                stringResource(R.string.replace_song_failed_old_missing),
+            )
+
+            ReplaceSongResult.NewSongMissing -> ReplaceSongOutcome.Failed(
+                stringResource(R.string.replace_song_failed_new_missing),
+            )
+
+            ReplaceSongResult.PreviewStale -> {
+                beginPreview(ready.preview.oldSong, ready.preview.newSong)
+                ReplaceSongOutcome.Failed(
+                    stringResource(R.string.replace_song_preview_stale),
+                )
+            }
+
+            is ReplaceSongResult.OldSongBlocked -> ReplaceSongOutcome.Failed(
+                appContext.destructiveFileBlockMessage(result.reason),
+            )
+
+            is ReplaceSongResult.NewSongUnusable -> ReplaceSongOutcome.Failed(
+                stringResource(
+                    when (result.reason) {
+                        ReplacementFilePreflightResult.SourceGone ->
+                            R.string.replace_song_new_file_gone
+
+                        ReplacementFilePreflightResult.IdentityMismatch ->
+                            R.string.replace_song_new_file_changed
+                    },
+                ),
+            )
+
+            ReplaceSongResult.NewSongUnreadable -> ReplaceSongOutcome.Failed(
+                stringResource(R.string.replace_song_failed_replacement_unreadable),
+            )
+
+            ReplaceSongResult.SameSong -> ReplaceSongOutcome.Failed(
+                stringResource(R.string.replace_song_failed_same_song),
+            )
+        }
+
+    /**
+     * Retries the old audio file's delete from the completion dialog. Only the file's part of the
+     * outcome changes; a failed retry keeps the dialog and its Retry.
+     */
+    fun retryAudioFileDeletion(target: AudioCleanupRetryTarget) {
+        val previous = _outcome.value as? ReplaceSongOutcome.Complete ?: return
         if (_cleanupRetryInProgress.value) return
         _cleanupRetryInProgress.value = true
         viewModelScope.launch {
             _outcome.value = try {
-                when (repository.retryAudioFileDeletion(filePath)) {
-                    SongDeletionOutcome.Deleted -> ReplaceSongOutcome.Complete(null)
-
-                    SongDeletionOutcome.FileRemained -> ReplaceSongOutcome.Complete(
-                        stringResource(R.string.replace_song_done_file_remained),
-                        filePath,
-                    )
-
-                    SongDeletionOutcome.CleanupUncertain, is SongDeletionOutcome.Blocked ->
-                        ReplaceSongOutcome.Complete(
-                            stringResource(R.string.replace_song_done_cleanup_uncertain),
-                            filePath,
-                        )
-                }
+                retriedCleanupOutcome(
+                    repository.retryAudioFileDeletion(target.songId, target.filePath),
+                    previous,
+                    target,
+                    stringResource,
+                )
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Throwable) {
-                ReplaceSongOutcome.Complete(
-                    stringResource(R.string.replace_song_done_cleanup_uncertain),
-                    filePath,
+            } catch (e: Throwable) {
+                Log.w(TAG, "Audio cleanup retry failed", e)
+                previous.copy(
+                    fileWarning = stringResource(R.string.replace_song_done_cleanup_uncertain),
+                    retryTarget = target,
                 )
             } finally {
                 _cleanupRetryInProgress.value = false

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.v1per.synthx.data.repository.Playlist
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.data.repository.SongRepository
+import com.v1per.synthx.data.repository.AudioFileRetryOutcome
 import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepositoryImpl
 import com.v1per.synthx.data.scanner.GraduationStage
@@ -182,10 +183,10 @@ class SongActionsViewModel(
                     SongDeletionOutcome.Deleted -> Unit
 
                     SongDeletionOutcome.FileRemained ->
-                        _events.tryEmit(SongActionEvent.DeletedButFileRemained(filePath))
+                        _events.tryEmit(SongActionEvent.DeletedButFileRemained(songId, filePath))
 
                     SongDeletionOutcome.CleanupUncertain ->
-                        _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
+                        _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(songId, filePath))
 
                     is SongDeletionOutcome.Blocked ->
                         _events.tryEmit(SongActionEvent.DeleteBlocked(outcome.reason))
@@ -196,22 +197,22 @@ class SongActionsViewModel(
         }
     }
 
-    fun retryAudioFileDeletion(filePath: String) {
+    fun retryAudioFileDeletion(songId: String, filePath: String) {
         launchCatching(onError = {
-            _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
+            _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(songId, filePath))
         }) {
-            when (repository.retryAudioFileDeletion(filePath)) {
-                SongDeletionOutcome.Deleted ->
+            when (repository.retryAudioFileDeletion(songId, filePath)) {
+                AudioFileRetryOutcome.Deleted ->
                     _events.tryEmit(SongActionEvent.AudioCleanupRetrySucceeded)
 
-                SongDeletionOutcome.FileRemained ->
-                    _events.tryEmit(SongActionEvent.DeletedButFileRemained(filePath))
+                AudioFileRetryOutcome.FileRemained ->
+                    _events.tryEmit(SongActionEvent.DeletedButFileRemained(songId, filePath))
 
-                SongDeletionOutcome.CleanupUncertain ->
-                    _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
+                AudioFileRetryOutcome.CleanupUncertain ->
+                    _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(songId, filePath))
 
-                is SongDeletionOutcome.Blocked ->
-                    _events.tryEmit(SongActionEvent.DeletedButCleanupUncertain(filePath))
+                AudioFileRetryOutcome.FileInLibrary ->
+                    _events.tryEmit(SongActionEvent.AudioCleanupRetryFileInLibrary)
             }
         }
     }

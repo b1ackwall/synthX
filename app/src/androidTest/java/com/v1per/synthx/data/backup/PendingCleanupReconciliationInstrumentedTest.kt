@@ -12,6 +12,7 @@ import com.v1per.synthx.data.db.PendingCleanupPhase
 import com.v1per.synthx.data.db.PendingCleanupType
 import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
+import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.preferences.PendingCleanupReconciliationTracker
 import com.v1per.synthx.ui.testing.TestTimeouts
 import java.io.File
@@ -50,10 +51,13 @@ class PendingCleanupReconciliationInstrumentedTest {
     private lateinit var database: SynthXDatabase
     private val publishedFiles = mutableListOf<File>()
 
+    private var exportRequests = 0
+
     @Before
     fun setUp() {
         PendingCleanupReconciliationTracker.resetForTest()
         context = ReconciliationTestContext(ApplicationProvider.getApplicationContext())
+        DestructiveActionTracker.resetForTest(context)
         database = Room.inMemoryDatabaseBuilder(context, SynthXDatabase::class.java).build()
         File(context.filesDir, "art").mkdirs()
     }
@@ -62,42 +66,86 @@ class PendingCleanupReconciliationInstrumentedTest {
     fun tearDown() {
         publishedFiles.forEach(File::delete)
         database.close()
+        // Before cleanUp(): resetting afterwards would recreate the isolated preference file.
+        DestructiveActionTracker.resetForTest(context)
         context.cleanUp()
         PendingCleanupReconciliationTracker.resetForTest()
     }
 
     @Test
     fun deleteInterruptedAfterCommitIsReconciledOnNextLaunch() = runBlocking {
-        seedSong("song", filePath = "test://song")
+        val audio = reachableDocument("song.audio")
+        seedSong("song", filePath = audio)
         File(context.filesDir, "art/art_song.jpg").writeText("test art")
 
         // The exact durable state a kill right after deleteSong's transaction commits, but
         // before finishSongDeletion ever ran, leaves behind — see
         // SongRepositoryImpl.deleteSong's pendingCleanupDao.insert call.
-        val operationId = UUID.randomUUID().toString()
         database.songDao().deleteSongById("song")
-        database.pendingCleanupDao().insert(
-            PendingCleanupEntity(
-                operationId = operationId,
-                songId = "song",
-                operationType = PendingCleanupType.DELETE.name,
-                filePath = "test://song",
-                publishedPath = null,
-                phase = PendingCleanupPhase.Committed.name,
-                createdAt = System.currentTimeMillis(),
-            ),
-        )
+        insertDeleteRecord("song", audio, PendingCleanupPhase.Committed)
 
         // Precondition: row is gone, cleanup never ran, record survives.
         assertNull(database.songDao().getSongById("song"))
         assertTrue(File(context.filesDir, "art/art_song.jpg").exists())
         assertEquals(1, database.pendingCleanupDao().getAll().size)
 
-        PendingCleanupReconciliation.reconcile(context, database)
+        reconcile()
 
         assertFalse(File(context.filesDir, "art/art_song.jpg").exists())
         assertTrue(database.pendingCleanupDao().getAll().isEmpty())
         assertEquals(1, PendingCleanupReconciliationTracker.lastCount.value)
+        // The interrupted delete's own after-commit work, finished here.
+        assertEquals(1, DestructiveActionTracker.count.value)
+        assertEquals(1, exportRequests)
+    }
+
+    @Test
+    fun interruptedDeleteWhoseFileCannotBeConfirmedGoneKeepsItsRecordForTheNextLaunch() = runBlocking {
+        // test:// opens no provider, so the delete is unconfirmed, as a refusing provider's would be.
+        insertDeleteRecord("song", "test://song", PendingCleanupPhase.Committed)
+        File(context.filesDir, "art/art_song.jpg").writeText("test art")
+
+        reconcile()
+
+        val kept = database.pendingCleanupDao().getAll().single()
+        assertEquals(PendingCleanupPhase.AudioFileRemains.name, kept.phase)
+        assertEquals("test://song", kept.filePath)
+        assertEquals(listOf("test://song"), database.pendingCleanupDao().getPendingDeletePaths())
+        // Everything but the file is finished, once.
+        assertFalse(File(context.filesDir, "art/art_song.jpg").exists())
+        assertEquals(1, DestructiveActionTracker.count.value)
+        assertEquals(1, exportRequests)
+        // Surfaced through the existing Issues count even though it is not resolved.
+        assertEquals(1, PendingCleanupReconciliationTracker.lastCount.value)
+
+        reconcile()
+
+        assertEquals(PendingCleanupPhase.AudioFileRemains.name, database.pendingCleanupDao().getAll().single().phase)
+        assertEquals("a retry must not count the destructive action again", 1, DestructiveActionTracker.count.value)
+        assertEquals("a retry needs no second export", 1, exportRequests)
+        assertEquals(1, PendingCleanupReconciliationTracker.lastCount.value)
+    }
+
+    @Test
+    fun aKeptRecordIsClearedOnceItsFileIsGone() = runBlocking {
+        val audio = reachableDocument("remains.audio")
+        insertDeleteRecord("song", audio, PendingCleanupPhase.AudioFileRemains)
+
+        reconcile()
+
+        assertTrue(database.pendingCleanupDao().getAll().isEmpty())
+        assertEquals("the replace already counted itself", 0, DestructiveActionTracker.count.value)
+        assertEquals(0, exportRequests)
+        assertEquals(1, PendingCleanupReconciliationTracker.lastCount.value)
+    }
+
+    @Test
+    fun aStaleSentinelPathHasNoFileToWaitFor() = runBlocking {
+        insertDeleteRecord("song", "stale://song", PendingCleanupPhase.AudioFileRemains)
+
+        reconcile()
+
+        assertTrue(database.pendingCleanupDao().getAll().isEmpty())
     }
 
     @Test
@@ -120,7 +168,7 @@ class PendingCleanupReconciliationInstrumentedTest {
             ),
         )
 
-        PendingCleanupReconciliation.reconcile(context, database)
+        reconcile()
 
         val song = requireNotNull(database.songDao().getSongById("song"))
         assertEquals("test://already-published", song.filePath)
@@ -142,7 +190,7 @@ class PendingCleanupReconciliationInstrumentedTest {
             ),
         )
 
-        PendingCleanupReconciliation.reconcile(context, database)
+        reconcile()
 
         val moved = requireNotNull(database.songDao().getSongById("moved"))
         assertEquals("row must point at the reachable published document", publishedUri, moved.filePath)
@@ -170,7 +218,7 @@ class PendingCleanupReconciliationInstrumentedTest {
             ),
         )
 
-        PendingCleanupReconciliation.reconcile(context, database)
+        reconcile()
 
         val song = requireNotNull(database.songDao().getSongById("song"))
         assertEquals("test://deleted-source", song.filePath)
@@ -196,7 +244,7 @@ class PendingCleanupReconciliationInstrumentedTest {
             ),
         )
 
-        PendingCleanupReconciliation.reconcile(context, database)
+        reconcile()
 
         assertNull(database.songDao().getSongById("gone-song"))
         assertTrue(database.pendingCleanupDao().getAll().isEmpty())
@@ -204,7 +252,7 @@ class PendingCleanupReconciliationInstrumentedTest {
 
     @Test
     fun noLeftoverRecordsIsANoOpThatDoesNotTouchTheTracker() = runBlocking {
-        PendingCleanupReconciliation.reconcile(context, database)
+        reconcile()
 
         assertEquals(0, PendingCleanupReconciliationTracker.lastCount.value)
         assertEquals(
@@ -214,13 +262,38 @@ class PendingCleanupReconciliationInstrumentedTest {
         )
     }
 
-    private fun reachablePublishedDocument(): String {
+    private fun reachablePublishedDocument(): String = reachableDocument("published")
+
+    /**
+     * A content URI the app's FileProvider serves for a real file. Its existence query returns a
+     * row and its delete call succeeds, so deleteSongAudioFile reports Deleted. FileProvider does
+     * not implement document deletion, so the file itself stays; tearDown removes it.
+     */
+    private fun reachableDocument(suffix: String): String {
         val appContext = context.baseContext
         val file =
-            File(File(appContext.filesDir, "restore_incidents").apply { mkdirs() }, "${UUID.randomUUID()}.published")
-        file.writeText("published")
+            File(File(appContext.filesDir, "restore_incidents").apply { mkdirs() }, "${UUID.randomUUID()}.$suffix")
+        file.writeText(suffix)
         publishedFiles += file
         return FileProvider.getUriForFile(appContext, "${appContext.packageName}.fileprovider", file).toString()
+    }
+
+    private suspend fun reconcile() {
+        PendingCleanupReconciliation.reconcile(context, database) { exportRequests++ }
+    }
+
+    private suspend fun insertDeleteRecord(songId: String, filePath: String, phase: PendingCleanupPhase) {
+        database.pendingCleanupDao().insert(
+            PendingCleanupEntity(
+                operationId = UUID.randomUUID().toString(),
+                songId = songId,
+                operationType = PendingCleanupType.DELETE.name,
+                filePath = filePath,
+                publishedPath = null,
+                phase = phase.name,
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
     }
 
     private suspend fun seedSong(id: String, filePath: String) {

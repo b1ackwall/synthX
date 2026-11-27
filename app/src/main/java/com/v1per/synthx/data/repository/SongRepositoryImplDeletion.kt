@@ -12,6 +12,7 @@ import com.v1per.synthx.data.AudioFileDeletion
 import com.v1per.synthx.data.FileOperationCoordinator
 import com.v1per.synthx.data.SongDeletionAcknowledgment
 import com.v1per.synthx.data.SongDeletionEvents
+import com.v1per.synthx.data.confirmsGone
 import com.v1per.synthx.data.deleteSongArtFile
 import com.v1per.synthx.data.deleteSongRowWithArtRepoint
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
@@ -183,18 +184,28 @@ internal suspend fun SongRepositoryImpl.previewDeleteSongInternal(id: String): D
  * already surfaced honestly via [SongDeletionOutcome] (`FileRemained`/`CleanupUncertain`),
  * which retrying via startup reconciliation would not change. The record exists to protect
  * against *interruption* (this function never returning at all, i.e. process death), not
- * against a provider that permanently refuses a delete.
+ * against a provider that permanently refuses a delete. Replace keeps its record instead while
+ * the old file may remain; see `finishCommittedReplace`.
  */
 internal suspend fun SongRepositoryImpl.runPostCommitCleanup(
     operationId: String,
     id: String,
     filePath: String?,
 ): SongDeletionOutcome {
-    val cleanup = repositoryScope.async { finishSongDeletion(id, filePath) }
-    val outcome = cleanup.await()
+    val cleanup = awaitPostCommitCleanup(id, filePath)
     dbOperation { pendingCleanupDao.clear(operationId) }
-    return outcome
+    return songDeletionOutcome(cleanup.audio, cleanup.followUpIncomplete)
 }
+
+/**
+ * What [finishSongDeletion] did. [audio] is the audio file's state; [followUpIncomplete] is true
+ * when any other step (the playback notice, art, the destructive-action count) failed.
+ */
+internal data class PostCommitCleanup(val audio: AudioFileDeletion, val followUpIncomplete: Boolean)
+
+/** Runs [finishSongDeletion] on [repositoryScope] and joins it; see [runPostCommitCleanup]. */
+internal suspend fun SongRepositoryImpl.awaitPostCommitCleanup(id: String, filePath: String?): PostCommitCleanup =
+    repositoryScope.async { finishSongDeletion(id, filePath) }.await()
 
 /**
  * The after-commit half of a complete delete, shared by [deleteSong] and [replaceSong].
@@ -211,8 +222,8 @@ internal suspend fun SongRepositoryImpl.runPostCommitCleanup(
  * records that a backup is now stale. Only ever called via [runPostCommitCleanup], which is
  * what actually protects this from being cut short by the caller's scope ending.
  */
-private suspend fun SongRepositoryImpl.finishSongDeletion(id: String, filePath: String?): SongDeletionOutcome {
-    var cleanupUncertain = false
+private suspend fun SongRepositoryImpl.finishSongDeletion(id: String, filePath: String?): PostCommitCleanup {
+    var followUpIncomplete = false
 
     // Handoff barrier: notifyDeleted's suspending emit only guarantees the notice is enqueued
     // into a buffered SharedFlow, not that any collector has run yet, let alone that the
@@ -226,7 +237,7 @@ private suspend fun SongRepositoryImpl.finishSongDeletion(id: String, filePath: 
     val ack = runCatching { SongDeletionAcknowledgment.register(id) }.getOrNull()
     try {
         if (!runPostCommitStep("notify song deletion") { SongDeletionEvents.notifyDeleted(id) }) {
-            cleanupUncertain = true
+            followUpIncomplete = true
         } else if (ack != null) {
             val acknowledged = withTimeoutOrNull(DELETION_HANDOFF_TIMEOUT_MS) { ack.await() }
             if (acknowledged == null) {
@@ -242,21 +253,64 @@ private suspend fun SongRepositoryImpl.finishSongDeletion(id: String, filePath: 
     } else {
         AudioFileDeletion.Unknown
     }
-    if (filePath != null && !runPostCommitStep("delete audio file") {
-            fileOutcome = audioFileDelete(filePath)
-        }
-    ) {
-        cleanupUncertain = true
+    // A throwing delete leaves fileOutcome Unknown, which already reports the file as uncertain.
+    if (filePath != null) {
+        runPostCommitStep("delete audio file") { fileOutcome = audioFileDelete(filePath) }
     }
 
     if (!runPostCommitStep("delete cached song art") { deleteSongArtFile(context, id) }) {
-        cleanupUncertain = true
+        followUpIncomplete = true
     }
     if (!runPostCommitStep("record destructive action") {
             DestructiveActionTracker.recordDestructiveAction(context)
         }
     ) {
-        cleanupUncertain = true
+        followUpIncomplete = true
     }
-    return songDeletionOutcome(fileOutcome, cleanupUncertain)
+    return PostCommitCleanup(fileOutcome, followUpIncomplete)
+}
+
+/**
+ * See [SongRepository.retryAudioFileDeletion]. Same acquisition order as [deleteSongInternal]:
+ * the song lock, then a restore-admission permit, so the retry waits out a graduation or scan
+ * of this song and a restore drains it. Nothing is deleted without both.
+ *
+ * A path that a song row owns again is left alone: after a delete whose file survived, a scan
+ * can import that file as a song, and deleting it then would take a live song's audio. Once the
+ * file is confirmed gone, any delete record still kept for the path is cleared, so scans stop
+ * skipping it.
+ */
+internal suspend fun SongRepositoryImpl.retryAudioFileDeletionInternal(
+    songId: String,
+    filePath: String,
+): AudioFileRetryOutcome = withContext(Dispatchers.IO) {
+    FileOperationCoordinator.withSongLock(songId) {
+        var admitted = false
+        try {
+            dbOperation {
+                admitted = true
+                retryAudioFileDeletionAdmitted(filePath)
+            }
+        } catch (e: IllegalStateException) {
+            if (admitted) throw e
+            Log.w(TAG, "Audio cleanup retry refused: database admission is closed", e)
+            AudioFileRetryOutcome.CleanupUncertain
+        }
+    }
+}
+
+/** Caller holds the song lock and a restore permit. */
+private suspend fun SongRepositoryImpl.retryAudioFileDeletionAdmitted(filePath: String): AudioFileRetryOutcome {
+    if (songDao.getSongByPath(filePath) != null) return AudioFileRetryOutcome.FileInLibrary
+    val audio = audioFileDelete(filePath)
+    if (audio.confirmsGone) {
+        runPostCommitStep("clear delete records for retried path") {
+            pendingCleanupDao.clearDeletesForPath(filePath)
+        }
+    }
+    return when (audio) {
+        AudioFileDeletion.Deleted, AudioFileDeletion.ConfirmedAbsent -> AudioFileRetryOutcome.Deleted
+        AudioFileDeletion.Failed -> AudioFileRetryOutcome.FileRemained
+        AudioFileDeletion.Unknown -> AudioFileRetryOutcome.CleanupUncertain
+    }
 }

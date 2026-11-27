@@ -214,20 +214,26 @@
     <string name="replace_song_conflict_keep_new_detail">The replacement stays exactly where it already is.</string>
     <string name="replace_song_conflict_merge">Merge</string>
     <string name="replace_song_conflict_merge_detail">Fold the two entries into one at the old song’s position.</string>
-    <string name="replace_song_summary">The replacement inherits the old song’s date added. If it stays in Starred/inbox, that older date may place it far down the date-sorted list. If it lands in any playlist, it is dismissed from Starred/inbox. The old song is then permanently deleted from your library and its audio file removed from your device. If the old song is currently playing, playback will skip to another track. This cannot be undone.</string>
+    <string name="replace_song_summary">The replacement takes the old song’s date added, so it sorts where the old song did in Starred and Recently Added. If it ends up in a playlist, it leaves Starred. The old song is then permanently deleted from your library and its audio file removed from your device. Copies of the old song in your queue are removed. If it is playing, playback moves on to the next song, or stops when nothing else is queued. This cannot be undone.</string>
+    <string name="replace_song_review_will_move">The replacement will be moved from New Arrivals into your Music folder.</string>
     <string name="replace_song_done">Replacement complete.</string>
     <string name="audio_cleanup_retry_succeeded">Audio file deleted.</string>
+    <string name="audio_cleanup_retry_file_in_library">That file is now part of your library, so it was left in place.</string>
     <string name="replace_song_action_replace">Replace</string>
     <string name="replace_song_preview_loading">Working out what will change…</string>
     <string name="replace_song_working">Replacing…</string>
+    <string name="replace_song_stage_moving">Moving the new file into Music…</string>
     <string name="replace_song_failed_generic">Couldn’t complete the replacement. Nothing was changed.</string>
     <string name="replace_song_failed_old_missing">The song being replaced is no longer in your library. Nothing was changed.</string>
     <string name="replace_song_failed_new_missing">The replacement song is no longer in your library. Nothing was changed.</string>
     <string name="replace_song_preview_stale">Playlist memberships changed while you were reviewing. Nothing was changed. Review the refreshed details before replacing.</string>
     <string name="replace_song_failed_same_song">A song can’t replace itself.</string>
-    <string name="replace_song_done_file_remained">The replacement is done, but the old song’s audio file couldn’t be deleted from your device. Its library entry is gone either way.</string>
+    <string name="replace_song_done_cleanup_pending">Replaced. The old file couldn’t be removed yet; synthX will try again next time it starts.</string>
+    <string name="replace_song_done_housekeeping">Replacement complete, but some follow-up steps didn’t finish.</string>
+    <string name="replace_song_done_move_incomplete">Replaced, but moving the new file into your Music folder didn’t finish. It’s still in Starred; you can move it from there.</string>
     <string name="replace_song_done_cleanup_uncertain">The replacement is done, but we couldn’t confirm whether the old song’s audio file was deleted. Its library entry is gone either way.</string>
     <string name="replace_song_new_file_gone">The replacement song’s audio file is no longer available. The old song was not touched.</string>
+    <string name="replace_song_failed_replacement_unreadable">Couldn’t read the replacement song’s file. Nothing was changed.</string>
     <string name="replace_song_new_file_changed">The file at the replacement song’s saved location has changed since it was scanned. The old song was not touched.</string>
 
     <!-- Playlists -->

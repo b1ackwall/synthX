@@ -17,6 +17,7 @@ import com.v1per.synthx.data.db.SongEntity
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.data.scanner.FolderScanner
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
+import com.v1per.synthx.data.scanner.KnownAudioRoot
 import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
 import com.v1per.synthx.preferences.DestructiveActionTracker
 import com.v1per.synthx.ui.testing.TestTimeouts
@@ -92,6 +93,9 @@ class ReplaceSongInstrumentedTest {
             BackupManager(context), exports,
             destructiveFileCheck = { _, _ -> DestructiveFilePreflightResult.Ambiguous },
             replacementFileCheck = { _, _ -> ReplacementFilePreflightResult.Ambiguous },
+            // test:// paths open nothing; the readability probe has its own tests.
+            replacementReadable = { true },
+            replacementRoot = { KnownAudioRoot.Music },
         )
 
         database.songDao().upsertSong(
@@ -140,12 +144,8 @@ class ReplaceSongInstrumentedTest {
 
     @Test fun keepOldMovesTheReplacementIntoTheOldSongsSlot() = runBlocking {
         val result = replace(PlaylistConflictResolution.KeepOld)
-        assertEquals(
-            ReplaceSongResult.Success(
-                oldAudioCleanup = SongDeletionOutcome.CleanupUncertain,
-            ),
-            result,
-        )
+        // A test:// path cannot be confirmed deleted, so the old file's state is unconfirmed.
+        assertEquals(ReplaceSongResult.Success(oldAudioFile = OldAudioFile.Unconfirmed), result)
 
         // Non-conflicting transfer: same position, and the membership's own added_at inherited.
         assertEquals(5, membership("only-old", "new")?.position)
@@ -413,6 +413,8 @@ class ReplaceSongInstrumentedTest {
         BackupManager(context), exports,
         destructiveFileCheck = { _, _ -> oldResult },
         replacementFileCheck = { _, _ -> newResult },
+        replacementReadable = { true },
+        replacementRoot = { KnownAudioRoot.Music },
         previewAnalysisCheckpoint = previewAnalysisCheckpoint,
     )
 

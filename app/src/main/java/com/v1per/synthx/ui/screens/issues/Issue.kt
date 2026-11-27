@@ -18,10 +18,11 @@ sealed class Issue {
     data object BackupFolderGrantLost : Issue()
 
     /**
-     * Startup reconciliation found and resolved [count] destructive operations
-     * (delete/replace/graduate) left mid-flight by a process death, per
-     * [com.v1per.synthx.data.db.PendingCleanupEntity]. Purely informational — the cleanup already
-     * happened, this just makes it visible rather than silently invisible.
+     * Startup reconciliation acted on [count] destructive operations (delete/replace/graduate)
+     * left mid-flight by a process death, or a replace whose old audio file is still on disk, per
+     * [com.v1per.synthx.data.db.PendingCleanupEntity]. Purely informational, with no action: it
+     * makes the startup work visible. A delete record kept because its file is still on disk is
+     * counted again on every launch until the file is gone.
      */
     data class ReconciledPendingCleanups(val count: Int, val timestamp: Long) : Issue()
 

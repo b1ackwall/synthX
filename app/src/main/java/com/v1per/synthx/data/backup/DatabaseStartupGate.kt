@@ -6,9 +6,13 @@ import android.util.Log
 import com.v1per.synthx.data.db.SynthXDatabase
 import com.v1per.synthx.preferences.PreferencesManager
 import java.io.File
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** The state observed directly from the live SQLite database, before Room is constructed. */
@@ -258,13 +262,33 @@ internal object DatabaseStartupGate {
         reconcilePendingCleanups = {
             withContext(Dispatchers.IO) {
                 val database = SynthXDatabase.getInstanceForMigrationGate(context)
-                PendingCleanupReconciliation.reconcile(context, database)
+                PendingCleanupReconciliation.reconcile(context, database) {
+                    schedulePlaylistExportOnceReady(context)
+                }
             }
         },
         onReady = {
             withContext(Dispatchers.IO) { MigrationSnapshotStore.recordSuccessfulLaunch(context) }
         },
     )
+
+    /**
+     * Asks for a playlist export once this gate has opened. Reconciliation runs inside the gate,
+     * where the export manager cannot be created yet (it opens Room through the normal factory),
+     * so the request waits for readiness on its own scope. A gate that fails to open drops it.
+     */
+    private fun schedulePlaylistExportOnceReady(context: Context) {
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                awaitReady()
+                PlaylistExportManager.create(context).scheduleExport()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Playlist export after reconciliation not scheduled", e)
+            }
+        }
+    }
 
     /**
      * The gate's single production migration path:

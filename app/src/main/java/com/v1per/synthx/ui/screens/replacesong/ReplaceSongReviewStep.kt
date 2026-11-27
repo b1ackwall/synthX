@@ -1,7 +1,7 @@
 package com.v1per.synthx.ui.screens.replacesong
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +29,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import com.v1per.synthx.R
 import com.v1per.synthx.data.repository.PlaylistConflictResolution
 import com.v1per.synthx.data.repository.ReplaceSongPreview
@@ -107,6 +112,16 @@ internal fun ReplaceSongReviewStep(
             }
 
             HorizontalDivider(thickness = Strokes.Hairline, color = Hairline)
+            if (preview.replacementMovesToMusic) {
+                Text(
+                    text = stringResource(R.string.replace_song_review_will_move),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary,
+                    modifier = Modifier
+                        .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.md)
+                        .testTag(ReplaceSongReviewTestTags.WillMoveLine),
+                )
+            }
             Text(
                 text = stringResource(R.string.replace_song_summary),
                 style = MaterialTheme.typography.bodyMedium,
@@ -143,7 +158,8 @@ internal fun ReplaceSongReviewStep(
             width = SynthXButtonWidth.Standard,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .padding(Spacing.HorizontalPadding),
+                .padding(Spacing.HorizontalPadding)
+                .testTag(ReplaceSongReviewTestTags.ConfirmButton),
             enabled = confirmEnabled && typedConfirmationMatches(typedConfirmation, requiredWord),
         ) {
             Text(text = requiredWord)
@@ -234,6 +250,10 @@ private fun ConflictResolutionPicker(
     )
 }
 
+/**
+ * One conflict choice. The whole row is the single radio-button target (`Role.RadioButton`), and
+ * the [RadioButton] inside it only draws the state, so TalkBack reads one control per option.
+ */
 @Composable
 private fun ConflictOption(
     option: PlaylistConflictResolution,
@@ -246,19 +266,22 @@ private fun ConflictOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
+            .selectable(
+                selected = option == selected,
                 interactionSource = interactionSource,
                 indication = ripple(color = Accent),
+                role = Role.RadioButton,
                 onClick = { onSelect(option) },
             )
-            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm),
+            .padding(horizontal = Spacing.HorizontalPadding, vertical = Spacing.sm)
+            .testTag(ReplaceSongReviewTestTags.conflictOption(option)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Off the neon accent, same reasoning as DeleteSongsRow's switch: the design system
-        // reserves it for five specific contexts and this is not one of them.
+        // reserves it for six specific contexts and this is not one of them.
         RadioButton(
             selected = option == selected,
-            onClick = { onSelect(option) },
+            onClick = null,
             colors = RadioButtonDefaults.colors(
                 selectedColor = TextPrimary,
                 unselectedColor = TextTertiary,
@@ -279,7 +302,11 @@ private fun ConflictOption(
     }
 }
 
-/** Full-bleed cover while the preview is being computed, matching RestoreScreen's own. */
+/**
+ * Full-bleed spinner and message, matching RestoreScreen's own cover: shown while the preview is
+ * computed, and inside the working overlay while a confirmed replace runs. The message is a
+ * polite live region, so TalkBack reads it as it appears and as it changes.
+ */
 @Composable
 internal fun ReplaceSongBusyCover(@StringRes messageRes: Int) {
     Box(
@@ -293,6 +320,10 @@ internal fun ReplaceSongBusyCover(@StringRes messageRes: Int) {
                 text = stringResource(messageRes),
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextPrimary,
+                // Polite: it must not cut off other speech, the same as onboarding's scan status.
+                modifier = Modifier
+                    .semantics { liveRegion = LiveRegionMode.Polite }
+                    .testTag(ReplaceSongTestTags.BusyCoverMessage),
             )
         }
     }
@@ -320,4 +351,12 @@ internal fun ReplaceSongPreviewFailure(message: String, onRetry: (() -> Unit)?) 
             }
         }
     }
+}
+
+/** Test tags for the review step. */
+internal object ReplaceSongReviewTestTags {
+    const val WillMoveLine = "replace_song_review_will_move"
+    const val ConfirmButton = "replace_song_confirm"
+
+    fun conflictOption(option: PlaylistConflictResolution): String = "replace_song_conflict_${option.name}"
 }

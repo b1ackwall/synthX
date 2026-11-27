@@ -286,6 +286,11 @@ private fun NormalShell(
                         restoreStatusViewModel?.terminalWasShown(it)
                         restoreStatusViewModel?.dismissTerminal(it)
                     },
+                    // The shell's own scope, like the Keep prompt's confirmation below: the route
+                    // that asks is already gone by the time the snackbar shows.
+                    onShowShellMessage = { message ->
+                        scope.launch { snackbarHostState.showSynthXSnackbar(message) }
+                    },
                 )
 
                 BottomChromeOverlay(

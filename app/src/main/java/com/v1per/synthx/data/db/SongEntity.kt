@@ -44,9 +44,10 @@ data class SongEntity(
      * starred song's file can live in the Music folder.
      *
      * Joining a playlist never clears it. Graduation ("Remove from Starred") clears it while
-     * moving the file into the Music folder; Replace Song clears it on a replacement that ends up
-     * in a playlist; a scan that finds the file moved under the Music root clears it; and a
-     * restore replaces it wholesale.
+     * moving the file into the Music folder; Replace Song clears it on a replacement under the
+     * Music folder that ends up in a playlist, and graduates one under New Arrivals (graduation
+     * clears it); a scan that finds the file moved under the Music root clears it; and a restore
+     * replaces it wholesale.
      *
      * The column is named `in_inbox` for historical reasons (the feature was scoped as
      * "Inbox" before the rename to "Starred"); renaming it would cost a full table rebuild

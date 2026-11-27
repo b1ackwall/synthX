@@ -55,6 +55,12 @@ data class ReplaceSongPreview(
     val conflictingPlaylists: List<String>,
     /** Playlists only the new song is in. Listed for context; the replace never touches them. */
     val newSongOnlyPlaylists: List<String>,
+    /**
+     * The replacement's file is under the New Arrivals folder and it will be in at least one
+     * playlist afterwards, so the replace ends by graduating it into the Music folder. Worked out
+     * from the replacement's path against the configured folders each time a preview is computed.
+     */
+    val replacementMovesToMusic: Boolean = false,
 ) {
     val hasConflicts: Boolean get() = conflictingPlaylists.isNotEmpty()
 }
@@ -80,13 +86,50 @@ sealed interface ReplaceSongPreviewResult {
     data object NewSongMissing : ReplaceSongPreviewResult
 }
 
+/** What became of the old song's audio file once a replace committed. */
+enum class OldAudioFile {
+    /** Deleted, or confirmed absent. */
+    Removed,
+
+    /** The provider refused the delete; the file is still on disk. */
+    StillPresent,
+
+    /** The delete could not be confirmed either way. */
+    Unconfirmed,
+}
+
+/** Whether a committed replace moved a New Arrivals replacement into the Music folder. */
+enum class ReplacementMove {
+    /** The replacement was already under the Music folder, or will not be in any playlist. */
+    NotNeeded,
+
+    /** Graduated: the file is in the Music folder and the song is no longer starred. */
+    Moved,
+
+    /** Graduation failed or could not run. The song stays starred, its file in New Arrivals. */
+    Incomplete,
+}
+
+/** Progress of [SongRepository.replaceSong] that the Replace Song screen shows while it waits. */
+enum class ReplaceSongStage {
+    /** Graduating a New Arrivals replacement, after the replace itself has committed. */
+    MovingReplacement,
+}
+
 /** Terminal outcome of [SongRepository.replaceSong]. */
 sealed class ReplaceSongResult {
     /**
-     * The replacement landed. [oldAudioCleanup] preserves the complete post-commit cleanup result
-     * so callers can distinguish confirmed file retention from an uncertain cleanup state.
+     * The replacement committed. Nothing after the commit can turn it into a failure: each later
+     * step reports here instead. [oldAudioFile] is the old audio file's state only;
+     * [followUpIncomplete] is true when any other after-commit step failed (the playback
+     * notice, art, the destructive-action count, the cleanup record, the playlist export
+     * request); [replacementMove] covers the New Arrivals graduation.
      */
-    data class Success(val oldAudioCleanup: SongDeletionOutcome) : ReplaceSongResult()
+    data class Success(
+        val oldAudioFile: OldAudioFile,
+        val followUpIncomplete: Boolean = false,
+        val replacementMove: ReplacementMove = ReplacementMove.NotNeeded,
+    ) : ReplaceSongResult()
 
     /** Membership state changed after review. No database writes were made. */
     data object PreviewStale : ReplaceSongResult()
@@ -105,4 +148,7 @@ sealed class ReplaceSongResult {
 
     /** The replacement row exists, but its live audio is definitely gone or has different content. */
     data class NewSongUnusable(val reason: ReplacementFilePreflightResult.Blocking) : ReplaceSongResult()
+
+    /** The replacement's document could not be opened, or yielded no bytes. Nothing was written. */
+    data object NewSongUnreadable : ReplaceSongResult()
 }

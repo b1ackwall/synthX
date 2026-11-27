@@ -30,11 +30,14 @@ sealed class SongActionEvent {
      * on-disk cleanup is outstanding. See
      * [com.v1per.synthx.data.repository.SongDeletionOutcome].
      */
-    data class DeletedButFileRemained(val filePath: String) : SongActionEvent()
+    data class DeletedButFileRemained(val songId: String, val filePath: String) : SongActionEvent()
 
     /** The library delete committed, but one or more physical cleanup steps could not be verified. */
-    data class DeletedButCleanupUncertain(val filePath: String) : SongActionEvent()
+    data class DeletedButCleanupUncertain(val songId: String, val filePath: String) : SongActionEvent()
     data object AudioCleanupRetrySucceeded : SongActionEvent()
+
+    /** A retry found the file back in the library (a scan imported it), so it was left in place. */
+    data object AudioCleanupRetryFileInLibrary : SongActionEvent()
     data class DeleteBlocked(val reason: DestructiveFilePreflightResult.Blocking) : SongActionEvent()
 }
 

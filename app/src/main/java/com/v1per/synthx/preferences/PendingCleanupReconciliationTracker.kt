@@ -7,8 +7,10 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * How many leftover [com.v1per.synthx.data.db.PendingCleanupEntity] records the most
- * recent startup reconciliation pass resolved — surfaced on the Issues screen so a process death
- * mid-delete/replace/graduate leaves visible evidence instead of silently fixing itself. Same
+ * recent startup reconciliation pass acted on — surfaced on the Issues screen so a process death
+ * mid-delete/replace/graduate leaves visible evidence instead of silently fixing itself. The count
+ * includes a replace's delete record that is kept because its old audio file is still on disk;
+ * such a record is retried, and counted, on every launch until the file is gone. Same
  * persisted-StateFlow-from-a-singleton shape as [DestructiveActionTracker].
  */
 object PendingCleanupReconciliationTracker {

@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.data.backup.TestWorkManager
+import com.v1per.synthx.data.repository.AudioFileRetryOutcome
 import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.scanner.IssuesScanWorker
@@ -81,8 +82,18 @@ class IssuesViewModelInstrumentedTest {
         val subject = subject(delete = { SongDeletionOutcome.FileRemained })
 
         assertEquals(
-            IssuesActionEvent.DeletedButFileRemained("content://song"),
+            IssuesActionEvent.DeletedButFileRemained("song", "content://song"),
             eventFrom(subject) { subject.deleteSong("song", "content://song") },
+        )
+    }
+
+    @Test
+    fun aRetryThatFindsTheFileInTheLibraryEmitsItsOwnEvent() = runBlocking {
+        val subject = subject(retry = { AudioFileRetryOutcome.FileInLibrary })
+
+        assertEquals(
+            IssuesActionEvent.AudioCleanupRetryFileInLibrary,
+            eventFrom(subject) { subject.retryAudioFileDeletion("song", "content://song") },
         )
     }
 
@@ -91,7 +102,7 @@ class IssuesViewModelInstrumentedTest {
         val subject = subject(delete = { SongDeletionOutcome.CleanupUncertain })
 
         assertEquals(
-            IssuesActionEvent.DeletedButCleanupUncertain("content://song"),
+            IssuesActionEvent.DeletedButCleanupUncertain("song", "content://song"),
             eventFrom(subject) { subject.deleteSong("song", "content://song") },
         )
     }
@@ -172,7 +183,8 @@ class IssuesViewModelInstrumentedTest {
     private fun subject(
         delete: () -> SongDeletionOutcome = { SongDeletionOutcome.Deleted },
         recoverMissingArt: () -> Unit = {},
-    ): IssuesViewModel = subject(fakeRepository(delete, recoverMissingArt))
+        retry: () -> AudioFileRetryOutcome = { AudioFileRetryOutcome.Deleted },
+    ): IssuesViewModel = subject(fakeRepository(delete, recoverMissingArt, retry))
 
     private fun subject(repository: SongRepository): IssuesViewModel = IssuesViewModel(
         context = context,
@@ -184,6 +196,7 @@ class IssuesViewModelInstrumentedTest {
     private fun fakeRepository(
         delete: () -> SongDeletionOutcome = { SongDeletionOutcome.Deleted },
         recoverMissingArt: () -> Unit = {},
+        retry: () -> AudioFileRetryOutcome = { AudioFileRetryOutcome.Deleted },
     ): SongRepository = Proxy.newProxyInstance(
         SongRepository::class.java.classLoader,
         arrayOf(SongRepository::class.java),
@@ -205,6 +218,8 @@ class IssuesViewModelInstrumentedTest {
             }
 
             "recoverMissingArt" -> recoverMissingArt()
+
+            "retryAudioFileDeletion" -> retry()
 
             else -> error("Unexpected repository call: ${method.name}")
         }

@@ -12,4 +12,7 @@ object Alpha {
 
     /** The Accent glow behind the onboarding wordmark, at its centre; it fades to 0 at its edge. */
     const val OnboardingGlow = 0.16f
+
+    /** The Background scrim over the Replace Song review step while a confirmed replace runs. */
+    const val BusyScrim = 0.85f
 }

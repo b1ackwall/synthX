@@ -14,6 +14,7 @@ import com.v1per.synthx.data.backup.BackupOutcomeStore
 import com.v1per.synthx.data.backup.ExportAttemptOutcome
 import com.v1per.synthx.data.backup.VerificationAttemptOutcome
 import com.v1per.synthx.data.repository.MissingSongInfo
+import com.v1per.synthx.data.repository.AudioFileRetryOutcome
 import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.data.repository.SongRepositoryImpl
@@ -74,9 +75,12 @@ sealed interface IssuesScanStatus {
 
 sealed class IssuesActionEvent {
     data object ActionFailed : IssuesActionEvent()
-    data class DeletedButFileRemained(val filePath: String) : IssuesActionEvent()
-    data class DeletedButCleanupUncertain(val filePath: String) : IssuesActionEvent()
+    data class DeletedButFileRemained(val songId: String, val filePath: String) : IssuesActionEvent()
+    data class DeletedButCleanupUncertain(val songId: String, val filePath: String) : IssuesActionEvent()
     data object AudioCleanupRetrySucceeded : IssuesActionEvent()
+
+    /** A retry found the file back in the library (a scan imported it), so it was left in place. */
+    data object AudioCleanupRetryFileInLibrary : IssuesActionEvent()
     data class DeleteBlocked(val reason: DestructiveFilePreflightResult.Blocking) : IssuesActionEvent()
 }
 
@@ -310,10 +314,10 @@ class IssuesViewModel(
                         SongDeletionOutcome.Deleted -> Unit
 
                         SongDeletionOutcome.FileRemained ->
-                            _events.tryEmit(IssuesActionEvent.DeletedButFileRemained(filePath))
+                            _events.tryEmit(IssuesActionEvent.DeletedButFileRemained(id, filePath))
 
                         SongDeletionOutcome.CleanupUncertain ->
-                            _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain(filePath))
+                            _events.tryEmit(IssuesActionEvent.DeletedButCleanupUncertain(id, filePath))
 
                         is SongDeletionOutcome.Blocked ->
                             _events.tryEmit(IssuesActionEvent.DeleteBlocked(outcome.reason))
@@ -325,23 +329,23 @@ class IssuesViewModel(
         }
     }
 
-    fun retryAudioFileDeletion(filePath: String) {
+    fun retryAudioFileDeletion(songId: String, filePath: String) {
         viewModelScope.launch {
-            val event = runCatching { repository.retryAudioFileDeletion(filePath) }.fold(
+            val event = runCatching { repository.retryAudioFileDeletion(songId, filePath) }.fold(
                 onSuccess = { outcome ->
                     when (outcome) {
-                        SongDeletionOutcome.Deleted -> IssuesActionEvent.AudioCleanupRetrySucceeded
+                        AudioFileRetryOutcome.Deleted -> IssuesActionEvent.AudioCleanupRetrySucceeded
 
-                        SongDeletionOutcome.FileRemained -> IssuesActionEvent.DeletedButFileRemained(filePath)
+                        AudioFileRetryOutcome.FileRemained ->
+                            IssuesActionEvent.DeletedButFileRemained(songId, filePath)
 
-                        SongDeletionOutcome.CleanupUncertain ->
-                            IssuesActionEvent.DeletedButCleanupUncertain(filePath)
+                        AudioFileRetryOutcome.CleanupUncertain ->
+                            IssuesActionEvent.DeletedButCleanupUncertain(songId, filePath)
 
-                        is SongDeletionOutcome.Blocked ->
-                            IssuesActionEvent.DeletedButCleanupUncertain(filePath)
+                        AudioFileRetryOutcome.FileInLibrary -> IssuesActionEvent.AudioCleanupRetryFileInLibrary
                     }
                 },
-                onFailure = { IssuesActionEvent.DeletedButCleanupUncertain(filePath) },
+                onFailure = { IssuesActionEvent.DeletedButCleanupUncertain(songId, filePath) },
             )
             _events.emit(event)
         }

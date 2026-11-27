@@ -23,6 +23,8 @@ import com.v1per.synthx.data.scanner.DestructiveFilePreflight
 import com.v1per.synthx.data.scanner.DestructiveFilePreflightResult
 import com.v1per.synthx.data.scanner.ReplacementFilePreflightResult
 import com.v1per.synthx.data.scanner.FolderScanner
+import com.v1per.synthx.data.scanner.KnownAudioRoot
+import com.v1per.synthx.data.scanner.readsAudioFilePrefix
 import com.v1per.synthx.data.scanner.GraduationStage
 import com.v1per.synthx.data.scanner.RootOrganizationCheckResult
 import com.v1per.synthx.data.scanner.ScanResult
@@ -64,6 +66,17 @@ class SongRepositoryImpl(
     internal val schedulePlaylistExport: () -> Unit = playlistExportManager::scheduleExport,
     internal val audioFileDelete: (String) -> AudioFileDeletion = { filePath ->
         deleteSongAudioFile(context, filePath)
+    },
+    // Replace Song: opens the replacement's document and reads a prefix before anything is written.
+    internal val replacementReadable: suspend (String) -> Boolean = { filePath ->
+        readsAudioFilePrefix(context, filePath)
+    },
+    // Replace Song: which configured folder owns the replacement's file.
+    internal val replacementRoot: suspend (String) -> KnownAudioRoot? =
+        DestructiveFilePreflight.create(context)::owningRoot,
+    // Replace Song: graduates a New Arrivals replacement into the Music folder; true on success.
+    internal val graduateReplacement: suspend (String) -> Boolean = { songId ->
+        graduateReplacementIntoMusic(context, database, songDao, songId)
     },
     // Deterministic transaction-boundary seam for the Room concurrency regression test.
     internal val previewAnalysisCheckpoint: suspend () -> Unit = {},
@@ -203,12 +216,8 @@ class SongRepositoryImpl(
 
     override suspend fun previewDeleteSong(id: String): DeleteSongPreview = previewDeleteSongInternal(id)
 
-    override suspend fun retryAudioFileDeletion(filePath: String): SongDeletionOutcome = withContext(Dispatchers.IO) {
-        songDeletionOutcome(
-            audioOutcome = audioFileDelete(filePath),
-            cleanupUncertain = false,
-        )
-    }
+    override suspend fun retryAudioFileDeletion(songId: String, filePath: String): AudioFileRetryOutcome =
+        retryAudioFileDeletionInternal(songId, filePath)
 
     // See SongRepository.deleteSongDetached's kdoc. The whole call (locks, backup, transaction,
     // and the runPostCommitCleanup phase below) runs on repositoryScope from the start, so
@@ -228,7 +237,8 @@ class SongRepositoryImpl(
         newSongId: String,
         conflictResolution: PlaylistConflictResolution,
         expectedMemberships: ReplaceSongMembershipSnapshot,
-    ): ReplaceSongResult = replaceSongInternal(oldSongId, newSongId, conflictResolution, expectedMemberships)
+        onStage: (ReplaceSongStage) -> Unit,
+    ): ReplaceSongResult = replaceSongInternal(oldSongId, newSongId, conflictResolution, expectedMemberships, onStage)
 
     override fun getStarredSongs(): Flow<List<Song>> = getStarredSongsInternal()
 

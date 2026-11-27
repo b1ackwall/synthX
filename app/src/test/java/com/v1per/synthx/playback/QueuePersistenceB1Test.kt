@@ -18,7 +18,9 @@ import com.v1per.synthx.data.repository.QueueSnapshot
 import com.v1per.synthx.data.repository.ReplaceSongMembershipSnapshot
 import com.v1per.synthx.data.repository.ReplaceSongPreviewResult
 import com.v1per.synthx.data.repository.ReplaceSongResult
+import com.v1per.synthx.data.repository.ReplaceSongStage
 import com.v1per.synthx.data.repository.Song
+import com.v1per.synthx.data.repository.AudioFileRetryOutcome
 import com.v1per.synthx.data.repository.SongDeletionOutcome
 import com.v1per.synthx.data.repository.SongRepository
 import com.v1per.synthx.ui.testing.TestTimeouts
@@ -99,7 +101,7 @@ class QueuePersistenceB1Test {
             com.v1per.synthx.data.scanner.ArtRecoveryResult(checked = 0, recovered = 0, skipped = 0)
         override suspend fun deleteSong(id: String) = SongDeletionOutcome.Deleted
         override suspend fun previewDeleteSong(id: String) = DeleteSongPreview(emptyList())
-        override suspend fun retryAudioFileDeletion(filePath: String) = SongDeletionOutcome.Deleted
+        override suspend fun retryAudioFileDeletion(songId: String, filePath: String) = AudioFileRetryOutcome.Deleted
         override fun deleteSongDetached(id: String, onResult: (Result<SongDeletionOutcome>) -> Unit) {
             onResult(Result.success(SongDeletionOutcome.Deleted))
         }
@@ -110,6 +112,7 @@ class QueuePersistenceB1Test {
             newSongId: String,
             conflictResolution: PlaylistConflictResolution,
             expectedMemberships: ReplaceSongMembershipSnapshot,
+            onStage: (ReplaceSongStage) -> Unit,
         ): ReplaceSongResult = ReplaceSongResult.SameSong
         override fun getStarredSongs(): Flow<List<Song>> = emptyFlow()
         override fun getStarredSongCount(): Flow<Int> = emptyFlow()

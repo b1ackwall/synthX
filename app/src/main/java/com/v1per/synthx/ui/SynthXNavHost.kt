@@ -47,6 +47,9 @@ internal fun SynthXNavHost(
     // Screen.Onboarding.route when it is true, Screen.Home.route otherwise.
     startDestination: String = Screen.Home.route,
     onRestoreTerminalShown: (UUID) -> Unit = {},
+    // Shows a message on MainScaffold's snackbar host, for a route that confirms its result
+    // after popping itself.
+    onShowShellMessage: (String) -> Unit,
 ) {
     Trace.beginSection(PerfTraceSections.NavHost)
     Scaffold(
@@ -86,6 +89,7 @@ internal fun SynthXNavHost(
             libraryManagementRoutes(
                 navController = navController,
                 chromeBottomPadding = chromeBottomPadding,
+                onShowShellMessage = onShowShellMessage,
             )
             backupsAndRestoreRoutes(
                 navController = navController,

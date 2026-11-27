@@ -94,7 +94,9 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                     primaryWalkOk = false
                     AudioWalkResult(emptyList(), complete = false)
                 }
-                val audioFiles = primaryWalk.files
+                // An old file a delete or replace is still waiting to remove stays out of the library.
+                val pendingDeletePaths = database.pendingCleanupDao().getPendingDeletePaths().toHashSet()
+                val audioFiles = primaryWalk.files.filterNot { it.uri.toString() in pendingDeletePaths }
                 primaryWalkOk = primaryWalkOk && primaryWalk.complete
                 val degradations = linkedSetOf<ScanDegradation>()
                 if (!primaryWalk.complete) {

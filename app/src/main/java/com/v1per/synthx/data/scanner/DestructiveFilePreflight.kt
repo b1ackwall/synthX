@@ -141,6 +141,13 @@ class DestructiveFilePreflight internal constructor(
         }
     }
 
+    /**
+     * Which configured folder owns the stored [filePath], by the same decision destructive
+     * preflight and graduation make. Null when neither folder does, or neither is configured.
+     */
+    suspend fun owningRoot(filePath: String): KnownAudioRoot? =
+        resolveOwningAudioRoot(probe, filePath, configuredRoots())?.role
+
     companion object {
         fun create(context: Context): DestructiveFilePreflight {
             val appContext = context.applicationContext

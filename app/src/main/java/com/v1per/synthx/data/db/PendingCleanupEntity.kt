@@ -15,8 +15,13 @@ enum class PendingCleanupType { DELETE, GRADUATE }
  *
  * [SourceDeleted] (graduate): the source audio file is already gone from disk, and the DB row
  * still points at it; [PendingCleanupEntity.publishedPath] is where it needs to be re-pointed to.
+ *
+ * [AudioFileRemains] (replace): the after-commit cleanup has run (playback notice, art, the
+ * destructive-action count, the playlist export request), but the audio file at
+ * [PendingCleanupEntity.filePath] was not confirmed gone. Only the file delete is left: startup
+ * reconciliation retries it, and scans skip that path until the record is cleared.
  */
-enum class PendingCleanupPhase { Committed, SourceDeleted }
+enum class PendingCleanupPhase { Committed, SourceDeleted, AudioFileRemains }
 
 /**
  * A durable record of a destructive operation between its DB commit and physical completion.

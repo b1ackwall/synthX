@@ -222,12 +222,12 @@ class RepositoryDeletionInstrumentedTest {
         )
 
         assertEquals(
-            SongDeletionOutcome.FileRemained,
-            retryingRepository.retryAudioFileDeletion("content://captured/audio"),
+            AudioFileRetryOutcome.FileRemained,
+            retryingRepository.retryAudioFileDeletion("song", "content://captured/audio"),
         )
         assertEquals(
-            SongDeletionOutcome.Deleted,
-            retryingRepository.retryAudioFileDeletion("content://captured/audio"),
+            AudioFileRetryOutcome.Deleted,
+            retryingRepository.retryAudioFileDeletion("song", "content://captured/audio"),
         )
         assertEquals(
             listOf("content://captured/audio", "content://captured/audio"),

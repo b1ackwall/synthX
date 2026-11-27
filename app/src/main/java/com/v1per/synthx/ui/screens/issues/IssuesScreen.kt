@@ -98,6 +98,9 @@ fun IssuesScreen(
                 IssuesActionEvent.AudioCleanupRetrySucceeded ->
                     resources.getString(R.string.audio_cleanup_retry_succeeded)
 
+                IssuesActionEvent.AudioCleanupRetryFileInLibrary ->
+                    resources.getString(R.string.audio_cleanup_retry_file_in_library)
+
                 is IssuesActionEvent.DeleteBlocked -> when (val reason = event.reason) {
                     is DestructiveFilePreflightResult.GrantNotWritable -> when (reason.root) {
                         KnownAudioRoot.Music -> musicGrantMessage
@@ -111,18 +114,18 @@ fun IssuesScreen(
                     DestructiveFilePreflightResult.RootUnknown -> rootUnknownMessage
                 }
             }
-            val retryPath = when (event) {
-                is IssuesActionEvent.DeletedButFileRemained -> event.filePath
-                is IssuesActionEvent.DeletedButCleanupUncertain -> event.filePath
+            val retry = when (event) {
+                is IssuesActionEvent.DeletedButFileRemained -> event.songId to event.filePath
+                is IssuesActionEvent.DeletedButCleanupUncertain -> event.songId to event.filePath
                 else -> null
             }
             val result = snackbarHostState.showSynthXSnackbar(
                 message = message,
-                actionLabel = retryPath?.let { resources.getString(R.string.action_retry) },
-                duration = if (retryPath != null) SnackbarDuration.Long else SnackbarDuration.Short,
+                actionLabel = retry?.let { resources.getString(R.string.action_retry) },
+                duration = if (retry != null) SnackbarDuration.Long else SnackbarDuration.Short,
             )
-            if (result == SnackbarResult.ActionPerformed && retryPath != null) {
-                viewModel.retryAudioFileDeletion(retryPath)
+            if (result == SnackbarResult.ActionPerformed && retry != null) {
+                viewModel.retryAudioFileDeletion(retry.first, retry.second)
             }
         }
     }

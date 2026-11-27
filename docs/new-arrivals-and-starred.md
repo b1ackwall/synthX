@@ -122,12 +122,30 @@ user closes it. Failure reasons are written in the data layer, not as string res
 
 Without graduation's file move:
 
-- **Replace Song** (`SongRepositoryImplReplace.kt`): a replacement that ends up in at least one playlist is
-  un-starred (`SongDao.dismissFromStarred`). Nothing in the UI calls `SongRepository.dismissFromStarred`, so
-  Replace Song is the only path that reaches it.
+- **Replace Song, Music folder** (`SongRepositoryImplReplace.kt`, `transplantIdentity`): a replacement whose file
+  is under the Music folder and that ends up in at least one playlist is un-starred (`SongDao.dismissFromStarred`)
+  in the replace's own transaction. Which folder owns the file is `DestructiveFilePreflight.owningRoot`, the same
+  ownership decision destructive preflight and graduation make. A replacement whose file is under neither folder
+  keeps its flag. Nothing in the UI calls `SongRepository.dismissFromStarred`, so Replace Song is the only path
+  that reaches it.
 - **Interrupted-graduation reconciliation**: see above.
 - **Restore**: a restored backup replaces every row's flag with the backup's.
 - **A hand move into the Music folder** plus a rescan (section 2).
+
+With graduation's file move:
+
+- **Replace Song, New Arrivals folder** (`SongRepositoryImplReplaceCommit.kt`, `completeCommittedReplace`): a
+  replacement whose file is under the New Arrivals folder and that ends up in at least one playlist keeps its
+  flag in the replace's transaction. Once the replace has committed, the old file's cleanup has run and the old
+  song's lock is released, it is graduated by `graduateSong` itself (section 4, under the replacement's own song
+  lock, with the configured folders read as "Remove from Starred" reads them: `graduateReplacementIntoMusic`).
+  Graduation clears the flag. The review step says so beforehand (`replace_song_review_will_move`, from
+  `ReplaceSongPreview.replacementMovesToMusic`, worked out on every preview), and the working overlay shows
+  `replace_song_stage_moving` while it runs. The replace never depends on graduation: when no Music folder is
+  set, a preflight fails or anything else goes wrong, the replacement stays starred in New Arrivals and the
+  wizard reports `replace_song_done_move_incomplete` (OK only). It can then be graduated from the Starred screen
+  as usual. Graduation's flat destination applies: the file lands at the top level of the Music folder, with
+  " (1)" and so on on a name clash.
 
 Removing a song from a playlist later never un-graduates it. `removeSongFromPlaylistInternal` touches
 `playlist_songs` only, the file stays in the Music folder, and nothing sets the flag back. Removing it from its
