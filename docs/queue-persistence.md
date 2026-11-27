@@ -46,6 +46,7 @@ in the same transaction, *copied* = carried over from the stored row, *kept* = c
 | `updateShuffleEnabled` | none in production | kept | kept | kept | kept | kept | kept | shuffle set |
 | either mode write, no cursor row yet | the first mode write ever | — | — | NULL, 0 | NULL | false | false | the one mode set |
 | foreign-key cascade | a song row deleted | the song's rows gone (gaps) | the song's rows gone | kept | kept | kept | kept | kept |
+| `repointSavedQueue` | the scanner, inside its own transaction, when a file's changed content gives it a new song id | `song_id` old to new | `song_id` old to new | kept | kept | kept | kept | kept |
 | backup restore | the whole database file is replaced | | | | | | | |
 
 No cursor-only or mode-only write changes `queue_customized` or `shuffle_reordered`. A queue write
@@ -58,7 +59,7 @@ Some edits change the live order and the baseline:
 - with shuffle off, Play Next, Add to Queue and a move (mirrored into the baseline);
 - in either mode, a remove of a slot that is in the baseline;
 - a library deletion (`removeAll`);
-- a rescan remap that changes a song id (`remapSong`).
+- a rescan remap that changes a song id (`remapSong`), applied by a live engine.
 
 `QueueOrderStore` hands the changed baseline to the engine's `DeferredBaselineWriter`, which holds it.
 `persistQueue` then enqueues the live write and right after it the baseline write. These are two
@@ -75,9 +76,26 @@ repair then gives:
 | any of the edits above with shuffle off | the queue after the edit (the repair takes baseline := live) |
 | shuffled remove | the queue after the edit; the removed song does not come back (the repair drops baseline slots that are not in live) |
 | library deletion, either mode | the queue after the edit (the cascade already took the rows from both tables) |
-| shuffled rescan remap to a new id | every song kept and the live order after the edit, but the remapped slot loses its album place; see `docs/queue-accepted-behaviours.md` |
+| shuffled rescan remap to a new id | every song kept and the live order after the edit; the saved rows already hold the new id from the scan's own repoint (below), so this matters only in the narrow case of `docs/queue-accepted-behaviours.md` A4 |
 
 A death before the live commit restores the queue before the edit.
+
+**The scan's own repoint.** When a rescan finds a file's content changed, it flags the old song row
+missing, hides it at a `stale://` path, inserts the song under a new id and, in the same transaction,
+moves every saved queue row of the old id, live and baseline, to the new id
+(`QueueDao.repointSavedQueue`). Slot ids, positions, extra tags, the cursor and the shuffled order
+are untouched. This does not depend on a playback engine: with none running, the next restore finds
+the new id in the saved slot, and a current slot resumes on the new song at its saved position.
+Playlists and the star stay on the hidden old row. A live engine still applies the remap the scan
+publishes after its commit; it rewrites the same values, so it changes nothing in the rows, and its
+own live and baseline writes keep the order of this section.
+
+One interleaving remains: a full-row queue write from an engine that still holds the old id in memory
+(an edit, or a write already queued in the writer) can land after the scan's commit and put the old
+id back, since the old row still exists. The engine's remap then writes the new id again, as the
+next writes in the same FIFO writer. What stays open is an engine that holds the old id and never
+applies the remap: a queue load that was suspended when the remap arrived, other than the restore
+(4.6), keeps the old id, as before.
 
 ## 3. The cold-start read
 
@@ -133,6 +151,16 @@ The restore and the adoption of a running session set the engine's `isQueueCusto
 saved row; a restore that yields no queue leaves it false. `onQueueStructureChanged` sets the flag
 before it saves, so an edit's own write already carries true.
 
+### 4.6 A library change during the restore
+
+The restore reads the saved rows, then waits for the start song's artwork, the baseline read and the
+session connection. A launch scan can repoint the saved rows (2.2) and publish its remap during
+those waits; the engine has nothing installed yet, so it cannot apply the remap. When
+`PlaybackCacheRevision` (stamped on every remap and deletion notice) moved between the first read
+and the moment the session is connected, the restore reads the saved queue, its artwork and the
+baseline once more and installs that read. One re-read at most; a change during the re-read is left
+to the reconciliation after the install, which refreshes songs under the same id only.
+
 ## 5. Startup sequence
 
 `MainActivity` runs `runLaunchSequence` once the database gate has opened normally:
@@ -155,7 +183,8 @@ taken between an edit's two commits is repaired like a process death at that poi
 it runs, and `Done` once it returns (installed, skipped because a timeline exists, nothing saved,
 failed) or the wait bound passes.
 
-While it is `Pending` and nothing is playing, Play Next, Add to Queue and Keep:
+While it is `Pending` and nothing is playing, song taps and the page Play and Shuffle buttons are
+held too (see the end of this section). Play Next, Add to Queue and Keep:
 
 - answer at once (`Added`, or `true` for Keep);
 - hold their action until the restore settles. Held actions then run in the order they are taken.
@@ -189,7 +218,17 @@ A configuration change keeps the view model and the engine. The recreated Activi
 restore again, and the engine returns at once because a timeline exists. If nothing is playing
 then, for example after the queue ended, the three actions wait for that short restore.
 
-Song taps and the page Play and Shuffle buttons do not wait (see `docs/queue-accepted-behaviours.md`).
+**Song taps and page Play and Shuffle.** While the restore is `Pending` and nothing is playing,
+`requestPlayQueue` and `requestPlayAll` hold their decision and show nothing. Once the restore
+returns or the bound passes, the held tap reads the customised-queue flag and active playback from
+the engine itself: a restored hand-built queue raises the Keep/Clear or Replace prompt exactly as it
+would after the restore; anything else plays. These holds wait for the restore only, never for a
+queue load, so a newer tap still cancels an older tap's load. Only the latest held tap or
+Play/Shuffle runs: holding one, or deciding one at once, drops any held before it. They sit in the
+same order as held Play Next, Add to Queue and Keep, so everything held runs in the order it was
+taken, each against the queue the one before it left. Shuffle's random first song is chosen at tap
+time. Because the tap now plays after the restore installed its queue, the saved shuffle and repeat
+modes are in place when it plays, and its write keeps them.
 
 ## 6. After updating to version 18
 
@@ -220,6 +259,9 @@ process on the device).
 |---|---|
 | #398 restore requested first, before pruning | `LaunchSequenceTest` |
 | #398 Play Next / Add to Queue / Keep wait, apply or fall back, duplicate skip, timeout | `PlaybackViewModelRestoreWaitTest`, `PlaybackViewModelRestoreTimeoutTest`; device: `PlaybackViewModelRestoreWaitInstrumentedTest`, `PlaybackViewModelRestoreTimeoutInstrumentedTest` (late restore after the bound) |
+| #432 song taps and Play/Shuffle wait for the restore, only the latest runs, arrival order, modes kept | `PlaybackViewModelRestoreTapTest`; device: `PlaybackViewModelRestoreTapInstrumentedTest` |
+| #433 the scan repoints the saved queue | device: `ScanRepointsSavedQueueInstrumentedTest`, `ScanKeepsUserDataInstrumentedTest.pinnedFlacTagEditMakesANewSongAndPlaylistStaysOnHiddenCopy` |
+| #433 a library change during the restore re-reads the saved queue | device: `QueueRestoreRemapRaceInstrumentedTest` |
 | #398 a running session is not replaced | device: `QueueColdStartInstrumentedTest.aRunningSessionIsNotReplacedByTheSavedQueue` |
 | #400 saved modes without a queue | `QueuePersistenceRestoreReadTest`; device: `QueueSavedModesInstrumentedTest`, `QueueSavedModesReadFailureInstrumentedTest` |
 | #401 restore start | `QueueRestoreStartTest`, `QueuePersistenceRestoreReadTest`; device: `QueueRestoreStartRoomInstrumentedTest`, `QueueRestoreStartInstrumentedTest`, `QueuePersistenceEndToEndInstrumentedTest.aGoneSavedSongSavesTheNewStartAndItsQueuePosition` |

@@ -29,7 +29,8 @@ Terms:
 | Song actions **Add to Queue** | `addToQueue` | Active: the song is appended, or the Add to Queue duplicate confirmation when it is already the last Up Next slot. Not active: a fresh one-song queue. |
 
 Play Next, Add to Queue and Keep wait first when a restore or a queue load is pending (section 5).
-Song taps and the page buttons never wait.
+Song taps and the page Play and Shuffle buttons wait only for a pending launch restore, and only with
+nothing playing; they never wait for a queue load (section 5).
 
 ## 2. The Keep/Clear prompt
 
@@ -116,6 +117,18 @@ suspends while it builds the start song's artwork and while it waits for the ses
   Held actions run once each, in the order they were taken, on one coroutine. An action whose
   fallback starts a load does not wait for that load; the next held action does, so two Play Next
   taps during a restore that brings nothing back give a queue of both songs.
+- **Song taps and Play / Shuffle** (`QueueActionWait.holdFreshPlayWhileRestoring`): held while the
+  restore is Pending and nothing is playing, never for a load, so a newer tap still cancels an older
+  tap's load (the second tap wins). Nothing is shown while one is held. Only the latest held tap or
+  Play / Shuffle runs: holding one, or deciding one at once, drops every one held before it. They join
+  the same order as the other held actions, so everything held runs in the order it was taken, each
+  against the queue the one before it left: a tap then a Play Next plays the tapped list and then
+  inserts into it; a Play Next then a tap inserts into the restored queue (or plays the song alone
+  when nothing came back) and then decides the tap, which over that now hand-edited queue raises
+  Keep/Clear. After the wait the tap reads the customised flag and active playback from the engine:
+  a restored hand-built queue raises Keep/Clear or Replace exactly as it would after the restore;
+  otherwise it plays. At the bound it decides on what is there. The Shuffle start song is still
+  chosen at tap time.
 - While held, Play Next and Add to Queue answer `Added` and Keep answers true at once. After the wait
   they read the engine's own state: Play Next and Add to Queue skip a song already in their target
   slot (no dialog can ask then), Keep follows section 2, and with no queue the fallback runs.
@@ -145,6 +158,8 @@ Product decisions (the maintainer's):
 - Keep with nothing left to keep plays the context, like Clear.
 - The pending prompts and duplicate confirmations survive recreation, not process death.
 - Play Next, Add to Queue and Keep wait for a queue load that is still starting.
+- Song taps and Play / Shuffle wait for a pending launch restore with nothing playing, silently; only
+  the latest held one runs (#432).
 
 Implementation choices:
 
@@ -170,7 +185,7 @@ Implementation choices:
 ## 9. Out of scope
 
 The customised flag staying true until a new queue installs (see `docs/queue-accepted-behaviours.md`);
-song taps and Play / Shuffle during the launch restore; the rescan remap; the `isQueueEnded` latch
+the rescan remap (`docs/queue-persistence.md`, section 2.2); the `isQueueEnded` latch
 (#402); where Add to Queue places a song (#430); external controller shuffle (#389); the Up Next UI
 (#410 to #418); the performance batch (#406); shuffle and persistence semantics.
 
@@ -187,3 +202,4 @@ JVM tests are in `app/src/test`, device tests in `app/src/androidTest`, both und
 | Pending prompts and duplicate confirmations (#426) | `PlaybackViewModelPendingPromptTest`; `PlaybackViewModelQueuePromptTest`; device `ui.QueuePromptRecreationInstrumentedTest` (all four dialogs), `ui.QueuePromptsInstrumentedTest`, `QueuePersistenceEndToEndInstrumentedTest.aSongTapAfterAColdStartAsksKeepOrClearForACustomisedQueue` |
 | The load wait and the single bound (#427) | `PlaybackViewModelLoadWaitTest`; `PlaybackViewModelKeepRulesTest.aKeepDuringALoadAppliesToTheNewQueue`; `PlaybackViewModelRestoreWaitTest`, `PlaybackViewModelRestoreTimeoutTest`; device `QueueLoadWaitInstrumentedTest`, `PlaybackViewModelRestoreWaitInstrumentedTest` |
 | Live duplicate checks (#428) | `PlaybackViewModelUpcomingChecksTest` |
+| Song taps and Play / Shuffle wait for the restore (#432) | `PlaybackViewModelRestoreTapTest` (prompt after the wait, plays when not customised or nothing saved, bound, only the latest, arrival order with Play Next both ways, no wait for a load, Shuffle start at tap time, saved modes kept); device `PlaybackViewModelRestoreTapInstrumentedTest` |

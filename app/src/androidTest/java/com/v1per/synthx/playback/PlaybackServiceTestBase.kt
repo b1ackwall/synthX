@@ -24,7 +24,9 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.AfterClass
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Rule
 
 /**
@@ -35,6 +37,13 @@ import org.junit.Rule
  *
  * Runs in the debug app's process against the `.debug` package only. Persistence goes to a stub
  * repository (writes are rejected and logged), so no app queue data is touched.
+ *
+ * The service is destroyed by the system some time after its last controller is released, so its
+ * exit checkpoint can run after a test has ended. For the whole class that checkpoint writes into a
+ * recorder ([classExitRecorder]) rather than the app's queue persistence, which would open the real
+ * database, and the startup gate stays ready from the first test to the last. Only at class end, once
+ * the service is destroyed, are the recorder removed and the gate handed back
+ * ([destroyServiceThenResetGate]).
  *
  * Subclasses tune the bootstrap through the `open` members below rather than re-implementing it:
  * a test that needs to control *when* the engine (or the service connection) comes into being
@@ -70,10 +79,6 @@ abstract class PlaybackServiceTestBase {
     private var extraControllerReleased = false
 
     @Before fun setUpPlaybackBase() {
-        // The engine's cache reconciliation reads the live repository, which the startup gate
-        // refuses until MainActivity has run its startup. Model a ready gate, as the restore
-        // instrumentation does, and hand the process its lazy production gate back after.
-        DatabaseStartupGate.markReadyForTest()
         wav = File(context.cacheDir, "playback-test-silence.wav").also { writeSilentWav(it, seconds = 60) }
         persistence = createPersistence()
         if (connectExtraControllerInSetUp) {
@@ -91,7 +96,6 @@ abstract class PlaybackServiceTestBase {
         }
         persistence.release()
         wav.delete()
-        DatabaseStartupGate.resetForTest(context)
     }
 
     /** The persistence every engine from [newEngine] writes through; default rejects every write. */
@@ -299,10 +303,63 @@ abstract class PlaybackServiceTestBase {
         c.playbackState, c.playWhenReady, c.isPlaying, c.repeatMode, c.playerError?.errorCode,
     )
 
-    private companion object {
+    companion object {
         // Never shorter than the fixed 1.5 s wait this replaced.
-        const val SETTLE_QUIET_MS = 1_500L
-        const val SETTLE_LIMIT_MS = 10_000L
+        private const val SETTLE_QUIET_MS = 1_500L
+        private const val SETTLE_LIMIT_MS = 10_000L
+
+        /** What the service's exit checkpoints wrote during the current class. */
+        @Volatile
+        internal lateinit var classExitRecorder: RecordingQueueRepository
+            private set
+
+        /** The persistence [classExitRecorder] backs, installed as the service's exit override. */
+        @Volatile
+        internal lateinit var classExitPersistence: QueuePersistence
+            private set
+
+        /**
+         * The engine's cache reconciliation reads the live repository, which the startup gate refuses
+         * until MainActivity has run its startup: model a ready gate for the whole class, as the
+         * restore instrumentation does. A fresh recorder takes the service's exit checkpoints.
+         */
+        @JvmStatic
+        @BeforeClass
+        fun installClassExitCheckpoint() {
+            DatabaseStartupGate.markReadyForTest()
+            classExitRecorder = RecordingQueueRepository()
+            classExitPersistence = QueuePersistence(classExitRecorder)
+            SynthXPlaybackService.exitPersistenceOverride = classExitPersistence
+        }
+
+        /**
+         * Class end: stops the service and waits until it is destroyed, so its exit checkpoint has
+         * already run into [classExitRecorder]; then removes the override and only then hands the
+         * process its lazy production gate back. Every controller must already be released.
+         */
+        @JvmStatic
+        @AfterClass
+        fun destroyServiceThenResetGate() {
+            val context: Context = ApplicationProvider.getApplicationContext()
+            PlaybackServiceLifecycle.stopUntilDestroyed(context)
+            SynthXPlaybackService.exitPersistenceOverride = null
+            // Lets the checkpoint's accepted write finish before the gate goes.
+            runBlocking { classExitPersistence.quiesceForRestore() }
+            resetGateOnceServiceIsDestroyed(context)
+        }
+
+        /**
+         * Hands the process its production startup gate back, failing loudly instead while the service
+         * is still running or inside `onDestroy`: its exit checkpoint could then open the real database
+         * against a gate that refuses it, and crash the process from the main thread.
+         */
+        internal fun resetGateOnceServiceIsDestroyed(context: Context) {
+            check(!PlaybackServiceLifecycle.isRunning(context) && !PlaybackServiceLifecycle.isDestroying(context)) {
+                "The startup gate is reset only once SynthXPlaybackService is destroyed; it is still " +
+                    if (PlaybackServiceLifecycle.isRunning(context)) "running" else "inside onDestroy"
+            }
+            DatabaseStartupGate.resetForTest(context)
+        }
     }
 
     // --- audio fixture -------------------------------------------------------------------------

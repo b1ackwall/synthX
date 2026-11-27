@@ -3,6 +3,7 @@ package com.v1per.synthx.playback
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.Song
 import com.v1per.synthx.ui.testing.TestTimeouts
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,12 +33,27 @@ class PlaybackViewModelRestoreWaitTest {
     @get:Rule(order = TestTimeouts.RULE_ORDER)
     val testTimeout = TestTimeouts.jvm()
 
-    /** An engine whose restore waits for [release] and then installs [restores], if set. */
+    /**
+     * An engine whose restore waits for [release] and then installs [restores], if set, with
+     * [restoresCustomized] and [restoresModes]. With [installOnPlay] a fresh play installs its own
+     * songs; a play waits for [loadGate] first, when set, and records "cancelled:" when it is cut off.
+     * Play Next and Add to Queue mark a queue customised, as the real engine does.
+     */
     internal class GatedRestoreEngine : PlaybackEngine {
         val release = CompletableDeferred<Unit>()
         var restores: Pair<List<Song>, Int>? = null
+        var restoresCustomized = false
+        var restoresModes: Pair<Boolean, RepeatMode>? = null
+        var installOnPlay = false
+        var loadGate: CompletableDeferred<Unit>? = null
         val calls = mutableListOf<String>()
+
+        /** Each fresh play's start index and the shuffle and repeat modes it found, in call order. */
+        val plays = mutableListOf<Triple<Int, Boolean, RepeatMode>>()
         val songId = MutableStateFlow<String?>(null)
+        val customized = MutableStateFlow(false)
+        val shuffle = MutableStateFlow(false)
+        val repeat = MutableStateFlow(RepeatMode.Off)
         private val queueFlow = MutableStateFlow<List<QueueSlot>>(emptyList())
         private val upcoming = MutableStateFlow<List<QueueSlot>>(emptyList())
 
@@ -59,19 +75,38 @@ class PlaybackViewModelRestoreWaitTest {
         override val queue: Flow<List<QueueSlot>> = queueFlow
         override val currentIndex: Flow<Int> = MutableStateFlow(0)
         override val upcomingQueue: Flow<List<QueueSlot>> = upcoming
-        override val shuffleEnabled: Flow<Boolean> = emptyFlow()
+        override val shuffleEnabled: Flow<Boolean> = shuffle
         override val shuffleReorderedByUser: Flow<Boolean> = emptyFlow()
-        override val repeatMode: Flow<RepeatMode> = emptyFlow()
+        override val repeatMode: Flow<RepeatMode> = repeat
         override val hasNext: Flow<Boolean> = emptyFlow()
         override val hasPrevious: Flow<Boolean> = emptyFlow()
-        override val isQueueCustomized: Flow<Boolean> = MutableStateFlow(false)
+        override val isQueueCustomized: Flow<Boolean> = customized
         override val queueGeneration: StateFlow<Long> = MutableStateFlow(0L)
         override suspend fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
-            calls += "playQueue:${songs.map { it.id }}"
+            val ids = songs.map { it.id }
+            calls += "playQueue:$ids"
+            plays += Triple(startIndex, this.shuffle.value, repeat.value)
+            try {
+                loadGate?.await()
+            } catch (e: CancellationException) {
+                calls += "cancelled:$ids"
+                throw e
+            }
+            if (installOnPlay) {
+                install(songs, startIndex)
+                customized.value = false
+            }
         }
         override suspend fun restoreSavedQueue() {
             release.await()
-            restores?.let { (songs, current) -> install(songs, current) }
+            restores?.let { (songs, current) ->
+                install(songs, current)
+                customized.value = restoresCustomized
+                restoresModes?.let { (shuffleOn, mode) ->
+                    shuffle.value = shuffleOn
+                    repeat.value = mode
+                }
+            }
         }
         override fun persistPlaybackState() {}
         override fun next() {
@@ -82,10 +117,12 @@ class PlaybackViewModelRestoreWaitTest {
         override fun setRepeatMode(mode: RepeatMode) {}
         override fun playNext(song: Song): Boolean {
             calls += "playNext:${song.id}"
+            customized.value = true
             return true
         }
         override fun addToQueue(song: Song): Boolean {
             calls += "addToQueue:${song.id}"
+            customized.value = true
             return true
         }
         override fun moveQueueItem(slotId: String, toIndex: Int) {}
@@ -95,7 +132,7 @@ class PlaybackViewModelRestoreWaitTest {
         override fun resume() {
             calls += "resume"
         }
-        override fun currentRepeatMode(): RepeatMode = RepeatMode.Off
+        override fun currentRepeatMode(): RepeatMode = repeat.value
         override fun seekTo(positionMs: Long) {}
         override fun release() {}
         override suspend fun reconcileWithDatabase() {}

@@ -1,6 +1,7 @@
 package com.v1per.synthx.ui.player
 
 import android.annotation.SuppressLint
+import androidx.annotation.StringRes
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -251,8 +252,9 @@ fun PlayerSkeletonQueueContent(
                     .alpha(queueContentAlpha),
                 contentAlignment = Alignment.Center,
             ) {
+                // Up Next itself never includes a wrap; the text says what plays after the last song.
                 Text(
-                    text = stringResource(R.string.empty_queue_no_upcoming),
+                    text = stringResource(emptyUpNextText(repeatMode)),
                     style = MaterialTheme.typography.bodyLarge,
                     color = contentColors.content,
                 )
@@ -331,6 +333,17 @@ fun PlayerSkeletonQueueContent(
         }
     }
     Trace.endSection()
+}
+
+/**
+ * The text Up Next shows when nothing is queued after the current song: under Repeat Off playback
+ * ends there, under Repeat All it continues from the first song, under Repeat One this song repeats.
+ */
+@StringRes
+internal fun emptyUpNextText(repeatMode: RepeatMode): Int = when (repeatMode) {
+    RepeatMode.Off -> R.string.empty_queue_no_upcoming
+    RepeatMode.All -> R.string.empty_queue_repeat_all
+    RepeatMode.One -> R.string.empty_queue_repeat_one
 }
 
 internal fun queueCompositingStrategy(contentAlpha: Float): CompositingStrategy =

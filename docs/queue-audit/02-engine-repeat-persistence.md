@@ -84,6 +84,12 @@ the list says nothing is next.
 **Suggested fix.** When Repeat All is on, show the wrapped continuation, either as a second section
 ("Then, from the start") or by appending `live[0 until current]`.
 
+**Resolution (#399).** Up Next still lists only the slots after the current one (moves, the duplicate
+checks and Keep rely on that). Where it is empty, the text follows the repeat mode: Repeat All
+"Repeat All is on. Playback continues from the start.", Repeat One "Repeating this song.", Repeat
+Off "Nothing queued after this" (`emptyUpNextText` in `ui/player/PlayerSkeletonQueueContent.kt`).
+See `docs/queue-accepted-behaviours.md` A17.
+
 ---
 
 ### #16 — Saved repeat and shuffle preferences are dropped when the saved queue can't be restored

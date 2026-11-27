@@ -126,6 +126,9 @@
     <string name="empty_playlist_no_songs">No songs in this playlist.</string>
     <string name="empty_playlist_not_found">Playlist not found</string>
     <string name="empty_queue_no_upcoming">Nothing queued after this</string>
+    <!-- Up Next on the last song: what plays next under Repeat All and Repeat One. -->
+    <string name="empty_queue_repeat_all">Repeat All is on. Playback continues from the start.</string>
+    <string name="empty_queue_repeat_one">Repeating this song.</string>
 
     <!-- Hints / placeholders -->
     <string name="hint_playlist_name">My Playlist</string>

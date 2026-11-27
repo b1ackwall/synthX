@@ -11,8 +11,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * How long a saved-queue restore counts as pending at most: past it, Play Next, Add to Queue and Keep
- * stop waiting for it and decide on what is playing. The restore can itself wait out a whole round
+ * How long a saved-queue restore counts as pending at most: past it, Play Next, Add to Queue, Keep,
+ * song taps and page Play and Shuffle stop waiting for it and decide on what is playing. The restore can itself wait out a whole round
  * of session connection attempts ([ReconnectPolicy]: four attempts with 1, 2 and 4 s of backoff
  * between them, at least about 7 s), so the bound is about twice that backoff: a slow connection
  * that still succeeds is not cut off, and a session that never answers releases the actions in a
@@ -67,8 +67,11 @@ internal class QueueRestoreGate(private val scope: CoroutineScope, private val t
 }
 
 /** Active playback, read from the engine itself rather than from a view model copy. */
-private suspend fun PlaybackController.hasActivePlaybackNow(): Boolean =
+internal suspend fun PlaybackController.hasActivePlaybackNow(): Boolean =
     currentSongId.first() != null && queue.first().isNotEmpty() && !isQueueEnded.first()
+
+/** The customised-queue flag, read from the engine itself rather than from a view model copy. */
+internal suspend fun PlaybackController.isQueueCustomizedNow(): Boolean = isQueueCustomized.first()
 
 /** True when [song] sits in the first Up Next slot, read from the engine itself. */
 private suspend fun PlaybackController.isExactlyNextNow(song: Song): Boolean =

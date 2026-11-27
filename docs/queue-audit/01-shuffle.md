@@ -277,6 +277,11 @@ ways the user can't predict.
 `live[0]` and replays the same permutation forever. Many players reshuffle at the end of each pass.
 There is no way to get a new order without OFF→ON, which truncates (#2).
 
+**Decision (#393).** Kept by design: Repeat All with shuffle replays the same order every loop. The
+live order is stored and restored verbatim and Up Next, the restore's start rule and the
+manual-reorder protection all rely on it; see `docs/queue-accepted-behaviours.md` A18 and
+`docs/queue-shuffle-design.md` section 9. Pinned by `QueueShuffleRepeatLoopTest`.
+
 ---
 
 ### #10 — Shuffle and Repeat taps are computed from UI-captured state; a fast second tap is lost, and rejected toggles give no feedback

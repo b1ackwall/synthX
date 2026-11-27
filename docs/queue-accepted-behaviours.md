@@ -52,7 +52,7 @@ and `docs/queue-persistence.md`; the Up Next screen's are in `docs/queue-up-next
   - Play Next, Add to Queue and a move with shuffle off;
   - a remove of a slot that is in the baseline;
   - a library deletion;
-  - a rescan remap to a new song id.
+  - a rescan remap to a new song id, applied by a live engine.
 
   `docs/queue-persistence.md` section 2.2 lists what a process death between them leaves.
 - **Why accepted.** With the live commit first, the restore repair turns the state between the two
@@ -65,23 +65,29 @@ and `docs/queue-persistence.md`; the Up Next screen's are in `docs/queue-up-next
 ### A4. A process death inside a shuffled rescan remap can cost one song its album place (#404)
 
 - **What.** A rescan that finds a file's content changed flags the old song row missing and inserts
-  the song under a new id. The scanner does not touch the saved queue, so only a live engine moves
-  the queue to the new id (`applyRemap` → `remapSong`): first the live commit, then the baseline
-  commit. If the process dies between the two while shuffle is on:
+  the song under a new id. In the same transaction it moves every saved queue row of the old id,
+  live and baseline, to the new id (#433, `docs/queue-persistence.md` section 2.2), so a scan never
+  loses a queue slot and no longer depends on a running engine. A live engine then applies the remap
+  it publishes (`applyRemap` → `remapSong`): first the live commit, then the baseline commit, both
+  rewriting the new id the rows already hold. What is left of this exception is the one case where
+  the rows hold the old id again: a full-row queue write from an engine that still held the old id
+  landed after the scan's commit (an edit, or a write already queued). If the process then dies
+  between the remap's two commits while shuffle is on:
   - the live order holds the new id and the baseline still holds the old, missing one;
   - the restore keeps every song and the live order after the edit;
   - **if the remapped song is not the current one**, it comes back as an Add to Queue extra, so
     shuffle OFF places it after the album instead of in its album place;
   - **if it is the current song**, the baseline is rebuilt from the shuffled live order, so shuffle
     OFF keeps the shuffled order.
-- **Why accepted.** Every song is kept and nothing removed comes back. The window is one pair of
-  commits during a rescan. Without live first, the same death drops the song from the queue.
+- **Why accepted.** Every song is kept and nothing removed comes back. The window is an engine write
+  between the scan's commit and the remap, followed by a death between the remap's two commits.
+  Without live first, the same death drops the song from the queue.
 - **What pins it.** `QueueRemapKillOutcomeTest`, and on a device
   `QueueEditKillReplayInstrumentedTest.aShuffledRemapOfASongThatIsNotPlayingComesBackAsAnExtra` and
-  `aShuffledRemapOfThePlayingSongRebuildsTheBaselineFromLive`.
-- **Revisit when.** The scanner repoints saved queue rows (live and baseline) to the new id in its
-  own transaction. That would also cover a remap that happens while no engine is running, which
-  leaves the slot on the missing old id until the next restore drops it.
+  `aShuffledRemapOfThePlayingSongRebuildsTheBaselineFromLive` (both drive the engine's remap on its
+  own, as that remaining case does). The scan's repoint: `ScanRepointsSavedQueueInstrumentedTest`.
+- **Revisit when.** An engine queue write can carry a song id the database no longer holds for that
+  slot, or the remap is applied in one commit.
 
 ### A5. A cursor that cannot be read leaves the saved modes unknown (#400)
 
@@ -209,23 +215,65 @@ and `docs/queue-persistence.md`; the Up Next screen's are in `docs/queue-up-next
   `backWithTheSheetOpenInQueueModeCollapsesTheSheetAndKeepsQueueMode`.
 - **Revisit when.** Users get stuck in queue mode without controls, or Back should leave queue mode first.
 
+### A16. A song tap or page Play / Shuffle during the launch restore waits for it, silently (#432)
+
+- **What.** While the saved-queue restore is pending and nothing is playing, `requestPlayQueue` and
+  `requestPlayAll` hold their decision until the restore returns or its 15 s bound passes, then read
+  the customised flag and active playback from the engine: a restored hand-built queue raises
+  Keep/Clear or Replace as it would after the restore; otherwise the tap plays, with the saved
+  shuffle and repeat already in place. Nothing is shown while a tap is held. Only the latest held tap
+  or Play / Shuffle runs. They wait for the restore only, never for a queue load, and run in the
+  order taken together with held Play Next, Add to Queue and Keep
+  (`docs/queue-entry-points.md` section 5, `docs/queue-persistence.md` section 5.1).
+- **Why accepted.** A hand-built saved queue is never replaced without the question, and the wait is
+  bounded. The prompts are pending view-model state, so they appear after the wait with no UI change.
+- **What pins it.** `PlaybackViewModelRestoreTapTest`; device: `PlaybackViewModelRestoreTapInstrumentedTest`.
+- **Revisit when.** The hold is long enough on a device to read as an ignored tap, or a held tap
+  should show something.
+
+### A17. Up Next on the last song under Repeat All or Repeat One says what plays next (#399)
+
+- **What.** Up Next lists only the slots after the current one in the live order, under every repeat
+  mode; it never gains the wrapped songs. Where it is empty, its text follows the repeat mode:
+  Repeat Off "Nothing queued after this", Repeat All "Repeat All is on. Playback continues from the
+  start.", Repeat One "Repeating this song." (`emptyUpNextText`, `ui/player/PlayerSkeletonQueueContent.kt`).
+  The text changes as soon as the mode does; the list itself does not depend on the mode.
+- **Why accepted.** Moves, the duplicate checks, Add to Queue's "already last", Keep's "exactly next"
+  and the controls-visible rule all read Up Next as "the slots after the current one", so appending
+  the wrapped songs would change what they act on.
+- **What pins it.** `EmptyUpNextTextTest`; device: `ui.player.QueueEmptyUpNextMarkerTest`,
+  `UpNextRepeatMarkerInstrumentedTest`.
+- **Revisit when.** Up Next shows history or a "from the start" section (#431).
+
+### A18. Repeat All with shuffle replays the same shuffled order on every loop (#393)
+
+- **What.** The shuffled live order is made once, by a shuffled fresh play or shuffle ON, and the
+  wrap at the end goes to the first slot of that same order. Nothing reshuffles at the wrap.
+- **Why intended.** The live order is the queue: it is stored and restored verbatim, Up Next shows
+  it, and the restore's start rule (#401) places a missing current song by its stored position. A
+  reshuffle at the wrap would discard a hand reorder, which the shuffle OFF confirmation exists to
+  protect, and would have to happen inside a window that media3 wraps by itself for a queue of 51
+  slots or fewer, after it has already moved on. It would also be a reorder outside the toggles, and
+  would need the guarantees invariants I1 and I2 give a toggle (the playing item never removed, no
+  slot dropped or duplicated) at that moment (`docs/queue-shuffle-design.md` section 9).
+- **What pins it.** `QueueShuffleRepeatLoopTest`; device: `QueueShuffleRepeatLoopInstrumentedTest`.
+- **Revisit when.** A reshuffle-per-loop option is wanted.
+
 ## Deferred
 
 Known behaviours that are not fixed yet. The first group is the "out of scope" list of
-`docs/queue-shuffle-design.md` section 9, without the three items covered elsewhere: the order of the
+`docs/queue-shuffle-design.md` section 9, without the items covered elsewhere: the order of the
 queue restore and the daily backup (`docs/queue-persistence.md` section 5), the two commits of
-ordinary edits (A3), and shuffle from other controllers (`docs/queue-engine.md` section 2). The second group comes from the queue-persistence work, the last two rows from
+ordinary edits (A3), the same shuffled order on every Repeat All loop (A18), and shuffle from other
+controllers (`docs/queue-engine.md` section 2). The second group comes from the queue-persistence work, the last two rows from
 the queue entry-points work (`docs/queue-entry-points.md`).
 
 | Behaviour | Issue |
 |---|---|
 | Add to Queue places a new song at the end of the live order, after the whole remaining context. | #430 |
-| Repeat All replays the same shuffled order on every loop. | #393 |
 | Swipe-to-remove is instant and permanent with no Undo, and any release above the fixed 125dp/s fling threshold removes, however short the drag. Parked for the maintainer's own feel testing. An Undo needs: the slot record and its song, its predecessors in the live order and in the baseline, its extra tag, the shuffle state at the time, rules for re-inserting it when either predecessor has gone, persistence of the re-insert through the two commits of A3, and no survival across a process death without a schema change. A snackbar over the player could cover the controls. | #412 |
-| With Repeat All on the last song, Up Next shows "Nothing queued after this" rather than what plays from the start. A design question tied to reshuffling per loop (#393) and to history, Clear and the count (#431). | #399 |
 | External controllers only see the loaded window of about 51 items as the queue. | #409 |
 | O(N) work on large queues: every queue write rewrites every row (including on pause and when leaving the app), every track change hydrates the whole Up Next list, and the view model mirrors the whole queue and the Up Next list. Moved to a separate performance batch. | #406 |
 | The rest of that performance batch: the Up Next list staying composed (offscreen layer and mask included) while the sheet is collapsed in queue mode; every Up Next row receiving the whole list for its self-heal check; the large-library benchmark scenarios. | #419, #420 (part 2), #293 |
-| A song tap or a page Play / Shuffle tap during the launch restore does not wait for it. Its Keep/Clear or Replace decision runs before the restore finishes, without the stored customised-queue flag, so it plays at once and the restore then finds a timeline and stands down. Making those taps wait would mean holding `requestPlayQueue` and `requestPlayAll` in the same restore gate and then re-checking the flag from the engine; the prompts are pending view model state, so they could be raised after the wait without a UI change. | none yet |
 | After Clear or Replace, the customised-queue flag stays true until the new queue installs. A second song tap in that short window raises the Keep/Clear prompt again; Keep then waits for the load and applies to the new queue. | none yet |
 | The queue-load wait is proven on the real engine only for a load suspended at its session wait (`QueueLoadWaitInstrumentedTest`). A load suspended while it builds the start song's artwork is covered by the view-model tests alone: there is no seam to hold the artwork step, and none is added for a test. | none yet |

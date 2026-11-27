@@ -265,8 +265,10 @@ Implementation choices:
 
 The Up Next screen: its geometry, gestures and styling, the scroll to the top driven by the queue
 generation and the buttons' accessibility state (`docs/queue-up-next.md`); the
-customised flag after Clear or Replace; song taps during the launch restore; a rescan remap with no
-engine running; reshuffling per Repeat All loop; where Add to Queue places a song; the window size;
+customised flag after Clear or Replace; song taps during the launch restore
+(`docs/queue-entry-points.md` section 5); the scan's own repoint of the saved queue
+(`docs/queue-persistence.md` section 2.2); reshuffling per Repeat All loop (not done, by design:
+`docs/queue-accepted-behaviours.md` A18); where Add to Queue places a song; the window size;
 performance; shuffle, persistence and entry-point semantics; the message being dropped when nothing
 collects errors; Next, Previous, pause and resume during a reconnect.
 

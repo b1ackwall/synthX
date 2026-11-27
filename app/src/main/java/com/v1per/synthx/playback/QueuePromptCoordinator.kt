@@ -15,6 +15,12 @@ import kotlinx.coroutines.flow.asStateFlow
  * either takes the place of whatever is pending, and a fresh play ([clearPending]) closes both.
  * Answers act on the queue as it stands when they are given.
  *
+ * While the saved-queue restore is pending and nothing is playing, a song tap or Play/Shuffle is
+ * held ([holdFreshPlay]) and decided once the restore returns or its bound passes, from the engine's
+ * own customised flag and playback state: a restored hand-built queue then raises its prompt exactly
+ * as it would after the restore. Only the latest held tap or Play/Shuffle runs; nothing is shown
+ * while it is held.
+ *
  * Main-thread-confined, like the view model that owns it.
  */
 internal class QueuePromptCoordinator(
@@ -24,6 +30,7 @@ internal class QueuePromptCoordinator(
     private val isNextInQueue: (songId: String) -> Boolean,
     private val playQueue: (songs: List<Song>, startIndex: Int, shuffle: Boolean?) -> Unit,
     private val holdWhilePending: (waitsForRestore: Boolean, action: suspend () -> Unit) -> Boolean,
+    private val holdFreshPlay: (waitsForRestore: Boolean, action: suspend () -> Unit) -> Boolean,
     private val resume: () -> Unit,
 ) {
     private val _queuePrompt = MutableStateFlow<QueuePromptEvent?>(null)
@@ -38,9 +45,15 @@ internal class QueuePromptCoordinator(
 
     // Same customised-queue condition as requestPlayQueue, but the prompt only offers Replace:
     // there is no single tapped song for Keep to act on.
+    // Shuffle's random start is already in [request]: it is chosen at tap time, held or not.
     fun requestPlayAll(request: PlayAllRequest?) {
         request ?: return
-        if (isQueueCustomized() && hasActivePlayback()) {
+        if (heldForRestore { decidePlayAll(request, asksNow()) }) return
+        decidePlayAll(request, isQueueCustomized() && hasActivePlayback())
+    }
+
+    private fun decidePlayAll(request: PlayAllRequest, asks: Boolean) {
+        if (asks) {
             _queuePrompt.value = null
             _queueReplacePrompt.value = QueueReplacePromptEvent(request)
         } else {
@@ -49,13 +62,22 @@ internal class QueuePromptCoordinator(
     }
 
     /**
+     * Holds [decide] while the restore is pending and nothing is playing, dropping any earlier held
+     * tap or Play/Shuffle; false when nothing is held and the caller decides now.
+     */
+    private fun heldForRestore(decide: suspend () -> Unit): Boolean = holdFreshPlay(!hasActivePlayback(), decide)
+
+    /** The prompt condition after a wait, read from the engine itself: the view model copies can lag. */
+    private suspend fun asksNow(): Boolean = controller.isQueueCustomizedNow() && controller.hasActivePlaybackNow()
+
+    /**
      * The entry point every song tap goes through. Replacing a queue the user built by
      * hand is the one case where playing a song is destructive, so that case asks first
      * and everything else plays immediately.
      *
      * Also requires active playback: a customised queue that has since run to its end is
      * nothing to preserve, and "Keep" against a stopped player would insert into a dead
-     * timeline.
+     * timeline. While the saved queue is restoring, the decision waits for it ([heldForRestore]).
      */
     fun requestPlayQueue(songs: List<Song>, startIndex: Int) {
         // The incoming list is whatever a screen displays, which can include missing songs
@@ -69,15 +91,17 @@ internal class QueuePromptCoordinator(
         val filteredSongs = songs.filterNot { it.isMissing }
         val filteredIndex = filteredSongs.indexOfFirst { it.id == tapped.id }
         if (filteredIndex < 0) return
-        if (isQueueCustomized() && hasActivePlayback()) {
+        val event = QueuePromptEvent(tappedSong = tapped, contextSongs = filteredSongs, startIndex = filteredIndex)
+        if (heldForRestore { decideTap(event, asksNow()) }) return
+        decideTap(event, isQueueCustomized() && hasActivePlayback())
+    }
+
+    private fun decideTap(event: QueuePromptEvent, asks: Boolean) {
+        if (asks) {
             _queueReplacePrompt.value = null
-            _queuePrompt.value = QueuePromptEvent(
-                tappedSong = tapped,
-                contextSongs = filteredSongs,
-                startIndex = filteredIndex,
-            )
+            _queuePrompt.value = event
         } else {
-            playQueue(filteredSongs, filteredIndex, null)
+            playQueue(event.contextSongs, event.startIndex, null)
         }
     }
 

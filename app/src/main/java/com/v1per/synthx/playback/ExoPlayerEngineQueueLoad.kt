@@ -2,6 +2,7 @@ package com.v1per.synthx.playback
 
 import android.util.Log
 import androidx.media3.common.C
+import androidx.media3.session.MediaController
 import com.v1per.synthx.data.PlaybackCacheRevision
 import com.v1per.synthx.data.repository.QueueSlot
 import com.v1per.synthx.data.repository.QueueSlotRecord
@@ -90,25 +91,78 @@ internal suspend fun ExoPlayerEngine.playQueueInternal(songs: List<Song>, startI
  *
  * A saved cursor whose queue has no surviving slot still brings back its modes ([adoptSavedModes]);
  * a read that fails leaves them unknown. A restored queue comes back with its customised-queue flag.
+ *
+ * The library can change while the restore waits for artwork, the baseline read and the session
+ * (a launch scan that gives a changed file a new id repoints the saved rows and publishes a remap
+ * this engine, with nothing installed yet, cannot apply). When [PlaybackCacheRevision] moved during
+ * those waits, the saved rows are read once more just before installing, so the queue installed is
+ * the one the rows now hold. One re-read at most: a change during the re-read is left to the
+ * reconciliation after the install.
  */
 internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     Log.d(TAG, "Queue restore begin")
     // See playQueueInternal's identical capture — this path has THREE suspension points before
     // install (restored-songs read, artwork, baseline read), each an equally valid window for a
     // revision bump to land in.
-    val revisionBeforeSnapshot = PlaybackCacheRevision.current()
+    var revisionBeforeSnapshot = PlaybackCacheRevision.current()
+    var read = readSavedQueue() ?: return
+    var installed = false
+
+    withContext(Dispatchers.Main.immediate) {
+        // Same wait as playQueueInternal, so a launch-time restore survives a failed first
+        // connection attempt that a retry then recovers. Logged rather than surfaced on errors:
+        // nobody tapped anything to restore.
+        val ctrl = awaitController() ?: run {
+            Log.w(TAG, "Queue restore skipped: could not connect to the playback session")
+            return@withContext
+        }
+        if (PlaybackCacheRevision.current() != revisionBeforeSnapshot) {
+            Log.d(TAG, "Queue restore: the library changed during the wait; reading the saved queue again")
+            revisionBeforeSnapshot = PlaybackCacheRevision.current()
+            read = readSavedQueue() ?: return@withContext
+        }
+        // Not restored over an in-progress session: the user has already started something, and
+        // replacing it with last session's queue would be a surprise.
+        if (ctrl.mediaItemCount > 0) {
+            Log.d(
+                TAG,
+                "Queue restore skipped: adopting existing running timeline; " +
+                    "slot=${_currentSlotId.value}, queue=${orderStore.size}",
+            )
+            return@withContext
+        }
+        installRestoredQueue(ctrl, read)
+        installed = true
+    }
+    // Only when this call actually installed a snapshot — the "adopting existing running
+    // timeline" bail-out above did not, and has nothing here for a revision bump to invalidate.
+    if (installed) reconcileIfRevisionChanged(revisionBeforeSnapshot)
+}
+
+/** A saved queue read for installing: the queue, its start song's artwork and the baseline order. */
+private class SavedQueueRead(
+    val restored: QueuePersistence.RestoredQueue,
+    val startArtwork: ByteArray,
+    val baseline: List<QueueSlot>,
+)
+
+/**
+ * Reads the saved queue, its start song's artwork and its baseline order; null when there is no
+ * queue to install, after applying the saved modes of a cursor whose queue has no surviving slot.
+ */
+private suspend fun ExoPlayerEngine.readSavedQueue(): SavedQueueRead? {
     val restored = when (val read = persistence.loadRestore()) {
         is QueuePersistence.RestoreRead.Queue -> read.queue
 
         is QueuePersistence.RestoreRead.ModesOnly -> {
             Log.d(TAG, "Queue restore: no surviving queue; applying the saved modes")
             adoptSavedModes(read)
-            return
+            return null
         }
 
         QueuePersistence.RestoreRead.Empty -> {
             Log.d(TAG, "Queue restore: no persisted queue; starting fresh")
-            return
+            return null
         }
     }
     val startSlot = restored.slots[restored.startIndex]
@@ -121,85 +175,66 @@ internal suspend fun ExoPlayerEngine.restoreSavedQueueInternal() {
     // Loaded alongside the active queue rather than derived from it — baseline legitimately
     // differs from the active list while shuffle is on, so it needs its own read, not a
     // recomputation. A failed or stale read is made safe by the repair in adoptRestoredOrders.
-    val restoredBaseline = persistence.loadBaselineQueue()
-    var installed = false
+    val baseline = persistence.loadBaselineQueue()
+    return SavedQueueRead(restored, startArtwork, baseline)
+}
 
-    withContext(Dispatchers.Main.immediate) {
-        // Same wait as playQueueInternal, so a launch-time restore survives a failed first
-        // connection attempt that a retry then recovers. Logged rather than surfaced on errors:
-        // nobody tapped anything to restore.
-        val ctrl = awaitController() ?: run {
-            Log.w(TAG, "Queue restore skipped: could not connect to the playback session")
-            return@withContext
-        }
-        // Not restored over an in-progress session: the user has already started something, and
-        // replacing it with last session's queue would be a surprise.
-        if (ctrl.mediaItemCount > 0) {
-            Log.d(
-                TAG,
-                "Queue restore skipped: adopting existing running timeline; " +
-                    "slot=${_currentSlotId.value}, queue=${orderStore.size}",
-            )
-            return@withContext
-        }
+/** Installs [read] paused on [ctrl]; main thread, with no suspension, so nothing interleaves. */
+private fun ExoPlayerEngine.installRestoredQueue(ctrl: MediaController, read: SavedQueueRead) {
+    val restored = read.restored
+    val startSlot = restored.slots[restored.startIndex]
+    songsBySlotId.clear()
+    restored.slots.forEach { songsBySlotId[it.slotId] = it.song }
+    artworkLoadedSlotIds.clear()
+    artworkLoadedSlotIds.add(startSlot.slotId)
 
-        songsBySlotId.clear()
-        restored.slots.forEach { songsBySlotId[it.slotId] = it.song }
-        artworkLoadedSlotIds.clear()
-        artworkLoadedSlotIds.add(startSlot.slotId)
+    // Plain field sets — no media3 involvement, no rebuild. The active order just loaded
+    // already reflects whatever order (shuffled or not) the app last saved,
+    // with its session extras and reorder flag.
+    adoptRestoredOrders(restored, read.baseline, currentSlotId = startSlot.slotId)
+    // Repeat has to be adopted here rather than left to the callback `ctrl.repeatMode =`
+    // below triggers, because the window built a few lines down reads it for its
+    // repeat-all wraparound rule.
+    _repeatMode.value = restored.repeatMode.toRepeatMode()
+    // Populate queue state before publishing cursor identity, as defense in depth for any
+    // consumer that depends on that ordering.
+    refreshQueue()
+    publishCurrentSlot(startSlot.slotId)
+    refreshCurrentIndex()
 
-        // Plain field sets — no media3 involvement, no rebuild. The active order just loaded
-        // already reflects whatever order (shuffled or not) the app last saved,
-        // with its session extras and reorder flag.
-        adoptRestoredOrders(restored, restoredBaseline, currentSlotId = startSlot.slotId)
-        // Repeat has to be adopted here rather than left to the callback `ctrl.repeatMode =`
-        // below triggers, because the window built a few lines down reads it for its
-        // repeat-all wraparound rule.
-        _repeatMode.value = restored.repeatMode.toRepeatMode()
-        // Populate queue state before publishing cursor identity, as defense in depth for any
-        // consumer that depends on that ordering.
-        refreshQueue()
-        publishCurrentSlot(startSlot.slotId)
-        refreshCurrentIndex()
+    // The session player outlives the Activity, so it can still be set to play.
+    ctrl.playWhenReady = false
+    seedWindow(restored.startIndex, restored.positionMs, read.startArtwork)
+    ctrl.repeatMode = restored.repeatMode
 
-        // The session player outlives the Activity, so it can still be set to play.
-        ctrl.playWhenReady = false
-        seedWindow(restored.startIndex, restored.positionMs, startArtwork)
-        ctrl.repeatMode = restored.repeatMode
-
-        // Not routed through onQueueStructureChanged: the persist below is conditional, and a
-        // restore is not an edit. The customised-queue flag comes back with the orders above.
-        refreshUpcomingQueue()
-        refreshNavigationState()
-        // The stored rows disagree with what actually loaded — rewrite them so the saved cursor
-        // and the queue cannot drift further apart on the next restore. Written from the order
-        // store, which is the full restored order, not from the window just seeded. The cursor
-        // names the start slot just chosen; the stored customised-queue flag is kept.
-        if (restored.droppedCount > 0) {
-            Log.i(
-                ExoPlayerEngine.TAG,
-                "Restored ${restored.slots.size} queue items, " +
-                    "${restored.droppedCount} no longer available",
-            )
-            persistence.saveQueueRecords(
-                slots = orderStore.live,
-                currentSlotId = startSlot.slotId,
-                positionMs = restored.positionMs,
-                extras = orderStore.extras,
-                shuffleReordered = orderStore.shuffleReordered,
-            )
-        }
-        prefetchArtwork()
-        Log.d(
-            TAG,
-            "Queue restore complete: song=${_currentSong.value?.id}, " +
-                "slot=${_currentSlotId.value}, queue=${orderStore.size}",
+    // Not routed through onQueueStructureChanged: the persist below is conditional, and a
+    // restore is not an edit. The customised-queue flag comes back with the orders above.
+    refreshUpcomingQueue()
+    refreshNavigationState()
+    // The stored rows disagree with what actually loaded — rewrite them so the saved cursor
+    // and the queue cannot drift further apart on the next restore. Written from the order
+    // store, which is the full restored order, not from the window just seeded. The cursor
+    // names the start slot just chosen; the stored customised-queue flag is kept.
+    if (restored.droppedCount > 0) {
+        Log.i(
+            ExoPlayerEngine.TAG,
+            "Restored ${restored.slots.size} queue items, " +
+                "${restored.droppedCount} no longer available",
         )
-        installed = true
+        persistence.saveQueueRecords(
+            slots = orderStore.live,
+            currentSlotId = startSlot.slotId,
+            positionMs = restored.positionMs,
+            extras = orderStore.extras,
+            shuffleReordered = orderStore.shuffleReordered,
+        )
     }
-    // Only when this call actually installed a snapshot — the "adopting existing running
-    // timeline" bail-out above did not, and has nothing here for a revision bump to invalidate.
-    if (installed) reconcileIfRevisionChanged(revisionBeforeSnapshot)
+    prefetchArtwork()
+    Log.d(
+        TAG,
+        "Queue restore complete: song=${_currentSong.value?.id}, " +
+            "slot=${_currentSlotId.value}, queue=${orderStore.size}",
+    )
 }
 
 /**

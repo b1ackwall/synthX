@@ -362,10 +362,12 @@ internal suspend fun FolderScanner.scanAlreadyAdmittedInternal(
                                 extracted = data.metadata,
                             )
                             insertedIds.add(id)
-                            // If the replaced song is the one currently loaded in the player, its
-                            // in-memory Song (title/art) would otherwise go stale — see SongRemapEvents.
+                            // The saved queue follows the new id in this transaction, with or without a
+                            // live engine; playlists and the star stay on the hidden old row. A loaded
+                            // queue's in-memory Song would otherwise go stale — see SongRemapEvents.
                             // Not emitted here: queued and flushed after the transaction commits, below.
                             if (staleId != null) {
+                                database.queueDao().repointSavedQueue(staleId, newSong.id)
                                 pendingRemaps.add(SongRemap(staleId, newSong))
                             }
                             added++

@@ -181,8 +181,11 @@ Implementation choices:
 
 ## 7. Out of scope
 
-Swipe-to-remove and Undo, and the fling threshold (#412); the Repeat All "from the start" display
-(#399); the composition and recomposition cost of the list and its rows, the list staying composed
+Swipe-to-remove and Undo, and the fling threshold (#412); a "from the start" list of the wrapped
+songs (Up Next on the last song shows a marker instead: under Repeat All "Repeat All is on. Playback
+continues from the start.", under Repeat One "Repeating this song.", under Repeat Off "Nothing
+queued after this"; the text follows the repeat mode at once and the list itself is unchanged, see
+`docs/queue-accepted-behaviours.md` A17, #399); the composition and recomposition cost of the list and its rows, the list staying composed
 while the sheet is collapsed (#419), and every row receiving the whole list (#420 part 2); the O(N)
 queue rewrites (#406); Back handling; the overlay's touch shield; the hide/show threshold itself;
 reorder destination identity; shuffle, persistence, entry-point and engine semantics; Add to Queue

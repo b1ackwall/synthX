@@ -100,7 +100,8 @@ class PlaybackViewModel(
     // The view model's queue loads, one at a time; see playQueue.
     private val loads = QueueLoadTracker(viewModelScope)
 
-    // Holds Play Next, Add to Queue and Keep while the restore or a queue load is pending.
+    // Holds Play Next, Add to Queue and Keep while the restore or a queue load is pending, and song
+    // taps and Play/Shuffle while the restore is pending.
     private val actionWait =
         QueueActionWait(viewModelScope, restoreGate.state, loads.inFlight, queueActionWaitTimeoutMs)
 
@@ -182,6 +183,7 @@ class PlaybackViewModel(
         isNextInQueue = ::isNextInQueue,
         playQueue = ::playQueue,
         holdWhilePending = actionWait::holdWhilePending,
+        holdFreshPlay = actionWait::holdFreshPlayWhileRestoring,
         resume = ::resume,
     )
 

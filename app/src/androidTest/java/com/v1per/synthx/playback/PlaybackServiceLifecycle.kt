@@ -44,6 +44,22 @@ internal object PlaybackServiceLifecycle {
     }
 
     /**
+     * Like [stopAndAwaitDestroyed], but repeats the stop request while it waits. After playback has
+     * run, media3 can start the service again for its notification once the player stops, which
+     * takes back a single earlier stop request; the service goes once nothing starts it any more.
+     */
+    fun stopUntilDestroyed(context: Context, timeoutMs: Long = 15_000L) {
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
+        val intent = Intent(context, SynthXPlaybackService::class.java)
+        while (SystemClock.uptimeMillis() < deadline) {
+            context.stopService(intent)
+            if (!isRunning(context) && !isDestroying(context)) return
+            Thread.sleep(250)
+        }
+        awaitDestroyed(context, timeoutMs = 0L)
+    }
+
+    /**
      * Waits until the service is neither running nor still inside `onDestroy`, so its exit
      * checkpoint has already read [SynthXPlaybackService.exitPersistenceOverride] and cannot write
      * into a recorder installed after this returns.
@@ -54,6 +70,7 @@ internal object PlaybackServiceLifecycle {
             if (!isRunning(context) && !isDestroying(context)) return
             Thread.sleep(50)
         }
+        if (!isRunning(context) && !isDestroying(context)) return
         val state = if (isRunning(context)) "still running" else "stopped, but its onDestroy has not returned"
         throw AssertionError(
             "SynthXPlaybackService $state after $timeoutMs ms: a controller from another test " +

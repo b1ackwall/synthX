@@ -43,7 +43,8 @@ class PlaybackServiceExitInstrumentedTest : PlaybackServiceTestBase() {
         // Throws (caught) when the test never connected a controller.
         if (runCatching { onMain { extraController.isConnected } }.getOrDefault(false)) releaseExtraController()
         PlaybackServiceLifecycle.stopAndAwaitDestroyed(context)
-        SynthXPlaybackService.exitPersistenceOverride = null
+        // Back to the class-wide recorder the base installs, never to the app's own persistence.
+        SynthXPlaybackService.exitPersistenceOverride = classExitPersistence
     }
 
     /** Loads [size] items into the service's player at [current]/[positionMs], paused. */

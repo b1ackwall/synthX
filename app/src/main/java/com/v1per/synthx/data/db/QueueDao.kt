@@ -192,6 +192,26 @@ interface QueueDao {
         )
     }
 
+    // --- song id replacement (a rescan of changed file content; see repointSavedQueue) ---
+
+    @Query("UPDATE queue_items SET song_id = :newSongId WHERE song_id = :oldSongId")
+    suspend fun repointQueueItems(oldSongId: String, newSongId: String): Int
+
+    @Query("UPDATE queue_baseline_items SET song_id = :newSongId WHERE song_id = :oldSongId")
+    suspend fun repointBaselineQueueItems(oldSongId: String, newSongId: String): Int
+
+    /**
+     * Moves every saved queue row of [oldSongId], live and baseline, to [newSongId], keeping each
+     * row's slot id, position and extra tag, so the cursor and the saved order stay as they are.
+     * [newSongId] must already have a song row (the foreign key). Runs inside the caller's
+     * transaction when there is one.
+     */
+    @Transaction
+    suspend fun repointSavedQueue(oldSongId: String, newSongId: String) {
+        repointQueueItems(oldSongId, newSongId)
+        repointBaselineQueueItems(oldSongId, newSongId)
+    }
+
     /**
      * Reads the active queue, baseline order, and cursor together as one consistent snapshot
      * — the read-side counterpart of [replaceQueueBaselineAndCursor], closing the

@@ -3,6 +3,7 @@ package com.v1per.synthx.data.scanner
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.v1per.synthx.data.repository.QueueSlotRecord
 import com.v1per.synthx.data.scanner.ScanAudioFixtures.flac
 import com.v1per.synthx.data.scanner.ScanTestFixture.Companion.bytes
 import com.v1per.synthx.data.scanner.ScanTestFixture.Companion.uriOf
@@ -151,7 +152,8 @@ class ScanKeepsUserDataInstrumentedTest {
     /**
      * Pinned current behaviour (open question): a FLAC tag edit rewrites bytes inside the hashed first
      * 64 KB, so the file becomes a new song. The playlist entry and star stay on the old row, which
-     * is hidden as missing at a `stale://` path; the new row is in no playlist.
+     * is hidden as missing at a `stale://` path; the new row is in no playlist. The saved queue, unlike
+     * them, follows the new id (decided, not pinned).
      */
     @Test fun pinnedFlacTagEditMakesANewSongAndPlaylistStaysOnHiddenCopy() = runBlocking {
         val before = flac(mapOf("TITLE" to "Take One", "ARTIST" to "Band"))
@@ -162,6 +164,18 @@ class ScanKeepsUserDataInstrumentedTest {
         val old = fx.requireSongAt(file)
         fx.songDao.upsertSong(old.copy(isStarred = true))
         fx.addPlaylist("p1", old.id)
+        val queueDao = fx.database.queueDao()
+        queueDao.replaceQueueBaselineAndCursor(
+            activeSlots = listOf(QueueSlotRecord("slot-1", old.id)),
+            baselineSlots = listOf(QueueSlotRecord("slot-1", old.id)),
+            currentSlotId = "slot-1",
+            positionMs = 1_000L,
+            shuffleEnabled = false,
+            repeatMode = 0,
+            extras = emptyMap(),
+            shuffleReordered = false,
+            queueCustomized = false,
+        )
 
         file.writeBytes(after)
         val remaps = fx.recordRemaps(this)
@@ -184,6 +198,9 @@ class ScanKeepsUserDataInstrumentedTest {
         )
         assertTrue("new row is in no playlist", fx.playlistDao.getPlaylistIdsForSong(fresh.id).isEmpty())
         assertTrue("remap old to new: $remaps", remaps.any { it.oldId == old.id && it.newSong.id == fresh.id })
+        assertEquals("the saved queue follows the new id", listOf(fresh.id), queueDao.getQueueItems().map { it.songId })
+        assertEquals(listOf(fresh.id), queueDao.getBaselineQueueItems().map { it.songId })
+        assertEquals("slot-1", queueDao.getCursor()?.currentSlotId)
     }
 
     @Test fun rowHiddenByATagEditIsNotCountedAsMissingOnTheNextScan() = runBlocking {

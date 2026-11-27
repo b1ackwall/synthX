@@ -53,11 +53,16 @@ internal class QueueLoadTracker(private val scope: CoroutineScope) {
 
 /**
  * Holds Play Next, Add to Queue and Keep while the saved-queue restore or a queue load is pending, so
- * they never decide on a queue that the pending restore or load is about to swap out. Held actions
- * run once each, in holding order, on one coroutine: each waits until nothing it waits for is
- * pending or its own bound ([timeoutMs] from the moment it is held) passes, then runs. An action
- * that starts a load of its own runs to its end first; the next held action then waits for that
- * load. Nothing is held when nothing is pending.
+ * they never decide on a queue that the pending restore or load is about to swap out, and holds the
+ * fresh plays (song taps, page Play and Shuffle) while the restore alone is pending, so they decide
+ * with the restored queue's customised flag. Held actions run once each, in holding order, on one
+ * coroutine: each waits until nothing it waits for is pending or its own bound ([timeoutMs] from the
+ * moment it is held) passes, then runs. An action that starts a load of its own runs to its end
+ * first; the next held Play Next, Add to Queue or Keep then waits for that load, and the next held
+ * fresh play does not. Nothing is held when nothing is pending.
+ *
+ * Only the latest fresh play counts: holding one, or deciding one at once, drops every fresh play
+ * held before it, wherever it sits in the order.
  *
  * Main-thread-confined: [scope] is the view model's.
  */
@@ -67,16 +72,26 @@ internal class QueueActionWait(
     private val loadInFlight: StateFlow<Boolean>,
     private val timeoutMs: Long,
 ) {
-    private class Held(val waitsForRestore: Boolean, val action: suspend () -> Unit) {
+    private class Held(
+        val waitsForRestore: Boolean,
+        val waitsForLoad: Boolean,
+        val freshPlay: Boolean,
+        val action: suspend () -> Unit,
+    ) {
         val timedOut = MutableStateFlow(false)
+        val dropped = MutableStateFlow(false)
         var bound: Job? = null
     }
 
     private val held = ArrayDeque<Held>()
     private var releaseJob: Job? = null
 
-    private fun pending(waitsForRestore: Boolean): Boolean =
-        loadInFlight.value || (waitsForRestore && restoreState.value == QueueRestoreState.Pending)
+    private fun restorePending(): Boolean = restoreState.value == QueueRestoreState.Pending
+
+    private fun pending(waitsForRestore: Boolean): Boolean = loadInFlight.value || (waitsForRestore && restorePending())
+
+    private fun Held.isPending(): Boolean =
+        (waitsForLoad && loadInFlight.value) || (waitsForRestore && restorePending())
 
     /**
      * Holds [action] and returns true while a load is in flight, or while the restore is pending and
@@ -85,25 +100,43 @@ internal class QueueActionWait(
      */
     fun holdWhilePending(waitsForRestore: Boolean, action: suspend () -> Unit): Boolean {
         if (!pending(waitsForRestore)) return false
-        val entry = Held(waitsForRestore, action)
+        hold(Held(waitsForRestore, waitsForLoad = true, freshPlay = false, action))
+        return true
+    }
+
+    /**
+     * A fresh play: drops every fresh play held before it, then holds [action] and returns true while
+     * the restore is pending and [waitsForRestore]; returns false, holding nothing, otherwise. Never
+     * waits for a queue load, so a newer fresh play still cancels the load of an older one.
+     */
+    fun holdFreshPlayWhileRestoring(waitsForRestore: Boolean, action: suspend () -> Unit): Boolean {
+        held.filter { it.freshPlay }.forEach { earlier ->
+            earlier.dropped.value = true
+            earlier.bound?.cancel()
+        }
+        if (!waitsForRestore || !restorePending()) return false
+        hold(Held(waitsForRestore = true, waitsForLoad = false, freshPlay = true, action))
+        return true
+    }
+
+    private fun hold(entry: Held) {
         entry.bound = scope.launch {
             delay(timeoutMs)
             entry.timedOut.value = true
         }
         held.addLast(entry)
         if (releaseJob?.isActive != true) releaseJob = scope.launch { release() }
-        return true
     }
 
     private suspend fun release() {
         while (held.isNotEmpty()) {
             val entry = held.first()
-            combine(restoreState, loadInFlight, entry.timedOut) { _, _, timedOut ->
-                timedOut || !pending(entry.waitsForRestore)
+            combine(restoreState, loadInFlight, entry.timedOut, entry.dropped) { _, _, timedOut, dropped ->
+                dropped || timedOut || !entry.isPending()
             }.first { it }
             held.removeFirst()
             entry.bound?.cancel()
-            entry.action()
+            if (!entry.dropped.value) entry.action()
         }
     }
 }

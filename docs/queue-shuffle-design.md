@@ -237,7 +237,14 @@ the repair makes a failed or stale baseline read lossless.
 - how other controllers reach this toggle (the media session's shuffle command applies these rules and
   refuses OFF while the shuffled queue was reordered; see `docs/queue-engine.md`);
 - where Add to Queue places a new song (the end of live);
-- reshuffling at each Repeat All loop;
+- reshuffling at each Repeat All loop: by design, Repeat All with shuffle replays the same shuffled
+  order on every loop. The live order is the queue: it is stored and restored verbatim, Up Next
+  shows it, and the restore's start rule (#401) places a missing current song by its stored
+  position. A reshuffle at the wrap would discard a hand reorder (the reason for the shuffle OFF
+  confirmation), would have to rebuild a window that media3 has already wrapped by itself (a queue
+  of 51 slots or fewer is loaded whole), and would be a reorder outside the toggles that I1 and I2
+  would have to hold for. Pinned by `QueueShuffleRepeatLoopTest` and, on a device,
+  `QueueShuffleRepeatLoopInstrumentedTest`; see `docs/queue-accepted-behaviours.md` A18 (#393);
 - the Keep, Clear and Replace prompts;
 - the order of the queue restore and the daily backup;
 - the Up Next list's scroll to the top after an applied toggle (the queue generation), and the accessibility
