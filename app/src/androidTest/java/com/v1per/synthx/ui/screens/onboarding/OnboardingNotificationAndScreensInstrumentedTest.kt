@@ -1,5 +1,7 @@
 package com.v1per.synthx.ui.screens.onboarding
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onAllNodesWithText
@@ -13,8 +15,10 @@ import com.v1per.synthx.data.backup.ScanStub
 import com.v1per.synthx.data.backup.ScanStubWorkerFactory
 import com.v1per.synthx.data.backup.pruneFinishedWorkIfRestoreAcknowledged
 import com.v1per.synthx.data.scanner.LibraryScanWorker
+import com.v1per.synthx.ui.screens.librarymanagement.NewArrivalsFolderSection
 import com.v1per.synthx.ui.screens.restore.RestorePreview
 import com.v1per.synthx.ui.theme.Error
+import com.v1per.synthx.ui.theme.SynthXTheme
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
@@ -245,13 +249,20 @@ class OnboardingNotificationAndScreensInstrumentedTest : OnboardingRecoveryTestB
         composeRule.onNodeWithText(context.getString(R.string.action_done)).assertIsEnabled()
     }
 
-    /** End to end through the real folder step: neutral colour, and gone once its scan is released. */
-    @Test fun deferredScanMessageRendersNeutralOnTheFolderStepAndDisappearsWithItsScan() {
+    /**
+     * End to end through the New Arrivals row Library Management shows: neutral colour, and gone once
+     * its scan is released. The wizard's own pick only persists the folder, so the notice never shows there.
+     */
+    @Test fun deferredScanMessageRendersNeutralOnTheNewArrivalsRowAndDisappearsWithItsScan() {
         val deferred = context.getString(R.string.status_new_arrivals_scan_deferred)
-        startWizard()
-        composeRule.onNodeWithText(context.getString(R.string.onboarding_fresh_install)).performClick()
-        composeRule.runOnUiThread { library.saveOnboardingMusicFolder(music) }
-        await(library.musicFolderUri) { it == music }
+        composeRule.setContent {
+            SynthXTheme {
+                val notice by library.newArrivalsFolderNotice.collectAsState()
+                val error by library.newArrivalsFolderError.collectAsState()
+                NewArrivalsFolderSection(folderPath = null, folderError = error, folderNotice = notice, onClick = {})
+            }
+        }
+        saveOnboardingMusic()
 
         val gate = CompletableDeferred<Unit>()
         startBlockingScan(ScanStub.Gated(gate))
@@ -276,7 +287,7 @@ class OnboardingNotificationAndScreensInstrumentedTest : OnboardingRecoveryTestB
         composeRule.runOnUiThread { library.saveOnboardingMusicFolder(music) }
         await(library.musicFolderUri) { it == music }
 
-        composeRule.runOnUiThread { library.saveNewArrivalsFolder(music) }
+        composeRule.runOnUiThread { library.saveOnboardingNewArrivalsFolder(music) }
 
         awaitText(nested)
         assertEquals(Error, textColorOf(nested))

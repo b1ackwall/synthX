@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -47,7 +48,7 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
     @After fun restorePreferences() {
         ScanFolderGrant.hasReadGrant = realGrantCheck
         saved.restore(preferences)
-        // The real library worker records a failed pre-scan backup here; it must not outlive the test.
+        // A pre-scan backup attempt recorded here must not outlive the test.
         BackupOutcomeStore.resetForTest()
     }
 
@@ -89,6 +90,37 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
         assertFalse(out.keyValueMap.containsKey(LibraryScanWorker.KEY_HIGH_IMPACT))
         assertFalse(liveSong("kept").isMissing)
         assertEquals(MUSIC, preferences.musicFolderUri)
+    }
+
+    /** No backup folder: the pre-scan backup is skipped quietly, with no failed attempt recorded. */
+    @Test fun libraryWorkerWithoutABackupFolderRecordsNoBackupAttempt() = runBlocking {
+        preferences.musicFolderUri = MUSIC
+        preferences.lastBackupAttemptTimestamp = 0L
+        ScanFolderGrant.hasReadGrant = { _, _ -> true }
+
+        val result = TestListenableWorkerBuilder<LibraryScanWorker>(context).build().doWork()
+
+        assertTrue("$result", result is ListenableWorker.Result.Success)
+        assertNull(BackupOutcomeStore.lastBackupOutcome.value)
+        assertEquals(0L, preferences.lastBackupAttemptTimestamp)
+        assertFalse(result.outputData.keyValueMap.containsKey(LibraryScanWorker.KEY_BACKUP_FILENAME))
+    }
+
+    /** A configured folder is still attempted, and its real failure is still recorded. */
+    @Test fun libraryWorkerWithAnUnreachableBackupFolderStillRecordsTheFailure() = runBlocking {
+        preferences.musicFolderUri = MUSIC
+        preferences.backupFolderUri = UNREACHABLE_BACKUP
+        preferences.lastBackupAttemptTimestamp = 0L
+        ScanFolderGrant.hasReadGrant = { _, _ -> true }
+
+        val result = TestListenableWorkerBuilder<LibraryScanWorker>(context).build().doWork()
+
+        assertTrue("$result", result is ListenableWorker.Result.Success)
+        val outcome = requireNotNull(BackupOutcomeStore.lastBackupOutcome.value) { "no backup attempt recorded" }
+        assertFalse(outcome.succeeded)
+        assertEquals("rescan", outcome.reason)
+        assertNotEquals("No backup folder selected", outcome.failureMessage)
+        assertTrue(preferences.lastBackupAttemptTimestamp > 0L)
     }
 
     @Test fun newArrivalsWorkerWithoutAFolderFails() = runBlocking {
@@ -198,7 +230,17 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
         val missingArtSongIds: Set<String>,
         val lastIssuesScanIssueCount: Int,
         val lastIssuesScanTimestamp: Long,
+        val lastBackupAttempt: BackupAttempt,
     ) {
+        /** The last-backup-attempt record the library worker's pre-scan backup writes. */
+        data class BackupAttempt(
+            val timestamp: Long,
+            val tier: String?,
+            val reason: String?,
+            val succeeded: Boolean,
+            val failureMessage: String?,
+        )
+
         fun restore(preferences: PreferencesManager) {
             preferences.musicFolderUri = musicFolderUri
             preferences.newArrivalsFolderUri = newArrivalsFolderUri
@@ -206,6 +248,11 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
             preferences.missingArtSongIds = missingArtSongIds
             preferences.lastIssuesScanIssueCount = lastIssuesScanIssueCount
             preferences.lastIssuesScanTimestamp = lastIssuesScanTimestamp
+            preferences.lastBackupAttemptTimestamp = lastBackupAttempt.timestamp
+            preferences.lastBackupAttemptTier = lastBackupAttempt.tier
+            preferences.lastBackupAttemptReason = lastBackupAttempt.reason
+            preferences.lastBackupAttemptSucceeded = lastBackupAttempt.succeeded
+            preferences.lastBackupAttemptFailureMessage = lastBackupAttempt.failureMessage
         }
 
         companion object {
@@ -216,6 +263,13 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
                 preferences.missingArtSongIds,
                 preferences.lastIssuesScanIssueCount,
                 preferences.lastIssuesScanTimestamp,
+                BackupAttempt(
+                    preferences.lastBackupAttemptTimestamp,
+                    preferences.lastBackupAttemptTier,
+                    preferences.lastBackupAttemptReason,
+                    preferences.lastBackupAttemptSucceeded,
+                    preferences.lastBackupAttemptFailureMessage,
+                ),
             )
         }
     }
@@ -223,5 +277,6 @@ class ScanWorkerResultInstrumentedTest : PhaseBRestoreTestBase() {
     private companion object {
         const val MUSIC = "content://com.android.externalstorage.documents/tree/primary%3ASlice5aMusic"
         const val ARRIVALS = "content://com.android.externalstorage.documents/tree/primary%3ASlice5aArrivals"
+        const val UNREACHABLE_BACKUP = "content://synthx.test.unreachable/tree/primary%3ABackups"
     }
 }

@@ -3,12 +3,14 @@ package com.v1per.synthx.ui.components
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import com.v1per.synthx.R
 
 private const val WORDMARK_WIDTH = 65f
@@ -27,5 +29,15 @@ fun Wordmark(heightStyle: TextStyle, modifier: Modifier = Modifier) {
         painter = painterResource(R.drawable.ic_wordmark),
         contentDescription = stringResource(R.string.cd_wordmark),
         modifier = modifier.height(height).aspectRatio(WORDMARK_WIDTH / WORDMARK_HEIGHT),
+    )
+}
+
+/** The same wordmark at a fixed [width]; the height follows the drawable's aspect ratio. */
+@Composable
+fun Wordmark(width: Dp, modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(R.drawable.ic_wordmark),
+        contentDescription = stringResource(R.string.cd_wordmark),
+        modifier = modifier.width(width).aspectRatio(WORDMARK_WIDTH / WORDMARK_HEIGHT),
     )
 }

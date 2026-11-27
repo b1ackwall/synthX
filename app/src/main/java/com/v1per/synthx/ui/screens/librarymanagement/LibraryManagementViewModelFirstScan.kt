@@ -3,6 +3,7 @@ package com.v1per.synthx.ui.screens.librarymanagement
 import androidx.work.ExistingWorkPolicy
 import com.v1per.synthx.R
 import com.v1per.synthx.data.scanner.LibraryScanWorker
+import com.v1per.synthx.data.scanner.NewArrivalsScanWorker
 import java.util.UUID
 
 // LibraryManagementViewModel's onboarding first-scan bookkeeping.
@@ -43,6 +44,11 @@ internal fun LibraryManagementViewModel.startFirstScanInternal(): UUID? {
 internal fun LibraryManagementViewModel.completeFirstScanInternal() {
     check(preferencesManager.completeFirstScanDurably()) {
         "Could not persist first-scan completion"
+    }
+    // The wizard's New Arrivals pick only persisted the folder. APPEND_OR_REPLACE queues behind
+    // anything still holding the shared unique name instead of being dropped or cancelling it.
+    if (preferencesManager.newArrivalsFolderUri != null) {
+        NewArrivalsScanWorker.enqueue(context, ExistingWorkPolicy.APPEND_OR_REPLACE)
     }
 }
 

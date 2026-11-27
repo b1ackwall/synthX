@@ -20,6 +20,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.components.SynthXButtonPair
@@ -96,6 +100,7 @@ private fun ScanningProgress(status: String?) {
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextPrimary,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.semantics { heading() },
             )
             status?.let {
                 Spacer(modifier = Modifier.height(Spacing.sm))
@@ -104,7 +109,10 @@ private fun ScanningProgress(status: String?) {
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = Spacing.HorizontalPadding),
+                    // Polite: progress text changes often and must not interrupt other speech.
+                    modifier = Modifier
+                        .padding(horizontal = Spacing.HorizontalPadding)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
         }
@@ -136,6 +144,7 @@ private fun ScanFailed(
             ),
             style = MaterialTheme.typography.headlineSmall,
             color = TextPrimary,
+            modifier = Modifier.semantics { heading() },
         )
         Spacer(modifier = Modifier.height(Spacing.sm))
         Text(

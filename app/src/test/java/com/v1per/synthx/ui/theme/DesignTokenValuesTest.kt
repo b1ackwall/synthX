@@ -52,6 +52,17 @@ class DesignTokenValuesTest {
         assertEquals(32f, RingSizes.Large.value)
     }
 
+    @Test fun onboardingSizesKeepTheirValues() {
+        assertEquals(480f, OnboardingSizes.ContentMaxWidth.value)
+        assertEquals(240f, OnboardingSizes.WordmarkMaxWidth.value)
+        assertEquals(0.4f, OnboardingSizes.WordmarkWidthFraction)
+        assertEquals(1f, OnboardingSizes.GlowRadiusPerWordmarkWidth)
+    }
+
+    @Test fun theOnboardingGlowStaysSubtle() {
+        assertEquals(0.16f, Alpha.OnboardingGlow)
+    }
+
     @Test fun tileSizesKeepTheirValues() {
         assertEquals(168f, TileSizes.MaxWidth.value)
         assertEquals(12f, TileSizes.MinGap.value)

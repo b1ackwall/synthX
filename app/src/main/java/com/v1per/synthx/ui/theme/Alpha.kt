@@ -9,4 +9,7 @@ object Alpha {
 
     /** The player seek bar's played track. */
     const val SeekTrackPlayed = 0.75f
+
+    /** The Accent glow behind the onboarding wordmark, at its centre; it fades to 0 at its edge. */
+    const val OnboardingGlow = 0.16f
 }

@@ -1,13 +1,9 @@
 package com.v1per.synthx.ui.screens.onboarding
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,20 +17,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.UUID
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.screens.backupsandrestore.BackupsAndRestoreViewModel
 import com.v1per.synthx.ui.screens.librarymanagement.LibraryManagementViewModel
-import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.Spacing
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.components.rememberNotificationPermissionGate
-import com.v1per.synthx.ui.components.SynthXButtonPair
-import com.v1per.synthx.ui.components.SynthXButtonWidth
-import com.v1per.synthx.ui.components.SynthXPrimaryButton
-import com.v1per.synthx.ui.components.SynthXSecondaryButton
-import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 
@@ -46,12 +39,14 @@ import kotlinx.coroutines.delay
  *
  * Deliberately reuses [LibraryManagementViewModel] and [BackupsAndRestoreViewModel] wholesale
  * (constructed here, scoped to this route like any other screen's ViewModel) rather than
- * reimplementing folder validation/persistence/scan-triggering. Picking a folder only persists it
- * ([LibraryManagementViewModel.saveOnboardingMusicFolder]); tapping Done fires the one
+ * reimplementing folder validation/persistence/scan-triggering. Picking the music or New Arrivals
+ * folder only persists it ([LibraryManagementViewModel.saveOnboardingMusicFolder],
+ * [LibraryManagementViewModel.saveOnboardingNewArrivalsFolder]); tapping Done fires the one
  * [LibraryManagementViewModel.startFirstScan] call (completion flag + REPLACE-enqueued
  * [com.v1per.synthx.data.scanner.LibraryScanWorker] + tracked request id), which ScanningStep then
- * observes by that id. Recovery calls its own persistence methods on the same ViewModel, so
- * changing branches also retains the current folder state.
+ * observes by that id, and accepting that scan ([LibraryManagementViewModel.completeFirstScan])
+ * queues the New Arrivals folder's first scan. Recovery calls its own persistence methods on the
+ * same ViewModel, so changing branches also retains the current folder state.
  */
 @Composable
 fun OnboardingScreen(
@@ -154,50 +149,8 @@ private fun ResumingRecoveryNotice() {
             text = stringResource(R.string.onboarding_resuming_recovery),
             style = MaterialTheme.typography.bodySmall,
             color = TextSecondary,
-        )
-    }
-}
-
-/**
- * No [androidx.activity.compose.BackHandler] here, unlike the recovery steps below — deliberate:
- * wizard position is persisted, so a back-press here that finishes the
- * Activity is harmless. No progress has been made yet at Choice, so relaunching lands right back
- * on this same screen instead of losing anything or resuming somewhere confusing.
- */
-@Composable
-private fun ChoiceStep(onFreshInstall: () -> Unit, onRecoverFromBackup: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background)
-            .padding(Spacing.HorizontalPadding),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = stringResource(R.string.onboarding_welcome_title),
-            style = MaterialTheme.typography.headlineLarge,
-            color = TextPrimary,
-        )
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Text(
-            text = stringResource(R.string.onboarding_welcome_subtitle),
-            style = MaterialTheme.typography.bodyLarge,
-            color = TextSecondary,
-        )
-        Spacer(modifier = Modifier.height(Spacing.xxl))
-
-        // Stacked below 600dp of width, Fresh install on top; side by side from there. Centred either way.
-        SynthXButtonPair(
-            primary = {
-                SynthXPrimaryButton(onClick = onFreshInstall, width = SynthXButtonWidth.Wide) {
-                    Text(text = stringResource(R.string.onboarding_fresh_install))
-                }
-            },
-            secondary = {
-                SynthXSecondaryButton(onClick = onRecoverFromBackup, width = SynthXButtonWidth.Wide) {
-                    Text(text = stringResource(R.string.onboarding_recover_backup))
-                }
-            },
+            // Shown for 2.5 s only, so a screen reader announces it as it appears.
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
     }
 }

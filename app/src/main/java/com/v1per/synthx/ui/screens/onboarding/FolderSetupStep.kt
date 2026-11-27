@@ -1,5 +1,6 @@
 package com.v1per.synthx.ui.screens.onboarding
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -49,12 +50,15 @@ internal fun FolderSetupStep(
     val folderError by libraryManagementViewModel.folderError.collectAsState()
     val newArrivalsFolderUri by libraryManagementViewModel.newArrivalsFolderUri.collectAsState()
     val newArrivalsFolderError by libraryManagementViewModel.newArrivalsFolderError.collectAsState()
-    val newArrivalsFolderNotice by libraryManagementViewModel.newArrivalsFolderNotice.collectAsState()
     val backupFolderUri by backupsAndRestoreViewModel.backupFolderUri.collectAsState()
     val backupFolderError by backupsAndRestoreViewModel.backupFolderError.collectAsState()
 
     // Resolved here, not inside the picker callbacks below — those aren't composable scopes.
     val grantRefusedMessage = stringResource(R.string.error_folder_grant_refused)
+
+    // The steps share one nav route, so without this system Back would leave the app instead of
+    // returning to Choice like the top bar's arrow.
+    BackHandler(onBack = onBack)
 
     // Same OpenDocumentTree + takePersistableUriPermission wiring as
     // LibraryManagementScreen/BackupsAndRestoreScreen — this glue is Activity-result plumbing,
@@ -77,11 +81,12 @@ internal fun FolderSetupStep(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
         // Read + write — graduation deletes the original from this tree. See
-        // LibraryManagementScreen's New Arrivals picker.
+        // LibraryManagementScreen's New Arrivals picker. Persist only: its first scan follows the
+        // first library scan (LibraryManagementViewModel.completeFirstScan).
         handleFolderPick(
             picked = uri,
             takePermission = context::takeFolderGrant,
-            onPicked = { libraryManagementViewModel.saveNewArrivalsFolder(it) },
+            onPicked = { libraryManagementViewModel.saveOnboardingNewArrivalsFolder(it) },
             onGrantRefused = { libraryManagementViewModel.setNewArrivalsFolderError(grantRefusedMessage) },
         )
     }
@@ -101,6 +106,7 @@ internal fun FolderSetupStep(
         DetailTopBar(
             title = stringResource(R.string.onboarding_folder_setup_title),
             onBack = onBack,
+            titleIsHeading = true,
         )
         Column(
             modifier = Modifier
@@ -112,8 +118,20 @@ internal fun FolderSetupStep(
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextSecondary,
                 modifier = Modifier.padding(
-                    horizontal = Spacing.HorizontalPadding,
-                    vertical = Spacing.md,
+                    start = Spacing.HorizontalPadding,
+                    end = Spacing.HorizontalPadding,
+                    top = Spacing.md,
+                ),
+            )
+            Text(
+                text = stringResource(R.string.onboarding_folder_setup_scan_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                modifier = Modifier.padding(
+                    start = Spacing.HorizontalPadding,
+                    end = Spacing.HorizontalPadding,
+                    top = Spacing.xs,
+                    bottom = Spacing.md,
                 ),
             )
 
@@ -127,7 +145,6 @@ internal fun FolderSetupStep(
             NewArrivalsFolderSection(
                 folderPath = newArrivalsFolderUri?.let { FolderPathFormatter.format(context, it) },
                 folderError = newArrivalsFolderError,
-                folderNotice = newArrivalsFolderNotice,
                 onClick = { newArrivalsFolderPicker.launch(null) },
             )
             // Optional, skippable. Reuses the same row shape BackupSection uses for this row.

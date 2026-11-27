@@ -90,6 +90,7 @@ internal fun RecoveryFolderSetupStep(
         DetailTopBar(
             title = stringResource(R.string.onboarding_recovery_folder_title),
             onBack = onBack,
+            titleIsHeading = true,
         )
         Column(
             modifier = Modifier
@@ -189,6 +190,7 @@ internal fun RecoveryBackupSelectStep(
             DetailTopBar(
                 title = stringResource(R.string.onboarding_recovery_backup_title),
                 onBack = goBack,
+                titleIsHeading = true,
             )
             Text(
                 text = stringResource(R.string.onboarding_recovery_backup_subtitle),

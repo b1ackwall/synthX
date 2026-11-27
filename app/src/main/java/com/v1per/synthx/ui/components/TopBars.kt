@@ -13,6 +13,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import com.v1per.synthx.R
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextPrimary
@@ -33,7 +35,12 @@ internal fun SynthXTopBar() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun DetailTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
+internal fun DetailTopBar(
+    title: String,
+    onBack: () -> Unit,
+    actions: @Composable RowScope.() -> Unit = {},
+    titleIsHeading: Boolean = false,
+) {
     TopAppBar(
         navigationIcon = {
             IconButton(onClick = onBack) {
@@ -49,6 +56,7 @@ internal fun DetailTopBar(title: String, onBack: () -> Unit, actions: @Composabl
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
                 color = TextPrimary,
+                modifier = if (titleIsHeading) Modifier.semantics { heading() } else Modifier,
             )
         },
         actions = actions,

@@ -295,6 +295,13 @@ class LibraryManagementViewModel(
      */
     fun saveOnboardingMusicFolder(uri: Uri) = saveRecoveryMusicFolder(uri)
 
+    /**
+     * Fresh-install onboarding's New Arrivals pick. Persist only, like [saveOnboardingMusicFolder]:
+     * a scan started here would share the unique work name with the first scan, whose REPLACE at
+     * Done cancels it. Its first scan is queued by [completeFirstScan] instead.
+     */
+    fun saveOnboardingNewArrivalsFolder(uri: Uri) = saveRecoveryNewArrivalsFolder(uri)
+
     // The one scan the wizard's ScanningStep is watching, tracked by request id rather than by the
     // shared unique name (which any of the three scan workers can also occupy). Seeded from
     // preferences so a process-death resume re-attaches to the very same scan.
@@ -354,7 +361,10 @@ class LibraryManagementViewModel(
     /** Retry after a failed/cancelled first scan — same folder, REPLACE, fresh tracked id. */
     fun retryFirstScan(): UUID? = startFirstScan()
 
-    /** The scan succeeded and the wizard is handing over to Home. */
+    /**
+     * The scan succeeded and the wizard is handing over to Home. Also queues the first New Arrivals
+     * scan when onboarding set that folder, since its pick only persisted it.
+     */
     fun completeFirstScan() = completeFirstScanInternal()
 
     /**

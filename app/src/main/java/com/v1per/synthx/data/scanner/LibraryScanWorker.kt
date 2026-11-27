@@ -76,11 +76,17 @@ class LibraryScanWorker(appContext: Context, params: WorkerParameters) : Corouti
         // wait on itself forever. The filename is kept only so a later high-impact result
         // can point the user at the exact backup that protects this scan's pre-scan state —
         // it does not change when or whether this backup fires.
-        val preScanBackupFileName = BackupManager.create(applicationContext).createBackup(
-            tier = BackupTier.Auto,
-            reason = BackupReason.RESCAN,
-            cancelActiveScan = false,
-        ).getOrNull()
+        // Skipped with nothing recorded when no backup folder is set: the attempt could only record
+        // a false failure that Backups and Restore shows. A configured folder's failure still records.
+        val preScanBackupFileName = if (preferences.backupFolderUri == null) {
+            null
+        } else {
+            BackupManager.create(applicationContext).createBackup(
+                tier = BackupTier.Auto,
+                reason = BackupReason.RESCAN,
+                cancelActiveScan = false,
+            ).getOrNull()
+        }
 
         createNotificationChannel()
         setForeground(buildForegroundInfo(PROGRESS_INDETERMINATE, PROGRESS_INDETERMINATE))
