@@ -135,7 +135,7 @@ fun SongActionsHost(
                 is SongActionEvent.DeletedButCleanupUncertain -> event.filePath
                 else -> null
             }
-            val result = snackbarHostState.showSnackbar(
+            val result = snackbarHostState.showSynthXSnackbar(
                 message = message,
                 actionLabel = retryPath?.let { resources.getString(R.string.action_retry) },
                 duration = if (retryPath != null) SnackbarDuration.Long else SnackbarDuration.Short,
@@ -177,7 +177,7 @@ fun SongActionsHost(
     // Called from both the immediate-success path and the duplicate-position dialog's
     // confirm path below, since QueueAddResult.Added can arrive from either.
     fun showQueueSnackbar(messageRes: Int) {
-        scope.launch { snackbarHostState.showSnackbar(resources.getString(messageRes)) }
+        scope.launch { snackbarHostState.showSynthXSnackbar(resources.getString(messageRes)) }
     }
 
     val controller = remember {

@@ -1,9 +1,19 @@
 package com.v1per.synthx.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.core.net.toUri
@@ -16,9 +26,13 @@ import com.v1per.synthx.data.backup.BackupTier
 import com.v1per.synthx.data.backup.RestoreCoordinator
 import com.v1per.synthx.ui.components.DeleteSongDisclosure
 import com.v1per.synthx.ui.components.DeleteSongPreviewState
+import com.v1per.synthx.ui.components.SynthXButtonRole
+import com.v1per.synthx.ui.components.SynthXSnackbarHost
+import com.v1per.synthx.ui.components.showSynthXSnackbar
 import com.v1per.synthx.ui.screens.restore.BackupRow
 import com.v1per.synthx.ui.screens.restore.RestoreAppStatus
 import com.v1per.synthx.ui.testing.TestTimeouts
+import com.v1per.synthx.ui.testing.assertDialogButton
 import com.v1per.synthx.ui.theme.Accent
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.SynthXTheme
@@ -33,7 +47,8 @@ import org.junit.runner.RunWith
 /**
  * Text that sits outside the five accent contexts paints a neutral token, never Accent. A button paints its
  * role's label colour: Background on the Primary and Destructive fills, TextPrimary for Secondary and
- * Tertiary. A button left on a Material default would take the theme's primary role, which is Accent.
+ * Tertiary, and Background for the snackbar's action, a TertiaryOnLight button on the snackbar's TextPrimary
+ * fill. A button left on a Material default would take the theme's primary role, which is Accent.
  */
 @RunWith(AndroidJUnit4::class)
 class AccentContextColorInstrumentedTest {
@@ -112,5 +127,26 @@ class AccentContextColorInstrumentedTest {
         assertPaints("Export diagnostics", TextPrimary)
         assertPaints("Choose backup", Background)
         assertPaints(context.getString(R.string.action_close), TextPrimary)
+    }
+
+    @Test
+    fun snackbarMessageAndActionPaintTheDarkOnLightLabels() {
+        val message = context.getString(R.string.actions_delete_file_remained)
+        val retry = context.getString(R.string.action_retry)
+        composeRule.setContent {
+            SynthXTheme {
+                val state = remember { SnackbarHostState() }
+                LaunchedEffect(state) {
+                    state.showSynthXSnackbar(message, actionLabel = retry, duration = SnackbarDuration.Indefinite)
+                }
+                Box(modifier = Modifier.fillMaxSize().background(Background)) {
+                    SynthXSnackbarHost(hostState = state, modifier = Modifier.align(Alignment.BottomCenter))
+                }
+            }
+        }
+        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText(retry).fetchSemanticsNodes().isNotEmpty() }
+        assertPaints(message, Background)
+        assertPaints(retry, Background)
+        composeRule.assertDialogButton(retry, SynthXButtonRole.TertiaryOnLight, backdrop = TextPrimary)
     }
 }

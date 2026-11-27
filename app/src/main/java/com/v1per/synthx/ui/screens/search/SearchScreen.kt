@@ -78,6 +78,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.theme.TextTertiary
 import kotlinx.coroutines.flow.SharedFlow
 import com.v1per.synthx.ui.components.SynthXSnackbarHost
+import com.v1per.synthx.ui.components.showSynthXSnackbar
 
 @Composable
 fun SearchScreen(
@@ -114,7 +115,7 @@ fun SearchScreen(
                 SearchViewModel.ActionError.RenamePlaylistFailed -> R.string.error_rename_playlist
                 SearchViewModel.ActionError.DeletePlaylistFailed -> R.string.error_delete_playlist
             }
-            snackbarHostState.showSnackbar(resources.getString(messageRes))
+            snackbarHostState.showSynthXSnackbar(resources.getString(messageRes))
         }
     }
 

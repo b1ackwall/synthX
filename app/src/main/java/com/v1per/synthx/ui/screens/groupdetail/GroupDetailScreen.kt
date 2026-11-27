@@ -29,6 +29,7 @@ import com.v1per.synthx.ui.components.PlaylistRow
 import com.v1per.synthx.ui.theme.Background
 import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.components.SynthXSnackbarHost
+import com.v1per.synthx.ui.components.showSynthXSnackbar
 
 @Composable
 fun GroupDetailScreen(
@@ -60,7 +61,7 @@ fun GroupDetailScreen(
                 GroupDetailViewModel.ActionError.RemoveFromGroupFailed -> R.string.error_remove_from_group
                 GroupDetailViewModel.ActionError.MoveToGroupFailed -> R.string.error_move_playlist
             }
-            snackbarHostState.showSnackbar(resources.getString(messageRes))
+            snackbarHostState.showSynthXSnackbar(resources.getString(messageRes))
         }
     }
 

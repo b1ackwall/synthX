@@ -35,8 +35,11 @@ import com.v1per.synthx.ui.theme.Strokes
 import com.v1per.synthx.ui.theme.SurfaceVariant
 import com.v1per.synthx.ui.theme.TextPrimary
 
-/** The four button roles. Each has fixed colours in [synthXButtonColors]; none of them uses Accent. */
-enum class SynthXButtonRole { Primary, Secondary, Tertiary, Destructive }
+/**
+ * The button roles. Each has fixed colours in [synthXButtonColors]; none of them uses Accent.
+ * [TertiaryOnLight] is the Tertiary role drawn on a TextPrimary surface (the snackbar), so its label is dark.
+ */
+enum class SynthXButtonRole { Primary, Secondary, Tertiary, TertiaryOnLight, Destructive }
 
 /**
  * The colours of one button role. [border] is null for a role drawn without one. While a button is
@@ -64,6 +67,13 @@ fun synthXButtonColors(role: SynthXButtonRole): SynthXButtonColors = when (role)
     SynthXButtonRole.Tertiary -> SynthXButtonColors(
         container = Color.Transparent,
         content = TextPrimary,
+        border = null,
+        disabledAlpha = Alpha.Disabled,
+    )
+
+    SynthXButtonRole.TertiaryOnLight -> SynthXButtonColors(
+        container = Color.Transparent,
+        content = Background,
         border = null,
         disabledAlpha = Alpha.Disabled,
     )
@@ -110,7 +120,8 @@ fun SynthXSecondaryButton(
 
 /**
  * The Tertiary role: a TextPrimary label with no container and no border. Sizing and [content]
- * work as in [SynthXPrimaryButton].
+ * work as in [SynthXPrimaryButton]. [onLightSurface] draws it in [SynthXButtonRole.TertiaryOnLight]
+ * instead: a Background label and ripple, for a button that sits on a TextPrimary surface.
  */
 @Composable
 fun SynthXTextButton(
@@ -118,9 +129,11 @@ fun SynthXTextButton(
     width: SynthXButtonWidth,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    onLightSurface: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
-    SynthXButton(SynthXButtonRole.Tertiary, onClick, width, enabled, modifier, content)
+    val role = if (onLightSurface) SynthXButtonRole.TertiaryOnLight else SynthXButtonRole.Tertiary
+    SynthXButton(role, onClick, width, enabled, modifier, content)
 }
 
 /**

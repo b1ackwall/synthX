@@ -58,6 +58,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import com.v1per.synthx.ui.components.SynthXSnackbarHost
+import com.v1per.synthx.ui.components.showSynthXSnackbar
 
 /**
  * The app shell. Which of three surfaces it composes is decided by [RestoreShellPolicy] from
@@ -168,7 +169,7 @@ private fun NormalShell(
                 PlaybackError.ServiceUnavailable ->
                     resources.getString(R.string.playback_error_service_unavailable)
             }
-            snackbarHostState.showSnackbar(message)
+            snackbarHostState.showSynthXSnackbar(message)
         }
     }
 
@@ -360,7 +361,7 @@ private fun NormalShell(
                         // a session connection and has shown its own error snackbar.
                         if (playbackViewModel.answerKeep() == true) {
                             val message = resources.getString(R.string.actions_playing_next)
-                            scope.launch { snackbarHostState.showSnackbar(message) }
+                            scope.launch { snackbarHostState.showSynthXSnackbar(message) }
                         }
                     },
                     onClear = playbackViewModel::answerClear,

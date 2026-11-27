@@ -10,6 +10,6 @@ object Strokes {
     /** The stroke of a CircularProgressIndicator. */
     val ProgressRing = 2.dp
 
-    /** The border of a Secondary button and of the snackbar, drawn in the ButtonBorder colour from Color.kt. */
+    /** The border of a Secondary button, drawn in the ButtonBorder colour from Color.kt. */
     val ButtonBorder = 1.dp
 }

@@ -224,6 +224,10 @@ re-declares to add the missing type. Versions centralized in gradle/libs.version
      OnboardingChoiceStep.kt)
 - The theme's primary and secondary are Accent, so a TextButton or other primary-coloured
   control without an explicit colour inherits it.
+- Snackbars: one shared host, SynthXSnackbarHost (ui/components/SynthXSnackbar.kt), a light box in the
+  Primary button colours (TextPrimary fill, Background text, no border) that a horizontal swipe dismisses.
+  Producers call showSynthXSnackbar, never showSnackbar (SharedControlUsageTest): a new message replaces a
+  showing snackbar without an action and queues behind one with an action.
 - Outfit font (body/UI). The wordmark is the fixed-colour vector drawable ic_wordmark (no font).
 - 2dp corner radius via MaterialTheme.shapes.small — single source of truth, don't hardcode radii.
 - Apple Music-inspired UX: smooth navigation, instant cut transitions (not slow fades).

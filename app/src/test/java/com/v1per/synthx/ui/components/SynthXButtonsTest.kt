@@ -44,6 +44,12 @@ class SynthXButtonsTest {
             border = ButtonBorder,
         )
         assertColors(SynthXButtonRole.Tertiary, container = Color.Transparent, content = TextPrimary, border = null)
+        assertColors(
+            SynthXButtonRole.TertiaryOnLight,
+            container = Color.Transparent,
+            content = Background,
+            border = null,
+        )
         assertColors(SynthXButtonRole.Destructive, container = Error, content = Background, border = null)
     }
 

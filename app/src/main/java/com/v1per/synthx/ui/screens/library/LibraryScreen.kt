@@ -62,6 +62,7 @@ import com.v1per.synthx.ui.theme.TextPrimary
 import com.v1per.synthx.ui.theme.TextSecondary
 import kotlinx.collections.immutable.ImmutableList
 import com.v1per.synthx.ui.components.SynthXSnackbarHost
+import com.v1per.synthx.ui.components.showSynthXSnackbar
 
 // Body is bracketed by begin/endSection (PerfTraceSections); try/finally cannot wrap composables.
 @SuppressLint("UnclosedTrace")
@@ -85,7 +86,7 @@ fun LibraryScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel) {
-        viewModel.refreshMessages.collect { message -> snackbarHostState.showSnackbar(message) }
+        viewModel.refreshMessages.collect { message -> snackbarHostState.showSynthXSnackbar(message) }
     }
 
     val currentOnNavigateToSongs by rememberUpdatedState(onNavigateToSongs)

@@ -81,6 +81,7 @@ import com.v1per.synthx.ui.components.SynthXButtonWidth
 import com.v1per.synthx.ui.components.SynthXPrimaryButton
 import com.v1per.synthx.ui.components.SynthXSecondaryButton
 import com.v1per.synthx.ui.components.SynthXSnackbarHost
+import com.v1per.synthx.ui.components.showSynthXSnackbar
 import androidx.compose.material3.LocalContentColor
 
 @Composable
@@ -116,7 +117,7 @@ fun PlaylistListScreen(
                 PlaylistListViewModel.ActionError.DeleteGroupFailed -> R.string.error_delete_group
                 PlaylistListViewModel.ActionError.CreateGroupFailed -> R.string.error_create_group
             }
-            snackbarHostState.showSnackbar(resources.getString(messageRes))
+            snackbarHostState.showSynthXSnackbar(resources.getString(messageRes))
         }
     }
 

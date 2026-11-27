@@ -44,6 +44,7 @@ import com.v1per.synthx.ui.theme.TextSecondary
 import com.v1per.synthx.ui.components.SynthXButtonWidth
 import com.v1per.synthx.ui.components.SynthXTextButton
 import com.v1per.synthx.ui.components.SynthXSnackbarHost
+import com.v1per.synthx.ui.components.showSynthXSnackbar
 // Aliased: the Material3 `Surface` composable already owns this simple name in this file.
 
 @Composable
@@ -115,7 +116,7 @@ fun IssuesScreen(
                 is IssuesActionEvent.DeletedButCleanupUncertain -> event.filePath
                 else -> null
             }
-            val result = snackbarHostState.showSnackbar(
+            val result = snackbarHostState.showSynthXSnackbar(
                 message = message,
                 actionLabel = retryPath?.let { resources.getString(R.string.action_retry) },
                 duration = if (retryPath != null) SnackbarDuration.Long else SnackbarDuration.Short,

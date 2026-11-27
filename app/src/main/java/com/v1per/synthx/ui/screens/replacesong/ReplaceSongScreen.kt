@@ -27,6 +27,7 @@ import com.v1per.synthx.ui.components.SynthXButtonWidth
 import com.v1per.synthx.ui.components.SynthXPrimaryButton
 import com.v1per.synthx.ui.components.SynthXSecondaryButton
 import com.v1per.synthx.ui.components.SynthXSnackbarHost
+import com.v1per.synthx.ui.components.showSynthXSnackbar
 
 /**
  * Swaps one song's library identity onto another and completely deletes the original.
@@ -218,7 +219,7 @@ internal fun ReplaceSongSuccessAcknowledgement(
 ) {
     LaunchedEffect(complete) {
         if (complete != null && complete.warning == null) {
-            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+            snackbarHostState.showSynthXSnackbar(message, duration = SnackbarDuration.Short)
             onExit()
         }
     }
