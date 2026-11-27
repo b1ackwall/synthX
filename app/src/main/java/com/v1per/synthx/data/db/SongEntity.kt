@@ -36,10 +36,17 @@ data class SongEntity(
     @ColumnInfo(name = "is_missing", defaultValue = "0") val isMissing: Boolean = false,
     @ColumnInfo(name = "missing_since") val missingSince: Long? = null,
     /**
-     * Starred = "not yet organized into a playlist". True on insert for every newly scanned
-     * song, and cleared only by an explicit user dismissal (SongDao.dismissFromStarred) —
-     * never automatically by joining a playlist, so a song the user deliberately kept starred
-     * stays starred.
+     * Starred = "not yet organized into a playlist". A scan sets it from the root it finds the
+     * file under (FolderScanner.scan's isNewArrivalsRoot): true for a song it inserts or finds
+     * moved under the New Arrivals tree, false under the Music root. A song whose stored copy
+     * still exists keeps its flag. That rule does not hold for every row: MIGRATION_7_8 starred
+     * every song outside a playlist, and older app versions starred every scanned song, so a
+     * starred song's file can live in the Music folder.
+     *
+     * Joining a playlist never clears it. Graduation ("Remove from Starred") clears it while
+     * moving the file into the Music folder; Replace Song clears it on a replacement that ends up
+     * in a playlist; a scan that finds the file moved under the Music root clears it; and a
+     * restore replaces it wholesale.
      *
      * The column is named `in_inbox` for historical reasons (the feature was scoped as
      * "Inbox" before the rename to "Starred"); renaming it would cost a full table rebuild

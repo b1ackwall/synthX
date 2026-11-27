@@ -93,6 +93,13 @@
     <string name="graduation_stage_done">Done</string>
     <string name="graduation_dialog_close">Close</string>
 
+    <!-- Starred info dialog (StarredInfoDialog, opened from the Starred screen's top bar) -->
+    <string name="starred_info_dialog_title">About Starred</string>
+    <string name="starred_info_dialog_message_arrivals">Starred holds new songs that arrive through your optional New Arrivals folder. They stay here until you move them into your library.</string>
+    <!-- %1$s is actions_remove_from_starred, so the quoted label always matches the menu row -->
+    <string name="starred_info_dialog_message_graduate">To move a song, add it to a playlist, then open its menu here and tap “%1$s”. The file moves into your Music folder and keeps its playlists.</string>
+    <string name="starred_info_dialog_message_audience">This is for people who like to listen to new songs, sort them into playlists and tidy up as they go. If that’s not you, skip the New Arrivals folder and keep everything in your Music folder.</string>
+
     <!-- Sort -->
     <string name="sort_by">Sort by</string>
     <string name="sort_recently_added">Recently Added</string>
@@ -108,7 +115,7 @@
     <!-- Empty states -->
     <string name="empty_recently_added">No recently added songs</string>
     <string name="empty_no_songs">No songs found</string>
-    <string name="empty_no_starred">Nothing starred right now. New songs land here until you add them to a playlist.</string>
+    <string name="empty_no_starred">Nothing starred right now. Songs found in your New Arrivals folder show up here.</string>
     <string name="empty_no_artists">No artists found</string>
     <string name="empty_no_albums">No albums found</string>
     <string name="empty_no_playlists">No playlists yet</string>
@@ -411,6 +418,7 @@
     <string name="cd_more_options">More options</string>
     <string name="cd_back">Back</string>
     <string name="cd_sort">Sort</string>
+    <string name="cd_starred_info">About Starred</string>
     <string name="cd_play">Play</string>
     <string name="cd_pause">Pause</string>
     <string name="cd_previous_track">Previous</string>

@@ -21,7 +21,9 @@ import kotlinx.coroutines.CancellationException
  * app drops downloads into. Runs on every launch, unlike [LibraryScanWorker], because the
  * tree is expected to be small and its whole point is that files appear in it between
  * sessions. Anything it finds becomes an ordinary library song, surfaced by the existing
- * RECENTLY_ADDED sort; nothing marks it as having come from here.
+ * RECENTLY_ADDED sort. A song it inserts, or finds moved here, is starred
+ * (`isNewArrivalsRoot = true` sets the `in_inbox` column), which is what the Starred screen
+ * lists; a song whose Music-folder copy still exists keeps its row and its flag.
  *
  * Deliberately trimmed relative to [LibraryScanWorker]:
  *  - `reconcileMissing = false` — the missing-detection pass compares the whole library

@@ -1,11 +1,17 @@
 package com.v1per.synthx.ui
 
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -32,8 +38,10 @@ import com.v1per.synthx.ui.screens.artistlist.ArtistListViewModel
 import com.v1per.synthx.ui.screens.songs.SongsScreen
 import com.v1per.synthx.ui.screens.songs.SongsViewModel
 import com.v1per.synthx.ui.screens.songs.SortOrder
+import com.v1per.synthx.ui.screens.starred.StarredInfoDialog
 import com.v1per.synthx.ui.screens.starred.StarredScreen
 import com.v1per.synthx.ui.screens.starred.StarredViewModel
+import com.v1per.synthx.ui.theme.IconSizes
 import com.v1per.synthx.ui.theme.TextPrimary
 
 fun NavGraphBuilder.browseRoutes(
@@ -78,17 +86,32 @@ fun NavGraphBuilder.browseRoutes(
                 factory = StarredViewModel.Factory(LocalContext.current, playbackViewModel),
             )
             val uiState by starredViewModel.uiState.collectAsState()
+            // Saveable so an open explanation survives recreation, such as a font-scale change.
+            var showStarredInfo by rememberSaveable { mutableStateOf(false) }
             ReadinessCoverOverlay(isReady = uiState.isReady()) {
                 StarredScreen(
                     topBar = {
                         DetailTopBar(
                             title = stringResource(R.string.screen_starred),
                             onBack = { navController.popBackStack() },
+                            actions = {
+                                IconButton(onClick = { showStarredInfo = true }) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Info,
+                                        contentDescription = stringResource(R.string.cd_starred_info),
+                                        modifier = Modifier.size(IconSizes.Standard),
+                                        tint = TextPrimary,
+                                    )
+                                }
+                            },
                         )
                     },
                     playbackViewModel = playbackViewModel,
                     viewModel = starredViewModel,
                 )
+            }
+            if (showStarredInfo) {
+                StarredInfoDialog(onDismiss = { showStarredInfo = false })
             }
         }
     }

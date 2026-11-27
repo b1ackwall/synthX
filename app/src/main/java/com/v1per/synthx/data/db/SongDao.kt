@@ -110,8 +110,9 @@ interface SongDao {
     @Query("SELECT EXISTS(SELECT 1 FROM playlist_songs WHERE song_id = :songId)")
     suspend fun isInAnyPlaylist(songId: String): Boolean
 
-    // Deliberately one-way: nothing sets in_inbox back to 1 for an existing song, so a
-    // dismissal sticks even if the song later leaves every playlist it was in.
+    // Clears the flag only; leaving every playlist never sets it back. Two writers can: a scan
+    // that finds the file moved re-derives it from the new path's root (FolderScanner.scan),
+    // and a restore replaces every row's value wholesale.
     @Query("UPDATE songs SET in_inbox = 0 WHERE id = :id")
     suspend fun dismissFromStarred(id: String)
 

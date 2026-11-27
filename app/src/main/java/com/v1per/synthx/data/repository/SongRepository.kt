@@ -83,13 +83,13 @@ interface SongRepository {
 
     // Starred — songs not yet organized into a playlist
 
-    /** Starred, non-missing songs, newest first. */
+    /** Starred songs, newest first, missing ones included (the badge count below leaves them out). */
     fun getStarredSongs(): Flow<List<Song>>
 
     /** Non-missing songs, newest-added first, capped at [limit]. */
     fun getRecentSongs(limit: Int): Flow<List<Song>>
 
-    /** How many songs [getStarredSongs] would return — for the Library row's badge. */
+    /** How many non-missing songs [getStarredSongs] returns — for the Library row's badge. */
     fun getStarredSongCount(): Flow<Int>
 
     /**
